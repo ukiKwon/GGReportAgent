@@ -96,7 +96,7 @@ test('regionMix: notice·noticeOpen·receiving 수, 점수 +2, ▲(urgent)는 6�
   assert.strictEqual(m.overdue, 0);
   assert.strictEqual(m.imminent.name, 'D');                                  // 가장 임박은 공고 전 예정 기관
   assert.deepStrictEqual(m.notices.map(n => n.name), ['A', 'B', 'C']);
-  assert.strictEqual(logic.urgentMark(m), '△1');
+  assert.strictEqual(m.urgentAllEst, true);
   // 마감 지난 곳만 있으면 색에서 빠져 회색, 개수는 notice로 센다
   const only = logic.regionMix([nrec('C', 50, { receiveTo: plus(-10) })], TODAY);
   assert.strictEqual(only.band, 'gray'); assert.strictEqual(only.notice, 1); assert.strictEqual(only.noticeOpen, 0);
@@ -189,17 +189,15 @@ test('index.html 필터 체크박스는 정본 6종(기타 없음), 옛 이름(�
 });
 
 // ── 지도: 라벨·툴팁·aria·범례·티커 ──────────────────────────────────
-test('라벨 둘째 줄 \'공고 n\'과 첫 줄 dy', () => {
-  assert.strictEqual(render.noticeSubText({ notice: 5 }), '공고 5');
-  assert.strictEqual(render.noticeSubText({ notice: 0 }), '');
-  assert.strictEqual(render.noticeSubText(undefined), '');
-  assert.strictEqual(render.labelDy(true, false), '0.35em');
-  assert.strictEqual(render.labelDy(true, true), '0em');
-  assert.strictEqual(render.labelDy(false, false), '0em');
+test('라벨 둘째 줄 \'공고 n\' 없음(사용자 11-25), 첫 줄 dy는 활성 0.35em·준비중 0em', () => {
+  assert.strictEqual(render.noticeSubText, undefined);
+  assert.strictEqual(render.labelDy(true), '0.35em');
+  assert.strictEqual(render.labelDy(false), '0em');
   const src = fs.readFileSync(path.join(ROOT, 'js/render.js'), 'utf8');
-  assert.ok(src.indexOf("attr('class', 'sub notice')") >= 0 && src.indexOf("attr('dy', '1.15em').text(noticeTxt)") >= 0);
+  assert.ok(src.indexOf('noticeSubText') < 0 && src.indexOf("'sub notice'") < 0);
+  assert.ok(src.indexOf("text('준비중')") >= 0);
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert.ok(/\.label \.sub\.notice \{[^}]*font-weight:700/.test(html));
+  assert.ok(!/\.sub\.notice/.test(html) && !/lg-nchip/.test(html));
 });
 
 const TIP_LIST = [
@@ -208,27 +206,26 @@ const TIP_LIST = [
   { name: '하동군청', region: '11', type: '지자체', contractEnd: plus(30), confirmed: false },
 ];
 
-test('tipHtml 첫 블록: 공고 진행 중 n곳 — 마감 전 a · 선정 결과 대기 b, 마감 전 최대 2곳, 선정 결과 대기 1곳 + 외 n곳', () => {
+test('tipHtml 공고 블록: 공고 진행 중 n건 + 상태별 줄(마감 전·접수 기간 원문 확인·선정 결과 대기) + 이름 줄, 마감 전 최대 2곳 + 외 n건', () => {
   const info = logic.regionMix(TIP_LIST, TODAY);
   const h = render.tipHtml('서울', info, TODAY);
-  assert.ok(h.includes('공고 진행 중 4곳'), h);
-  assert.ok(h.includes('마감 전 2 · 접수 기간 원문 확인 1 · 선정 결과 대기 1'), h);
-  assert.ok(h.includes('송파문화재단 <span class="rt-d">마감 D-4</span>'), h);
-  assert.ok(h.includes('마포구청 <span class="rt-d">접수 ' + md(4) + '~' + md(7) + '</span>'), h);
+  assert.ok(h.includes('<div class="rt-kv rt-t"><span>공고 진행 중</span><span class="rt-n">4건</span></div>'), h);
+  assert.ok(h.includes('<div class="rt-kv rt-sub"><span>마감 전</span><span class="rt-n">2건</span></div>'), h);
+  assert.ok(h.includes('<span>접수 기간 원문 확인</span><span class="rt-n">1건</span>'), h);
+  assert.ok(h.includes('<span>선정 결과 대기</span><span class="rt-n">1건</span>'), h);
+  assert.ok(h.includes('<span class="rt-nm">송파문화재단</span><span class="rt-d">마감 D-4</span>'), h);
+  assert.ok(h.includes('<span class="rt-nm">마포구청</span><span class="rt-d">접수 ' + md(4) + '~' + md(7) + '</span>'), h);
   assert.ok(h.indexOf('송파문화재단') < h.indexOf('마포구청'), '마감 가까운 순');
-  assert.ok(h.includes('성북구청 <span class="rt-m">공고 ' + md(-20) + ' · 공고 후 20일 · 접수 기간 원문 확인</span></div>'), h);
-  assert.ok(h.includes('정읍시청 <span class="rt-m">공고 후 50일</span>'), h);
-  assert.ok(h.indexOf('공고 진행 중 4곳') < h.indexOf('가장 임박'), '첫 블록이 먼저');
-  assert.ok(h.includes('가장 임박 하동군청'), h);
-  assert.ok(h.includes('기관 5곳 중 선정 결과 대기 1곳은 색에 넣지 않음'), h);
-  // 머리 줄과 꼬리의 선정 결과 대기 수가 같다: awaiting 1 + late 1 → 둘 다 2
-  const both = render.tipHtml('x', Object.assign({}, info, { awaiting: 1, late: 1 }), TODAY);
-  assert.ok(both.includes('선정 결과 대기 2곳은 색에 넣지 않음') && !both.includes('마감 지난 공고'), both);
-  // 마감 전이 셋 이상이면 외 n곳, 결과 확인이 마감 지남이면 '공고 후 n일'
+  assert.ok(h.includes('<span class="rt-nm">성북구청</span><span class="rt-d rt-q">공고 후 20일</span>'), h);
+  assert.ok(h.includes('<div class="rt-it rt-w"><span class="rt-nm">정읍시청</span><span class="rt-d">공고 후 50일</span></div>'), h);
+  assert.ok(h.indexOf('공고 진행 중') < h.indexOf('입찰 예정 시기'), '첫 블록이 먼저');
+  assert.ok(!h.includes('가장 임박') && !h.includes('rt-l') && !h.includes('하동군청'), h);   // '가장 임박' 줄은 툴팁에서 뺌(design 11-24)
+  assert.ok(h.includes('<span>합계</span><span class="rt-n">5건</span>') && h.includes('지도 색은 5건 중 4건으로 정했습니다') && !h.includes('뺌') && !h.includes('마감 지난 공고'), h);
+  // 마감 전이 셋 이상이면 외 n건, 결과 확인이 마감 지남이면 '공고 후 n일'
   const three = logic.regionMix([nrec('a', 5, { receiveTo: plus(1) }), nrec('b', 5, { receiveTo: plus(2) }), nrec('c', 5, { receiveTo: plus(3) }),
     nrec('d', 33, { receiveTo: plus(-2) })], TODAY);
   const h3 = render.tipHtml('x', three, TODAY);
-  assert.ok(h3.includes('마감 전 외 1곳') && h3.includes('d <span class="rt-m">공고 후 33일</span>') && !h3.includes('외 0곳'), h3);
+  assert.ok(h3.includes('<div class="rt-it rt-w"><span class="rt-nm">외 1건</span></div>') && h3.includes('<span class="rt-nm">d</span><span class="rt-d">공고 후 33일</span>') && !h3.includes('외 0건'), h3);
 });
 
 test('tipHtml: 공고만 있는 지역은 \'날짜가 있는 기관이 없습니다\'를 붙이지 않고, 이름은 이스케이프', () => {
@@ -238,22 +235,22 @@ test('tipHtml: 공고만 있는 지역은 \'날짜가 있는 기관이 없습니
   assert.ok(h.includes('&lt;b&gt;x&lt;/b&gt;') && !h.includes('<b>x</b>'));
 });
 
-test('mixAriaLabel: 공고 진행 중 n곳(마감 전 m곳), 6개월 안 n곳, 기관 n곳', () => {
+test('mixAriaLabel: 공고 진행 중 n건(마감 전 m건), 6개월 안 공고 예정 n건, 합계 n건', () => {
   const info = logic.regionMix(TIP_LIST, TODAY);
   assert.strictEqual(render.mixAriaLabel('서울', info),
-    '서울, ' + render.MIX_NAME[info.band] + ', 공고 진행 중 4곳(마감 전 2곳), 6개월 안 1곳(모두 추정), 기관 5곳');
+    '서울, ' + render.MIX_NAME[info.band] + ', 공고 진행 중 4건(마감 전 2건), 6개월 안 공고 예정 1건(모두 추정), 합계 5건');
   const zero = logic.regionMix([nrec('a', 5, { receiveTo: plus(4) })], TODAY);
-  assert.ok(render.mixAriaLabel('서울', zero).includes('공고 진행 중 1곳(마감 전 1곳), 6개월 안 0곳, 기관 1곳'));
+  assert.ok(render.mixAriaLabel('서울', zero).includes('공고 진행 중 1건(마감 전 1건), 6개월 안 공고 예정 0건, 합계 1건'));
   // 공고가 없으면 기존 문장 그대로
   const none = logic.regionMix([{ name: 'z', type: '지자체', contractEnd: plus(30), confirmed: true }], TODAY);
   assert.ok(!render.mixAriaLabel('서울', none).includes('공고 진행 중'));
 });
 
-test('범례: ▲ 줄 문구 변경 + \'공고 n\' 칩 줄', () => {
+test('범례: 전국 범례에 ▲n 줄·공고 n 칩 줄 없음(사용자 11-25)', () => {
   const el = { innerHTML: '' };
   withDoc({ getElementById: id => (id === 'legend' ? el : null) }, () => render.drawLegend());
-  assert.ok(el.innerHTML.includes('6개월 안 공고 예정 기관 수 (속 빈 △는 추정)'));
-  assert.ok(el.innerHTML.includes('<i class="lg-nchip" aria-hidden="true">공고 2</i>공고가 나서 진행 중인 기관 수 (공고일부터 120일)'));
+  assert.ok(!el.innerHTML.includes('6개월 안 공고 예정 기관 수') && !el.innerHTML.includes('lg-tri"'));
+  assert.ok(!el.innerHTML.includes('lg-nchip') && !el.innerHTML.includes('lg-tri-row') && !el.innerHTML.includes('공고가 나서 진행 중인 기관 수'));
   assert.ok(!el.innerHTML.includes('6개월 안 기관 수 (속 빈'));
 });
 
@@ -480,10 +477,10 @@ test('M3: 마감일 미확인은 공고 후 30일까지만 +2·띠 카드, 31일
   const r31 = dash.rowHtml(by('u31'), { id: 'b' });
   assert.ok(r31.includes('결과 공고를 확인하세요') && r31.includes('data-check="1"'), r31);
   assert.ok(!dash.rowHtml(by('u30'), { id: 'a' }).includes('data-check'));
-  // 툴팁: 미확인(30일 이내)과 결과 확인을 나눠 센다. 지도 '공고 n'은 진행 중 전체 수 그대로
+  // 툴팁: 미확인(30일 이내)과 결과 확인을 나눠 센다. 진행 중 전체 수(info.notice)는 그대로
   const tip = render.tipHtml('서울', logic.regionMix([nrec('r', 5, { receiveTo: plus(3) }), u30, u31], TODAY), TODAY);
-  assert.ok(tip.includes('마감 전 1 · 접수 기간 원문 확인 1 · 선정 결과 대기 1'), tip);
-  assert.strictEqual(render.noticeSubText(logic.regionMix([u30, u31], TODAY)), '공고 2');
+  assert.ok(tip.includes('<span>마감 전</span><span class="rt-n">1건</span>') && tip.includes('<span>접수 기간 원문 확인</span><span class="rt-n">1건</span>') && tip.includes('<span>선정 결과 대기</span><span class="rt-n">1건</span>'), tip);
+  assert.strictEqual(logic.regionMix([u30, u31], TODAY).notice, 2);
 });
 
 test('L2: 공고일이 오늘인 확정 공고는 티커 TOP5에 D-day로 들지 않고 \'공고 중 n\'에만 센다', () => {

@@ -927,26 +927,32 @@
   .label { paint-order:stroke; stroke:#eef2f8; stroke-width:3px; stroke-linejoin:round;
            fill:#141922; font-size:13px; font-weight:700; }
   .label .sub { font-size:10px; font-weight:600; fill:#333b4c; }
-  /* 둘째 줄 '공고 n'(공고 진행 중 기관 수) — 10px/700, 글자색은 라벨(부모)을 그대로 따르고 후광도 라벨과 같다 */
-  .label .sub.notice { font-weight:700; fill:inherit; }
-  /* ▲n(6개월 안 기관 수) — 라벨과 같은 잉크·후광. 숫자는 mono */
-  .label .tri { font-family:var(--mono); font-size:11px; font-weight:700; stroke-width:2.5px; }
   /* 포커스 표시는 덮개 층(.ring-focus, 키보드일 때만)이 그린다. :focus까지 끈다 — 마우스로 면을 누르면 브라우저 기본 외곽선이
      면의 경계 상자(검은 사각형)로 잠깐 그려졌다가 드릴인으로 사라졌다(사용자 11-24). */
   .region:focus, .subregion:focus, .region:focus-visible, .subregion:focus-visible, #map-svg:focus { outline:none; }
-  #region-tip { display:none; position:fixed; z-index:21; pointer-events:none; max-width:280px;
+  #region-tip { display:none; position:fixed; z-index:21; pointer-events:none; min-width:232px; max-width:288px;
                 background:var(--panel);
-                border:1px solid var(--line-strong); border-radius:var(--r); padding:10px 12px;
-                font-size:12px; box-shadow:var(--shadow); }
+                border:1px solid var(--line-strong); border-radius:var(--r); padding:8px 12px 10px;
+                font-size:12px; line-height:18px; box-shadow:var(--shadow); }
   #region-tip .rt-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px; }
+  #region-tip .rt-head b { font-size:13px; }
   #region-tip .rt-sw { width:12px; height:12px; border-radius:var(--r); border:1px solid rgba(0,0,0,.35); flex:none; }
-  #region-tip .rt-row { margin-top:3px; }
-  #region-tip .rt-m, #region-tip .rt-d { font-family:var(--mono); }
-  #region-tip .rt-mu { margin-top:5px; font-size:12px; color:var(--muted); }
-  /* 공고 진행 중 블록 — 왼쪽 2px 빨강(70%) 막대. 이름은 마감 전 2곳 + 결과 확인 1곳 */
+  /* 한 줄에 항목 하나 — 이름 왼쪽·수/날짜 오른쪽(mono). 블록 사이 1px 선. 이름이 길면 날짜가 다음 줄 오른쪽으로 내려간다(design 11-24 6-A) */
+  #region-tip .rt-sec { border-top:1px solid var(--line); margin-top:6px; padding-top:6px; }
+  #region-tip .rt-kv, #region-tip .rt-it { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; column-gap:12px; }
+  #region-tip .rt-t { font-weight:700; }
+  #region-tip .rt-sub { padding-left:10px; }
+  #region-tip .rt-it { padding-left:20px; }
+  #region-tip .rt-sec > .rt-it { padding-left:0; }
+  #region-tip .rt-n, #region-tip .rt-d { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  #region-tip .rt-n { min-width:4ch; text-align:right; }
+  #region-tip .rt-d { margin-left:auto; }
+  #region-tip .rt-mu { margin-top:4px; font-size:12px; color:var(--muted); }
+  /* 공고 진행 중 블록 — 왼쪽 2px 빨강(70%) 막대. 날짜는 빨강 계열, 접수 기간 원문 확인·선정 결과 대기 줄은 무채색 */
   #region-tip .rt-notice { border-left:2px solid color-mix(in srgb, var(--red) 70%, var(--fg)); padding:2px 0 2px 8px; margin:4px 0 6px; }
   #region-tip .rt-notice .rt-d { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
-  #region-tip .rt-notice .rt-w, #region-tip .rt-notice .rt-m { color:var(--muted); }
+  #region-tip .rt-notice .rt-w { color:var(--muted); }
+  #region-tip .rt-notice .rt-w .rt-d, #region-tip .rt-notice .rt-d.rt-q { color:var(--muted); }
   .region.watched { stroke:var(--fg); stroke-width:1.5; stroke-dasharray:4 2; }
   @keyframes ripple { from { r:6; opacity:.85; } to { r:26; opacity:0; } }
   .ripple-ring { fill:none; stroke:var(--accent-color); stroke-width:3;
@@ -1003,9 +1009,6 @@
   #legend .lg-sw { width:12px; height:12px; border-radius:var(--r); border:1px solid rgba(0,0,0,.35); display:inline-block; }
   #legend .lg-hatch { background-image:repeating-linear-gradient(45deg, rgba(15,18,24,.5) 0 2px, transparent 2px 4px); }
   #legend .lg-tri-row { color:var(--fg); }
-  #legend .lg-tri { font-family:var(--mono); font-size:12px; min-width:12px; text-align:center; }
-  /* '공고 n' 칩 — 라벨 둘째 줄의 글자와 같은 말. 잉크/바탕을 뒤집은 작은 칩(토큰만) */
-  #legend .lg-nchip { display:inline-block; font:700 12px var(--mono); font-style:normal; color:var(--bg); background:var(--fg); border-radius:var(--r); padding:0 4px; min-width:12px; text-align:center; }
 
   /* 랭킹 — 부드러운 카드 패널, 행 호버 슬라이드 */
   #rank-panel { flex:1; display:none; overflow:auto; max-height:100%;
@@ -1027,9 +1030,46 @@
   .rank-card small { color:var(--muted); font-family:var(--mono); font-size:12px; }
   .rank-noloc { margin-top:4px; font-size:12px; color:var(--muted); }
   .heart { cursor:pointer; float:right; color:var(--red); }
+  .rk-note { margin:0 0 0 14px; padding:5px 14px 6px 12px; font-size:12px; color:var(--red);
+             border-left:1px solid var(--line); border-bottom:1px solid var(--line); background:var(--panel2); }
   .miss { color:var(--red); font-weight:bold; }
   #rank-panel > div:last-child { padding:10px 14px; }
   #rank-more { width:100%; }
+  /* 시군구 묶음 목록 시작 */
+  /* 오른쪽 목록 = 시군구 묶음(design-reviewer 2026-11-24_1839 6-B). 토큰만. 움직임 없음. --rank-head-h는 JS가 .rank-head 높이로 덮어쓴다 */
+  #rank-panel { --rank-head-h:45px; }
+  /* 묶음 = 머리 띠(--bg, 14/700, 위아래 --line-strong) + 14px 들인 기관 행(1px --line 세로선). 묶음 사이 구분은 머리 위 선 하나(design 11-24 5-2) */
+  .rk-grp { position:relative; border-top:1px solid var(--line-strong); }
+  .rk-grp:first-child { border-top:0; }
+  .rk-grp > :last-child, .rk-rest > .rank-card:last-child { border-bottom:0; }
+  .rk-gh { position:sticky; top:var(--rank-head-h); z-index:1; margin:0; font:inherit;
+           background:var(--bg); border-bottom:1px solid var(--line-strong); }
+  .rk-gbtn, .rk-gstatic { display:grid; grid-template-columns:1fr auto; row-gap:1px; width:100%; box-sizing:border-box;
+           padding:8px 14px 7px; background:transparent; border:0; border-radius:0; font:inherit; color:var(--fg);
+           text-align:left; white-space:normal; }
+  .rk-gbtn { cursor:pointer; transition:none; }   /* 전역 button의 background transition을 이어받지 않는다(움직임 없음) */
+  .rk-gbtn:hover { background:color-mix(in srgb, var(--fg) 6%, var(--bg)); }
+  .rk-gbtn:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
+  .rk-gn { font-size:14px; font-weight:700; letter-spacing:-0.01em; }
+  .rk-gt { font:700 13px var(--mono); }
+  .rk-gs { grid-column:1 / -1; display:flex; flex-wrap:wrap; column-gap:10px; font-size:12px; color:var(--muted); }
+  .rk-gs b { font-family:var(--mono); font-weight:700; color:var(--fg); }
+  /* 기관 행을 묶음 아래에 매단다 — 들임 14px + 세로선 */
+  .rk-grp > .rank-card, .rk-rest > .rank-card { margin-left:14px; padding-left:12px; border-left:1px solid var(--line); }
+  /* 선택 묶음 몸통 막대는 ::before로 — 자식 hover·.hi 바탕에 가려지지 않게. z-index 2 금지(.rank-head를 뚫는다). 머리 막대는 아래 inset 그대로 */
+  .rk-grp.on { box-shadow:none; }
+  .rk-grp.on::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent-color); z-index:1; pointer-events:none; }
+  .rk-grp.on .rk-gh { background:color-mix(in srgb, var(--accent-color) 13%, var(--panel)); box-shadow:inset 3px 0 0 var(--accent-color); }
+  .rk-grp.on .rk-gbtn:hover { background:transparent; }
+  .rk-rest-btn { display:flex; align-items:center; gap:6px; margin-left:14px; width:calc(100% - 14px); min-height:28px; padding:4px 14px 4px 12px;
+           background:transparent; border:0; border-top:1px solid var(--line); border-left:1px solid var(--line); border-radius:0;
+           font-size:12px; color:var(--fg); text-align:left; cursor:pointer; transition:none; }
+  .rk-rest-btn::before { content:""; border:4px solid transparent; border-left:5px solid currentColor; border-right:0; }
+  .rk-rest-btn[aria-expanded="true"]::before { transform:rotate(90deg); }
+  .rk-rest-btn:hover { background:var(--panel2); border-color:var(--line); }
+  .rk-rest-btn:focus-visible { outline:2px solid var(--accent-color); outline-offset:-2px; }
+  @media screen and (max-width:880px) { .rk-gh { position:static; } }   /* 40vh 패널에서 머리 두 겹 고정이 자리를 다 먹는다. 'screen and' — 다른 시험이 첫 '@media (max-width:880px)'를 찾는다 */
+  /* 시군구 묶음 목록 끝 */
 
   /* 전국 지역별 — 칩 규칙은 #pin-bar 안으로 좁힌다(.stab.pin 시작화면 탭에 12px·grab이 새던 것, design 11-23) */
   #pin-bar { display:flex; gap:8px; flex-wrap:wrap; min-height:34px; margin-bottom:12px; }
@@ -1786,6 +1826,10 @@
   .ov-item { display:grid; grid-template-columns:auto minmax(0,1fr) auto; column-gap:8px; row-gap:3px; align-items:center;
              padding:9px 14px; border-bottom:1px solid var(--line); }
   .ov-name { font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ov-item .ov-open { background:none; border:0; padding:2px 0; margin:0; height:auto; font:inherit; font-size:13px; font-weight:700;
+                      color:inherit; text-align:left; cursor:pointer; min-width:0; }
+  .ov-item .ov-open:hover { text-decoration:underline; }
+  .ov-item .ov-open:focus-visible { outline-offset:2px; }
   .ov-meta { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; font-size:12px; color:var(--muted); }
   .ov-date { font-family:var(--mono); }
   /* 도장 폭을 고정해 D+9·D+99·D+999 모두 기관명 x가 같게 */
@@ -1836,9 +1880,7 @@
     #map-stage { flex:none; min-height:52vh; }
     /* 좁은 지도에서 지역명 충돌 방지 — 축소 + 준비중 부제 숨김 (마감 리뷰 반영) */
     .label { font-size:10px; stroke-width:2px; }
-    .label .tri { font-size:10px; stroke-width:2px; }
     .label .sub { display:none; }
-    .label .sub.notice { display:inline; }
     #rank-panel { flex:none; max-height:40vh; }
     #dg-wrap { flex-direction:column; }
     #dg-list { width:auto; max-height:38vh; }

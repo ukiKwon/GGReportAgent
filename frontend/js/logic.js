@@ -559,7 +559,7 @@
   // 지역(또는 면) 하나의 섞기 결과. list는 호출자가 켠 종류·기관 단위 중복 제거를 마친 목록.
   // band: 'none'(기관 0곳) | 'gray'(경과 아닌 날짜 있는 기관 0곳) | r3·r2·p·b2·b3.
   // 색은 평균 점수만으로 정한다(사용자 2026-11-12 — '최소 보라' 바닥 규칙 뺌). 경과 기관은 overdue로만 센다.
-  // urgent = 6개월 안 기관 수(▲n), urgentAllEst = 그 기관이 전부 추정이면 true(속 빈 △).
+  // urgent = 6개월 안 기관 수(aria·툴팁용), urgentAllEst = 그 기관이 전부 추정이면 true.
   // 공고 진행 중(noticeState): notice = 진행 중 전체, noticeOpen = 마감 전+마감일 미확인 30일 이내(점수 +2), receiving = 마감 전,
   // awaiting = 마감 지남, late = 마감일 미확인 30일 초과(둘 다 결과 확인, 색에서 뺌), notices = 이름·상태 목록(툴팁용). 진행 중은 urgent(▲)에 세지 않는다(B안).
   logic.regionMix = function (list, today) {
@@ -603,12 +603,6 @@
     }), today);
     if (info.notice) info.notices = logic.noticeSummary(items, today).items;
     return info;
-  };
-
-  // 라벨 뒤에 붙는 ▲n. 6개월 안 기관이 없으면 ''. 모두 추정이면 속 빈 △.
-  logic.urgentMark = function (info) {
-    if (!info || !(info.urgent > 0)) return '';
-    return (info.urgentAllEst ? '△' : '▲') + info.urgent;
   };
 
   // ── 시군구 드릴인 '지시선 카드'(사용자 11-24 — 도형 기호 대신 글, design-reviewer 2026-11-24_1544) ──
@@ -707,6 +701,122 @@
     return out;
   };
 
+  // ── 지역별 공고현황 툴팁·오른쪽 목록 시군구 묶음(design-reviewer 2026-11-24_1839 6-A·6-B, 팀 결정 11-24) ──
+  // 분류 이름·순서는 시군구 카드(subCardLines)와 같다. 겹치지 않는 구간이며 0건은 뺀다.
+  // 1개월 미만 = within1, 6개월 미만 = within6 − within1(30일~6개월), 1년 미만 = to12, 2년 미만 = to24, 2년 이상 = over24, 알 수 없음 = unknown.
+  logic.tipBuckets = function (info) {
+    if (!info) return [];
+    const rows = [
+      { key: 'within1', label: '1개월 미만', n: info.within1 || 0 },
+      { key: 'within6', label: '6개월 미만', n: Math.max(0, (info.within6 || 0) - (info.within1 || 0)) },
+      { key: 'to12', label: '1년 미만', n: info.to12 || 0 },
+      { key: 'to24', label: '2년 미만', n: info.to24 || 0 },
+      { key: 'over24', label: '2년 이상', n: info.over24 || 0 },
+      { key: 'unknown', label: '알 수 없음', n: info.unknown || 0 },
+    ];
+    return rows.filter(function (r) { return r.n > 0; });
+  };
+  // 기관 하나가 어느 구간인가 — regionMix([r])와 같은 판정이라 면 색·카드·툴팁과 어긋나지 않는다.
+  // 'notice'(공고 중) | 'overdue'(경과) | within1 | within6 | to12 | to24 | over24 | unknown
+  logic.recordBucket = function (r, today) {
+    const i = logic.regionMix([r], today);
+    if (i.notice) return 'notice';
+    if (i.overdue) return 'overdue';
+    if (i.unknown) return 'unknown';
+    if (i.within1) return 'within1';
+    if (i.within6) return 'within6';
+    if (i.to12) return 'to12';
+    if (i.to24) return 'to24';
+    return i.over24 ? 'over24' : 'unknown';
+  };
+  // 목록에서 기본으로 접는 구간 = 1년 이상 남은 기관(팀 결정 11-24).
+  logic.RANK_REST = { to24: true, over24: true };
+  // 묶음 머리 요약(0건 줄 숨김). 2년 미만·2년 이상은 접힌 행이라 요약에 쓰지 않는다.
+  logic.groupSummary = function (info) {
+    if (!info) return [];
+    const rows = [
+      { key: 'notice', label: '공고 중', n: info.notice || 0 },
+      { key: 'overdue', label: '경과', n: info.overdue || 0 },
+      { key: 'within1', label: '1개월 미만', n: info.within1 || 0 },
+      { key: 'within6', label: '6개월 미만', n: Math.max(0, (info.within6 || 0) - (info.within1 || 0)) },
+      { key: 'to12', label: '1년 미만', n: info.to12 || 0 },
+      { key: 'unknown', label: '알 수 없음', n: info.unknown || 0 },
+    ];
+    return rows.filter(function (r) { return r.n > 0; });
+  };
+  // 면 → 묶음. faces = [{code, name, muni:[{key(instKey), name}]}]. 같은 지자체 레코드를 공유하는 면(수원 4구 등)은 한 묶음으로 합친다
+  // (union-find, 대표 = 앞쪽 면). 합쳐진 묶음 이름 = 공유한 지자체 이름에서 '청'을 뗀 것('수원시청' → '수원시'), 면 하나면 그 면 이름.
+  // 반환: [{code(대표 면 코드), name, faceCodes:[...]}] — 면 순서대로.
+  logic.faceGroups = function (faces) {
+    const list = faces || [], parent = list.map(function (f, i) { return i; });
+    function find(i) { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; }
+    const owner = {}, shared = [];
+    list.forEach(function (f, i) {
+      (f.muni || []).forEach(function (m) {
+        if (owner[m.key] === undefined) { owner[m.key] = i; return; }
+        if (owner[m.key] === i) return;
+        const a = find(owner[m.key]), b = find(i);
+        if (a !== b) parent[Math.max(a, b)] = Math.min(a, b);
+        shared.push(m);
+      });
+    });
+    const rootName = {};
+    shared.forEach(function (m) {
+      const root = find(owner[m.key]);
+      if (!rootName[root]) rootName[root] = logic.normalizeMuniName(m.name);
+    });
+    const out = [], at = {};
+    list.forEach(function (f, i) {
+      const root = find(i);
+      if (!at[root]) { at[root] = { code: list[root].code, name: rootName[root] || list[root].name, faceCodes: [] }; out.push(at[root]); }
+      at[root].faceCodes.push(f.code);
+    });
+    return out;
+  };
+  // 오른쪽 목록을 시군구 묶음으로 나눈다(DOM 없음). ranked = 정렬(임박순·관심도순)·기관 단위 중복 제거를 마친 목록,
+  // groups = faceGroups 결과에 keys(소속 instKey 배열)를 붙인 것. 묶음은 목록에서 처음 나온 순서, 묶음 안 순서는 목록 순서.
+  // 어느 묶음에도 없으면 {code:'', name:'시·군·구 미확인'}. 행이 0인 묶음은 만들지 않는다. 한 기관이 여러 묶음에 걸리면 앞 묶음이 갖는다.
+  // 반환 항목: {code, name, faceCodes, recs, total, info, summary, shown(기본 표시), rest(1년 이상 — 접힘)}.
+  logic.rankGroups = function (ranked, groups, today) {
+    const where = {};
+    (groups || []).forEach(function (g, gi) {
+      (g.keys || []).forEach(function (k) { if (where[k] === undefined) where[k] = gi; });
+    });
+    const out = [], made = {};
+    (ranked || []).forEach(function (r) {
+      const gi = where[logic.instKey(r)];
+      const id = gi === undefined ? -1 : gi;
+      let g = made[id];
+      if (!g) {
+        const src = id < 0 ? { code: '', name: '시·군·구 미확인', faceCodes: [] } : groups[id];
+        g = made[id] = { code: src.code, name: src.name, faceCodes: src.faceCodes || [], recs: [] };
+        out.push(g);
+      }
+      g.recs.push(r);
+    });
+    out.forEach(function (g) {
+      g.total = g.recs.length;
+      g.info = logic.regionMix(g.recs, today);
+      g.summary = logic.groupSummary(g.info);
+      g.shown = []; g.rest = [];
+      g.recs.forEach(function (r) { (logic.RANK_REST[logic.recordBucket(r, today)] ? g.rest : g.shown).push(r); });
+    });
+    return out;
+  };
+  logic.restLabel = function (n, open) { return '1년 이상 남은 ' + n + '건 ' + (open ? '접기' : '보기'); };
+  // 묶음 머리를 맞출 스크롤 양. top = 묶음 위쪽 − 고정 머리 아래 기준선(px), viewH = 보이는 높이.
+  // 이미 보이는 영역의 위쪽 1/3 안이면 0(보던 목록을 튀기지 않는다), 아니면 머리를 맨 위에 맞추는 양.
+  logic.groupScrollDelta = function (top, viewH) {
+    return (top >= 0 && top <= viewH / 3) ? 0 : top;
+  };
+  // 묶음 선택 뒤 스크린리더(role=status) 알림.
+  logic.groupStatusText = function (g) {
+    const near = (g.shown || []).length, far = (g.rest || []).length, parts = [];
+    if (near) parts.push('입찰 가까운 ' + near + '건');
+    if (far) parts.push('1년 이상 ' + far + '건');
+    return g.name + ' 묶음을 목록에서 표시했습니다.' + (parts.length ? ' ' + parts.join(', ') + '.' : '');
+  };
+
   // 마커로 그릴 기관: 지자체(면)는 뺀다. 나머지는 종류(kindOf) 6종 중 켠 것만, 종류를 모르는 유형(가로 막대)은 항상 표시.
   logic.visibleMarkers = function (list, enabledKinds) {
     return list.filter(function (r) {
@@ -728,6 +838,24 @@
     const on = [], off = [];
     list.forEach(function (r) { (isInterested(r) ? on : off).push(r); });
     return logic.sortByUrgency(on, today).concat(logic.sortByUrgency(off, today));
+  };
+
+  // ── 내 관심 기관(서버, NEXT 117) ──────────────────────────────────────
+  // GET /my-watch({items:[{institution_id…}]}) → 화면 색인. null·깨져도 빈 값. (관심 n명 표시는 쓰지 않는다 — 사용자 11-25)
+  logic.watchIndex = function (mine) {
+    const out = { mine: new Set() };
+    const a = mine && Array.isArray(mine.items) ? mine.items : [];
+    a.forEach(function (x) { if (x && x.institution_id != null) out.mine.add(String(x.institution_id)); });
+    return out;
+  };
+  // ♥ 요청 결과 해석. op = 'put'(관심에 담기) | 'delete'(관심에서 빼기). 200·201이면 ok.
+  logic.watchOutcome = function (status, body, op) {
+    if (status === 200 || status === 201) return { ok: true, message: '' };
+    const verb = op === 'delete' ? '관심에서 뺄 수' : '관심에 담을 수';
+    if (status === 403) return { ok: false, message: '권한이 없어 ' + verb + ' 없습니다.' };
+    if (status === 409) return { ok: false, message: '결재 중인 기관이라 지금은 ' + verb + ' 없습니다.' };
+    if (status === 404) return { ok: false, message: '서버에서 이 기관을 찾을 수 없습니다.' };
+    return { ok: false, message: '저장하지 못했습니다. 잠시 뒤 다시 눌러 주세요.' };
   };
 
   logic.CSV_HEADERS = ['기관명','기관구분','지역코드','구시군코드','입찰주기','지난입찰일','입찰예상일','확정여부','약정만료일','경도','위도','출처','수정일'];

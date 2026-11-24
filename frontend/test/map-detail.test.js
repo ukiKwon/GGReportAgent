@@ -153,7 +153,7 @@ test('render.js: 카드 클릭·키보드·마커가 모두 render.openRecord �
   assert.ok(/render\.openRecord\(r, card, rc\.left - 292, rc\.top, \{ keyboard: true \}\)/.test(r));
   assert.ok(/render\.onMarkerClick = function \(rec\) \{\s*render\.openRecord\(rec, document\.activeElement/.test(r));
   assert.ok(/d\.openDetail\(rec, \{ opener: opener \}\)/.test(r) && r.indexOf('showPopover') < 0 && r.indexOf("getElementById('popover')") < 0);
-  assert.ok(r.indexOf('.rank-card, .marker, .dm-ov, .hc-ov') > 0);
+  assert.ok(r.indexOf('.rank-card, .marker, .dm-ov, .hc-ov, .rk-gbtn, .rk-rest-btn') > 0);
   const render = require('../js/render.js');
   assert.strictEqual(render.popRawHtml({ name: '<script>x</script>', sources: ['<script>y</script>'] }).indexOf('<script>'), -1);
 });

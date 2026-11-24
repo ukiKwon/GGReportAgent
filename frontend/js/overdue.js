@@ -64,7 +64,9 @@
   ov.itemHtml = function (it, slot, view, rv) {
     const v = rv ? rv.view : 'pending', bt = logic.recordBriefText(rv);
     return '<li class="ov-item" data-state="' + v + '" data-id="' + esc(logic.instKey(it.rec)) + '">' +
-      ov.stampHtml(it, rv) + '<span class="ov-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>' +
+      ov.stampHtml(it, rv) + (slot
+        ? '<button type="button" class="ov-name ov-open" data-id="' + esc(logic.instKey(it.rec)) + '" aria-haspopup="dialog" title="' + esc(it.name) + '">' + esc(it.name) + '</button>'
+        : '<span class="ov-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>') +
       (slot ? (view === 'all' ? '<span class="ov-status">' + esc(ov.STATUS_TEXT[v]) + '</span>' : '<span></span>') : '') +
       '<span class="ov-meta"><span class="ov-where">' + esc(nameOf(it.region)) + '</span>' +
       '<span class="ov-date">' + esc(it.date) + '</span>' + ov.confHtml(it) + (bt ? '<span class="ov-note">' + esc(bt) + '</span>' : '') +
@@ -77,6 +79,23 @@
       esc(title) + '<span class="ov-grp-n">' + items.length + '</span></summary><ul class="ov-items">' +
       items.map(function (it) { return ov.itemHtml(it, true, view, logic.recordView(it.rec, c && c.snap, c && c.today)); }).join('') + '</ul></details>';
   }
+
+  ov.findItem = function (summary, id) {
+    const a = (summary && summary.items) || [];
+    for (let i = 0; i < a.length; i++) if (logic.instKey(a[i].rec) === id) return a[i];
+    return null;
+  };
+  function openBtn(id) {
+    const l = $('ov-list'), a = l ? l.querySelectorAll('.ov-open') : [];
+    for (let i = 0; i < a.length; i++) if (a[i].dataset.id === id) return a[i];
+    return null;
+  }
+  // 처리하면 그 기관이 현재 보기(미처리)에서 빠지고 패널이 다시 그려진다 — 그때는 토글 버튼으로 돌아간다.
+  ov.openItem = function (id, opener) {
+    const it = ov.findItem(ov.state.summary, id), d = root.dashboard;
+    if (!it || !d || typeof d.openDetail !== 'function') return false;
+    return d.openDetail(it.rec, { opener: opener, fallback: '#ov-toggle', refocus: function () { return openBtn(id); } });
+  };
 
   ov.HINT_WATCH = '관심 지역이 없어 모든 시·도를 접어 두었습니다. 전국 지역별 화면에서 지역 카드의 별을 누르면 그 지역이 맨 위에 펼쳐집니다.';
 
@@ -416,6 +435,11 @@
           e.preventDefault(); ov.setOpen(false, { focusToggle: true });
         }
       });
+    });
+    const list = $('ov-list');
+    if (list) list.addEventListener('click', function (e) {
+      const b = e.target.closest ? e.target.closest('.ov-open') : null;
+      if (b) ov.openItem(b.dataset.id, b);
     });
     if (tabs) {
       tabs.addEventListener('click', function (e) {

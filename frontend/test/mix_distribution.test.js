@@ -31,7 +31,7 @@ test('시도별 C안 섞기 분포 출력(회귀 단언은 최소)', () => {
     const m = logic.regionMix(list, TODAY);
     sumTotal += m.total;
     bandCount[m.band] = (bandCount[m.band] || 0) + 1;
-    lines.push([code, (render.REGION_NAME[code] || '?'), m.band.padEnd(4), logic.urgentMark(m).padEnd(4),
+    lines.push([code, (render.REGION_NAME[code] || '?'), m.band.padEnd(4), ('긴급 ' + m.urgent).padEnd(6),
       '평균 ' + (m.mean == null ? '-' : m.mean.toFixed(2)),
       '기관 ' + m.total + ' (6개월 안 ' + m.within6 + ' · 6~12개월 ' + m.to12 + ' · 1~2년 ' + m.to24 +
         ' · 2년 넘음 ' + m.over24 + ' · 날짜 미상 ' + m.unknown + ')'].join('  '));

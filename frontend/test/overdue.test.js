@@ -300,6 +300,30 @@ test('itemHtml: D+n 도장, 스크린리더 문장, 기관명 이스케이프', 
   assert.ok(!html.includes('추측'));
 });
 
+test('itemHtml: 패널 행(slot)은 이름이 열기 버튼(ov-open, data-id=instKey)이고 이름은 이스케이프된다', function () {
+  const s = logic.overdueSummary([rec('<b>가</b>구청', '11', '2026-10-28', { confirmed: false })], TODAY);
+  const html = ov.itemHtml(s.items[0], true);
+  assert.ok(html.includes('class="ov-name ov-open"'));
+  assert.ok(html.includes('data-id="' + logic.esc(logic.instKey(s.items[0].rec)) + '"'));
+  assert.ok(html.includes('<button type="button"'));
+  assert.ok(!html.includes('<b>가</b>'));
+});
+
+test('itemHtml: 팝업 목록(slot 거짓)에는 ov-open 버튼이 없다', function () {
+  const s = logic.overdueSummary([rec('나구청', '11', '2026-10-28', { confirmed: false })], TODAY);
+  const html = ov.itemHtml(s.items[0], false);
+  assert.ok(!html.includes('ov-open'));
+  assert.ok(html.includes('<span class="ov-name"'));
+});
+
+test('findItem: instKey로 항목을 찾고, 없는 id나 summary가 null이면 null', function () {
+  const s = logic.overdueSummary([rec('다구청', '11', '2026-10-28', { confirmed: false })], TODAY);
+  const it = s.items[0];
+  assert.strictEqual(ov.findItem(s, logic.instKey(it.rec)), it);
+  assert.strictEqual(ov.findItem(s, '없는-키'), null);
+  assert.strictEqual(ov.findItem(null, logic.instKey(it.rec)), null);
+});
+
 test('confHtml: 공고일 7곳은 이름표 \'공고일\'+보조 문구가 확정·추정 표식을 대신하고, 추정 근거는 title로 준다', function () {
   const s = logic.overdueSummary([
     rec('영천시청', '47', '2026-07-30'),

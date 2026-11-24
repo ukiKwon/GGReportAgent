@@ -146,19 +146,19 @@ test('layoutSubCards: 좌표가 NaN·숫자가 아니거나 줄이 0인 항목�
 test('mixAriaLabelCard: 카드와 같은 분류·순서로 읽는다(기존 mixAriaLabel은 그대로)', () => {
   const info = logic.regionMix([rec(10, true, '가'), rec(60, true, '나'), rec(250, true, '다'), rec(500, true, '라'), { name: '미상', type: '지자체' }], TODAY);
   assert.strictEqual(render.mixAriaLabelCard('강남구', info),
-    '강남구, ' + render.MIX_NAME[info.band] + ', 1개월 미만 1건, 6개월 미만 1건, 1년 미만 1건, 알 수 없음 1건, 기관 5곳');
-  assert.strictEqual(render.mixAriaLabelCard('빈곳', logic.regionMix([], TODAY)), '빈곳, ' + render.MIX_NAME.none + ', 기관 0곳');
+    '강남구, ' + render.MIX_NAME[info.band] + ', 1개월 미만 1건, 6개월 미만 1건, 1년 미만 1건, 알 수 없음 1건, 합계 5건');
+  assert.strictEqual(render.mixAriaLabelCard('빈곳', logic.regionMix([], TODAY)), '빈곳, ' + render.MIX_NAME.none + ', 합계 0건');
 });
 
-test('범례: 드릴인이면 ▲ 줄·공고 n 칩 줄 대신 카드 설명 한 줄, 전국은 기존 그대로, 생략하면 currentRegion을 따른다', () => {
+test('범례: 드릴인이면 카드 설명 한 줄, 전국은 그 줄도 공고 n·▲ 줄도 없음, 생략하면 currentRegion을 따른다', () => {
   const el = { innerHTML: '' };
   const doc = { getElementById: id => (id === 'legend' ? el : null) };
   withDoc(doc, () => render.drawLegend('drill'));
   assert.ok(el.innerHTML.includes('<i class="lg-card" aria-hidden="true"></i>카드: 시군구별 입찰 시기 건수 — 1개월 미만·6개월 미만·1년 미만·알 수 없음'));
-  assert.ok(!el.innerHTML.includes('lg-tri"') && !el.innerHTML.includes('lg-nchip'));
+  assert.ok(!el.innerHTML.includes('lg-nchip'));
   assert.ok(el.innerHTML.includes('준비중'));
   withDoc(doc, () => render.drawLegend('national'));
-  assert.ok(el.innerHTML.includes('lg-tri"') && el.innerHTML.includes('lg-nchip') && !el.innerHTML.includes('lg-card'));
+  assert.ok(!el.innerHTML.includes('lg-tri"') && !el.innerHTML.includes('6개월 안 공고 예정 기관 수') && !el.innerHTML.includes('lg-nchip') && !el.innerHTML.includes('lg-tri-row') && !el.innerHTML.includes('lg-card'));
   const prev = render.state.currentRegion;
   try {
     render.state.currentRegion = '11';
@@ -166,7 +166,7 @@ test('범례: 드릴인이면 ▲ 줄·공고 n 칩 줄 대신 카드 설명 한
     assert.ok(el.innerHTML.includes('lg-card'));
     render.state.currentRegion = null;
     withDoc(doc, () => render.drawLegend());
-    assert.ok(el.innerHTML.includes('lg-nchip'));
+    assert.ok(!el.innerHTML.includes('lg-nchip') && !el.innerHTML.includes('lg-card'));
   } finally { render.state.currentRegion = prev; }
 });
 

@@ -313,10 +313,11 @@
         }
         // 지역 화면은 면 색·▲n이 종류에 따라 바뀌므로 면까지 다시 그린다(drawRegion이 마커·랭킹도 그린다).
         // 다시 그리면 선택 강조가 풀리므로 선택 중이던 기관을 이어서 고른다.
-        const sel = root.render._selectedName;
+        const sel = root.render._selectedName, selG = root.render._selectedGroup;
         const rec = sel ? root.render.allInstitutions().filter(function (r) { return r.name === sel; })[0] : null;
         root.render.drawRegion(root.render.state.currentRegion);
         if (rec) root.render.selectInstitution(rec);
+        else if (selG) root.render.selectGroup(selG, { quiet: true, noScroll: true });   // 묶음 선택도 이어서
       });
     });
     // 초기 enabledTypes를 체크상태와 동기화

@@ -20,6 +20,7 @@
     enabledTypes: new Set(logic.TYPE_KINDS),
     currentRegion: null,
     rankSort: 'urgency',   // 'urgency' | 'interest'
+    rankOpen: new Set(),   // 펼친 시군구 묶음 코드(1년 이상 남은 기관) — 새 지역에 들어오면 drawRegion이 비운다
   };
 
   // 파스텔 기본 팔레트(2026-08-14 정본 — 다크 크롬+파스텔 지도 월드). 어두운 크롬
@@ -106,10 +107,10 @@
 
   // 범례를 실제 테마 색으로 그린다. 이전엔 🔴🟠🟡 이모지가 하드코딩돼 있어
   // 색을 바꿔도 범례만 옛 색으로 남는 문제가 있었다.
-  // 용어 통일(규격 §6): 6개월 안 / 6~12개월 / 1~2년 / 2년 넘음 / 날짜 미상 / 추정.
+  // 용어 통일(design-reviewer 2026-11-24_1839 P2-2): 시군구 카드·툴팁과 같은 6개월 미만 / 1년 미만 / 2년 미만 / 2년 이상. 회색은 글리프와 짝이라 '날짜 미상' 그대로.
   render.LEGEND_ITEMS = [
-    ['r3','6개월 안 위주'], ['r2','1년 안 위주'], ['p','섞임 (급한 곳·여유 있는 곳 반반)'],
-    ['b2','1~2년 위주'], ['b3','2년 넘음 위주'], ['gray','날짜 미상'],
+    ['r3','6개월 미만 위주'], ['r2','1년 미만 위주'], ['p','섞임 (급한 곳·여유 있는 곳 반반)'],
+    ['b2','2년 미만 위주'], ['b3','2년 이상 위주'], ['gray','날짜 미상'],
   ];
   render.MIX_NAME = { r3:'진빨강', r2:'빨강', p:'보라', b2:'파랑', b3:'진파랑', gray:'날짜 미상', none:'기관 없음' };
   // 색은 localStorage(테마)에서 오므로 style 속성에 그대로 끼우지 않고 hex만 통과시킨다.
@@ -132,9 +133,10 @@
   };
   // 지금 보이는 지도(전국/드릴인)를 다시 그리고 고른 기관 강조를 되살린다 — 범례 높이 변화·드릴인 중 창 폭 변화(overdue.js)가 쓴다.
   render.redrawKeepSel = function () {
-    const sel = render._selectedName;
+    const sel = render._selectedName, selG = render._selectedGroup;
     if (render.state.currentRegion) render.drawRegion(render.state.currentRegion); else render.drawNational();
     if (sel) { const rec = render.allInstitutions().filter(function (r) { return r.name === sel; })[0]; if (rec) render.selectInstitution(rec); }
+    else if (selG) render.selectGroup(selG, { quiet: true, noScroll: true });   // 묶음 선택도 이어서(알림은 다시 읽지 않고, 목록은 튀지 않게 스크롤하지 않는다)
   };
   render.drawLegend = function (mode) {
     if (typeof document === 'undefined') return;
@@ -152,11 +154,8 @@
     rows.push('<span class="lg-item"><i class="lg-sw lg-hatch" style="background:' +
       render._safeColor(render.INACTIVE_FILL, '#c3cad9') + '"></i>준비중</span>');
     if (drill) {
-      // 드릴인: 면 위 ▲n·'공고 n' 칩이 없고 지시선 카드가 그 일을 한다(design 11-24)
+      // 드릴인에만 카드 줄이 있다. 전국 범례에는 이 줄이 없다(공고 n·▲n 모두 지도에서 뺌, 사용자 11-25)
       rows.push('<span class="lg-item lg-tri-row"><i class="lg-card" aria-hidden="true"></i>카드: 시군구별 입찰 시기 건수 — 1개월 미만·6개월 미만·1년 미만·알 수 없음(켠 종류 모두)</span>');
-    } else {
-      rows.push('<span class="lg-item lg-tri-row"><b class="lg-tri" aria-hidden="true">▲3</b>6개월 안 공고 예정 기관 수 (속 빈 △는 추정)</span>');
-      rows.push('<span class="lg-item lg-tri-row"><i class="lg-nchip" aria-hidden="true">공고 2</i>공고가 나서 진행 중인 기관 수 (공고일부터 ' + logic.NOTICE_ACTIVE_DAYS + '일)</span>');
     }
     el.innerHTML = '<div class="lg-title">입찰 임박도 · 지역 색 섞기</div>' + rows.join('');
   };
@@ -254,7 +253,7 @@
     // 경과 패널 배치(도킹/덮개/위 쌓기)를 폭을 재기 전에 확정한다 — 패널이 나중에 나타나거나
     // 사라지면 지도가 옛 폭으로 그려져 잘리거나 한쪽으로 쏠린다.
     if (root.overdue && root.overdue.syncLayout) root.overdue.syncLayout();
-    render._legendFor('national');   // 드릴인에서 돌아오면 ▲·'공고 n' 줄을 되살린다(폭·높이를 재기 전에)
+    render._legendFor('national');   // 드릴인에서 돌아오면 전국 범례로 되돌린다(폭·높이를 재기 전에)
     const svg = d3.select('#map-svg');
     svg.selectAll('*').remove();
     render._ensureDefs(svg);   // 준비중 지역 빗금(#hatch)용 — 이전엔 지역 뷰에서만 호출됐다
@@ -265,7 +264,7 @@
     const g = svg.append('g').attr('class', 'national-layer');
     render.hideRegionTip();
     render._kbDrill = false;   // 전국으로 돌아왔다 — 못 끝난 키보드 드릴인 표식을 버린다
-    // 시도별 섞기 결과는 면 색·▲n·툴팁·aria가 함께 쓰므로 한 번만 계산한다.
+    // 시도별 섞기 결과는 면 색·툴팁·aria가 함께 쓰므로 한 번만 계산한다.
     const mix = {};
     fc.features.forEach(function (d) {
       const code = d.properties.code;
@@ -317,7 +316,7 @@
     // 선택·포커스 덮개 층 — 면 층과 라벨 층 사이(라벨이 링 위에 놓인다). 링은 render._ringSelect/_ringFocus가 채운다.
     g.append('g').attr('class', 'sel-ring-layer').attr('pointer-events', 'none');
 
-    // 라벨: 지역명 한 줄 + (비활성일 때) 작은 '준비중' 둘째 줄 / (공고 진행 중 기관이 있을 때) '공고 n' 둘째 줄.
+    // 라벨: 지역명 한 줄 + (비활성일 때) 작은 '준비중' 둘째 줄. '공고 n' 둘째 줄은 없다(사용자 11-25).
     // 색은 CSS(.label)가 균일하게 정한다 — 지역마다 색을 달리하면 난잡해진다.
     const labels = g.selectAll('text.label').data(fc.features).join('text')
       .attr('class', 'label')
@@ -331,13 +330,7 @@
       t.attr('data-x', p[0]).attr('data-y', p[1])
         .attr('transform', 'translate(' + p[0] + ',' + p[1] + ')');
       const active = render.state.activeRegions.has(d.properties.code);
-      const noticeTxt = active ? render.noticeSubText(mix[d.properties.code]) : '';
-      t.append('tspan').attr('x', 0).attr('dy', render.labelDy(active, !!noticeTxt)).text(d.properties.name);
-      // ▲n: 6개월 안 기관 수(모두 추정이면 속 빈 △). 글자(tspan)로 그려 후광·겹침 이동이 라벨과 함께 간다.
-      const mark = active ? logic.urgentMark(mix[d.properties.code]) : '';
-      if (mark) t.append('tspan').attr('class', 'tri').attr('dx', 4).text(mark);
-      // 둘째 줄 '공고 n' = 공고가 나서 진행 중인 기관 수(준비중 지역에는 공고가 없어 '준비중' 자리를 겹치지 않고 쓴다).
-      if (noticeTxt) t.append('tspan').attr('class', 'sub notice').attr('x', 0).attr('dy', '1.15em').text(noticeTxt);
+      t.append('tspan').attr('x', 0).attr('dy', render.labelDy(active)).text(d.properties.name);
       if (!active) t.append('tspan').attr('class', 'sub').attr('x', 0).attr('dy', '1.15em').text('준비중');
     });
     render._separateLabels(labels);
@@ -442,10 +435,8 @@
     return render.mixColor(render.featureMixInfo(feature));
   };
 
-  // 라벨 둘째 줄 '공고 n'(진행 중 전체 수). 없으면 ''.
-  render.noticeSubText = function (info) { return info && info.notice > 0 ? '공고 ' + info.notice : ''; };
-  // 라벨 첫 줄 dy: 한 줄이면 0.35em(세로 가운데), 둘째 줄이 붙으면 0em으로 올려 두 줄 묶음을 가운데에 둔다.
-  render.labelDy = function (active, hasNotice) { return active ? (hasNotice ? '0em' : '0.35em') : '0em'; };
+  // 라벨 첫 줄 dy: 활성 지역은 한 줄이라 0.35em(세로 가운데), 준비중은 둘째 줄이 붙으므로 0em으로 올려 두 줄 묶음을 가운데에 둔다.
+  render.labelDy = function (active) { return active ? '0.35em' : '0em'; };
   function mdText(s) { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? m[1] + '.' + m[2] : ''; }
   // 진행 중 기관 한 곳의 '언제' 글: 마감 전 = 접수 MM.DD~MM.DD(접수 창을 알면) 또는 마감 D-n, 마감일 미확인 = 공고일·경과·미확인,
   // 마감 지남 = 공고 후 n일.
@@ -454,74 +445,77 @@
       if (n.receiveFrom && n.receiveTo) return '접수 ' + mdText(n.receiveFrom) + '~' + mdText(n.receiveTo);
       return '마감 ' + (n.deadlineDays === 0 ? 'D-day' : 'D-' + n.deadlineDays);
     }
-    if (n.phase === 'unknown' && !n.late) return '공고 ' + mdText(n.date) + ' · 공고 후 ' + n.since + '일 · ' + logic.NOTICE_WORDS.unknownChip;
-    if (n.late) return logic.NOTICE_WORDS.expiredNote(n.since);
+    // 상태 이름('접수 기간 원문 확인'·'선정 결과 대기')은 위 줄 머리가 말한다 — 여기는 날짜 칸이라 짧게(한 줄 2열, 가운뎃점 없음).
     return '공고 후 ' + n.since + '일';
   };
 
-  // 스크린리더용 이름: "서울, 빨강, 공고 진행 중 5곳(마감 전 2곳), 6개월 안 0곳, 기관 30곳"
+  // 스크린리더용 이름: "서울, 빨강, 공고 진행 중 5건(마감 전 2건), 6개월 안 공고 예정 0건, 합계 30건" — 단위는 카드·툴팁과 같은 '건'(design 11-24 P2-1)
   render.mixAriaLabel = function (name, info) {
     const parts = [name, render.MIX_NAME[info.band] || render.MIX_NAME.none];
-    if (info.notice > 0) parts.push('공고 진행 중 ' + info.notice + '곳(마감 전 ' + (info.receiving || 0) + '곳)');
-    if (info.urgent > 0 || info.notice > 0) parts.push('6개월 안 ' + info.urgent + '곳' + (info.urgentAllEst ? '(모두 추정)' : ''));
-    parts.push('기관 ' + info.total + '곳');
+    if (info.notice > 0) parts.push('공고 진행 중 ' + info.notice + '건(마감 전 ' + (info.receiving || 0) + '건)');
+    if (info.urgent > 0 || info.notice > 0) parts.push('6개월 안 공고 예정 ' + info.urgent + '건' + (info.urgentAllEst ? '(모두 추정)' : ''));
+    parts.push('합계 ' + info.total + '건');
     return parts.join(', ');
   };
   // 시군구 드릴인 면의 이름 — 카드와 같은 분류·순서(logic.subCardLines). 전국 면은 위 mixAriaLabel 그대로.
-  // 예: "강남구, 빨강, 공고 중 1곳, 6개월 안 2곳, 6개월~1년 1곳, 그 밖 3곳, 기관 7곳"
+  // 예: "강남구, 빨강, 1개월 미만 1건, 6개월 미만 2건, 1년 미만 1건, 알 수 없음 3건, 합계 7건"
   render.mixAriaLabelCard = function (name, info) {
     const parts = [name, render.MIX_NAME[info.band] || render.MIX_NAME.none];
     logic.subCardLines(info).forEach(function (ln) { parts.push(ln.label + ' ' + ln.n + '건'); });
-    parts.push('기관 ' + info.total + '곳');
+    parts.push('합계 ' + info.total + '건');
     return parts.join(', ');
   };
 
-  // 지역 툴팁 문안(마우스 올림·포커스). 규격 §6. 클릭 동작과는 무관하다.
+  // 지역 툴팁 문안(마우스 올림·포커스). 클릭 동작과는 무관하다.
+  // 규격 design-reviewer 2026-11-24_1839 6-A: 한 줄에 항목 하나, 이름 왼쪽·수/날짜 오른쪽(mono), 블록 사이 1px 선, 단위 '건',
+  // 분류 이름은 시군구 카드와 같다(logic.tipBuckets). 가운뎃점 연결·옛 '곳' 단위 없음. 0건 줄·블록은 통째로 숨긴다.
   render.tipHtml = function (name, info, today) {
     const c = render.mixColor(info);
     let h = '<div class="rt-head"><b>' + esc(name) + '</b><i class="rt-sw" style="background:' + c + '"></i></div>';
     if (!info.total) return h + '<div class="rt-mu">켠 종류의 기관이 없습니다</div>';
-    // 첫 블록: 공고 진행 중. 마감 전은 마감 가까운 순 최대 2곳, 마감일 미확인(공고 후 30일 이내)은 1곳 + '외 n곳',
-    // 결과 확인(마감 지남·마감일 미확인 30일 초과)은 1곳 + '외 n곳'.
+    // kv: 이름 + 수 한 줄(n이 null이면 제목만). it: 기관 이름 줄(when이 비면 날짜 칸 없음). nameHtml은 호출자가 이스케이프한 것.
+    function kv(label, n, cls) {
+      return '<div class="rt-kv' + (cls ? ' ' + cls : '') + '"><span>' + esc(label) + '</span>' +
+        (n === null ? '' : '<span class="rt-n">' + n + '건</span>') + '</div>';
+    }
+    function it(nameHtml, when, cls, dcls) {
+      return '<div class="rt-it' + (cls ? ' ' + cls : '') + '"><span class="rt-nm">' + nameHtml + '</span>' +
+        (when ? '<span class="rt-d' + (dcls ? ' ' + dcls : '') + '">' + esc(when) + '</span>' : '') + '</div>';
+    }
+    function more(list) { return list.length > 1 ? ' 외 ' + (list.length - 1) + '건' : ''; }
+    // 첫 블록: 공고 진행 중. 마감 전은 마감 가까운 순 최대 2곳 + '외 n건', 접수 기간 원문 확인(공고 후 30일 이내)·선정 결과 대기는 각 1곳 + '외 n건'.
     if (info.notice > 0) {
       const list = info.notices || [];
       const rcv = list.filter(function (n) { return n.phase === 'receiving'; });
       const unk = list.filter(function (n) { return n.phase === 'unknown' && !n.late; });
       const rest = list.filter(function (n) { return n.phase !== 'receiving' && n.check; });
-      h += '<div class="rt-notice"><div class="rt-row"><b>공고 진행 중 ' + info.notice + '곳</b> <span class="rt-m">— 마감 전 ' +
-        rcv.length + (unk.length ? ' · ' + logic.NOTICE_WORDS.unknownChip + ' ' + unk.length : '') + ' · 선정 결과 대기 ' + rest.length + '</span></div>';
-      rcv.slice(0, 2).forEach(function (n) {
-        h += '<div class="rt-row">' + esc(n.name) + ' <span class="rt-d">' + esc(render.noticeWhen(n)) + '</span></div>';
-      });
-      if (rcv.length > 2) h += '<div class="rt-row rt-m">마감 전 외 ' + (rcv.length - 2) + '곳</div>';
+      h += '<div class="rt-notice">' + kv('공고 진행 중', info.notice, 'rt-t');
+      if (rcv.length) {
+        h += kv('마감 전', rcv.length, 'rt-sub');
+        rcv.slice(0, 2).forEach(function (n) { h += it(esc(n.name), render.noticeWhen(n)); });
+        if (rcv.length > 2) h += it('외 ' + (rcv.length - 2) + '건', '', 'rt-w');
+      }
       if (unk.length) {
-        h += '<div class="rt-row">' + esc(unk[0].name) + ' <span class="rt-m">' + esc(render.noticeWhen(unk[0])) + '</span>' +
-          (unk.length > 1 ? ' 외 ' + (unk.length - 1) + '곳' : '') + '</div>';
+        h += kv(logic.NOTICE_WORDS.unknownChip, unk.length, 'rt-sub') + it(esc(unk[0].name) + more(unk), render.noticeWhen(unk[0]), '', 'rt-q');
       }
       if (rest.length) {
-        h += '<div class="rt-row rt-w">' + esc(rest[0].name) + ' <span class="rt-m">' + esc(render.noticeWhen(rest[0])) + '</span>' +
-          (rest.length > 1 ? ' 외 ' + (rest.length - 1) + '곳' : '') + '</div>';
+        h += kv('선정 결과 대기', rest.length, 'rt-sub') + it(esc(rest[0].name) + more(rest), render.noticeWhen(rest[0]), 'rt-w');
       }
       h += '</div>';
     }
-    const im = info.imminent;
-    if (im) {
-      const est = logic.effectiveBid(im).confidence === '추측' ? ' (추정)' : '';
-      h += '<div class="rt-row">가장 임박 ' + esc(im.name || '') + (im.type ? ' · ' + esc(im.type) : '') +
-        ' <span class="rt-d">' + esc(logic.formatDDay(im, today)) + est + '</span></div>' +
-        '<div class="rt-row rt-m">6개월 안 ' + info.within6 + ' · 6~12개월 ' + info.to12 +
-        ' · 1~2년 ' + info.to24 + ' · 2년 넘음 ' + info.over24 + '</div>';
-    } else if (!info.notice) {
-      h += '<div class="rt-row">날짜가 있는 기관이 없습니다</div>';
+    // 입찰 예정 시기: 겹치지 않는 구간(0건 숨김). '가장 임박' 줄은 뺐다(사용자 11-24) — ▲·면 클릭용 info.imminent는 그대로.
+    const buckets = logic.tipBuckets(info);
+    if (buckets.length) {
+      h += '<div class="rt-sec">' + kv('입찰 예정 시기', null, 'rt-t');
+      buckets.forEach(function (b) { h += kv(b.label, b.n); });
+      h += '</div>';
     }
-    const left = [];
-    if (info.overdue) left.push('예정일 경과 ' + info.overdue + '곳');
-    const waitN = (info.awaiting || 0) + (info.late || 0);   // 머리 줄 '선정 결과 대기'와 같은 말·같은 수
-    if (waitN) left.push('선정 결과 대기 ' + waitN + '곳');
-    if (info.unknown) left.push('날짜 미상 ' + info.unknown + '곳');
-    h += '<div class="rt-mu">' + (left.length
-      ? '기관 ' + info.total + '곳 중 ' + left.join('·') + '은 색에 넣지 않음'
-      : '기관 ' + info.total + '곳') + '</div>';
+    // 꼬리: 예정일 경과·합계 + 지도 색을 정한 건수(info.dated = 색 계산에 들어간 건수). 전부 들어갔으면 안내 줄 없음.
+    const dated = info.dated || 0;
+    const note = dated === 0 ? '지도 색을 정할 건이 없어 회색입니다'
+      : (dated < info.total ? '지도 색은 ' + info.total + '건 중 ' + dated + '건으로 정했습니다' : '');
+    h += '<div class="rt-sec rt-foot">' + (info.overdue ? kv('예정일 경과', info.overdue) : '') + kv('합계', info.total) +
+      (note ? '<div class="rt-mu">' + note + '</div>' : '') + '</div>';
     return h;
   };
   render.showRegionTip = function (html, x, y) {
@@ -582,9 +576,16 @@
 
   render.drawRegion = function (code) {
     var b = document.getElementById('geo-retry-banner'); if (b) b.remove();
+    // 전국에서 새로 들어온 시군구면 목록 펼침 상태를 비운다(currentRegion은 drawNational이 null로 둔다). 필터·창 폭으로 같은 지역을 다시 그릴 때는 유지.
+    const fresh = render.state.currentRegion !== code;
+    if (fresh) render.state.rankOpen = new Set();
+    // 다시 그리면 선택 강조는 이 함수 끝의 clearSelection이 푼다 — 선택 이름도 지금 비워야 drawRankingPanel의 highlightCard가 묶음을 자동으로 펼치지 않는다.
+    // 선택을 이어야 하는 호출자(redrawKeepSel·app.js 종류 필터)는 이름을 미리 받아 두었다가 다시 고르고, 그때 selectInstitution→highlightCard가 묶음을 펼친다.
+    render._selectedName = null;
     // 랭킹 패널을 먼저 펼쳐 레이아웃을 확정한 뒤 폭을 잰다 — 그렇지 않으면
     // 패널이 나중에 열리며 SVG가 줄어들어 지도가 확대·좌측 쏠림으로 그려진다.
     var rp0 = document.getElementById('rank-panel'); if (rp0) rp0.style.display = 'block';
+    if (fresh && rp0) rp0.scrollTop = 0;   // 목록은 맨 위부터
     // 드릴인 중에는 도킹된 경과 패널을 접어(덮개 서랍으로) 랭킹 패널과 3열이 되지 않게 한다.
     if (root.overdue && root.overdue.syncLayout) root.overdue.syncLayout();
     render._legendFor('drill');   // 범례 높이가 지도 높이를 정하므로 폭·높이를 재기 전에 드릴인용으로 바꾼다
@@ -627,9 +628,9 @@
     render.bindRegionTip(subPaths.filter(function (d) { return subMix[d.properties.code].total > 0; }),
       function (d) { return render.tipHtml(d.properties.name, subMix[d.properties.code], render.state.today); },
       function (ev, d) { render.onSubregionClick(d, ev); });
-    // 선택·포커스 덮개 층 — 면 위, ▲n·글리프·마커 아래.
+    // 선택·포커스 덮개 층 — 면 위, 글리프·마커 아래.
     g.append('g').attr('class', 'sel-ring-layer').attr('pointer-events', 'none');
-    // 드릴인에는 ▲n 라벨이 없다 — 분류별 곳 수는 좌우 여백 열의 지시선 카드(_drawSubCards, 마커 층 뒤)가 글로 말한다(사용자·design 11-24).
+    // 전국·드릴인 모두 ▲n 표시는 없다(전국은 사용자 11-25 제거) —분류별 곳 수는 좌우 여백 열의 지시선 카드(_drawSubCards, 마커 층 뒤)가 글로 말한다(사용자·design 11-24).
     // 날짜 미상 면 글리프 — 마커·랭킹 카드의 recordGlyph('⚠️')와 같은 시각 언어를 면에도 확장.
     // 레코드가 아예 없는 면은 대상이 아니다(표시할 기관 자체가 없으므로 회색만 유지).
     // 이모지 대신 필터 글리프(.fsw)와 같은 획 어휘의 삼각 경고를 직접 그린다(마감 리뷰 반영).
@@ -653,6 +654,7 @@
     if (render.drawMarkers) render.drawMarkers(code); // Task 9
     if (withCards) render._drawSubCards(svg, fc, path, subMix, w, h);   // 층 순서: 면 → 링 → 마커 → 지시선·점 → 카드
     render.drawRankingPanel(code);
+    render.syncWatch(code);   // 서버 모드: 내 관심을 받아 오면 목록을 다시 그린다(NEXT 117)
     render.clearSelection();
     // 키보드(Enter·Space)로 들어왔으면 포커스를 새 화면의 첫 면으로 — 눌렀던 면은 이미 사라졌다.
     if (render._kbDrill) {
@@ -901,15 +903,75 @@
   };
   render.highlightCard = function (name, on) {
     document.querySelectorAll('.rank-card').forEach(function (c) {
-      if (c.dataset.name === name) c.classList.toggle('hi', on);
+      if (c.dataset.name !== name) return;
+      c.classList.toggle('hi', on);
+      if (on) render._revealCard(c);   // 1년 이상 남은 접힌 행이면 그 묶음을 먼저 펼친다(티커·검색·면 클릭 공통)
     });
+  };
+  render._revealCard = function (c) {
+    const rest = c.closest ? c.closest('.rk-rest') : null;
+    if (!rest || !rest.hidden) return;
+    const sec = rest.closest('.rk-grp');
+    render._setGroupOpen(sec ? sec.dataset.code : '', true);
+  };
+
+  // ── 내 관심 기관(NEXT 117) — 서버 모드는 서버가 정본, 로컬은 localStorage ──────────
+  render.env = { fetch: null };   // 시험이 가짜 fetch를 꽂는다
+  render.WATCH = { screen: 'map_popover', button: 'toggle_watch_heart' };
+  render.watch = { st: 'idle', mine: new Set() };   // st: idle|ready|failed
+  render._watchBusy = {};
+  function getFetch() { return render.env.fetch || (typeof fetch === 'function' ? fetch : null); }
+  function wreq(method, url, button, body) {
+    const f = getFetch();
+    if (!f) return Promise.resolve({ status: 0, body: null });
+    const init = { method: method };
+    if (button) init.headers = { 'Content-Type': 'application/json', 'X-Screen-Id': render.WATCH.screen, 'X-Button-Id': button };
+    if (body !== undefined) init.body = JSON.stringify(body);
+    return f(url, init).then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { status: r.status, body: j }; }); },
+      function () { return { status: 0, body: null }; });
+  }
+  render.watchOn = function () { return !!store.isServerMode(); };
+  render.hearted = function (r) {
+    return render.watchOn() ? render.watch.mine.has(String(r.institutionId)) : store.isInterested(r.name);
+  };
+  // 목록을 그린 뒤 부른다. 성공하면 지금 그 지역이 열려 있을 때만 목록을 다시 그린다.
+  render.syncWatch = function (code) {
+    if (!render.watchOn() || !getFetch()) return Promise.resolve(false);
+    return wreq('GET', '/my-watch').then(function (res) {
+      if (res.status !== 200) { render.watch = { st: 'failed', mine: new Set() }; return false; }
+      render.watch = Object.assign({ st: 'ready' }, logic.watchIndex(res.body));
+      if (code != null && render.state.currentRegion === code && typeof document !== 'undefined') render.drawRankingPanel(code);
+      return true;
+    });
+  };
+  // ♥ 한 번 = 요청 한 번(낙관적 갱신 없음). → Promise<{ok, message}>
+  render.toggleWatch = function (r, code) {
+    const id = r && r.institutionId != null ? String(r.institutionId) : '';
+    if (!id) return Promise.resolve({ ok: false, message: '서버에 등록되지 않은 기관이라 관심에 담을 수 없습니다.' });
+    if (render._watchBusy[id]) return Promise.resolve({ ok: true, message: '', skipped: true });
+    render._watchBusy[id] = true;
+    const on = render.watch.mine.has(id), op = on ? 'delete' : 'put';
+    const url = '/institutions/' + encodeURIComponent(id) + '/my-watch';
+    return wreq(on ? 'DELETE' : 'PUT', url, render.WATCH.button, on ? undefined : {}).then(function (res) {
+      const o = logic.watchOutcome(res.status, res.body, op);
+      if (!o.ok) return o;
+      return render.syncWatch(code).then(function () { return o; });
+    }).then(function (o) { delete render._watchBusy[id]; return o; },
+      function () { delete render._watchBusy[id]; return { ok: false, message: logic.watchOutcome(0, null, op).message }; });
+  };
+  // 실패 알림 한 줄 — 카드 바로 아래, role=status. 이전 알림은 지운다(목록을 다시 그리면 함께 사라진다).
+  render._rkNote = function (card, msg) {
+    const old = document.querySelector('#rank-list .rk-note'); if (old && old.remove) old.remove();
+    const p = document.createElement('p'); p.className = 'rk-note'; p.setAttribute('role', 'status');
+    card.parentNode.insertBefore(p, card.nextSibling);
+    p.textContent = msg;   // 비어 있는 role=status에 글을 넣어야 읽어 준다
   };
 
   render.rankedList = function (code) {
     const list = render.institutionsByRegion(code)
       .filter(function (r) { return render._rankTypeVisible(r); });
     const sorted = render.state.rankSort === 'interest'
-      ? logic.sortByInterest(list, render.state.today, function (r){ return store.isInterested(r.name); })
+      ? logic.sortByInterest(list, render.state.today, function (r){ return render.hearted(r); })
       : logic.sortByUrgency(list, render.state.today);
     // 기관 단위 중복제거 — 일반구 복제 레코드(수원 4구 등)가 카드 4장을 차지하지 않게.
     // 티커(drawTicker)와 같은 규칙. 폴리곤 강조는 _blinkMunicipality가 전 폴리곤을 잡는다.
@@ -932,9 +994,9 @@
     panel.style.display = 'block';
     // 헤더(정렬 토글) + 목록 컨테이너
     panel.innerHTML =
-      '<div class="rank-head"><b>랭킹</b>' +
+      '<div class="rank-head"><b>시군구별 기관</b>' +
       '<select id="rank-sort"><option value="urgency">임박순</option><option value="interest">관심도순</option></select>' +
-      '</div><div id="rank-list"></div>' +
+      '</div><p id="rank-status" class="sr-only" role="status"></p><div id="rank-list"></div>' +
       '<div style="margin-top:8px;"><button id="rank-more">더 보기 — 전체 입찰건</button></div>';
     document.getElementById('rank-sort').value = render.state.rankSort;
     document.getElementById('rank-sort').addEventListener('change', function (e) {
@@ -943,10 +1005,11 @@
     document.getElementById('rank-more').addEventListener('click', function () { render.openMoreModal(); });
 
     const listEl = document.getElementById('rank-list');
-    render.rankedList(code).forEach(function (r) {
+    // 행(.rank-card) 하나 — 묶음 안 기본 표시 행과 접힌 행이 같은 마크업·이벤트를 쓴다.
+    function buildCard(r) {
       const card = document.createElement('div'); card.className = 'rank-card'; card.dataset.name = r.name;
       const glyph = logic.recordGlyph(r);
-      const hearted = store.isInterested(r.name);
+      const hearted = render.hearted(r);
       // 글리프: '⚠️'(날짜 미상)는 획 어휘 SVG로, '!'(무결성 문제)는 글자 그대로.
       const missHtml = glyph === '!' ? '<span class="miss">!</span>'
         : (glyph ? '<span class="miss">' + render.ICONS.warn + '</span>' : '');
@@ -955,7 +1018,9 @@
         '<b>' + logic.esc(r.name) + '</b> ' + missHtml +
         '<br><small>' + logic.esc(render.rankLineText(r, render.state.today)) + '</small>';
       card.querySelector('.heart').addEventListener('click', function (e) {
-        e.stopPropagation(); store.toggleInterest(r.name); render.drawRankingPanel(code);
+        e.stopPropagation();
+        if (!render.watchOn()) { store.toggleInterest(r.name); render.drawRankingPanel(code); return; }   // 로컬 모드 그대로
+        render.toggleWatch(r, code).then(function (o) { if (!o.ok) render._rkNote(card, o.message); });
       });
       card.querySelector('.heart').addEventListener('dblclick', function (e) { e.stopPropagation(); });
       card.addEventListener('mouseenter', function () { render.highlightMarker(r.name, true); });
@@ -976,11 +1041,99 @@
         render.selectInstitution(r);
         render.openRecord(r, card, rc.left - 292, rc.top, { keyboard: true });
       });
-      listEl.appendChild(card);
-    });
+      return card;
+    }
+    // 시군구 묶음(design-reviewer 2026-11-24_1839 6-B): 면과 같은 소속 규칙(rankGroupDefs) ∩ 지금 정렬의 목록.
+    render._groups = logic.rankGroups(render.rankedList(code), render.rankGroupDefs(code), render.state.today);
+    render._faceGroup = {};
+    render._groups.forEach(function (g) { g.faceCodes.forEach(function (fc) { render._faceGroup[fc] = g.code; }); });
+    render._groups.forEach(function (g) { listEl.appendChild(render._rkBuildGroup(g, buildCard)); });
+    const hd = panel.querySelector('.rank-head');
+    if (hd) panel.style.setProperty('--rank-head-h', hd.offsetHeight + 'px');   // 묶음 머리가 .rank-head 바로 아래에 붙게
     // 목록을 새로 그리면 .hi가 사라지므로 현재 선택을 복원한다 —
     // ♥ 토글이 이 함수를 재호출하는데 그때 선택 강조가 엉뚱하게 풀리는 걸 막는다.
     if (render._selectedName) render.highlightCard(render._selectedName, true);
+    // ♥·정렬로 다시 그려도 묶음 선택(.on)을 유지한다
+    if (render._selectedGroup) { const on = render._rkGroupEl(panel, render._selectedGroup); if (on) { on.classList.add('on'); render._rkPressed(on, true); } }
+  };
+  // 묶음 머리 단추의 눌림 상태(aria-pressed)를 .on과 같이 맞춘다(design 11-24 P3-6)
+  render._rkPressed = function (sec, on) {
+    const b = sec && sec.querySelector ? sec.querySelector('.rk-gbtn') : null;
+    if (b) b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  };
+
+  // 면(시군구) → 묶음 정의(logic.faceGroups + 소속 키). 소속은 recordsForFeature(카드 수를 낸 함수)와 같다 —
+  // 그래서 묶음 머리 수 = 카드 수(일반구 합침은 합집합이라 예외). 지자체 레코드를 공유하는 면(수원 4구)은 한 묶음.
+  render.rankGroupDefs = function (code) {
+    const fc = (render.REGION_GEO[code] || function () { return null; })();
+    if (!fc || !fc.features) return [];
+    const faces = [], keysOf = {};
+    fc.features.forEach(function (f) {
+      const recs = render.recordsForFeature(f), c = f.properties.code;
+      keysOf[c] = recs.map(function (r) { return logic.instKey(r); });
+      faces.push({ code: c, name: f.properties.name, muni: recs.filter(function (r) { return r.type === '지자체'; })
+        .map(function (r) { return { key: logic.instKey(r), name: r.name }; }) });
+    });
+    const groups = logic.faceGroups(faces);
+    groups.forEach(function (g) {
+      const seen = {}; g.keys = [];
+      g.faceCodes.forEach(function (c) { keysOf[c].forEach(function (k) { if (!seen[k]) { seen[k] = true; g.keys.push(k); } }); });
+    });
+    return groups;
+  };
+  // 묶음 한 개: 머리(단추 — 미확인 묶음은 글자) + 기본 표시 행 + 접힌 행(1년 이상) + 펼침 단추. 사용자·API 글은 esc.
+  render._rkBuildGroup = function (g, buildCard) {
+    const key = g.code || 'none';
+    const sec = document.createElement('section');
+    sec.className = 'rk-grp'; sec.dataset.code = g.code; sec.setAttribute('aria-labelledby', 'rkg-' + key);
+    const sum = g.summary.map(function (s) { return '<span>' + esc(s.label) + ' <b>' + s.n + '</b>건</span>'; }).join('') || '<span>1년 안 입찰 없음</span>';
+    const inner = '<span class="rk-gn">' + esc(g.name) + '</span><span class="rk-gt">' + g.total + '건</span><span class="rk-gs">' + sum + '</span>';
+    sec.innerHTML = '<h3 class="rk-gh">' + (g.code
+      ? '<button type="button" class="rk-gbtn" id="rkg-' + esc(key) + '" aria-pressed="false">' + inner + '</button>'
+      : '<span class="rk-gstatic" id="rkg-none">' + inner + '</span>') + '</h3>';
+    const head = sec.querySelector('.rk-gbtn');
+    if (head) head.addEventListener('click', function () { render.selectGroup(g.code, { noScroll: true }); });   // 이미 보고 있으니 스크롤하지 않는다
+    g.shown.forEach(function (r) { sec.appendChild(buildCard(r)); });
+    if (g.rest.length) {
+      const open = render.state.rankOpen.has(g.code);
+      const rest = document.createElement('div'); rest.className = 'rk-rest'; rest.id = 'rkr-' + key;
+      if (!open) rest.hidden = true;   // hidden 속성 — 스크린리더도 건너뛰고 자리도 차지하지 않는다
+      g.rest.forEach(function (r) { rest.appendChild(buildCard(r)); });
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'rk-rest-btn';
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false'); btn.setAttribute('aria-controls', rest.id);
+      btn.dataset.n = String(g.rest.length); btn.textContent = logic.restLabel(g.rest.length, open);
+      btn.addEventListener('click', function () { render._setGroupOpen(g.code, rest.hidden); });
+      sec.appendChild(rest); sec.appendChild(btn);
+    }
+    return sec;
+  };
+  // 이름을 선택자에 넣지 않는다(focusCard와 같은 이유) — data-code를 훑어 찾는다.
+  render._rkGroupEl = function (panel, code) {
+    let hit = null;
+    panel.querySelectorAll('.rk-grp').forEach(function (s) { if (s.dataset.code === code) hit = s; });
+    return hit;
+  };
+  // 묶음의 접힌 행을 열고 닫는다(상태는 render.state.rankOpen, 목록을 다시 그려도 유지).
+  render._setGroupOpen = function (code, open) {
+    if (open) render.state.rankOpen.add(code); else render.state.rankOpen.delete(code);
+    const panel = document.getElementById('rank-panel'); if (!panel) return;
+    const sec = render._rkGroupEl(panel, code); if (!sec) return;
+    const rest = sec.querySelector('.rk-rest'), btn = sec.querySelector('.rk-rest-btn');
+    if (!rest || !btn) return;
+    if (open) rest.removeAttribute('hidden'); else rest.setAttribute('hidden', '');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.textContent = logic.restLabel(Number(btn.dataset.n) || rest.children.length, open);
+  };
+  // 묶음 머리를 .rank-head 바로 아래에 맞춘다 — 패널 scrollTop만 옮긴다(페이지는 안 움직임, focusCard와 같은 방식).
+  render._scrollToGroup = function (panel, sec) {
+    const head = panel.querySelector('.rank-head'), hh = head ? head.offsetHeight : 0;
+    const pr = panel.getBoundingClientRect(), sr = sec.getBoundingClientRect();
+    const dy = logic.groupScrollDelta(sr.top - pr.top - hh, panel.clientHeight - hh);
+    if (dy) panel.scrollTop += dy;
+  };
+  render._rankStatus = function (msg) {
+    const el = typeof document !== 'undefined' && document.getElementById('rank-status');
+    if (el) { el.textContent = ''; el.textContent = msg; }
   };
 
   // 접힌 '원본 정보'(지도 상세 팝업 tailHtml) — 규격: handoff/agents/design-reviewer/2026-11-11_1421_a3b0ec71.md §6-B. 지역코드·구시군코드·경도·위도는 보이지 않고 [편집] 창에만 있다.
@@ -1025,6 +1178,7 @@
   };
 
   render._selectedName = null;
+  render._selectedGroup = null;   // 선택된 시군구 묶음 코드 — 기관 선택(_selectedName)과 둘 중 하나만 설정된다
 
   // 이전 선택의 흔적을 전부 해제한다. selectInstitution의 유일한 "끄기" 경로이자,
   // 랭킹 카드 흰 테두리가 클릭할수록 누적되던 버그의 근본 수정.
@@ -1036,6 +1190,8 @@
     svg.selectAll('g.sel-ring-layer path.ring-sel').remove();
     svg.selectAll('g.sub-card.selected').classed('selected', false);   // 시군구 카드 선택 표시도 함께 푼다
     document.querySelectorAll('.rank-card .rank-noloc').forEach(function (n) { n.remove(); });
+    document.querySelectorAll('.rk-grp.on').forEach(function (s) { s.classList.remove('on'); render._rkPressed(s, false); });   // 묶음 선택(목록)도 함께 푼다
+    render._selectedGroup = null;
   };
 
   // ── 지도 강조 덮개 층(규격 design-reviewer 2026-11-19_1011 6-B) ──
@@ -1067,6 +1223,35 @@
   render._ringBlur = function () {
     if (typeof d3 === 'undefined') return;
     d3.select('#map-svg').selectAll('g.sel-ring-layer path.ring-focus').remove();
+  };
+
+  // 시군구 묶음 선택(면·카드 클릭, 면 Enter, 목록의 묶음 머리 클릭). 선택은 기관 또는 묶음 하나 — 기관 선택은 비운다.
+  // 수원 4구처럼 묶음에 면이 여럿이면 전부 선택·링(_blinkMunicipality와 같은 방식). 포커스는 옮기지 않는다(면을 Tab으로 훑던 흐름 유지).
+  // opts.noScroll: 머리 클릭처럼 이미 보고 있을 때, opts.quiet: 다시 그린 뒤 복원일 때(알림 생략). 묶음을 못 찾으면 false.
+  render.selectGroup = function (groupCode, opts) {
+    const o = opts || {};
+    const g = groupCode ? (render._groups || []).filter(function (x) { return x.code === groupCode; })[0] : null;
+    if (!g) return false;
+    render.clearSelection();
+    render._selectedName = null;
+    render._selectedGroup = g.code;
+    if (typeof d3 !== 'undefined' && typeof document !== 'undefined') {
+      const sel = d3.select('#map-svg').selectAll('path.subregion')
+        .filter(function () { return g.faceCodes.indexOf(this.getAttribute('data-code')) >= 0; })
+        .classed('selected', true);
+      render._ringSelect(sel);
+      render._cardSelect();
+    }
+    if (typeof document === 'undefined') return true;
+    const panel = document.getElementById('rank-panel');
+    const sec = panel ? render._rkGroupEl(panel, g.code) : null;
+    if (sec) {
+      sec.classList.add('on'); render._rkPressed(sec, true);
+      if (!g.shown.length && g.rest.length) render._setGroupOpen(g.code, true);   // 보일 행이 없으면 자동으로 펼친다
+      if (!o.noScroll) render._scrollToGroup(panel, sec);
+    }
+    if (!o.quiet) render._rankStatus(logic.groupStatusText(g));
+    return true;
   };
 
   render.selectInstitution = function (rec) {
@@ -1172,8 +1357,15 @@
   // 면 클릭 → 오른쪽 랭킹 목록의 그 카드로 포커스(사용자 요청). 마커 클릭과 달리
   // **상세 팝업은 열지 않는다** — 목적이 목록으로 시선을 옮기는 것인데 팝업이
   // 그 카드를 가릴 수 있다(사용자 확정 ⓐ안).
+  // 면(시군구)이 속한 목록 묶음 코드(drawRankingPanel이 채운 render._faceGroup). 없으면 ''.
+  render.groupCodeForFeature = function (feature) {
+    const c = feature && feature.properties && feature.properties.code;
+    return (c && render._faceGroup && render._faceGroup[c]) || '';
+  };
+  // 면·카드 클릭 → 그 시군구 묶음 선택(design-reviewer 2026-11-24_1839 6-B). 면과 카드는 여러 기관 묶음을 뜻하므로
+  // 한 기관(지자체 우선)이 아니라 묶음 전체를 목록에서 강조한다. 상세 팝업은 열지 않는다(사용자 확정 ⓐ안).
   render.onSubregionClick = function (feature, ev) {
-    // 면 색을 정한 바로 그 레코드를 고른다(recordForFeature 주석 참조).
+    // 면 색을 정한 바로 그 레코드가 있는지로 판단한다(recordForFeature 주석 참조).
     const rec = render.recordForFeature(feature);
     // 레코드 없는 회색 면은 고를 것이 없다 — 막지 않고 그대로 흘려보내
     // 아래 document 핸들러가 예전처럼 '빈 곳 클릭'(선택 해제)으로 처리하게 둔다.
@@ -1181,6 +1373,8 @@
     // 그 document 핸들러는 .rank-card/.marker 밖 클릭을 전부 빈 곳으로 보므로,
     // 여기서 멈추지 않으면 방금 한 선택이 곧바로 풀린다.
     if (ev && ev.stopPropagation) ev.stopPropagation();
+    if (render.selectGroup(render.groupCodeForFeature(feature))) return;
+    // 묶음을 못 찾으면(목록이 아직 안 그려진 경우 등) 예전처럼 기관 하나.
     render.selectInstitution(rec);
     render.focusCard(rec.name);
   };
@@ -1205,8 +1399,9 @@
 
   // 지도 빈 곳·패널 여백 클릭 → 선택 강조 해제. 지도 상세 팝업·그 위의 기관장 편집 창 안의 클릭은 풀지 않는다.
   if (typeof document !== 'undefined') document.addEventListener('click', function (ev) {
-    const outside = !(ev.target.closest && ev.target.closest('.rank-card, .marker, .dm-ov, .hc-ov'));
-    if (outside && render._selectedName) {
+    // 묶음 머리·펼침 단추 클릭은 빈 곳이 아니다(펼침 단추를 눌러도 선택이 풀리지 않게).
+    const outside = !(ev.target.closest && ev.target.closest('.rank-card, .marker, .dm-ov, .hc-ov, .rk-gbtn, .rk-rest-btn'));
+    if (outside && (render._selectedName || render._selectedGroup)) {
       render._selectedName = null; render.clearSelection();
     }
   });
