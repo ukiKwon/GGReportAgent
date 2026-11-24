@@ -571,12 +571,13 @@ test('T2 moveNoteIf: 공고 상태 목록이 ok일 때만 안내를 붙인다', 
   assert.strictEqual(dash.moveNoteIf('ok', ''), '');
   const src = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
   assert.ok(/dash\.moveNoteIf\(n\.state \? n\.state\(\) : '', note0\)/.test(src));
-  assert.ok(/function repaintRec\(\) \{(?:[^\n]*\n){1,4}\s*st\.comp = false; st\.compLater = false;/.test(src));   // F4
+  assert.ok(/function repaintRc\(rc\) \{(?:[^\n]*\n){1,4}\s*rc\.resetComp\(\);/.test(src));   // F4
+  assert.ok(/resetComp: function \(\) \{ st\.comp = false; st\.compLater = false; \}/.test(src));
 });
 
 test('소스: 저장 뒤 안내(P3-8)·사번 바뀐 뒤 이력 재요청(N-1)·한글 조합 중 미루기(N-5) 연결', function () {
   const src = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
-  assert.ok(/Promise\.resolve\(n\.load\(\)\)\.then\([\s\S]{0,400}dash\.moveNote\(/.test(src));
+  assert.ok(/Promise\.resolve\(n\.load\(\)\)\.then\([\s\S]{0,400}rc\.note\(o/.test(src));
   assert.ok(/const changed = recGuard\(\);[\s\S]{0,300}if \(changed && it\) recSync\(it\);/.test(src));      // N-1: DOM 없이는 mount를 못 돌려 연결만 확인한다
   assert.ok(/compositionstart/.test(src) && /compositionend/.test(src) && /st\.comp && !changed/.test(src));
 });
@@ -742,7 +743,7 @@ test('상세 보기 전용(11-19): lockBank는 can_edit을 끄고 원본을 바�
   const ro = dash.popupHtml(dash.itemForRec({ name: '가람시청', region: '11', type: '지자체', confirmed: true }, new Date(2026, 10, 19)), { act: 'none', role: '디자이너', readOnly: true, nameId: 'dm-name', today: new Date(2026, 10, 19) });
   assert.ok(ro.bar.indexOf('id="dm-edit"') < 0 && ro.bar.indexOf('db-next') < 0 && ro.bar.indexOf('id="dm-close"') > 0 && ro.bar.indexOf('aria-label="닫기"') > 0 && ro.bar.indexOf('>닫기</button>') > 0 && ro.bar.indexOf('<svg') < 0);
   const s = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
-  assert.ok(/readOnly: dash\.isViewOnly\(\)/.test(s) && /dash\.isViewOnly = function/.test(s) && /if \(dash\.isViewOnly\(\)\) return 'none';/.test(s) && /canEdit: n\.canEdit\(\) && !dash\.isViewOnly\(\)/.test(s) &&/if \(m\.readOnly\) act = 'none';/.test(s));
+  assert.ok(/readOnly: dash\.isViewOnly\(\)/.test(s) && /dash\.isViewOnly = function/.test(s) && /if \(dash\.isViewOnly\(\)\) return 'none';/.test(s) && /canEdit: n\.canEdit\(\) && !rc\.viewOnly\(\)/.test(s) && /viewOnly: function \(\) \{ return dash\.isViewOnly\(\); \}/.test(s) &&/if \(m\.readOnly\) act = 'none';/.test(s));
   assert.ok(/m\.readOnly && \['dm-edit', 'bk-edit', 'db-cf', 'db-do', 'db-open'\]/.test(s));
   assert.ok(/dash\.onProfileChange = function/.test(s) && s.indexOf('최근 절차일') < 0 && s.indexOf('지난 금고 선정일') > 0);
 });

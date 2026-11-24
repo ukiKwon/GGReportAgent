@@ -474,3 +474,11 @@ test('overdue.js: 팝업은 dlg가 연다 — 자체 Esc·Tab·바깥 클릭·po
   assert.match(src, /root\.dlg\.close\(pop, restore === false \? \{ restore: false \} : undefined\)/);
   assert.doesNotMatch(src, /popOpen|returnTo|window\.addEventListener\('keydown'|window\.addEventListener\('click'/);
 });
+
+test('pickRefocus: 같은 행이 있으면 그 행, 없으면 같은 묶음의 다음 행, 다음이 없으면 묶음 제목', function () {
+  const order = ['a', 'b', 'c'];
+  assert.deepStrictEqual(ov.pickRefocus(order, 'b', function (x) { return true; }), { kind: 'self', id: 'b' });
+  assert.deepStrictEqual(ov.pickRefocus(order, 'b', function (x) { return x === 'c'; }), { kind: 'next', id: 'c' });
+  assert.deepStrictEqual(ov.pickRefocus(order, 'b', function (x) { return x === 'a'; }), { kind: 'group' });   // 앞 행으로는 가지 않는다
+  assert.deepStrictEqual(ov.pickRefocus([], 'z', function () { return false; }), { kind: 'group' });
+});

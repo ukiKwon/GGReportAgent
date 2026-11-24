@@ -91,10 +91,28 @@
     return null;
   }
   // 처리하면 그 기관이 현재 보기(미처리)에서 빠지고 패널이 다시 그려진다 — 그때는 토글 버튼으로 돌아간다.
+  // 닫을 때 포커스: 저장해서 그 행이 보기에서 빠졌으면 같은 묶음의 다음 기관, 없으면 묶음 제목. order = 묶음 안 id 순서, has(id) = 지금 그 행이 있는가. 순수.
+  ov.pickRefocus = function (order, id, has) {
+    if (has(id)) return { kind: 'self', id: id };
+    const i = order.indexOf(id);
+    for (let k = i + 1; i >= 0 && k < order.length; k++) if (has(order[k])) return { kind: 'next', id: order[k] };
+    return { kind: 'group' };
+  };
+  function groupHead(code) {
+    const g = $('ov-list') ? $('ov-list').querySelectorAll('details.ov-grp') : [];
+    for (let i = 0; i < g.length; i++) if (g[i].getAttribute('data-group') === code) return g[i].querySelector('summary');
+    return null;
+  }
   ov.openItem = function (id, opener) {
     const it = ov.findItem(ov.state.summary, id), d = root.dashboard;
     if (!it || !d || typeof d.openDetail !== 'function') return false;
-    return d.openDetail(it.rec, { opener: opener, fallback: '#ov-toggle', refocus: function () { return openBtn(id); } });
+    const grp = opener && opener.closest ? opener.closest('details.ov-grp') : null, code = grp ? grp.getAttribute('data-group') : '';
+    const order = grp ? Array.prototype.map.call(grp.querySelectorAll('.ov-open'), function (b) { return b.dataset.id; }) : [];
+    return d.openDetail(it.rec, { opener: opener, fallback: '#ov-toggle', noteView: function () { return ov.state.view; },
+      refocus: function () {
+        const p = ov.pickRefocus(order, id, function (x) { return !!openBtn(x); });
+        return p.kind === 'group' ? groupHead(code) : openBtn(p.id);
+      } });
   };
 
   ov.HINT_WATCH = '관심 지역이 없어 모든 시·도를 접어 두었습니다. 전국 지역별 화면에서 지역 카드의 별을 누르면 그 지역이 맨 위에 펼쳐집니다.';

@@ -1013,8 +1013,8 @@
     return { bar: bar, note: note, body: '<div class="db-pane-body">' + p.sub + p.rest + '</div>' };
   };
   // 약정 편집 중 뒤로 갈 때의 확인 상자(design 6-1). closing = 바깥 클릭으로 전체를 닫으려는 경우.
-  dash.leaveBoxHtml = function (closing) {
-    return '<div class="db-confirm dm-confirm" id="dm-leave" role="group" aria-labelledby="dm-leave-t"><span id="dm-leave-t">저장하지 않은 약정이 있습니다.</span>' +
+  dash.leaveBoxHtml = function (closing, what) {   // what = 저장하지 않은 것의 이름(기본 '약정')
+    return '<div class="db-confirm dm-confirm" id="dm-leave" role="group" aria-labelledby="dm-leave-t"><span id="dm-leave-t">저장하지 않은 ' + esc(what || '약정') + '이 있습니다.</span>' +
       '<div class="db-act-row"><button type="button" id="dm-leave-drop">' + (closing ? '버리고 닫기' : '버리고 돌아가기') + '</button><button type="button" id="dm-leave-keep">계속 입력</button></div></div>';
   };
 
@@ -1258,7 +1258,7 @@
     st.comp = false; st.compLater = false;   // 상세를 통째로 다시 그리면 조합도 끊긴다 — 미룬 다시 그리기 표시를 남기지 않는다
     el.innerHTML = dash.paneHtml(it, { act: act, early: act === 'confirm' && dash.proposeEarly(it.rec, gateOpts()), confirm: st.confirm && act === 'confirm', busy: st.busy,
       kb: dash.kbEntry(it.rec, root.KB_VERIFIED), next: dash.kbEntry(it.rec, root.KB_NEXT), role: ctx.role, today: todayDate(), headHtml: headSection(it),
-      recordHtml: ie.isOpenCheck(it.rec) ? '' : recViewHtml(it), bank: dash.isViewOnly() ? dash.lockBank(bankView(it.rec)) : bankView(it.rec) });
+      recordHtml: ie.isOpenCheck(it.rec) ? '' : recViewHtml(boardRc), bank: dash.isViewOnly() ? dash.lockBank(bankView(it.rec)) : bankView(it.rec) });
     if (st.confirm && act === 'confirm') { const b = $('db-do'); if (b) b.focus(); }
     else if (keep) { const t = $(keep.id); if (t && t.focus) { t.focus(); try { if (keep.s != null) t.setSelectionRange(keep.s, keep.e); } catch (e) { /* 날짜 칸 등 */ } } }
     if (scrollTop0) { const b1 = el.querySelector('.db-pane-body'); if (b1) b1.scrollTop = scrollTop0; }   // 포커스가 끌어간 스크롤을 원래 자리로
@@ -1271,8 +1271,29 @@
   function profileName() { try { return String((root.store.loadProfile() || {}).name || '').trim(); } catch (e) { return ''; } }
   function recToday() { const n = NR(), l = logic.localDateStr(todayDate()); return n && n.today ? n.today(l) : l; }
   function stageLabel(cd) { return cd ? ((dash.STAGES[dash.stageOf(cd)] || {}).label || '') : ''; }
-  function recCur() { const n = NR(); return st.rec.hist && n ? n.currentOf(st.rec.hist) : null; }
-  function recDraft(it) { const n = NR(); return st.drafts[recId(it)] || n.blankDraft(recCur()); }
+  // 공고 상태 기록 맥락(rc) — 현황판 상세 칸(st.sel·st.rec)과 기관정보 팝업(dm.cur·m.rc)이 같은 함수를 쓴다. 초안(st.drafts)은 둘이 같이 쓴다.
+  // rc = { idp, alive(), it(), rs(), q(sel), flash(msg, isErr), authErr?(msg), viewOnly(), screenId(), resetComp(), mark(), note(o, mark) }
+  function rid(rc, k) { return rc.idp + 'db-rec' + (k ? '-' + k : ''); }
+  function rq(rc, k) { return rc.q('#' + rid(rc, k)); }
+  function recFocus(rc, k) { const b = rq(rc, k); if (b && b.focus) b.focus(); }
+  const boardRc = {
+    idp: '',
+    alive: function () { return !!(host && M); },
+    it: function () { return selItem(); },
+    rs: function () { return st.rec; },
+    q: function (sel) { return host ? host.querySelector(sel) : null; },
+    flash: function (msg, isErr) { flash(msg, isErr); },
+    viewOnly: function () { return dash.isViewOnly(); },
+    screenId: function () { return undefined; },                       // nr.SCREEN(bid_notice)
+    resetComp: function () { st.comp = false; st.compLater = false; },
+    mark: function () { return { key: st.sel, tab: st.tab }; },
+    note: function (o, k) {                                           // P3-8: 저장 뒤 그 기관이 지금 보기에서 빠졌으면 안내 한 문장
+      if (!host || !M || st.sel !== k.key || st.tab !== 'ov' || k.tab !== 'ov' || st.flash !== o.msg) return '';
+      return recMoveNote(selItem(), st.ovView);
+    }
+  };
+  function recCur(rc) { const n = NR(), r = rc.rs(); return r.hist && n ? n.currentOf(r.hist) : null; }
+  function recDraft(rc) { const n = NR(); return st.drafts[recId(rc.it())] || n.blankDraft(recCur(rc)); }
   // 사번이 바뀌면 앞 사람의 초안·이력을 버린다(noticerec의 sync와 같은 기준). 처음 보는 사번이면 기록만 한다.
   function recGuard() {
     const n = NR(), e = n && n.emp ? n.emp() : '';
@@ -1290,34 +1311,34 @@
     if (!id || !recOn() || ie.isOpenCheck(it.rec)) { if (st.rec.id) st.rec = recFresh(''); return; }
     if (st.rec.id === id) return;
     st.rec = recFresh(id);
-    recLoadHist(false);
+    recLoadHist(boardRc, false);
   }
-  function recLoadHist(quiet) {
-    const r = st.rec, n = NR(), my = ++r.seq;
+  function recLoadHist(rc, quiet) {
+    const r = rc.rs(), n = NR(), my = ++r.seq;
     if (!quiet || !r.hist) r.histSt = 'loading';
     return n.fetchHistory(r.id).then(function (x) {
-      if (st.rec !== r || my !== r.seq || !host) return;
+      if (rc.rs() !== r || my !== r.seq || !rc.alive()) return;
       r.histSt = x.status; r.histCode = x.code || 0; r.hist = x.status === 'ok' ? x.data : null;
-      repaintRec();
+      repaintRc(rc);
     });
   }
-  function recViewHtml(it) {
-    const n = NR(), r = st.rec, id = recId(it);
+  function recViewHtml(rc) {
+    const n = NR(), r = rc.rs(), it = rc.it(), id = recId(it);
     if (!n) return '';
-    if (!id || !recOn()) return dash.recordSecHtml(it, { state: 'offline', nested: true });
-    return dash.recordSecHtml(it, { nested: true, state: r.histSt === 'idle' ? 'loading' : r.histSt, code: r.histCode, listState: n.state ? n.state() : '', listCode: n.listCode ? n.listCode() : 0, hist: r.hist, cur: recCur(), canEdit: n.canEdit() && !dash.isViewOnly(),
+    if (!id || !recOn()) return dash.recordSecHtml(it, { state: 'offline', nested: true, idp: rc.idp });
+    return dash.recordSecHtml(it, { nested: true, idp: rc.idp, state: r.histSt === 'idle' ? 'loading' : r.histSt, code: r.histCode, listState: n.state ? n.state() : '', listCode: n.listCode ? n.listCode() : 0, hist: r.hist, cur: recCur(rc), canEdit: n.canEdit() && !rc.viewOnly(),
       draft: st.drafts[id] || null, errs: r.errs, err: r.err, busy: r.busy, cf: r.cf ? { stage: stageLabel(r.cf.state) } : null,
       who: profileName(), today: recToday(), rv: dash.recView(it), histOpen: r.histOpen });
   }
-  function repaintRec() {   // 기록 절만 바꾼다(스크롤·다른 절은 그대로)
-    const it = selItem(), sec = $('db-rec');
+  function repaintRc(rc) {   // 기록 절만 바꾼다(스크롤·다른 절은 그대로)
+    const it = rc.it(), sec = rq(rc, '');
     if (!it || !sec) return;
-    st.comp = false; st.compLater = false;   // renderPane과 같게 — 다시 그리면 한글 조합도 끊긴다(qa F4)
+    rc.resetComp();   // renderPane과 같게 — 다시 그리면 한글 조합도 끊긴다(qa F4)
     const a = document.activeElement, keep = a && a.id && sec.contains(a) ? a.id : '';
     const s0 = keep && a.selectionStart != null ? a.selectionStart : null, e0 = keep && a.selectionEnd != null ? a.selectionEnd : null;
-    sec.outerHTML = recViewHtml(it);
+    sec.outerHTML = recViewHtml(rc);
     if (keep) {
-      const t = $(keep);
+      const t = rc.q('#' + keep);
       if (t && t.focus) { t.focus(); try { if (s0 != null) t.setSelectionRange(s0, e0); } catch (e) { /* 날짜 칸 등 */ } }   // 커서 위치도 지킨다
     }
   }
@@ -1332,7 +1353,7 @@
     if (st.comp && !changed) { st.compLater = true; return; }   // 한글 조합 중이면 다시 그리기를 조합이 끝난 뒤로 미룬다(qa N-5)
     // 기록이 도착하면 [제안 확정] 노출도 달라진다(11-17) — 버튼 줄이 바뀌면 상세를 통째로 다시 그린다(입력 칸 포커스·커서는 renderPane이 지킨다)
     if (it && $('db-pane') && st.act !== undefined && st.act !== paneAct(it, actCtx(), dash.activePreps(st.preps))) { renderPane(); return; }
-    if (it && $('db-rec')) repaintRec();
+    if (it && $('db-rec')) repaintRc(boardRc);
   }
   function recCompEnd() {
     st.comp = false;
@@ -1342,83 +1363,95 @@
     if (!it) return;
     // 조합 중에 도착한 기록이 버튼 줄을 바꿨다면 조합이 끝난 지금 다시 판정한다(안 하면 옛 문구가 다음 다시 그리기까지 남는다)
     if ($('db-pane') && st.act !== undefined && st.act !== paneAct(it, actCtx(), dash.activePreps(st.preps))) { renderPane(); return; }
-    if ($('db-rec')) repaintRec();
+    if ($('db-rec')) repaintRc(boardRc);
   }
-  function recFocusField(k) {
-    const t = host && host.querySelector(k === 'status' ? '#db-rec input[name="rec-state"]' : (k === 'next' ? '#db-rec-next' : '#db-rec-op'));
+  function recFocusField(rc, k) {
+    const t = rc.q(k === 'status' ? '#' + rid(rc) + ' input[name="' + rc.idp + 'rec-state"]' : '#' + rid(rc, k === 'next' ? 'next' : 'op'));
     if (t && t.focus) t.focus();
   }
-  function recDirtyUi(it) {
-    const n = NR(), id = recId(it), dirty = !!st.drafts[id] && !n.sameDraft(st.drafts[id], n.blankDraft(recCur()));
-    const dd = $('db-rec-dirty'), rb = $('db-rec-revert');
+  function recDirtyUi(rc) {
+    const n = NR(), id = recId(rc.it()), dirty = !!st.drafts[id] && !n.sameDraft(st.drafts[id], n.blankDraft(recCur(rc)));
+    const dd = rq(rc, 'dirty'), rb = rq(rc, 'revert');
     if (dd) dd.hidden = !dirty;
     if (rb) rb.hidden = !dirty;
   }
-  function recInput(el) {
-    const it = selItem();
+  function recInput(rc, el) {
+    const it = rc.it(), r = rc.rs();
     if (!it || !recOn()) return;
-    const d = Object.assign({}, recDraft(it));
-    if (el.id === 'db-rec-next') d.next = el.value; else d.opinion = el.value;
+    const isNext = el.id === rid(rc, 'next'), d = Object.assign({}, recDraft(rc));
+    if (isNext) d.next = el.value; else d.opinion = el.value;
     st.drafts[recId(it)] = d;
-    const key = el.id === 'db-rec-next' ? 'next' : 'opinion';
-    if (st.rec.errs[key]) {   // 고치기 시작하면 그 칸의 오류는 지운다
-      delete st.rec.errs[key];
-      const p = $(el.id === 'db-rec-next' ? 'db-rec-next-err' : 'db-rec-op-err'); if (p) p.textContent = '';
+    const key = isNext ? 'next' : 'opinion';
+    if (r.errs[key]) {   // 고치기 시작하면 그 칸의 오류는 지운다
+      delete r.errs[key];
+      const p = rq(rc, isNext ? 'next-err' : 'op-err'); if (p) p.textContent = '';
       el.removeAttribute('aria-invalid');
     }
-    recDirtyUi(it);
+    recDirtyUi(rc);
   }
-  function recPick(value) {
-    const it = selItem();
+  function recPick(rc, value) {
+    const it = rc.it(), r = rc.rs();
     if (!it) return;
-    const d = Object.assign({}, recDraft(it)); d.status = value;
+    const d = Object.assign({}, recDraft(rc)); d.status = value;
     st.drafts[recId(it)] = d;
-    st.rec.errs = Object.assign({}, st.rec.errs); delete st.rec.errs.status;
-    repaintRec();
-    const c = host.querySelector('#db-rec input[name="rec-state"]:checked'); if (c && c.focus) c.focus();
+    r.errs = Object.assign({}, r.errs); delete r.errs.status;
+    repaintRc(rc);
+    const c = rc.q('#' + rid(rc) + ' input[name="' + rc.idp + 'rec-state"]:checked'); if (c && c.focus) c.focus();
   }
-  function recSave(confirmed) {
-    const it = selItem(), r = st.rec, n = NR();
+  function recCfNo(rc) { rc.rs().cf = null; repaintRc(rc); recFocus(rc, 'save'); }
+  function recRevert(rc) {
+    const it = rc.it(), r = rc.rs();
+    if (!it) return;
+    delete st.drafts[recId(it)]; r.errs = {}; r.err = ''; repaintRc(rc); recFocus(rc, 'save');
+  }
+  function recSave(rc, confirmed) {
+    const it = rc.it(), r = rc.rs(), n = NR();
     if (!it || !n || r.busy || r.histSt !== 'ok') return;
-    if (dash.isViewOnly() || !n.canEdit()) { flash('저장할 수 있는 권한이 없습니다. 공고 상태 기록은 영업팀이 저장합니다.', true); return; }
-    const id = recId(it), cur = recCur(), d = recDraft(it), errs = n.validate(d, recToday());
+    if (rc.viewOnly() || !n.canEdit()) { rc.flash('저장할 수 있는 권한이 없습니다. 공고 상태 기록은 영업팀이 저장합니다.', true); return; }
+    const id = recId(it), cur = recCur(rc), d = recDraft(rc), errs = n.validate(d, recToday());
     const first = n.FIELD_ORDER.filter(function (k) { return errs[k]; })[0];
-    if (first) { r.errs = errs; r.err = ''; r.cf = null; repaintRec(); recFocusField(first); return; }
-    r.busy = true; r.err = ''; r.errs = {}; r.cf = null; repaintRec();
-    n.save(id, n.body(d, cur, it), confirmed).then(function (x) { recDone(r, id, n.outcome(x)); },
-      function () { recDone(r, id, { kind: 'alert', msg: '저장하지 못했습니다. 서버가 응답하지 않습니다. 잠시 뒤 [기록 저장]을 다시 누르세요.' }); });
+    if (first) { r.errs = errs; r.err = ''; r.cf = null; repaintRc(rc); recFocusField(rc, first); return; }
+    r.busy = true; r.err = ''; r.errs = {}; r.cf = null; repaintRc(rc);
+    n.save(id, n.body(d, cur, it), confirmed, rc.screenId()).then(function (x) { recDone(rc, r, id, n.outcome(x)); },
+      function () { recDone(rc, r, id, { kind: 'alert', msg: '저장하지 못했습니다. 서버가 응답하지 않습니다. 잠시 뒤 [기록 저장]을 다시 누르세요.' }); });
   }
-  function recDone(r, id, o) {
-    const n = NR(), same = st.rec === r;
+  // 저장 뒤 선택한 기관이 보기(view)의 행에서 빠졌을 때 붙이는 한 문장. F1: 목록을 못 받았으면(error·denied 등) 옮김 판정을 믿을 수 없어 붙이지 않는다.
+  function recMoveNote(it, view) {
+    const n = NR(), note0 = it ? dash.moveNote(it.overdue ? dash.recView(it).view : '', view, !!it.overdue) : dash.moveNote('', view, false);
+    return dash.moveNoteIf(n.state ? n.state() : '', note0);
+  }
+  function recDone(rc, r, id, o) {
+    const n = NR(), same = rc.alive() && rc.rs() === r;
     r.busy = false;
     if (o.kind === 'saved' || o.kind === 'nochange') {
       delete st.drafts[id];
-      flash(o.msg, false);
-      const key = st.sel, tabAt = st.tab;
+      rc.flash(o.msg, false);
+      const mark = rc.mark();
       // 배지·목록·팝업이 onChange로 다시 그려진다. 저장 응답 round_closed(NO_BID로 회차가 닫힘)여도 같은 경로로 목록을 다시 받는다
       Promise.resolve(n.load()).then(function () {   // P3-8: 목록을 다시 받은 뒤 그 기관이 지금 보기에서 빠졌으면 저장 안내 끝에 한 문장
-        if (!host || !M || !same || st.sel !== key || st.tab !== 'ov' || tabAt !== 'ov' || st.flash !== o.msg) return;
-        const it = selItem(), note0 = it ? dash.moveNote(it.overdue ? dash.recView(it).view : '', st.ovView, !!it.overdue) : dash.moveNote('', st.ovView, false);
-        const note = dash.moveNoteIf(n.state ? n.state() : '', note0);   // F1: 목록을 못 받았으면(error·denied 등) 옮김 판정을 믿을 수 없어 붙이지 않는다
-        if (note) flash(o.msg + ' ' + note, false);
+        if (!same || !rc.alive() || rc.rs() !== r) return;
+        const note = rc.note(o, mark);
+        if (note) rc.flash(o.msg + ' ' + note, false);
       });
       if (!same) return;
       r.err = ''; r.errs = {}; r.cf = null;
       // round_closed면 이력의 닫힌 회차(close_reason_cd NO_BID)를 다시 받아 읽기용으로 보이게 하고, 새 회차 저장은 round_seq null·base_rev_no 0으로 간다
-      recLoadHist(true).then(function () { const b = $('db-rec-save'); if (b && b.focus) b.focus(); });   // 저장 뒤 포커스는 저장 버튼
+      recLoadHist(rc, true).then(function () { if (rc.alive()) recFocus(rc, 'save'); });   // 저장 뒤 포커스는 저장 버튼
       return;
     }
     if (o.recheck || o.reload) n.load();          // 권한(can_edit)·최신 기록이 바뀌었을 수 있다
-    if (!same) { if (o.kind !== 'confirm') flash(o.msg || '저장하지 못했습니다.', true); return; }   // 저장 중에 다른 기관으로 옮겨도 실패 안내는 남긴다
+    if (!same) { if (o.kind !== 'confirm') rc.flash(o.msg || '저장하지 못했습니다.', true); return; }   // 저장 중에 다른 기관으로 옮겨도 실패 안내는 남긴다
+    const top = !!(o.auth && rc.authErr);          // 팝업: 401·403은 위쪽 알림 줄(403 뒤에는 입력 칸이 사라져 절 안 문구도 같이 지워진다)
     r.err = ''; r.errs = {}; r.cf = null;
     if (o.kind === 'field') r.errs[o.field] = o.msg;
     else if (o.kind === 'confirm') r.cf = { state: o.prep };
+    else if (top) rc.authErr(o.msg);
     else r.err = o.msg;
-    repaintRec();
-    if (o.kind === 'field') recFocusField(o.field);
-    else if (o.kind === 'confirm') { const b = $('db-rec-cf-yes'); if (b && b.focus) b.focus(); }
-    else { const a = $('db-rec-alert'); if (a && a.focus) a.focus(); }
-    if (o.reload) recLoadHist(true);              // 먼저 저장된 최신 기록을 위에 보인다(입력은 그대로)
+    repaintRc(rc);
+    if (o.kind === 'field') recFocusField(rc, o.field);
+    else if (o.kind === 'confirm') recFocus(rc, 'cf-yes');
+    else recFocus(rc, top ? 'save' : 'alert');
+    if (o.reload) recLoadHist(rc, true);              // 먼저 저장된 최신 기록을 위에 보인다(입력은 그대로)
   }
   // ── 금고 약정(NEXT 89): 상세 '현재 금고 은행' 절 ─────────────────────────────────
   // 약정 응답은 표시용일 뿐 rec.bank·현황판 '국민은행이 맡은 기관' 계산에 섞지 않는다. 서버 모드·로그인·등록 기관일 때만 받는다(아니면 null → 기존 세 갈래).
@@ -1656,7 +1689,7 @@
   }
 
   function onKey(e) {
-    if (e.key === 'Escape' && st.rec.cf && !st.rec.busy) { st.rec.cf = null; repaintRec(); const b = $('db-rec-save'); if (b && b.focus) b.focus(); return; }
+    if (e.key === 'Escape' && st.rec.cf && !st.rec.busy) { recCfNo(boardRc); return; }
     if (e.key === 'Escape' && st.confirm) {
       st.confirm = false; renderPane();
       const b = $('db-cf'); if (b) b.focus();
@@ -1717,11 +1750,11 @@
         renderList(); { const b = $('db-chk'); if (b) b.focus(); } break;
       }
       case 'db-edit': { const it = st.sel ? findItem(st.sel) : null; if (it && root.app && root.app.openEdit) root.app.openEdit(it.rec, { from: 'bid_notice', focus: 'status' }); break; }
-      case 'db-rec-save': recSave(false); break;
-      case 'db-rec-cf-yes': st.rec.cf = null; recSave(true); break;
-      case 'db-rec-cf-no': st.rec.cf = null; repaintRec(); { const b = $('db-rec-save'); if (b && b.focus) b.focus(); } break;
-      case 'db-rec-revert': { const it = selItem(); if (it) { delete st.drafts[recId(it)]; st.rec.errs = {}; st.rec.err = ''; repaintRec(); const b = $('db-rec-save'); if (b && b.focus) b.focus(); } break; }
-      case 'db-rec-retry': recLoadHist(false); break;
+      case 'db-rec-save': recSave(boardRc, false); break;
+      case 'db-rec-cf-yes': st.rec.cf = null; recSave(boardRc, true); break;
+      case 'db-rec-cf-no': recCfNo(boardRc); break;
+      case 'db-rec-revert': recRevert(boardRc); break;
+      case 'db-rec-retry': recLoadHist(boardRc, false); break;
       case 'bk-edit': { const it = selItem(); if (it && root.app && root.app.openEdit) root.app.openEdit(it.rec, { from: 'bid_notice', focus: 'bank' }); break; }
       case 'bk-retry': { const it = selItem(), b = BC(); if (it && b) b.load(recId(it)); break; }
       case 'db-clear': case 'db-clear-w': st.q = ''; st.region = ''; st.type = ''; fillFilters(); renderList(); { const q = $('db-q'); if (q) q.focus(); } break;
@@ -1758,6 +1791,7 @@
     const m = dm.cur;
     if (!m) return;
     const f = m.el.querySelector('#dm-flash'), e = m.el.querySelector('#dm-err');
+    m.flashMsg = isErr ? '' : msg;
     if (f) f.textContent = isErr ? '' : msg;
     if (e) { e.textContent = isErr ? msg : ''; e.hidden = !isErr; }
   }
@@ -1770,16 +1804,58 @@
     return id ? dash.activePreps(m.preps).filter(function (p) { return instId(p) === id; })[0] || null : null;
   }
 
-  function dmRecState(readOnly) {
-    const n = NR(), A = root.app, N = root.nav;
-    return { state: n && n.state ? n.state() : 'offline', snap: n && n.snap ? n.snap() : null, canEdit: !readOnly && !!(n && n.canEdit && n.canEdit()),
-      canGo: !!(A && A.findNavItem && N && N.NOTICE_ID && A.findNavItem(N.NOTICE_ID) && root.dashboard && root.dashboard.mount), nested: true };
+  // 팝업의 공고 상태 기록 — 현황판과 같은 함수(recSave·recDone …)에 이 맥락을 넘긴다. 상태 m.rc는 열 때마다 새로, 초안은 st.drafts를 같이 쓴다.
+  // 감사 화면 이름: 서버 NoticeUiIds.SCREENS가 map_popover·bid_board를 허용하면 true로 바꾼다(그 전에는 bid_notice 유지 — 모르는 값은 UNKNOWN으로 남는다).
+  const REC_POPUP_SCREEN = false;
+  function dmRc(m) {
+    if (m.rcx) return m.rcx;
+    m.rcx = {
+      idp: 'dm-',
+      alive: function () { return dm.cur === m; },
+      it: function () { return m.it; },
+      rs: function () { return m.rc; },
+      q: function (sel) { return m.el.querySelector(sel); },
+      flash: function (msg, isErr) { if (dm.cur === m) dmFlash(msg, isErr); },
+      authErr: function (msg) { if (dm.cur === m) dmFlash(msg, true); },
+      viewOnly: function () { return !!m.readOnly; },
+      screenId: function () { return REC_POPUP_SCREEN ? m.screen : undefined; },
+      resetComp: function () { m.comp = false; m.compLater = false; },
+      mark: function () { return {}; },
+      note: function (o) {   // 지도 미처리 패널에서 열었을 때만: 패널의 지금 보기 기준(전체 보기면 붙이지 않는다)
+        if (dm.cur !== m || typeof m.noteView !== 'function' || m.flashMsg !== o.msg) return '';
+        const pv = m.noteView();
+        return !pv || pv === 'all' ? '' : recMoveNote(dash.itemForRec(m.rec, todayDate()), pv);
+      }
+    };
+    return m.rcx;
   }
+  function dmRecSync(m) {   // 팝업이 그려질 때마다: 기관·사번이 바뀐 경우에만 이력을 다시 받는다
+    const changed = recGuard(), id = recId(m.it);
+    if (changed || !m.rc) m.rc = recFresh('');
+    if (!id || !recOn() || ie.isOpenCheck(m.rec)) { if (m.rc.id) m.rc = recFresh(''); return; }
+    if (m.rc.id === id) return;
+    m.rc = recFresh(id);
+    recLoadHist(dmRc(m), false);
+  }
+  function dmRecDirty(m) {
+    const n = NR(), d = n ? st.drafts[recId(m.it)] : null;
+    return !!(d && !n.sameDraft(d, n.blankDraft(recCur(dmRc(m)))));
+  }
+  function dmRecDiscard(m) { delete st.drafts[recId(m.it)]; }
+  function dmLeaveWhat(m, kind) {   // 이탈 상자 문구: 저장하지 않은 것의 이름
+    const bank = !!(m.bankEdit && m.bankEdit.ctl && m.bankEdit.ctl.dirty()), rec = kind !== 'back' && dmRecDirty(m);
+    return bank && rec ? '약정과 공고 상태 기록' : rec ? '공고 상태 기록' : bank ? '약정' : '';   // 둘 다 깨끗하면 '' — dmRender가 상자를 닫는다(qa 11-25 P2-1)
+  }
+  function dmLeaveKeep(m) { return m.el.querySelector('#ie-bk-bank') || m.el.querySelector('#dm-db-rec-op') || m.el.querySelector('#dm-db-rec-save') || m.el.querySelector('#dm-name'); }
+  function dmCompEnd(m) { m.comp = false; if (m.compLater) { m.compLater = false; if (dm.cur === m) dmRender(); } }
   // 상세를 다시 그린다. 위 상자(#dm-box)·알림 줄(#dm-flash·#dm-err)은 그대로 두고 머리 줄(#dm-bar)·이유/확인 상자(#dm-act-note)·본문(#dm-pane)만 바꾸며, 스크롤·포커스를 이어 준다.
   // 11-19 저녁 design 4-4: 버튼은 머리 줄 오른쪽(주버튼 → [편집] → ×), 확정 확인 상자는 머리 아래 고정 영역(스크롤 안 됨).
   function dmRender() {
     const m = dm.cur;
     if (!m) return;
+    if (m.comp) { m.compLater = true; return; }   // 한글 조합 중 다시 그리면 조합이 끊긴다 — 끝난 뒤로 미룬다(dmCompEnd)
+    dmRecSync(m);
+    if (m.leaveAsk && !dmLeaveWhat(m, m.leaveAsk)) { m.leaveAsk = false; m.leaveFocus = false; }   // 저장·되돌리기로 저장하지 않은 것이 없어졌으면 이탈 상자를 닫는다(qa 11-25 P2-1)
     const pane = m.el.querySelector('#dm-pane'), bar = m.el.querySelector('#dm-bar'), nt = m.el.querySelector('#dm-act-note');
     if (!pane || !bar || !nt) return;
     const body0 = pane.querySelector('.db-pane-body');
@@ -1788,6 +1864,7 @@
     const inPane = !!(a && [pane, bar, nt].some(function (x) { return x.contains && x.contains(a); }));
     const keepId = inPane ? (a.id || '') : '';
     const keepHc = inPane && a.getAttribute ? (a.getAttribute('data-hc') || '') : '';
+    const keepSel = inPane && keepId && a.selectionStart != null ? [a.selectionStart, a.selectionEnd] : null;   // 입력 칸 커서
     // 금고 약정 편집 단계: 입력 묶음(#dm-bk-host)은 노드째 떼어 두었다가 다시 꽂는다 — 응답(preps·약정)이 올 때마다 갈아 끼우면 입력값·포커스가 사라진다(design 6-2 필수 조건)
     const bk = m.bankEdit && m.bankEdit.host ? m.bankEdit.host : null;
     const keepEl = bk && a && bk.contains && bk.contains(a) ? a : null;
@@ -1801,12 +1878,12 @@
     const parts = dash.popupHtml(m.it, {
       act: act, early: act === 'confirm' && dash.proposeEarly(m.rec, gateOpts()), confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
       headHtml: root.headcard ? root.headcard.paneSection(m.rec, dmHeadEnv(m)) : undefined,
-      recordHtml: ie.isOpenCheck(m.rec) ? '' : dash.recordBriefHtml(m.it, dmRecState(m.readOnly)), bank: m.readOnly ? dash.lockBank(bankView(m.rec)) : bankView(m.rec),
+      recordHtml: ie.isOpenCheck(m.rec) ? '' : recViewHtml(dmRc(m)), bank: m.readOnly ? dash.lockBank(bankView(m.rec)) : bankView(m.rec),
       nameId: 'dm-name', readOnly: m.readOnly, back: dmBackInfo(m), editing: !!m.bankEdit,   // 보기 전용: 머리 줄에는 ×만(주버튼은 act 'none'이라 없다). back = 스택 단계(약정 편집 → 읽기 → 목록)
       tailHtml: raw ? '<div class="db-sec"><details class="pop-raw"><summary>원본 정보</summary>' + raw + '</details></div>' : '',
     });
     bar.innerHTML = parts.bar; nt.innerHTML = parts.note; pane.innerHTML = parts.body;
-    if (m.leaveAsk) nt.innerHTML = dash.leaveBoxHtml(m.leaveAsk === 'close');   // 이탈 확인 상자가 확정 확인 상자 자리를 쓴다
+    if (m.leaveAsk) nt.innerHTML = dash.leaveBoxHtml(m.leaveAsk === 'close' || (m.leaveAsk === 'exit' && !(m.back && m.back.go)), dmLeaveWhat(m, m.leaveAsk));   // 이탈 확인 상자가 확정 확인 상자 자리를 쓴다
     if (bk) {   // 읽기 부분(dl·근거·비교)은 새로 그리고, 입력 묶음만 원래 노드를 [금고 약정 고치기] 자리(.bk-foot)에 되꽂는다
       const sec = pane.querySelector('#db-bank'), foot = sec ? sec.querySelector('.bk-foot') : null;
       if (foot) foot.parentNode.replaceChild(bk, foot); else (sec || pane).appendChild(bk);
@@ -1819,7 +1896,7 @@
       let t = keepId ? m.el.querySelector('#' + keepId) : null;
       if (!t && keepHc) t = pane.querySelector('[data-hc="' + keepHc + '"]');
       if (!t) t = m.el.querySelector('#dm-name');
-      if (t && t.focus) t.focus();
+      if (t && t.focus) { t.focus(); try { if (keepSel && t.setSelectionRange) t.setSelectionRange(keepSel[0], keepSel[1]); } catch (e) { /* 날짜 칸 등 */ } }
     }
     // 확정 확인 상자가 펼쳐지면 [제안 확정]은 비활성이라 포커스를 상자의 [확정하기]로 옮긴다(닫으면 [제안 확정]으로 돌아간다, dmClick db-cancel·dmKey Esc)
     // [확정하기]로 포커스를 옮기는 것은 상자가 막 펼쳐질 때 한 번뿐 — 약정·기록 응답으로 다시 그릴 때마다 옮기면 [취소]에 있던 포커스가 끌려가 Enter 한 번에 확정이 나간다(qa 11-19 P2-1)
@@ -1877,15 +1954,18 @@
     return l ? { aria: '이전: ' + l, close: '닫기 — ' + l + roOf(l) + ' 돌아갑니다' } : null;
   }
   function dmBack(m) {
+    if (m.rc && m.rc.busy) return;   // 기록 저장 중에는 벗어나지 않는다(결과를 보여 줄 곳이 없어진다)
     if (m.bankEdit) {
       if (m.bankEdit.ctl && m.bankEdit.ctl.dirty()) { m.leaveAsk = 'back'; m.leaveFocus = true; dmRender(); return; }
       dmBankLeave(m); return;
     }
+    if (dmRecDirty(m)) { m.leaveAsk = 'exit'; m.leaveFocus = true; dmRender(); return; }   // 이전·닫기는 어느 쪽이든 이 상세를 벗어난다
     if (m.back && typeof m.back.go === 'function') { const go = m.back.go; dash.closeDetail(false); go(); return; }   // 목록으로(스크롤·줄 포커스는 go가 되살린다)
     dash.closeDetail(true);
   }
   function dmCloseAll(m) {   // 바깥(막) 클릭: 단계와 상관없이 전체 닫기, 작성 중이면 확인 상자
-    if (m.bankEdit && m.bankEdit.ctl && m.bankEdit.ctl.dirty()) { m.leaveAsk = 'close'; m.leaveFocus = true; dmRender(); return; }
+    if (m.rc && m.rc.busy) return;
+    if ((m.bankEdit && m.bankEdit.ctl && m.bankEdit.ctl.dirty()) || dmRecDirty(m)) { m.leaveAsk = 'close'; m.leaveFocus = true; dmRender(); return; }
     dash.closeDetail(true);
   }
   // 금고 약정 편집(design 6-2): '현재 금고 은행' 절 안에서 바로 고친다. 상세를 닫지 않고 편집 창을 열지도 않는다 — 근거 문장·행안부 값을 보면서 입력한다.
@@ -1936,16 +2016,18 @@
     if (m.noConfirm && (btn.id === 'db-cf' || btn.id === 'db-do')) return;   // 협약 성과 화면: 버튼이 없어도 함수가 한 번 더 막는다
     switch (btn.id) {
       case 'dm-close': case 'dm-back': case 'bk-done': dmBack(m); break;
-      case 'dm-leave-drop': if (m.leaveAsk === 'close') dash.closeDetail(true); else dmBankLeave(m); break;
-      case 'dm-leave-keep': { m.leaveAsk = false; dmRender(); const f = m.el.querySelector('#ie-bk-bank'); if (f && f.focus) f.focus(); break; }
-      case 'dm-rec-go': {
-        const key = m.it.key;
-        const opened = !!(root.app && root.app.openNavItem && root.nav && root.app.openNavItem(root.nav.NOTICE_ID));
-        if (!opened) { const e = m.el.querySelector('#dm-flash'); if (e) e.textContent = '입찰 공고 현황을 열 수 없습니다. 왼쪽 메뉴의 [입찰 공고 현황]에서 여세요.'; break; }   // 열지 못하면 팝업을 닫지 않고 안내(kbboard openNotice와 같은 문구)
-        dash.closeDetail(false);
-        if (dash.selectKey) dash.selectKey(key);
+      case 'dm-leave-drop':
+        if (m.rc && m.rc.busy) break;   // 저장 중에는 버리지 않는다(dmBack·dmCloseAll과 같게, qa 11-25 P3-2)
+        if (m.leaveAsk === 'close') { dmRecDiscard(m); dash.closeDetail(true); }
+        else if (m.leaveAsk === 'exit') { dmRecDiscard(m); m.leaveAsk = false; dmBack(m); }
+        else dmBankLeave(m);
         break;
-      }
+      case 'dm-leave-keep': { m.leaveAsk = false; dmRender(); const f = dmLeaveKeep(m); if (f && f.focus) f.focus(); break; }
+      case 'dm-db-rec-save': recSave(dmRc(m), false); break;
+      case 'dm-db-rec-cf-yes': m.rc.cf = null; recSave(dmRc(m), true); break;
+      case 'dm-db-rec-cf-no': recCfNo(dmRc(m)); break;
+      case 'dm-db-rec-revert': { recRevert(dmRc(m)); if (m.leaveAsk) { dmRender(); recFocus(dmRc(m), 'save'); } break; }   // repaintRc는 dmRender를 안 거치므로 이탈 상자 자동 닫기를 여기서 돌린다
+      case 'dm-db-rec-retry': recLoadHist(dmRc(m), false); break;
       // [기관 정보 수정]: 상세는 닫지 않는다. 상세를 inert로 두고 그 위 한 층(#edit-modal z-index 31)에 편집 창을 연다. 금고 약정 묶음은 뺀다(상세 안에서 고친다, opts.noBank).
       case 'dm-info-edit': {
         const A = root.app;
@@ -1971,8 +2053,10 @@
     if (e.key === 'Escape') {
       e.preventDefault(); e.stopPropagation();
       if (m.busy) return;
+      if (m.rc && m.rc.busy) return;   // 기록 저장 중
+      if (m.rc && m.rc.cf) { recCfNo(dmRc(m)); return; }   // 기록 확인 상자만 닫고 [기록 저장]으로
       if (m.confirm) { m.confirm = false; dmRender(); const b = m.el.querySelector('#db-cf'); if (b) b.focus(); return; }
-      if (m.leaveAsk) { m.leaveAsk = false; dmRender(); const f = m.el.querySelector('#ie-bk-bank'); if (f && f.focus) f.focus(); return; }   // 이탈 확인 상자만 닫는다
+      if (m.leaveAsk) { m.leaveAsk = false; dmRender(); const f = dmLeaveKeep(m); if (f && f.focus) f.focus(); return; }   // 이탈 확인 상자만 닫는다
       dmBack(m);   // 약정 편집 → 기관 상세 → (협약 목록) → 닫기. 한 번에 한 단계
       return;
     }
@@ -1991,13 +2075,15 @@
   // opts.fallback = opener가 사라졌을 때 포커스를 돌릴 선택자(현황판 '#hb-ours', 지도는 비움). 열었으면 true.
   // opts.refocus = opener가 사라졌을 때 닫은 뒤 포커스를 받을 새 요소를 돌려주는 함수(현황판: 같은 열의 같은 data-key 버튼). 없거나 null이면 fallback.
   // opts.focus = 'confirm'이면 팝업이 그려진 뒤 [제안 확정] 버튼으로 포커스를 옮긴다(현황판 2번 구획 줄의 [제안 확정]).
+  // opts.noteView = 지도 패널의 지금 보기('pending'|'delayed'|'done'|'all')를 돌려주는 함수 — 저장 뒤 이동 안내 기준.
   // opts.back = { label, go } — 같은 팝업 안 한 단계 뒤(협약 중인 기관 목록 → 상세). [이전]·×·Esc가 상세를 닫고 go()를 부른다. 없으면 지금처럼 닫는다.
   dash.openDetail = function (rec, opts) {
     if (typeof document === 'undefined' || !rec) return false;
     if (dm.cur) dash.closeDetail(false);
     const m = { rec: rec, it: dash.itemForRec(rec, todayDate()), opener: (opts && opts.opener) || document.activeElement,
       screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', refocus: (opts && opts.refocus) || null, back: opts && opts.back && typeof opts.back.go === 'function' ? opts.back : null, focus: (opts && opts.focus) || '', noConfirm: !!(opts && opts.noConfirm), changed: false, readOnly: dash.isViewOnly(), bankEdit: null, leaveAsk: false, leaveFocus: false,
-      preps: null, prepSt: 'offline', confirm: false, busy: false, down: null, el: null };
+      preps: null, prepSt: 'offline', confirm: false, busy: false, down: null, el: null,
+      rc: recFresh(''), rcx: null, comp: false, compLater: false, flashMsg: '', noteView: opts && typeof opts.noteView === 'function' ? opts.noteView : null };
     const ov = document.createElement('div');
     ov.className = 'modal-overlay dm-ov';
     ov.id = 'dm-ov';
@@ -2016,7 +2102,15 @@
       if (dm.cur === m && m.bankEdit && m.bankEdit.ctl && tg && tg.closest && tg.closest('#ie-bank')) m.bankEdit.ctl.input(e);
     };
     ov.addEventListener('input', bkIn); ov.addEventListener('change', bkIn);
-    ov.addEventListener('toggle', function (e) { bankToggle(e, String(m.rec.institutionId || '')); }, true);
+    // 공고 상태 기록 칸(id·라디오 이름 앞에 'dm-')
+    ov.addEventListener('input', function (e) { const rc = dmRc(m), id = e.target && e.target.id; if (dm.cur === m && (id === rid(rc, 'next') || id === rid(rc, 'op'))) recInput(rc, e.target); });
+    ov.addEventListener('change', function (e) { const rc = dmRc(m); if (dm.cur === m && e.target && e.target.name === rc.idp + 'rec-state') recPick(rc, e.target.value); });
+    ov.addEventListener('compositionstart', function (e) { const id = e.target && e.target.id; if (id === 'dm-db-rec-op' || id === 'dm-db-rec-next') m.comp = true; });
+    ov.addEventListener('compositionend', function (e) { const id = e.target && e.target.id; if (id === 'dm-db-rec-op' || id === 'dm-db-rec-next') dmCompEnd(m); });
+    ov.addEventListener('toggle', function (e) {
+      if (e.target && e.target.classList && e.target.classList.contains('db-rec-hist')) m.rc.histOpen = !!e.target.open;
+      bankToggle(e, String(m.rec.institutionId || ''));
+    }, true);
     bankWatch();
     dmLoadPreps(m);   // 상태를 받는 동안 'wait'로 그리고, 도착하면 다시 그린다
     dash.loadGoals().then(function () { if (dm.cur === m) dmRender(); });   // 올해 목표 기관 여부 — 공고 전 [제안 확정] 판정
@@ -2060,6 +2154,7 @@
     }
   };
   dash.isDetailOpen = function () { return !!dm.cur; };
+  dash.popupState = function () { return dm.cur; };   // 시험용
   // 로그인 경과 팝업이 현황판 위에서 쓴다(overdue.js): 마운트 여부·경과 묶음 펼침+포커스.
   dash.isMounted = function () { return !!host; };
   dash.showPast = function () { if (host) showPast(); };
@@ -2095,7 +2190,7 @@
     host.addEventListener('click', onClick, opt);
     host.addEventListener('input', function (e) {
       if (e.target.id === 'db-q') { st.q = e.target.value; renderList(); }
-      else if (e.target.id === 'db-rec-next' || e.target.id === 'db-rec-op') recInput(e.target);
+      else if (e.target.id === 'db-rec-next' || e.target.id === 'db-rec-op') recInput(boardRc, e.target);
     }, opt);
     host.addEventListener('compositionstart', function (e) { if (e.target && (e.target.id === 'db-rec-op' || e.target.id === 'db-rec-next')) st.comp = true; }, opt);
     host.addEventListener('compositionend', function (e) { if (e.target && (e.target.id === 'db-rec-op' || e.target.id === 'db-rec-next')) recCompEnd(); }, opt);
@@ -2107,7 +2202,7 @@
     host.addEventListener('change', function (e) {
       if (e.target.id === 'db-region') { st.region = e.target.value; renderList(); }
       else if (e.target.id === 'db-type') { st.type = e.target.value; renderList(); }
-      else if (e.target.name === 'rec-state') recPick(e.target.value);
+      else if (e.target.name === 'rec-state') recPick(boardRc, e.target.value);
       else if (e.target.name === 'db-ov') setOvView(e.target.value);
       else if (e.target.name === 'db-per') setWindow(e.target.value, true);
       else if (e.target.name === 'db-kq-sc') {   // 막대만 바꾼다(목록은 그대로). 다시 그리면 라디오가 새로 만들어지므로 포커스를 돌려 준다

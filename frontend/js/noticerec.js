@@ -68,9 +68,9 @@
       return r.json().then(function (d) { return { status: 'ok', data: d || {} }; });
     }).catch(function () { return { status: 'error', code: 0 }; });
   };
-  nr.save = function (id, body, confirmed) {
+  nr.save = function (id, body, confirmed, screen) {
     return getFetch()('/institutions/' + encodeURIComponent(id) + '/notice-rounds/judgments', { method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Screen-Id': nr.SCREEN, 'X-Button-Id': confirmed ? 'save_confirmed' : 'save' },
+      headers: { 'Content-Type': 'application/json', 'X-Screen-Id': screen || nr.SCREEN, 'X-Button-Id': confirmed ? 'save_confirmed' : 'save' },
       body: JSON.stringify(body) })
       .then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { status: r.status, body: j }; }); });
   };
@@ -182,8 +182,8 @@
       const f = FIELD_OF[d && d.field], m = (d && d.message) || '저장하지 못했습니다. 입력을 확인하세요.';
       return f ? { kind: 'field', field: f, msg: m } : { kind: 'alert', msg: m };
     }
-    if (s === 401) return { kind: 'alert', msg: '로그인이 끝났습니다. 다시 로그인한 뒤 저장하세요. 적은 내용은 이 화면을 떠나기 전까지 남아 있습니다.' };
-    if (s === 403) return { kind: 'alert', msg: '공고 상태 기록은 영업팀만 저장할 수 있습니다.', recheck: true };
+    if (s === 401) return { kind: 'alert', msg: '로그인이 끝났습니다. 다시 로그인한 뒤 저장하세요. 적은 내용은 이 화면을 떠나기 전까지 남아 있습니다.', auth: true };
+    if (s === 403) return { kind: 'alert', msg: '공고 상태 기록은 영업팀만 저장할 수 있습니다.', recheck: true, auth: true };
     if (s === 409 && d) {
       if (d.code === 'NO_BID_CLOSED') return { kind: 'alert', msg: nr.CLOSED_LINE, reload: true };   // 서버가 닫힌 회차의 새 저장을 거부
       if (d.code === 'ACTIVE_PREP_CONFIRM_REQUIRED') return { kind: 'confirm', prep: d.prep_state_cd || '' };
@@ -201,7 +201,7 @@
   // ── HTML(순수) ───────────────────────────────────────────────────────
   function warnIcon() { const i = root.render && root.render.ICONS && root.render.ICONS.warn; return i ? '<span aria-hidden="true">' + i + '</span>' : ''; }
   function req(kind) { return kind === 'req' ? '<span class="req">(필수)</span>' : '<span class="req">(선택)</span>'; }
-  function errP(key, text) { return '<p class="db-rec-err" id="db-rec-' + key + '-err">' + (text ? warnIcon() + esc(text) : '') + '</p>'; }
+  function errP(P, key, text) { return '<p class="db-rec-err" id="' + P + 'db-rec-' + key + '-err">' + (text ? warnIcon() + esc(text) : '') + '</p>'; }
   function inv(text) { return text ? ' aria-invalid="true"' : ''; }
 
   function historyHtml(hist, open) {
@@ -224,34 +224,35 @@
   }
 
   function formHtml(it, v, cur) {
+    const P = v.idp || '';   // 같은 화면에 기록 절이 둘일 때(현황판 + 팝업) id가 겹치지 않게 앞글자를 붙인다. 기본 ''
     const base = nr.blankDraft(cur), d = v.draft || base, busy = !!v.busy, errs = v.errs || {};
     const dirty = !!v.draft && !nr.sameDraft(v.draft, base), n = nr.needs(d.status), def = logic.recStatus(d.status);
     const tomorrow = ymdPlus(v.today, 1), maxDay = ymdPlus(v.today, nr.NEXT_MAX_DAYS);
     const radios = logic.REC_STATUSES.map(function (s) {
-      return '<label><input type="radio" name="rec-state" value="' + s.code + '"' + (d.status === s.code ? ' checked' : '') + (busy ? ' disabled' : '') + '><span>' + esc(s.label) + '</span></label>';
+      return '<label><input type="radio" name="' + P + 'rec-state" value="' + s.code + '"' + (d.status === s.code ? ' checked' : '') + (busy ? ' disabled' : '') + '><span>' + esc(s.label) + '</span></label>';
     }).join('');
     const ro = busy ? ' readonly' : '';
-    let h = '<div class="db-rec-form" id="db-rec-form" aria-busy="' + (busy ? 'true' : 'false') + '">' +
-      '<span class="l full" id="db-rec-state-l">담당자 판정' + req('req') + '</span>' +
-      '<div class="full"><div class="db-rec-seg" role="radiogroup" aria-labelledby="db-rec-state-l" aria-required="true"' + inv(errs.status) + ' aria-describedby="db-rec-state-help db-rec-state-err">' + radios + '</div>' +
-      '<p class="db-rec-help" id="db-rec-state-help" aria-live="polite">' + esc(def ? def.help : '') + '</p>' + errP('state', errs.status) + '</div>';
+    let h = '<div class="db-rec-form" id="' + P + 'db-rec-form" aria-busy="' + (busy ? 'true' : 'false') + '">' +
+      '<span class="l full" id="' + P + 'db-rec-state-l">담당자 판정' + req('req') + '</span>' +
+      '<div class="full"><div class="db-rec-seg" role="radiogroup" aria-labelledby="' + P + 'db-rec-state-l" aria-required="true"' + inv(errs.status) + ' aria-describedby="' + P + 'db-rec-state-help ' + P + 'db-rec-state-err">' + radios + '</div>' +
+      '<p class="db-rec-help" id="' + P + 'db-rec-state-help" aria-live="polite">' + esc(def ? def.help : '') + '</p>' + errP(P, 'state', errs.status) + '</div>';
     if (n.next !== 'hide') {
-      h += '<label class="l" for="db-rec-next">다음 확인일' + req(n.next) + '</label><div><input type="date" id="db-rec-next" value="' + esc(d.next || '') + '"' +
+      h += '<label class="l" for="' + P + 'db-rec-next">다음 확인일' + req(n.next) + '</label><div><input type="date" id="' + P + 'db-rec-next" value="' + esc(d.next || '') + '"' +
         (tomorrow ? ' min="' + esc(tomorrow) + '"' : '') + (maxDay ? ' max="' + esc(maxDay) + '"' : '') + (n.next === 'req' ? ' aria-required="true"' : '') +
-        inv(errs.next) + ' aria-describedby="db-rec-next-err"' + ro + '>' + errP('next', errs.next) + '</div>';
+        inv(errs.next) + ' aria-describedby="' + P + 'db-rec-next-err"' + ro + '>' + errP(P, 'next', errs.next) + '</div>';
     }
-    h += '<label class="l" for="db-rec-op">담당자 의견' + req(n.opinion) + '</label><div><textarea id="db-rec-op" rows="3" placeholder="무엇을 보고 판단했는지 적으세요. 예: 10-20 재공고 게시판 확인"' +
-      (n.opinion === 'req' ? ' aria-required="true"' : '') + inv(errs.opinion) + ' aria-describedby="db-rec-op-err"' + ro + '>' + esc(d.opinion || '') + '</textarea>' + errP('op', errs.opinion) + '</div>';
+    h += '<label class="l" for="' + P + 'db-rec-op">담당자 의견' + req(n.opinion) + '</label><div><textarea id="' + P + 'db-rec-op" rows="3" placeholder="무엇을 보고 판단했는지 적으세요. 예: 10-20 재공고 게시판 확인"' +
+      (n.opinion === 'req' ? ' aria-required="true"' : '') + inv(errs.opinion) + ' aria-describedby="' + P + 'db-rec-op-err"' + ro + '>' + esc(d.opinion || '') + '</textarea>' + errP(P, 'op', errs.opinion) + '</div>';
     h += '<p class="db-rec-who full">' + (v.who ? '기록자 ' + esc(v.who) + '(로그인 사용자)' : '기록자는 로그인 사용자입니다') + ' · 저장하면 지금 시각과 함께 이력에 남습니다.</p>';
-    if (v.err) h += '<p class="db-rec-alert full" id="db-rec-alert" role="alert" tabindex="-1">' + esc(v.err) + '</p>';
+    if (v.err) h += '<p class="db-rec-alert full" id="' + P + 'db-rec-alert" role="alert" tabindex="-1">' + esc(v.err) + '</p>';
     if (v.cf) {
-      h += '<div class="db-confirm full" role="group" aria-labelledby="db-rec-cf-t"><span id="db-rec-cf-t">' +
+      h += '<div class="db-confirm full" role="group" aria-labelledby="' + P + 'db-rec-cf-t"><span id="' + P + 'db-rec-cf-t">' +
         (v.cf.stage ? '진행 중인 제안(' + esc(v.cf.stage) + ' 단계)이 있습니다. ' : '진행 중인 제안이 있습니다. ') + esc(def ? def.label : '') + ' 상태로 기록할까요?</span>' +
-        '<div class="db-act-row"><button type="button" class="db-next" id="db-rec-cf-yes">기록하기</button><button type="button" id="db-rec-cf-no">취소</button></div></div>';
+        '<div class="db-act-row"><button type="button" class="db-next" id="' + P + 'db-rec-cf-yes">기록하기</button><button type="button" id="' + P + 'db-rec-cf-no">취소</button></div></div>';
     } else {
-      h += '<div class="db-rec-btns full"><button type="button" class="db-next" id="db-rec-save"' + (busy ? ' disabled' : '') + '>' + (busy ? '저장 중…' : '기록 저장') + '</button>' +
-        '<button type="button" id="db-rec-revert"' + (dirty ? '' : ' hidden') + '>되돌리기</button>' +
-        '<span class="db-rec-dirty" id="db-rec-dirty"' + (dirty ? '' : ' hidden') + '>저장하지 않은 내용이 있습니다.</span></div>';
+      h += '<div class="db-rec-btns full"><button type="button" class="db-next" id="' + P + 'db-rec-save"' + (busy ? ' disabled' : '') + '>' + (busy ? '저장 중…' : '기록 저장') + '</button>' +
+        '<button type="button" id="' + P + 'db-rec-revert"' + (dirty ? '' : ' hidden') + '>되돌리기</button>' +
+        '<span class="db-rec-dirty" id="' + P + 'db-rec-dirty"' + (dirty ? '' : ' hidden') + '>저장하지 않은 내용이 있습니다.</span></div>';
     }
     return h + '</div>';
   }
@@ -259,14 +260,15 @@
   // v = { state:'offline'|'loading'|'error'|'denied'|'ok', code, hist, cur, canEdit, draft, errs, err, busy, cf:{stage}|null, who, today, rv, histOpen }
   nr.sectionHtml = function (it, v) {
     v = v || {};
+    const P = v.idp || '';
     const open = v.nested
-      ? '<div class="db-rec" id="db-rec"><div class="db-sub-h"><h4 id="db-rec-h">공고 상태 기록</h4>' + (it ? '<small>' + nr.scopeHtml(it) + '</small>' : '') + '</div>'
-      : '<div class="db-sec db-rec" id="db-rec"><h3>공고 상태 기록' + (it ? '<small>' + nr.scopeHtml(it) + '</small>' : '') + '</h3>';
+      ? '<div class="db-rec" id="' + P + 'db-rec"><div class="db-sub-h"><h4 id="' + P + 'db-rec-h">공고 상태 기록</h4>' + (it ? '<small>' + nr.scopeHtml(it) + '</small>' : '') + '</div>'
+      : '<div class="db-sec db-rec" id="' + P + 'db-rec"><h3>공고 상태 기록' + (it ? '<small>' + nr.scopeHtml(it) + '</small>' : '') + '</h3>';
     const st = v.state || 'offline';
     if (st === 'offline') return open + '<p class="db-empty">서버에 연결하면 공고 상태 기록을 보고 적을 수 있습니다.</p></div>';
     if (st === 'loading') return open + '<p class="db-empty" aria-busy="true">불러오는 중입니다…</p></div>';
     if (st === 'denied') return open + '<p class="db-empty">' + (v.code === 401 ? '로그인이 필요합니다. 다시 로그인하세요.' : '공고 상태 기록을 볼 권한이 없습니다. 로그인 사번과 권한을 확인하세요.') + '</p></div>';
-    if (st === 'error') return open + '<p class="db-empty">공고 상태 기록을 불러오지 못했습니다. <button type="button" id="db-rec-retry">다시 시도</button></p></div>';
+    if (st === 'error') return open + '<p class="db-empty">공고 상태 기록을 불러오지 못했습니다. <button type="button" id="' + P + 'db-rec-retry">다시 시도</button></p></div>';
     const cur = v.cur || { roundSeq: null, baseRev: 0, latest: null, closed: false }, a = nr.autoOf(it);
     const closedUi = nr.isClosed(v.rv && v.rv.item);                       // 서버 current가 닫힘으로 낸 경우만 입력을 막는다
     const L = closedUi || !cur.closed ? cur.latest : null;                 // 자료가 넘어간 옛 NO_BID 회차는 이력에만 둔다
@@ -282,7 +284,7 @@
         : (v.listCode === 401 ? '로그인이 필요합니다. 다시 로그인하면 기록 칸이 열립니다.' : '기록 권한을 확인하지 못했습니다. 로그인 사번과 권한을 확인하세요.')) + '</p>';
     }
     else if (!v.canEdit) h += '<p class="db-empty">공고 상태는 영업팀이 기록합니다. 다른 팀은 기록을 볼 수 있습니다.</p>';
-    else if (closedUi) h += '<p class="db-rec-who" id="db-rec-closed">' + esc(nr.CLOSED_LINE) + '</p>';
+    else if (closedUi) h += '<p class="db-rec-who" id="' + P + 'db-rec-closed">' + esc(nr.CLOSED_LINE) + '</p>';
     else h += formHtml(it, v, cur);
     return h + historyHtml(v.hist, v.histOpen) + '</div>';
   };

@@ -162,6 +162,7 @@
   <a href="#c106">106 입찰 현황판 '내 관심 기관' — 관심 기관은 사람마다 따로(내 것만 보임, 빼기는 사유 없이)</a>
   <a href="#c107">107 입찰 현황판 고른 기관 띠 — 결재자 안내·[빼기·옮기기 결재 요청…] 버튼 없앰</a>
   <a href="#c108">108 지역별 공고현황 — 시군구 묶음 목록·툴팁·전국 표시 정리·♥ 내 관심·미처리 팝업</a>
+  <a href="#c109">109 기관정보 팝업 — '공고 상태 기록'을 팝업 안에서 바로 저장(입찰 공고 현황으로 이동하지 않음)</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2218,6 +2219,25 @@
   <p><img src="../../handoff/agents/history/2026-11-25_108_map/dr-107-after-national.png" alt="후: ▲n·공고 n이 없는 전국 지도" style="width:100%"></p>
   <p><img src="../../handoff/agents/history/2026-11-25_108_map/dr-107-after-ov-open.png" alt="후: 미처리 패널 기관 이름 단추에 포커스" style="width:100%"></p>
   <p class="legend-note">새 색·변수 0(--bg·--line·--line-strong·--accent-color·--red 재사용). 1280px 실측: 머리 14/700·sticky 45px, 행 들임 14+12px, 접기 단추 28px, 가로 넘침 0. 전국 ▲n이 있던 '전' 캡처는 없음. 남은 것: 목록 ♥가 키보드로 닿지 않음(P2, 원래 있던 요소). 근거: handoff/agents/design-reviewer 2026-11-24 a9227aec(규격)·2026-11-25 PUSH-GATE 대조.</p>
+</div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c109">
+<h2>109 기관정보 팝업 — '공고 상태 기록'을 팝업 안에서 바로 저장 (2026-11-25, design-reviewer 규격, frontend-dev 구현)</h2>
+<div class="why">왜: 지도 미처리 패널에서 기관을 열어도 공고 상태는 팝업에서 적을 수 없었다. [입찰 공고 현황에서 기록]을 누르면 팝업이 닫히고 탭이 바뀌어, 미처리 기관을 하나씩 처리하려면 매번 화면을 오가야 했다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12">'공고 상태 기록' 절에는 '담당자 기록: 아직 기록이 없습니다.' 한 줄과 [입찰 공고 현황에서 기록] 단추(높이 29px)만 있었다. 누르면 팝업이 닫히고 입찰 공고 현황 탭으로 옮겨 가서, 거기서 기관을 다시 찾아 적었다. 순서는 이동 → 기관 선택 → 입력 → 저장, 화면 전환 1회. '공고 자료' 줄과 '이 회차는 미처리로 셉니다'는 팝업에 없었다.</p>
+  <p><img src="../../handoff/agents/history/2026-11-25_109_popup-rec/dr-1125-popup.png" alt="전: 기록 절에 한 줄 요약과 '입찰 공고 현황에서 기록' 단추만 있는 용산구청 팝업" style="width:100%"></p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px">같은 자리(본문 위에서 134px 아래)에 입찰 공고 현황과 같은 입력 칸이 나온다. 공고 자료·담당자 기록 줄, 담당자 판정 4개(공고 진행 중·공고 종료·입찰 없음(연장·지정)·지연·재공고 대기, 한 줄 458px), 다음 확인일, 담당자 의견, [기록 저장](35px)이다. 순서는 입력 → 저장, 화면 전환 0회. 저장 뒤에도 팝업은 열려 있고 결과는 팝업 위 알림 줄에 나온다.</p>
+  <p style="font-size:12px">적다가 [닫기]·Esc를 누르면 "저장하지 않은 공고 상태 기록이 있습니다." 상자에 [버리고 닫기]·[계속 입력]이 나온다(예전 문구에는 '약정'이 고정돼 있었다). 입찰 공고 현황 탭이 열려 있어도 라벨을 누르면 팝업 칸으로 포커스가 간다. 팝업 칸의 id는 모두 dm- 앞글자이고 라디오 이름은 dm-rec-state다.</p>
+  <p><img src="../../handoff/agents/history/2026-11-25_109_popup-rec/dr-109-after-popup.png" alt="후: 팝업 안에 판정 4개·다음 확인일·의견·기록 저장이 바로 보임" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-25_109_popup-rec/dr-109-after-dirty.png" alt="후: 공고 종료를 고르고 의견을 쓴 상태, 저장하지 않은 내용이 있습니다 표시와 되돌리기 단추" style="width:100%"></p>
+  <p><img src="../../handoff/agents/history/2026-11-25_109_popup-rec/dr-109-after-leave.png" alt="후: Esc를 누르면 저장하지 않은 공고 상태 기록이 있습니다 상자, 계속 입력에 포커스" style="width:100%"></p>
+  <p class="legend-note">새 색·변수 0(입찰 공고 현황 기록 칸 .db-rec-* 재사용). 1280px 실측: 팝업 폭 720px, 기록 칸 id 13개가 모두 문서에서 하나뿐, [버리고 닫기] 뒤 포커스는 미처리 패널의 기관 이름으로 돌아옴. 보기 전용 계정 모양·저장 성공 알림은 화면으로 확인하지 못함(코드·테스트로 확인). 근거: handoff/agents/design-reviewer 2026-11-25_0126_ab1b1a78(규격)·이번 PUSH-GATE 대조.</p>
 </div></div></div>
 </div>
 </section>

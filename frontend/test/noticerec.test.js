@@ -456,3 +456,51 @@ test('index.html: noticerec.js는 logic.js 뒤·dashboard.js 앞, CSS 블록에 
   assert.ok(!/opacity/.test(css.replace(/\.db-rec-seg input \{[^}]*\}/, '')), 'opacity');
   (css.match(/font-size:\s*(\d+)px/g) || []).forEach(m => assert.ok(+/(\d+)/.exec(m)[1] >= 11, m));
 });
+
+function idsOf(h) { const s = new Set(); h.replace(/ id="([^"]+)"/g, (m, i) => { s.add(i); return m; }); return s; }
+function refsOf(h) { const r = []; h.replace(/ (?:for|aria-labelledby|aria-describedby)="([^"]+)"/g, (m, v) => { v.split(/\s+/).forEach(x => r.push(x)); return m; }); return r; }
+const IT = { date: '2026-11-01', overdue: true, days: 15 };
+const FULL = (idp) => [
+  nr.sectionHtml(IT, { state: 'ok', canEdit: true, today: '2026-11-16', idp: idp, nested: true, err: '충돌', draft: { status: 'DELAYED', next: '', opinion: '' }, errs: { status: 's', next: 'n', opinion: 'o' } }),
+  nr.sectionHtml(IT, { state: 'ok', canEdit: true, today: '2026-11-16', idp: idp, nested: true, draft: { status: 'CLOSED', next: '', opinion: 'a' }, cf: { stage: '사전준비' } })];
+
+test('idp: 접두사가 모든 id·for·aria·라디오 name에 붙고, 참조는 같은 html 안의 id를 가리킨다', () => {
+  FULL('dm-').forEach(h => {
+    const ids = idsOf(h);
+    assert.ok([...ids].every(i => i.startsWith('dm-db-rec')), [...ids].join());
+    refsOf(h).forEach(r => assert.ok(ids.has(r), '참조 ' + r));
+    assert.ok(!/ id="db-rec|for="db-rec|name="rec-state"/.test(h));
+  });
+  const h = nr.sectionHtml(IT, { state: 'ok', canEdit: true, today: '2026-11-16', idp: 'dm-', nested: true });
+  assert.strictEqual((h.match(/name="dm-rec-state"/g) || []).length, 4);
+  assert.ok(h.includes('id="dm-db-rec-save"') && h.includes('<h4 id="dm-db-rec-h">') && h.startsWith('<div class="db-rec" id="dm-db-rec">'));
+});
+
+test('idp 기본값 \'\'은 기존 id 그대로(회귀), 두 절의 id는 겹치지 않는다', () => {
+  const a = FULL(undefined)[0], b = FULL('dm-')[0];
+  ['db-rec', 'db-rec-form', 'db-rec-state-l', 'db-rec-state-help', 'db-rec-state-err', 'db-rec-next', 'db-rec-op', 'db-rec-alert'].forEach(i => assert.ok(idsOf(a).has(i), i));
+  assert.deepStrictEqual([...idsOf(a)].filter(i => idsOf(b).has(i)), []);
+  assert.strictEqual(FULL('')[0], a);
+  assert.ok(FULL('dm-')[1].includes('id="dm-db-rec-cf-yes"') && FULL('dm-')[1].includes('id="dm-db-rec-cf-no"'));
+});
+
+test('idp: 보기 전용·목록 오류·닫힘·불러오기 실패 모양도 접두사를 쓴다', () => {
+  const ro = nr.sectionHtml(IT, { state: 'ok', canEdit: false, idp: 'dm-', nested: true, rv: { view: 'pending' } });
+  assert.ok(ro.includes('<dt>공고 자료</dt>') && ro.includes('이 회차는 미처리로 셉니다.') && ro.includes('공고 상태는 영업팀이 기록합니다.') && !ro.includes('rec-save') && !ro.includes('<textarea'));
+  assert.ok(nr.sectionHtml(IT, { state: 'error', idp: 'dm-' }).includes('id="dm-db-rec-retry"'));
+});
+
+test('outcome: 401·403은 auth:true(팝업이 위쪽 알림 줄로), 409 STALE·400은 아니다', () => {
+  assert.strictEqual(nr.outcome({ status: 401, body: null }).auth, true);
+  assert.strictEqual(nr.outcome({ status: 403, body: null }).auth, true);
+  assert.ok(!nr.outcome({ status: 409, body: { detail: { code: 'STALE' } } }).auth);
+  assert.ok(!nr.outcome({ status: 400, body: { detail: { message: 'm' } } }).auth);
+});
+
+test('save: 4번째 인자가 있으면 X-Screen-Id가 그 값, 없으면 bid_notice', async () => {
+  const calls = [];
+  nr.env = { store: { isServerMode: () => true, loadSession: () => ({ emp: '6000009' }) }, fetch: (u, o) => { calls.push(o); return Promise.resolve({ ok: true, status: 201, json: () => Promise.resolve({}) }); } };
+  await nr.save('a', {}, false, 'map_popover'); await nr.save('a', {}, false);
+  nr.env = {};
+  assert.strictEqual(calls[0].headers['X-Screen-Id'], 'map_popover'); assert.strictEqual(calls[1].headers['X-Screen-Id'], 'bid_notice');
+});
