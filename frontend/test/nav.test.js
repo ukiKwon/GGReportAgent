@@ -86,25 +86,25 @@ test('비영업 팀: 구현 화면 + 예외(이사회 부의·pending 키) 외 �
   });
 });
 
-test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 20개(시작화면·협약 성과 관리 포함)', function () {
+test('준비중 id: 명시 id 외에는 soon:라벨, 전부 서로 다르고 16개(시작화면·협약 성과 관리 포함)', function () {
   const built = nav.build(ALL_ON, { role: '영업팀장' });
   const all = [];
   built.forEach(function (c) { c.items.forEach(function (i) { all.push(i.id); }); });
   assert.strictEqual(new Set(all).size, all.length);
   assert.strictEqual(items(built, 'relate')[0].id, 'soon:입찰 결과 등록');
   const soonIds = all.filter(function (id) { return id.indexOf('soon:') === 0; });
-  assert.strictEqual(soonIds.length, 36);   // 19 − plan 5 + plan 22(제안 준비 현황 1 + 협약준비 업무 21, NEXT 113)
+  assert.strictEqual(soonIds.length, 16);   // 36 − 협약준비 task 19 − 이사회 발표 대본 1 (plan은 제안 준비 현황·이사회 자료 작성 2개, 사용자 11-24)
   // 이사회 부의: 라벨은 바뀌어도 id는 고정(board.SOON_ID)
   const board = items(built, 'plan').filter(function (i) { return i.id === 'soon:이사회 자료'; })[0];
   assert.ok(board && board.label === '이사회 자료 작성');
 });
 
-test('이사회 부의는 영업 추진 준비 > 협약준비 업무 아래 "구현 예정(배지 없음)", 다른 대분류에는 없다', function () {
+test('이사회 부의는 영업 추진 준비 > 제안 준비 아래"구현 예정(배지 없음)", 다른 대분류에는 없다', function () {
   const built = nav.build(ALL_ON, { role: '영업팀' });
   assert.strictEqual(built.filter(function (c) { return c.id === 'plan'; })[0].title, '영업 추진 준비');
   const board = items(built, 'plan').filter(function (i) { return i.id === 'soon:이사회 자료'; })[0];
   assert.ok(board && board.soon);
-  assert.strictEqual(board.sub, '협약준비 업무');
+  assert.strictEqual(board.sub, '제안 준비');
   assert.strictEqual(board.tag, '');
   assert.ok(board.note.indexOf('이사회') >= 0);
   assert.ok(!items(built, 'scan').some(function (i) { return i.id === 'soon:이사회 자료'; }));
@@ -113,11 +113,12 @@ test('이사회 부의는 영업 추진 준비 > 협약준비 업무 아래 "구
     ['입찰 현황판', '기관 사업계획', '전국 지역별', '지역별 공고현황', '입찰 공고 현황']);
 });
 
-test('showSubs: 영업팀은 scan·plan·manage·tools true, 평평한 relate·시스템 관리는 false, 예산팀 제안서 작성·관리·둘러보기 기관·입찰 현황은 false', function () {
+test('showSubs: 영업팀은 scan·manage·tools true, 소제목이 하나뿐인 plan·평평한 relate·시스템 관리는 false, 예산팀 제안서 작성·관리·둘러보기 기관·입찰 현황은 false', function () {
   const sales = nav.build(ALL_ON, { role: '영업팀' });
-  ['scan', 'plan', 'manage', 'tools'].forEach(function (id) {
+  ['scan', 'manage', 'tools'].forEach(function (id) {
     assert.strictEqual(sales.filter(function (c) { return c.id === id; })[0].showSubs, true, id);
   });
+  assert.strictEqual(sales.filter(function (c) { return c.id === 'plan'; })[0].showSubs, false);   // 소제목 '제안 준비' 하나 → 안 그린다(11-24)
   assert.strictEqual(sales.filter(function (c) { return c.id === 'relate'; })[0].showSubs, false);
   assert.strictEqual(sales.filter(function (c) { return c.id === 'sys'; })[0].showSubs, false);
   const budget = nav.build(ALL_ON, { role: '예산팀' });
@@ -225,11 +226,7 @@ test('3단 구조: 대분류 7개 이름·소속(시작화면 단독 + 정의 �
   nav.CATEGORIES.forEach(function (c) { by[c.id] = c.items.map(function (i) { return (i.sub || '') + '>' + i.label; }); });
   assert.deepStrictEqual(by.scan, ['대시보드>입찰 현황판', '기관>기관 사업계획', '기관>전국 지역별', '입찰 공고>지역별 공고현황',
     '입찰 공고>입찰 공고 현황', '입찰 공고>공고 자동 수집']);
-  assert.deepStrictEqual(by.plan, ['현황>제안 준비 현황', '협약준비 업무>기관 정보 분석', '협약준비 업무>수익성분석',
-    '협약준비 업무>가결위(재무)', '협약준비 업무>출심위(사업부)', '협약준비 업무>이사회 자료 작성', '협약준비 업무>이사회 발표 대본',
-    '협약준비 업무>이사회', '협약준비 업무>발표자료', '협약준비 업무>제출서류', '협약준비 업무>제안서제출품의', '협약준비 업무>PT',
-    '협약준비 업무>결과발표', '협약준비 업무>우선협상', '협약준비 업무>협약서(법률)', '협약준비 업무>협약체결품의',
-    '협약준비 업무>ATM', '협약준비 업무>KB카드', '협약준비 업무>전산구축', '협약준비 업무>VIP 지정', '협약준비 업무>금리승인', '협약준비 업무>협약식']);
+  assert.deepStrictEqual(by.plan, ['제안 준비>제안 준비 현황', '제안 준비>이사회 자료 작성']);   // 협약준비 task 21칸은 메뉴에서 삭제(11-24)
   assert.deepStrictEqual(by.manage, ['진행·작성>제안서 진행 현황', '진행·작성>작업함', '진행·작성>제안팀 구성·배정',
     '진행·작성>공동 작성·버전 관리', '검토·제출>내부 검토 의견', '검토·제출>최종 확인·제출']);
   assert.deepStrictEqual(by.apprbox, ['>결재함']);
@@ -305,7 +302,7 @@ test('준비중 라벨은 정의 전체에서 유일하다(라벨 기반 id의 �
   const labels = [];
   nav.CATEGORIES.forEach(function (c) { c.items.forEach(function (i) { if (!i.key) labels.push(i.label); }); });
   assert.strictEqual(new Set(labels).size, labels.length);
-  assert.strictEqual(labels.length, 37);   // home 1·scan 4(입찰 현황판 포함)·plan 22(NEXT 113)·manage 4·relate 3(협약 성과 관리 11-20)·tools 3
+  assert.strictEqual(labels.length, 17);   // home 1·scan 4(입찰 현황판 포함)·plan 2(11-24)·manage 4·relate 3(협약 성과 관리 11-20)·tools 3
 });
 
 test('입찰 공고 현황: id는 soon:입찰 공고 현황 고정(NOTICE_ID), 배지 없음(실제 화면 — 11-16)', function () {
@@ -388,12 +385,12 @@ test('PREP_ID: soon:사전준비로 고정, 영업 추진 준비(plan)의 제안
   const it = items(built, 'plan').filter(function (i) { return i.id === nav.PREP_ID; })[0];
   assert.ok(it);
   assert.strictEqual(it.label, '제안 준비 현황');
-  assert.strictEqual(it.sub, '현황');
+  assert.strictEqual(it.sub, '제안 준비');
   assert.strictEqual(nav.categoryOf(built, nav.PREP_ID), 'plan');
 });
 
-test('아직 준비중인 1개(이사회 발표 대본): 배지 "준비중", 영업 계열에게만(tasks가 있는 예산·전산팀에는 안 보인다). 사전준비 프로세스·협약준비 task는 배지 없음(NEXT 113)', function () {
-  const labels = ['이사회 발표 대본'];
+test('준비중 배지 규칙(공동 작성·버전 관리로 대표 확인): 배지 "준비중", 영업 계열에게만(tasks가 있는 예산·전산팀에는 안 보인다). 제안 준비 현황은 배지 없음', function () {
+  const labels = ['공동 작성·버전 관리'];
   function find(ctx, label) {
     const hit = [];
     nav.build(ALL_ON, ctx).forEach(function (c) { c.items.forEach(function (i) { if (i.label === label) hit.push(i); }); });
@@ -410,8 +407,8 @@ test('아직 준비중인 1개(이사회 발표 대본): 배지 "준비중", 영
 test('plan·manage의 중분류(subs) 정의와 협약·관계 관리의 평평한 구조', function () {
   const by = {};
   nav.CATEGORIES.forEach(function (c) { by[c.id] = c; });
-  assert.deepStrictEqual(by.plan.subs, ['현황', '협약준비 업무']);
-  assert.strictEqual(by.plan.soloSubs, true);
+  assert.deepStrictEqual(by.plan.subs, ['제안 준비']);
+  assert.strictEqual(by.plan.soloSubs, undefined);   // 소제목이 하나뿐이면 그리지 않는다(11-24)
   assert.deepStrictEqual(by.manage.subs, ['진행·작성', '검토·제출']);   // 결재함 머리 띠로(11-23)
   assert.strictEqual(by.relate.subs, undefined);
   assert.deepStrictEqual(by.relate.items.map(function (i) { return i.label; }), ['입찰 결과 등록', '협약 이력', '협약 성과 관리']);

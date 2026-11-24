@@ -623,10 +623,6 @@
     const resultsEl = document.getElementById('results-root');
     if (resultsEl) resultsEl.style.display = isResults ? '' : 'none';
     if (isResults) document.getElementById('soon-plain').style.display = 'none';   // (soon-plain 숨김 줄에 섞지 않는다 — isPlans 줄 보존)
-    const isTask = !!(root.preptask && root.nav && String(itemId).indexOf(root.nav.TASK_PREFIX) === 0 && root.preptask.cdOf(itemId));   // 협약준비 업무 task별 기관 목록(preptask.js, #ts-root, NEXT 113)
-    const tsEl = isTask ? root.preptask.host() : document.getElementById('ts-root');
-    if (tsEl) tsEl.style.display = isTask ? '' : 'none';
-    if (isTask) document.getElementById('soon-plain').style.display = 'none';   // (soon-plain 숨김 줄에 섞지 않는다 — isPlans 줄 보존)
     const homeEl = document.getElementById('pt-root');
     if (homeEl) homeEl.style.display = homeReady ? '' : 'none';
     navActiveId = itemId;
@@ -638,7 +634,6 @@
     if (noticeReady && noticeEl) root.dashboard.mount(noticeEl);
     if (isPlans && plansEl) root.plans.mount(plansEl);
     if (isResults && resultsEl) root.results.mount(resultsEl);
-    if (isTask && tsEl) root.preptask.mount(tsEl, root.preptask.cdOf(itemId), label);
     if (homeReady && homeEl) root.portal.mount(homeEl);
     else if (root.portal && root.portal.unmount) root.portal.unmount();   // 시작화면이 아닌 준비중 화면으로 옮기면 해제
   };

@@ -58,39 +58,31 @@ test('STEPS ↔ 서버 PrepBoardColumns: 칸 코드·라벨·종류·묶음이 �
   assert.strictEqual(Object.keys(groups).length, 3);
 });
 
-test('STEPS ↔ nav: 협약준비 업무 메뉴 21개(이름·순서·id·역할·배지)가 단계 정본과 같다', function () {
-  assert.strictEqual(nav.TASK_PREFIX, pt.TASK_PREFIX);
+test('nav: 영업 추진 준비 메뉴에는 협약준비 task 항목이 없다(사용자 11-24) — 제안 준비 현황·이사회 자료 작성 둘뿐, 단위 task는 기관 상세 단계에서만', function () {
+  assert.strictEqual(nav.TASK_PREFIX, undefined);
   const plan = nav.CATEGORIES.filter(function (c) { return c.id === 'plan'; })[0];
-  const sub = plan.items.filter(function (i) { return i.sub === '협약준비 업무'; });
-  assert.deepStrictEqual(sub.map(function (i) { return i.label; }),
-    pt.STEPS.filter(function (s) { return s.kind !== 'notice' && s.kind !== 'proposal'; }).map(function (s) { return s.label; }));
-  assert.strictEqual(sub.length, 21);
-  const tasks = plan.items.filter(function (i) { return i.id && i.id.indexOf(nav.TASK_PREFIX) === 0; });
-  assert.strictEqual(tasks.length, 19);
-  assert.deepStrictEqual(tasks.map(function (i) { return [i.id.slice(nav.TASK_PREFIX.length), i.label]; }), pt.menuSteps().map(function (s) { return [s.cd, s.label]; }));
-  tasks.forEach(function (i) {
-    assert.strictEqual(i.tag, '', i.id + ' 배지 없음');
-    assert.deepStrictEqual(i.onlyRoles, nav.TEAM_ROLES, i.id);
-  });
-  assert.strictEqual(sub.filter(function (i) { return nav.badgeOf(Object.assign({ soon: true }, i)) === '준비중'; }).length, 1, '준비중 배지는 이사회 발표 대본 하나');
+  assert.deepStrictEqual(plan.items.map(function (i) { return i.id; }), [nav.PREP_ID, nav.BOARD_ID]);
+  plan.items.forEach(function (i) { assert.strictEqual(i.sub, '제안 준비'); assert.strictEqual(nav.badgeOf(Object.assign({ soon: true }, i)), '', i.id + ' 배지 없음'); });
+  assert.ok(!plan.items.some(function (i) { return i.id && i.id.indexOf(pt.TASK_PREFIX) === 0; }));
+  assert.strictEqual(pt.menuSteps().length, 19, '단계 정본(STEPS)은 그대로 — 상세 23단계가 쓴다');
 });
 
-test('nav.build: 영업팀 22개·재무 1개·마스터 2개, 소제목은 영업팀만', function () {
+test('nav.build: 영업팀 2개·재무 1개·마스터 1개, 소제목은 아무도 안 그린다(11-24)', function () {
   const ON = { map: true, regions: true, workflow: true, chat: true, knowledge: true, tasks: true, approvals: true, admin: true };
   function plan(ctx) { return nav.build(ON, ctx).filter(function (c) { return c.id === 'plan'; })[0]; }
-  assert.strictEqual(plan({ role: '영업팀' }).items.length, 22);
-  assert.strictEqual(plan({ role: '영업팀' }).showSubs, true);
+  assert.strictEqual(plan({ role: '영업팀' }).items.length, 2);
+  assert.strictEqual(plan({ role: '영업팀' }).showSubs, false);
   assert.deepStrictEqual(plan({ role: '예산팀' }).items.map(function (i) { return i.id; }), ['soon:이사회 자료']);
   assert.strictEqual(plan({ role: '예산팀' }).showSubs, false);
-  assert.deepStrictEqual(plan({ role: '전산팀', master: true }).items.map(function (i) { return i.id; }), ['soon:이사회 자료', 'soon:이사회 발표 대본']);
+  assert.deepStrictEqual(plan({ role: '전산팀', master: true }).items.map(function (i) { return i.id; }), ['soon:이사회 자료']);
   function planOf(role) {
     const ctx = { role: role };
     return nav.limitToRole(nav.build(ON, ctx), ctx).filter(function (c) { return c.id === 'plan'; })[0];
   }
   assert.strictEqual(planOf('디자이너'), undefined, '디자이너는 영업 추진 준비 분류째 안 보인다');
   ['영업팀', '영업팀장', '영업부장'].forEach(function (role) {
-    assert.strictEqual(planOf(role).items.length, 22, role);
-    assert.strictEqual(planOf(role).showSubs, true, role);
+    assert.strictEqual(planOf(role).items.length, 2, role);
+    assert.strictEqual(planOf(role).showSubs, false, role);
   });
   ['예산팀', '예산팀장'].forEach(function (role) {
     assert.deepStrictEqual(planOf(role).items.map(function (i) { return i.id; }), ['soon:이사회 자료'], role);
@@ -271,10 +263,8 @@ test('prepboard.js 연결: 이름 클릭·Enter는 단계 상세 우선, show()�
   assert.ok(PB_SRC.slice(PB_SRC.indexOf('pb.reset = function')).indexOf("classList.remove('is-steps')") > 0);
 });
 
-test('app.js 연결: showSoon isTask 분기(soon-plain 숨김은 별도 줄·mount), 계정 변경 때 onProfileChange, 탭 줄은 그대로', function () {
-  assert.ok(APP_SRC.indexOf('String(itemId).indexOf(root.nav.TASK_PREFIX) === 0') > 0);
-  assert.ok(APP_SRC.indexOf('root.preptask.mount(tsEl, root.preptask.cdOf(itemId), label)') > 0);
-  assert.ok(/if \(isTask\) document\.getElementById\('soon-plain'\)\.style\.display = 'none'/.test(APP_SRC));
+test('app.js 연결: showSoon에 task 분기가 없다(메뉴 삭제 11-24), 계정 변경 때 onProfileChange, 탭 줄은 그대로', function () {
+  assert.ok(APP_SRC.indexOf('TASK_PREFIX') < 0 && APP_SRC.indexOf('isTask') < 0 && APP_SRC.indexOf('root.preptask.mount(') < 0);
   assert.ok(/isBoard \|\| isTeam \|\| isPrep \|\| dashReady \|\| isPlans/.test(APP_SRC), 'plans.test 줄 보존');
   assert.ok(APP_SRC.indexOf('root.preptask.onProfileChange()') > 0);
   assert.ok(APP_SRC.indexOf('root.results.mount(resultsEl)') > 0, 'results 줄 보존');
@@ -434,30 +424,19 @@ test('onProfileChange(가짜 문서): 같은 사람이면 그대로, 사람이 �
   assert.ok(host.innerHTML.indexOf('ts-list-v') > 0);
 });
 
-test('app.showSoon(가짜 문서): task가 아닌 항목은 #ts-root를 숨기고, task 항목은 보이게 하고 soon-plain을 숨기며 mount를 부른다', function () {
+test('app.showSoon(가짜 문서): 옛 task id를 줘도 task 화면을 열지 않고 기본 안내(soon-plain)로 떨어진다(메뉴 삭제 11-24)', function () {
   const start = APP_SRC.indexOf('  app.showSoon = function');
   const end = APP_SRC.indexOf('\n  };\n', start) + 5;
   assert.ok(start > 0 && end > start);
   const body = APP_SRC.slice(start, end);
-  function run(itemId, withTs) {
-    const d = fakeDoc();
-    ['tab-soon', 'soon-title', 'soon-badge', 'soon-note', 'soon-plain', 'bd-root', 'tm-root', 'pp-root'].forEach(function (id) { d.add(id); });
-    const ts = withTs ? d.add('ts-root') : null;
-    const calls = [];
-    const r = { nav: nav, preptask: { cdOf: pt.cdOf, host: function () { return ts; }, mount: function (h, cd, label) { calls.push([cd, label]); } } };
-    const app = new Function('root', 'document', 'let navActiveId; const app = { onTabChange: function () {} };\n' + body + '\nreturn app;')(r, d);
-    app.showSoon(itemId, '라벨');
-    return { d: d, ts: ts, calls: calls };
-  }
-  const plain = run('soon:이사회 자료', true);
-  assert.strictEqual(plain.ts.style.display, 'none', 'task가 아니면 #ts-root를 숨긴다');
-  assert.deepStrictEqual(plain.calls, []);
-  assert.strictEqual(plain.d.getElementById('soon-plain').style.display, '');
-  run('soon:이사회 자료', false);   // #ts-root가 아직 없어도 던지지 않는다
-  const task = run(nav.TASK_PREFIX + 'PT', true);
-  assert.strictEqual(task.ts.style.display, '');
-  assert.strictEqual(task.d.getElementById('soon-plain').style.display, 'none');
-  assert.deepStrictEqual(task.calls, [['PT', '라벨']]);
+  const d = fakeDoc();
+  ['tab-soon', 'soon-title', 'soon-badge', 'soon-note', 'soon-plain', 'bd-root', 'tm-root', 'pp-root'].forEach(function (id) { d.add(id); });
+  const calls = [];
+  const r = { nav: nav, preptask: { cdOf: pt.cdOf, host: function () { calls.push('host'); return null; }, mount: function () { calls.push('mount'); } } };
+  const app = new Function('root', 'document', 'let navActiveId; const app = { onTabChange: function () {} };\n' + body + '\nreturn app;')(r, d);
+  app.showSoon('soon:task:PT', '라벨');
+  assert.deepStrictEqual(calls, []);
+  assert.strictEqual(d.getElementById('soon-plain').style.display, '');
 });
 
 test('prepboard 대체 경로: preptask가 없으면 이름 클릭이 hooks.openCase(bid, 이름)로 간다', async function () {
