@@ -10,11 +10,12 @@ import java.util.Set;
  * 이사회 회의록(047) 요청이 싣는 "어느 화면·어느 버튼" 식별자 — {@link BoardUiIds} 와 같은 규칙(헤더 X-Screen-Id·X-Button-Id,
  * 허용 목록 밖은 원문을 버리고 UNKNOWN). 자기신고 값이라 위조할 수 있다. 화면을 새로 만들면 여기와 프런트 상수를 같이 더한다.
  * {@code board_write} 는 이사회 자료 상세 안의 탭에서 부를 때 쓴다.
+ * {@code board_review} 는 담당자가 아닌 사람(영업부장·결재자)이 연 이사회 자료 상세 안의 탭 — 020 의 screenFor 와 같은 값.
  */
 public final class MinutesUiIds {
 
     public static final Set<String> SCREENS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
-            "board_minutes", "board_minutes_list", "board_minutes_upload", "board_write")));
+            "board_minutes", "board_minutes_list", "board_minutes_upload", "board_write", "board_review")));
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "minutes_tab", "minutes_list", "minutes_open", "minutes_transcript", "minutes_preview", "minutes_upload",
             "minutes_edit", "minutes_meta", "minutes_todo", "minutes_history", "minutes_scope_open", "minutes_scope_add",

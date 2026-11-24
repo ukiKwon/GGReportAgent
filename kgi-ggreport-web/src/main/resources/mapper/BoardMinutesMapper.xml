@@ -49,7 +49,7 @@
 
   <!-- 쓰기 판정용 현재 읽기(FOR UPDATE — 최신 커밋 값). JOIN·집계 없이. -->
   <select id="lockHead" resultType="BoardMinutes" flushCache="true">
-    SELECT MINUTES_ID, MATERIAL_ID, BID_CASE_ID, REV_NO, DELETED_YN FROM BOARD_MINUTES WHERE MINUTES_ID = #{id} FOR UPDATE
+    SELECT MINUTES_ID, MATERIAL_ID, BID_CASE_ID, REV_NO, DELETED_YN, CREATED_BY, CREATED_AT FROM BOARD_MINUTES WHERE MINUTES_ID = #{id} FOR UPDATE
   </select>
 
   <select id="countActiveByMaterial" resultType="int" flushCache="true">

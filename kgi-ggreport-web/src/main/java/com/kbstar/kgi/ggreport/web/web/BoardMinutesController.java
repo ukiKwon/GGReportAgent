@@ -130,6 +130,13 @@ public class BoardMinutesController {
                 c -> service.scope(c.head, c.d));
     }
 
+    /** 공개범위 후보(부장급만). 사람을 더할 때 고를 목록 — 서버가 scopeAdd 와 같은 규칙으로 거른다. */
+    @GetMapping("/board-minutes/{id}/scope/candidates")
+    public Map<String, Object> scopeCandidates(@PathVariable String id, HttpServletRequest req) {
+        return exec(req, forMinutes(id), detail(id, "SCOPE_CANDIDATES"), "SCOPE_CANDIDATES", true, BoardMinutesAccess.Via.NONE,
+                c -> service.scopeCandidates(c.head, c.d));
+    }
+
     @GetMapping("/board-minutes/{id}/acts")
     public List<Map<String, Object>> acts(@PathVariable String id, HttpServletRequest req) {
         return exec(req, forMinutes(id), detail(id, "ACTS"), "ACTS", true, BoardMinutesAccess.Via.NONE,
@@ -161,7 +168,7 @@ public class BoardMinutesController {
             Map<?, ?> s = (Map<?, ?>) stats;
             req.setAttribute(AccessLogInterceptor.DETAIL, "board-minutes id=" + out.get("minutes_id") + " code=UPLOAD utter="
                     + s.get("utter_cnt") + " seg=" + s.get("seg_cnt") + " item=" + s.get("item_cnt")
-                    + " edit=" + out.get("edited_cnt") + " label=" + out.get("label_cnt"));   // 건수뿐 — 본문·제목·파일명·라벨·고친 글 없음
+                    + " edit=" + out.get("edited_cnt") + " label=" + out.get("label_cnt") + " ack=1");   // ack=1: 서버가 수칙 확인을 강제하므로 저장된 건은 늘 1   // 건수뿐 — 본문·제목·파일명·라벨·고친 글 없음
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
     }
@@ -351,7 +358,7 @@ public class BoardMinutesController {
         BoardMinutesAccess.Via via = d.via;
         try {
             if (uiRequired && !ui.isValid()) {
-                throw coded(400, "UI_ID_REQUIRED", "화면·버튼 식별자(X-Screen-Id, X-Button-Id)가 없거나 올바르지 않습니다.");   // 입력값 비노출
+                throw coded(400, "UI_ID_REQUIRED", "화면 정보가 올바르지 않습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.");   // 헤더 이름·입력값 비노출
             }
             T out;
             try {
@@ -359,6 +366,9 @@ public class BoardMinutesController {
             } catch (MinutesException e) {
                 throw ApiException.withDetail(e.getStatus(), e.toDetail());   // 코드·칸·줄 번호·종류별 건수만
             } catch (ApiException e) {
+                if (e instanceof BoardMinutesService.RecheckException) {
+                    via = ((BoardMinutesService.RecheckException) e).getVia();   // 쓰기 트랜잭션 안 재판정 — 새 판정의 경로를 ACT 에 남긴다
+                }
                 if (e.getStatus() == 403) {
                     throw guard.denied(req, e);   // 쓰기·열람 거부를 ACCESS_LOG DENIED 로 남긴다(고정 문구만)
                 }

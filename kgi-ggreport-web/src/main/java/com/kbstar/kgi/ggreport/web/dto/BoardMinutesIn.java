@@ -11,9 +11,10 @@ import java.util.Map;
  */
 public class BoardMinutesIn {
 
-    /** 업로드·미리보기의 options 파트: {meeting_date, title, terms[], release[], preview_digest, edits_digest}. */
+    /** 업로드·미리보기의 options 파트: {meeting_date, title, terms[], release[], preview_digest, edits_digest, rules_ack}(rules_ack: 저장 때만 true 필수). */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class MinutesOptions {
+        private Boolean rulesAck;
         private String meetingDate;
         private String title;
         private List<String> terms;
@@ -21,6 +22,8 @@ public class BoardMinutesIn {
         private String previewDigest;
         private String editsDigest;
 
+        public Boolean getRulesAck() { return rulesAck; }
+        public void setRulesAck(Boolean v) { this.rulesAck = v; }
         public String getEditsDigest() { return editsDigest; }
         public void setEditsDigest(String v) { this.editsDigest = v; }
         public String getMeetingDate() { return meetingDate; }

@@ -10,9 +10,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * 원문·시간대별 요약·맞춤 요약을 읽어 가린 결과 한 묶음 — 설계 3-3·3-4·3-5.
@@ -267,6 +269,40 @@ public final class MinutesParse {
             }
         }
         return sha256Hex(sb.toString());
+    }
+
+    /**
+     * 미리보기 확인값 = H(내용 확인값 + 정규화·정렬한 가림 단어 + 해제 목록). 저장 때 이 값이 같아야 한다 —
+     * 미리보기 뒤에 해제를 늘리거나 가림 단어를 빼고 저장하지 못하게(PREVIEW_CHANGED). 중복 검사·CONTENT_DIGEST 는 digest 그대로.
+     * 정규화는 마스커와 같다({@link MinutesText#fold} 후 소문자) — 같은 가림 결과면 같은 값이다.
+     */
+    public static String previewDigest(String digest, Collection<String> terms, Collection<String> release) {
+        char sep = '\u0001';
+        StringBuilder sb = new StringBuilder("p1:").append(digest).append(sep);
+        for (String t : normalizedSorted(terms)) {
+            sb.append(t).append(sep);
+        }
+        sb.append('\u0002');
+        for (String t : normalizedSorted(release)) {
+            sb.append(t).append(sep);
+        }
+        return sha256Hex(sb.toString());
+    }
+
+    private static List<String> normalizedSorted(Collection<String> in) {
+        TreeSet<String> s = new TreeSet<String>();
+        if (in != null) {
+            for (String x : in) {
+                if (x == null) {
+                    continue;
+                }
+                String n = MinutesText.fold(x).toLowerCase(Locale.ROOT).trim();
+                if (!n.isEmpty()) {
+                    s.add(n);
+                }
+            }
+        }
+        return new ArrayList<String>(s);
     }
 
     private static Map<Integer, String> prepareEdits(TranscriptParser.Result tr, Map<Integer, String> raw, MinutesMasker masker,

@@ -5,6 +5,9 @@ import com.kbstar.kgi.ggreport.web.domain.BoardMinutes;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.mapper.BoardMinutesMapper;
 import com.kbstar.kgi.ggreport.web.support.ApproverRules;
+import com.kbstar.kgi.ggreport.web.support.MenuPerms;
+import com.kbstar.kgi.ggreport.web.support.Ranks;
+import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -80,6 +83,23 @@ public class BoardMinutesAccess {
     /** 부장급 = 기본 열람자 ∧ 결재 등급·역할 단계 2 이상(영업부장 역할 또는 부장·대표 등급). */
     public boolean isHeadGrade(SysUser u) {
         return isDefaultViewer(u) && ApproverRules.levelByGradeRole(u) >= 2;
+    }
+
+    /** 본부장 직급(이상) — {@link Ranks#LIST} 에서 도출한다. */
+    private static final int EXEC_RANK_MIN = Ranks.LIST.indexOf("본부장") + 1;
+
+    /**
+     * 공개범위 후보 = {@code scopeAdd} 가 받아 주는 사람(사용자 결정 2026-11-24: 영업부서 + 임원급).
+     * 활성 ∧ 사번 형식 ∧ 기본 열람자(영업팀장·영업부장) 아님 ∧ 관리자 아님 ∧
+     * (영업 소속(디자이너 포함) ∨ 임원 등급 ∨ 직위 본부장 이상). 관리자(권한관리 메뉴를 볼 수 있는 사람)는 감사 전용이라 본문을 보게 하지 않는다.
+     */
+    public boolean isScopeCandidate(SysUser u) {
+        if (u == null || !"ACTIVE".equals(u.getStatus()) || !MenuPerms.isEmpNo(u.getEmpNo()) || isDefaultViewer(u)) {
+            return false;
+        }
+        boolean sales = Teams.DESIGNER_HOME_TEAM.equals(ApproverRules.team(u));
+        boolean exec = ApproverRules.levelByGradeRole(u) >= 3 || Ranks.ofPosition(u.getPositionTitle()) >= EXEC_RANK_MIN;
+        return (sales || exec) && !perms.canAdmin(u.getEmpNo());
     }
 
     /** 업로드 자격 = 그 입찰 건의 현재 담당자(020 쓰기 자격과 같다). */

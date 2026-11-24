@@ -4,6 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.AppTest;
 import com.kbstar.kgi.ggreport.web.config.MinutesSettings;
+import com.kbstar.kgi.ggreport.web.domain.BoardMinutes;
+import com.kbstar.kgi.ggreport.web.domain.SysUser;
+import com.kbstar.kgi.ggreport.web.dto.BoardMinutesIn;
+import com.kbstar.kgi.ggreport.web.mapper.BoardMinutesMapper;
+import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
+import com.kbstar.kgi.ggreport.web.service.BoardMinutesAccess;
+import com.kbstar.kgi.ggreport.web.service.BoardMinutesService;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +37,9 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -152,6 +161,7 @@ public class BoardMinutesApiTest {
         }
         if (digest != null) {
             m.put("preview_digest", digest);
+            m.put("rules_ack", true);   // 저장 때만 필수(미리보기에는 요구하지 않는다)
         }
         if (release.length > 0) {
             m.put("release", Arrays.asList(release));
@@ -743,6 +753,7 @@ public class BoardMinutesApiTest {
         }
         if (digest != null) {
             m.put("preview_digest", digest);
+            m.put("rules_ack", true);
         }
         if (editsDigest != null) {
             m.put("edits_digest", editsDigest);
@@ -1003,5 +1014,246 @@ public class BoardMinutesApiTest {
             big.append('a');
         }
         assertEquals(413, status(putLabel(id, HEAD, 1, big.toString(), 0)));
+    }
+
+    // ── NEXT 99 서버 이관 묶음 — 후보 API·수칙 확인·확인값·기한·재판정 ─────────────────
+
+    private static JsonNode byEmp(JsonNode items, String emp) {
+        for (JsonNode n : items) {
+            if (emp.equals(n.path("emp_no").asText())) {
+                return n;
+            }
+        }
+        return null;
+    }
+
+    private void insertUser(String emp, String name, String role, String position, String grade) {
+        jdbc.update("INSERT INTO USERS (EMP_NO, NAME, ROLE, POSITION_TITLE, APPROVAL_GRADE, STATUS, FAILED_LOGINS, CREATED_AT, UPDATED_AT) "
+                + "VALUES (?,?,?,?,?,'ACTIVE',0,'2026-11-24T00:00:00.000000+00:00','2026-11-24T00:00:00.000000+00:00')",
+                emp, name, role, position, grade);
+    }
+
+    @Test
+    public void 공개범위_후보는_부장급만_받고_영업부서와_임원급만_나오며_공개된_사람은_표시된다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "n1");
+        assertEquals(200, status(scopeAdd(id, HEAD, DESIGNER, kst(1))));
+        String path = "/board-minutes/" + id + "/scope/candidates";
+        MvcResult r = read(path, HEAD, "minutes_scope_open");
+        assertEquals(text(r), 200, status(r));
+        JsonNode items = json(r).path("items");
+        JsonNode des = byEmp(items, DESIGNER);
+        assertNotNull(des);                                      // 디자이너(영업팀 소속)는 후보
+        assertTrue(des.path("granted").asBoolean());
+        assertEquals(kst(1), des.path("grant_until").asText());
+        JsonNode mem = byEmp(items, MEMBER);
+        assertNotNull(mem);                                      // 영업팀 사용자는 후보
+        assertFalse(mem.path("granted").asBoolean());
+        assertNull(byEmp(items, LEAD2));                         // 기본 열람자(영업팀장·영업부장)는 후보가 아니다
+        assertNull(byEmp(items, HEAD));
+        assertNull(byEmp(items, EXEC));
+        assertNull(byEmp(items, IT_LEAD));                       // 전산(관리자 겸임)은 영업·임원이 아니다
+        assertNull(byEmp(items, ADMIN));
+        assertEquals(30, json(r).path("scope_max").asInt());
+        // 관리자는 임원 등급이어도 후보가 아니고 scopeAdd 도 거부한다(관리자는 감사 전용 — 본문을 보게 하지 않는다)
+        jdbc.update("UPDATE USERS SET APPROVAL_GRADE='EXECUTIVE' WHERE EMP_NO=?", ADMIN);
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", MEMBER2);
+        flushCache();
+        JsonNode again = json(read(path, HEAD, "minutes_scope_open")).path("items");
+        assertNull(byEmp(again, ADMIN));
+        assertNull(byEmp(again, MEMBER2));                       // 비활성은 빠진다
+        MvcResult addAdmin = scopeAdd(id, HEAD, ADMIN, kst(1));
+        assertEquals(text(addAdmin), 400, status(addAdmin));
+        assertEquals("SCOPE_TARGET_INVALID", json(addAdmin).path("detail").path("code").asText());
+        MvcResult addIt = scopeAdd(id, HEAD, IT_LEAD, kst(1));
+        assertEquals(400, status(addIt));
+        assertEquals("SCOPE_TARGET_INVALID", json(addIt).path("detail").path("code").asText());
+        // 권한·관문
+        assertEquals(403, status(read(path, LEAD2, "minutes_scope_open")));
+        assertEquals(403, status(read(path, DESIGNER, "minutes_scope_open")));   // 공개 대상
+        assertEquals(404, status(read(path, IT_LEAD, "minutes_scope_open")));
+        assertEquals(404, status(read(path, ADMIN, "minutes_scope_open")));
+        MvcResult noUi = mockMvc.perform(as(get(path), HEAD)).andReturn();
+        assertEquals(400, status(noUi));
+        assertEquals("UI_ID_REQUIRED", json(noUi).path("detail").path("code").asText());
+        assertTrue(count("SELECT COUNT(*) FROM BOARD_MINUTES_ACT WHERE MINUTES_ID=? AND ACTION_CD='SCOPE_CANDIDATES' "
+                + "AND OUTCOME='OK' AND ACTOR_EMP_NO=?", id, HEAD) >= 2);   // 위에서 HEAD 가 두 번 불렀다
+        assertEquals(0, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE REQ_PATH LIKE ? AND DETAIL LIKE ?", "%/scope/candidates", "%" + SEED_NAME + "%"));
+    }
+
+    @Test
+    public void 임원_등급과_본부장_직위는_후보이고_일반_타_부서는_후보가_아니다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "n2");
+        insertUser("9100001", "가상임원", "예산팀", "과장", "EXECUTIVE");
+        insertUser("9100002", "가상본부", "예산팀", "본부장", "NONE");
+        insertUser("9100003", "가상예산", "예산팀", "과장", "NONE");
+        flushCache();
+        JsonNode items = json(read("/board-minutes/" + id + "/scope/candidates", HEAD, "minutes_scope_open")).path("items");
+        assertNotNull(byEmp(items, "9100001"));
+        assertNotNull(byEmp(items, "9100002"));
+        assertNull(byEmp(items, "9100003"));
+        assertEquals(200, status(scopeAdd(id, HEAD, "9100001", kst(1))));
+        assertEquals(200, status(scopeAdd(id, HEAD, "9100002", kst(1))));
+        assertEquals(400, status(scopeAdd(id, HEAD, "9100003", kst(1))));
+    }
+
+    @Test
+    public void 저장은_수칙_확인이_없으면_422이고_확인하면_LOG에_RULES_ACK가_남는다() throws Exception {
+        String[] fx = fixture();
+        MvcResult pv = preview(fx[1], MEMBER, tx("n3"), opts(null, null));   // 미리보기는 rules_ack 없이 200
+        assertEquals(text(pv), 200, status(pv));
+        String digest = json(pv).path("preview_digest").asText();
+        MvcResult no = upload(fx[1], MEMBER, tx("n3"), js("meeting_date", "2026-01-15", "title", "제목", "preview_digest", digest));
+        assertEquals(text(no), 422, status(no));
+        assertEquals("RULES_ACK_REQUIRED", json(no).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES WHERE MATERIAL_ID=?", Long.parseLong(fx[1])));
+        MvcResult falseAck = upload(fx[1], MEMBER, tx("n3"),
+                js("meeting_date", "2026-01-15", "title", "제목", "preview_digest", digest, "rules_ack", Boolean.FALSE));
+        assertEquals(422, status(falseAck));
+        long id = uploadOk(fx[1], MEMBER, "n3");
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MINUTES_LOG WHERE MINUTES_ID=? AND EVENT_CD='RULES_ACK' "
+                + "AND TARGET_KIND='RULES' AND TARGET_NO=1 AND ACTOR_EMP_NO=?", id, MEMBER));
+        assertTrue(count("SELECT COUNT(*) FROM ACCESS_LOG WHERE DETAIL LIKE ?", "%code=UPLOAD%ack=1%") >= 1);
+    }
+
+    @Test
+    public void 미리보기_뒤_가림_단어가_바뀌면_409이고_같은_단어는_순서와_대소문자가_달라도_통과한다() throws Exception {
+        String[] fx = fixture();
+        String plain = json(previewE(fx[1], MEMBER, "n4", opts(null, null), null)).path("preview_digest").asText();
+        MvcResult changed = uploadE(fx[1], MEMBER, "n4", optsE("제목", plain, null, "[\"안건\"]"), null);
+        assertEquals(text(changed), 409, status(changed));
+        assertEquals("PREVIEW_CHANGED", json(changed).path("detail").path("code").asText());
+        String withTerm = json(previewE(fx[1], MEMBER, "n4", optsE(null, null, null, "[\"안건\"]"), null)).path("preview_digest").asText();
+        assertFalse(plain.equals(withTerm));
+        String ab = json(previewE(fx[1], MEMBER, "n4", optsE(null, null, null, "[\"안건\",\"회의\"]"), null)).path("preview_digest").asText();
+        String ba = json(previewE(fx[1], MEMBER, "n4", optsE(null, null, null, "[\"회의\",\"안건\"]"), null)).path("preview_digest").asText();
+        assertEquals(ab, ba);
+        MvcResult ok = uploadE(fx[1], MEMBER, "n4", optsE("제목", withTerm, null, "[\"안건\"]"), null);
+        assertEquals(text(ok), 201, status(ok));
+    }
+
+    @Test
+    public void 가림_단어의_대소문자만_달라도_마스커와_같게_보아_저장이_통과한다() throws Exception {
+        String[] fx = fixture();
+        String d = json(previewE(fx[1], MEMBER, "n5", optsE(null, null, null, "[\"ABC\"]"), null)).path("preview_digest").asText();
+        MvcResult ok = uploadE(fx[1], MEMBER, "n5", optsE("제목", d, null, "[\"abc\"]"), null);
+        assertEquals(text(ok), 201, status(ok));
+    }
+
+    @Test
+    public void 상세_viewer에_본인_열람_기한이_실린다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "n6");
+        int days = settings.getUploaderDays();
+        JsonNode mv = json(view(id, MEMBER)).path("viewer");
+        assertEquals("UPLOADER", mv.path("via").asText());
+        String until = mv.path("view_until").asText();
+        assertTrue(until, until.compareTo(kst(days - 1)) >= 0 && until.compareTo(kst(days + 1)) <= 0);
+        assertFalse(mv.path("view_until_at").isNull());
+        assertEquals(200, status(scopeAdd(id, HEAD, DESIGNER, kst(5))));
+        JsonNode dv = json(view(id, DESIGNER)).path("viewer");
+        assertEquals("GRANTEE", dv.path("via").asText());
+        assertEquals(kst(5), dv.path("view_until").asText());
+        assertTrue(dv.path("view_until_at").isNull());
+        JsonNode hv = json(view(id, HEAD)).path("viewer");
+        assertTrue(hv.path("view_until").isNull());
+        assertTrue(hv.path("view_until_at").isNull());
+    }
+
+    @Test
+    public void 상세_speakers에_first_seq가_있다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "n7");
+        JsonNode sp = json(view(id, HEAD)).path("speakers");
+        assertEquals(1, sp.get(0).path("first_seq").asInt());
+        assertEquals(2, sp.get(1).path("first_seq").asInt());
+    }
+
+    @Test
+    public void board_review_화면으로_연_호출도_ui_valid로_남는다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "n8");
+        MvcResult r = mockMvc.perform(as(get("/board-minutes/" + id).header("X-Screen-Id", "board_review")
+                .header("X-Button-Id", "minutes_open"), LEAD2)).andReturn();
+        assertEquals(text(r), 200, status(r));
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MINUTES_ACT WHERE MINUTES_ID=? AND SCREEN_ID='board_review' AND UI_VALID=1", id));
+    }
+
+    @Test
+    public void UI_ID_REQUIRED_문구에_헤더_이름이_없다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "n9");
+        MvcResult noUi = mockMvc.perform(as(get("/board-minutes/" + id + "/transcript"), HEAD)).andReturn();
+        assertEquals(400, status(noUi));
+        assertFalse(text(noUi).contains("X-Screen-Id"));
+        assertFalse(text(noUi).contains("X-Button-Id"));
+    }
+
+    @Test
+    public void 기능이_꺼져_있으면_쓰기_요청은_필터에서_바로_404다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "n10");
+        Object enabled = ReflectionTestUtils.getField(settings, "enabled");
+        try {
+            ReflectionTestUtils.setField(settings, "enabled", false);
+            MvcResult r = sendPost("/board-minutes/" + id + "/delete", HEAD, "{\"rev_no\":0}");
+            assertEquals(404, status(r));
+            assertTrue(text(r), text(r).contains("찾을 수 없습니다"));
+            assertEquals("no-store", r.getResponse().getHeader("Cache-Control"));
+        } finally {
+            ReflectionTestUtils.setField(settings, "enabled", enabled);
+        }
+        assertEquals(200, status(view(id, HEAD)));   // 되돌린 뒤 지워지지 않았다
+    }
+
+    @Autowired private BoardMinutesService minutesService;
+    @Autowired private BoardMinutesAccess minutesAccess;
+    @Autowired private BoardMinutesMapper minutesMapper;
+    @Autowired private SysUserMapper sysUsers;
+
+    @Test
+    public void 쓰기_트랜잭션_안_재판정은_권한을_잃었으면_403_볼_수_없으면_404이고_새_판정의_경로를_싣는다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "n11");
+        assertEquals(200, status(scopeAdd(id, HEAD, MEMBER, kst(3))));
+        BoardMinutes head = minutesMapper.selectHead(id);
+        // (403) 요청 시작 때는 등록자(고칠 수 있음)였는데, 그 사이 담당이 해제됐다 — 공개 대상으로만 남아 볼 수는 있으나 고칠 수 없다
+        SysUser member = sysUsers.selectByEmpNo(MEMBER);
+        BoardMinutesAccess.Decision stale = minutesAccess.decide(member, head);
+        assertEquals(BoardMinutesAccess.Via.UPLOADER, stale.via);
+        assertTrue(stale.edit);
+        jdbc.update("UPDATE BID_ASSIGNMENT SET ACTIVE_YN=0 WHERE BID_CASE_ID=? AND EMP_NO=?", fx[0], MEMBER);
+        flushCache();
+        BoardMinutesIn.MetaIn meta = new BoardMinutesIn.MetaIn();
+        meta.setField("title");
+        meta.setValue("가상 새 제목");
+        meta.setRevNo(Integer.valueOf(0));
+        try {
+            minutesService.editMeta(member, null, head, stale, meta);
+            fail("재판정이 거부해야 한다");
+        } catch (BoardMinutesService.RecheckException e) {
+            assertEquals(403, e.getStatus());
+            assertEquals(BoardMinutesAccess.Via.GRANTEE, e.getVia());
+        }
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES_REV WHERE MINUTES_ID=?", id));
+        // (404) 요청 시작 때는 기본 열람자였는데 그 사이 비활성이 됐다 — 볼 수 없다
+        SysUser lead2 = sysUsers.selectByEmpNo(LEAD2);
+        BoardMinutesAccess.Decision staleLead = minutesAccess.decide(lead2, head);
+        assertEquals(BoardMinutesAccess.Via.DEFAULT, staleLead.via);
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", LEAD2);
+        flushCache();
+        Integer todo = jdbc.queryForObject("SELECT MIN(ITEM_NO) FROM BOARD_MINUTES_ITEM WHERE MINUTES_ID=? AND KIND_CD='TODO'", Integer.class, id);
+        assertNotNull(todo);
+        BoardMinutesIn.TodoIn in = new BoardMinutesIn.TodoIn();
+        in.setDone(Boolean.TRUE);
+        try {
+            minutesService.todo(lead2, null, head, staleLead, String.valueOf(todo), in);
+            fail("재판정이 거부해야 한다");
+        } catch (BoardMinutesService.RecheckException e) {
+            assertEquals(404, e.getStatus());
+            assertEquals(BoardMinutesAccess.Via.NONE, e.getVia());
+        }
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES_ITEM WHERE MINUTES_ID=? AND DONE_YN=1", id));
     }
 }

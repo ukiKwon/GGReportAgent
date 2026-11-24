@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
  * 수정 PUT(utterances·items): 128KB, 그 밖의 작은 쓰기(meta·done·scope·delete): 16KB. 길이가 없으면(chunked) 411 LENGTH_REQUIRED.
  * JSON 경로는 헤더만 믿지 않고 실제로 읽은 바이트도 센다({@link BoardWriteLimitFilter.CountingRequest}).
  * 경로 정규화·카운팅 래퍼는 {@link BoardWriteLimitFilter} 것을 그대로 쓴다(같은 패키지 — 그 필터는 고치지 않는다).
- * 기능이 꺼져 있으면(enabled=false) 크기 검사를 하지 않고 통과시킨다(컨트롤러가 404). 이미 해석된 MultipartHttpServletRequest(MockMvc 전용)는 통과.
+ * 기능이 꺼져 있으면(enabled=false) 쓰기(POST·PUT)는 체인 없이 바로 404 를 쓰고, 읽기는 통과시킨다(컨트롤러가 404). 이미 해석된 MultipartHttpServletRequest(MockMvc 전용)는 통과.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 2)
@@ -74,7 +74,20 @@ public class MinutesLimitFilter implements Filter {
         }
         boolean post = "POST".equalsIgnoreCase(req.getMethod());
         boolean put = "PUT".equalsIgnoreCase(req.getMethod());
-        if (request instanceof MultipartHttpServletRequest || !settings.isEnabled() || (!post && !put)) {
+        if (request instanceof MultipartHttpServletRequest) {
+            chain.doFilter(request, response);
+            return;
+        }
+        if (!settings.isEnabled() && (post || put)) {
+            // 꺼져 있으면 쓰기 요청은 체인을 부르지 않는다 — DispatcherServlet 이 multipart 를 해석해 임시 파일을 쓰는 일이 없게(security S4).
+            // 본문은 컨트롤러의 꺼짐 응답({"detail":"찾을 수 없습니다."})과 같다. 기록 없음.
+            res.setStatus(404);
+            res.setHeader("Connection", "close");
+            res.setContentType("application/json;charset=UTF-8");
+            res.getOutputStream().write("{\"detail\":\"찾을 수 없습니다.\"}".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        if (!settings.isEnabled() || (!post && !put)) {
             chain.doFilter(request, response);
             return;
         }

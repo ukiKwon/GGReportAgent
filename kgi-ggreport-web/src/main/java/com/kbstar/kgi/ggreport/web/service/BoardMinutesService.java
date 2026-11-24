@@ -40,13 +40,19 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /**
@@ -65,6 +71,8 @@ public class BoardMinutesService {
     static final int ACT_CAP = 500;
     static final int MINUTES_MAX = 10;
     static final int SCOPE_MAX = 30;
+    static final int CANDIDATE_CAP = 2000;
+    static final int UPLOAD_RULES_VER = 1;   // 업로드 화면 운용 수칙 4줄의 판 — 화면 문구가 바뀌면 올린다
     static final int UTTER_EDIT_MAX = MinutesParse.EDIT_MAX_CHARS;
     static final int UTTER_EDITS_MAX = 2000;   // 저장 전 수정 발언 수 상한
     static final int ITEM_EDIT_MAX = 1000;
@@ -269,7 +277,7 @@ public class BoardMinutesService {
         return m;
     }
 
-    private static Map<String, Object> viewer(BoardMinutesAccess.Decision d) {
+    private Map<String, Object> viewer(BoardMinutesAccess.Decision d, BoardMinutes head, SysUser me) {
         Map<String, Object> v = new LinkedHashMap<String, Object>();
         v.put("via", d.via.name());
         v.put("can_edit", Boolean.valueOf(d.edit));
@@ -280,7 +288,38 @@ public class BoardMinutesService {
         v.put("can_delete", Boolean.valueOf(d.delete));
         v.put("can_view_acts", Boolean.valueOf(d.acts));
         v.put("can_view_material", Boolean.valueOf(d.viewMaterial));
+        String untilAt = null;
+        String until = null;
+        if (d.via == BoardMinutesAccess.Via.UPLOADER) {          // 올린 시각 + uploader-days 까지
+            untilAt = uploaderUntilAt(head.getCreatedAt());
+            until = untilAt == null ? null
+                    : OffsetDateTime.parse(untilAt).atZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDate().toString();
+        } else if (d.via == BoardMinutesAccess.Via.GRANTEE) {    // 공개범위 종료일(그날 포함)
+            until = grantUntilOf(head.getMinutesId().longValue(), me.getEmpNo());
+        }
+        v.put("view_until", until);       // yyyy-MM-dd(KST) — 부장급·기본 열람자는 null(기한 없음)
+        v.put("view_until_at", untilAt);  // 등록자만 정확한 끝 시각(ISO), 그 밖 null
         return v;
+    }
+
+    private String uploaderUntilAt(String createdAt) {
+        if (createdAt == null) {
+            return null;
+        }
+        try {
+            return Times.iso(OffsetDateTime.parse(createdAt).toInstant().plus(settings.getUploaderDays(), ChronoUnit.DAYS));
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    private String grantUntilOf(long id, String empNo) {
+        for (BoardMinutesScope s : mapper.selectScope(id)) {
+            if (empNo.equals(s.getGrantValue())) {
+                return s.getGrantUntil();
+            }
+        }
+        return null;
     }
 
     private static Map<String, Object> itemMap(BoardMinutesItem it) {
@@ -371,13 +410,17 @@ public class BoardMinutesService {
         out.put("out_of_segment_cnt", Integer.valueOf(link.outOfSegmentCnt()));
     }
 
-    /** 화자 목록 [{speaker_no, speaker, label, utter_cnt}] — 번호순. */
+    /** 화자 목록 [{speaker_no, speaker, label, utter_cnt, first_seq}] — 번호순. first_seq = 그 화자의 첫 발언 번호. */
     private static List<Map<String, Object>> speakers(List<BoardMinutesUtter> utters, Map<Integer, String> labels) {
         Map<Integer, Integer> cnt = new TreeMap<Integer, Integer>();
+        Map<Integer, Integer> first = new HashMap<Integer, Integer>();
         for (BoardMinutesUtter u : utters) {
             Integer k = Integer.valueOf(u.getSpeakerNo());
             Integer c = cnt.get(k);
             cnt.put(k, Integer.valueOf(c == null ? 1 : c.intValue() + 1));
+            if (!first.containsKey(k)) {
+                first.put(k, Integer.valueOf(u.getSeqNo()));   // utters 는 SEQ_NO 순(selectUtterIndex ORDER BY SEQ_NO, 미리보기는 파싱 순)
+            }
         }
         List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
         for (Map.Entry<Integer, Integer> e : cnt.entrySet()) {
@@ -386,6 +429,7 @@ public class BoardMinutesService {
             m.put("speaker", "참석자 " + e.getKey());
             m.put("label", labels.get(e.getKey()));
             m.put("utter_cnt", e.getValue());
+            m.put("first_seq", first.get(e.getKey()));
             out.add(m);
         }
         return out;
@@ -565,7 +609,7 @@ public class BoardMinutesService {
         out.put("created_by_name", head.getCreatedByName());
         out.put("created_at", head.getCreatedAt());
         out.put("updated_at", head.getUpdatedAt());
-        out.put("viewer", viewer(d));
+        out.put("viewer", viewer(d, head, me));
         return out;
     }
 
@@ -641,6 +685,54 @@ public class BoardMinutesService {
             m.put("granted_at", s.getGrantedAt());
             out.add(m);
         }
+        return out;
+    }
+
+    /**
+     * 공개범위 후보(부장급만) — {@link BoardMinutesAccess#isScopeCandidate}(scopeAdd 와 같은 규칙: 영업부서 + 임원급, 관리자·기본 열람자 제외).
+     * 이미 공개된 사람은 granted·grant_until. 이름순, CANDIDATE_CAP 까지.
+     */
+    public Map<String, Object> scopeCandidates(BoardMinutes head, BoardMinutesAccess.Decision d) {
+        requireView(head, d, d != null && d.scopeEdit);
+        String today = Times.todayKst();
+        Map<String, String> granted = new HashMap<String, String>();
+        for (BoardMinutesScope s : mapper.selectScope(head.getMinutesId().longValue())) {
+            granted.put(s.getGrantValue(), s.getGrantUntil());
+        }
+        List<SysUser> pool = new ArrayList<SysUser>();
+        for (SysUser u : users.selectAll()) {
+            if (access.isScopeCandidate(u)) {
+                pool.add(u);
+            }
+        }
+        Collections.sort(pool, new Comparator<SysUser>() {
+            @Override
+            public int compare(SysUser a, SysUser b) {
+                String x = a.getName() == null ? "" : a.getName();
+                String y = b.getName() == null ? "" : b.getName();
+                int c = x.compareTo(y);
+                return c != 0 ? c : a.getEmpNo().compareTo(b.getEmpNo());
+            }
+        });
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        for (int i = 0; i < pool.size() && i < CANDIDATE_CAP; i++) {
+            SysUser u = pool.get(i);
+            String until = granted.get(u.getEmpNo());
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("emp_no", u.getEmpNo());
+            m.put("name", u.getName());
+            m.put("role", u.getRole());
+            m.put("position_title", u.getPositionTitle());
+            m.put("granted", Boolean.valueOf(until != null));
+            m.put("grant_until", until);
+            m.put("expired", Boolean.valueOf(until != null && until.compareTo(today) < 0));
+            items.add(m);
+        }
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        out.put("items", items);
+        out.put("truncated", Boolean.valueOf(pool.size() > CANDIDATE_CAP));
+        out.put("grant_until_max", LocalDate.parse(today).plusDays(365).toString());
+        out.put("scope_max", Integer.valueOf(SCOPE_MAX));
         return out;
     }
 
@@ -781,6 +873,9 @@ public class BoardMinutesService {
         if (o.getEditsDigest() != null && !HEX64.matcher(o.getEditsDigest()).matches()) {
             throw optionsInvalid();
         }
+        if (confirm && !Boolean.TRUE.equals(o.getRulesAck())) {
+            throw coded(422, "RULES_ACK_REQUIRED", "운용 수칙을 확인했다는 체크가 있어야 저장할 수 있습니다.");
+        }
         return o;
     }
 
@@ -881,7 +976,7 @@ public class BoardMinutesService {
             names.add(n);
         }
         out.put("name_candidates", names);
-        out.put("preview_digest", p.digest);
+        out.put("preview_digest", MinutesParse.previewDigest(p.digest, o.getTerms(), o.getRelease()));
         out.put("edits_digest", p.editsDigest);   // null = 고친 것 없음. 저장 때 options.edits_digest 로 그대로 돌려보낸다
         return out;
     }
@@ -929,7 +1024,7 @@ public class BoardMinutesService {
             throw coded(422, "TITLE_REQUIRED", "제목을 입력하세요.");
         }
         String wantEdits = o.getEditsDigest();
-        if (!p.digest.equals(o.getPreviewDigest())
+        if (!MinutesParse.previewDigest(p.digest, o.getTerms(), o.getRelease()).equals(o.getPreviewDigest())
                 || (p.editsDigest == null ? wantEdits != null : !p.editsDigest.equals(wantEdits))) {
             throw coded(409, "PREVIEW_CHANGED", "미리보기 뒤에 내용이 바뀌었습니다. 미리보기를 다시 확인해 주세요.");
         }
@@ -974,6 +1069,7 @@ public class BoardMinutesService {
                 mapper.insertSpeaker(id.longValue(), e.getKey().intValue(), e.getValue());
             }
             log(id.longValue(), materialId, "UPLOAD", Integer.valueOf(0), null, null, null, null, me, actor);
+            log(id.longValue(), materialId, "RULES_ACK", null, "RULES", Integer.valueOf(UPLOAD_RULES_VER), null, null, me, actor);
             Map<String, Object> out = new LinkedHashMap<String, Object>();
             out.put("minutes_id", id);
             out.put("material_id", m.getMaterialId());
@@ -1058,10 +1154,7 @@ public class BoardMinutesService {
         final long id = head.getMinutesId().longValue();
         final String now = Times.nowIso();
         return tx.execute(s -> {
-            BoardMinutes h = mapper.lockHead(id);
-            if (h == null || h.isDeleted()) {
-                throw notFound();
-            }
+            BoardMinutes h = lockAndRecheck(me, head, x -> x.edit);
             if (h.getRevNo() != revNo) {
                 throw revChanged(h.getRevNo());
             }
@@ -1124,10 +1217,7 @@ public class BoardMinutesService {
         final long id = head.getMinutesId().longValue();
         final String now = Times.nowIso();
         return tx.execute(s -> {
-            BoardMinutes h = mapper.lockHead(id);
-            if (h == null || h.isDeleted()) {
-                throw notFound();
-            }
+            BoardMinutes h = lockAndRecheck(me, head, x -> x.edit);
             if (h.getRevNo() != revNo) {
                 throw revChanged(h.getRevNo());
             }
@@ -1190,10 +1280,7 @@ public class BoardMinutesService {
         final long id = head.getMinutesId().longValue();
         final String now = Times.nowIso();
         return tx.execute(s -> {
-            BoardMinutes locked = mapper.lockHead(id);
-            if (locked == null || locked.isDeleted()) {
-                throw notFound();
-            }
+            BoardMinutes locked = lockAndRecheck(me, head, x -> x.edit);
             if (locked.getRevNo() != revNo) {
                 throw revChanged(locked.getRevNo());
             }
@@ -1243,10 +1330,7 @@ public class BoardMinutesService {
         final boolean done = in.getDone().booleanValue();
         final long id = head.getMinutesId().longValue();
         return tx.execute(s -> {
-            BoardMinutes h = mapper.lockHead(id);
-            if (h == null || h.isDeleted()) {
-                throw notFound();
-            }
+            BoardMinutes h = lockAndRecheck(me, head, x -> x.todo);
             BoardMinutesItem it = mapper.selectItem(id, itemNumber);
             if (it == null) {
                 throw notFound();
@@ -1307,7 +1391,43 @@ public class BoardMinutesService {
         return sb.toString();
     }
 
-    /** 공개범위 추가·연장(부장급만). 사람 단위 — 대상은 활성 사용자. 사번은 응답·오류에 싣지 않는다. */
+    /** 재판정에서 거부될 때 새 판정의 경로(VIA)를 컨트롤러 감사 기록에 싣는 예외(상태·문구는 ApiException 그대로). */
+    public static final class RecheckException extends ApiException {
+        private final BoardMinutesAccess.Via via;
+
+        RecheckException(int status, String message, BoardMinutesAccess.Via via) {
+            super(status, message);
+            this.via = via;
+        }
+
+        public BoardMinutesAccess.Via getVia() {
+            return via;
+        }
+    }
+
+    /**
+     * 쓰기 트랜잭션 안 재판정 — 배정 잠금(업로드·020 과 같은 순서: BID_ASSIGN_CASE → 머리) 뒤 머리를 잠그고 사용자·판정을 다시 읽는다.
+     * 요청 시작 뒤 담당 해제·역할 변경·삭제가 끼어들었으면 볼 수 없으면 404, 볼 수는 있으나 권한을 잃었으면 403.
+     */
+    private BoardMinutes lockAndRecheck(SysUser me, BoardMinutes head, Predicate<BoardMinutesAccess.Decision> allowed) {
+        if (head.getBidCaseId() != null) {
+            materials.lockAssignCase(head.getBidCaseId());
+        }
+        BoardMinutes h = mapper.lockHead(head.getMinutesId().longValue());
+        if (h == null || h.isDeleted()) {
+            throw new RecheckException(404, "회의록을 찾을 수 없습니다.", BoardMinutesAccess.Via.NONE);
+        }
+        BoardMinutesAccess.Decision now = access.decide(users.selectByEmpNo(me.getEmpNo()), h);
+        if (!now.view) {
+            throw new RecheckException(404, "회의록을 찾을 수 없습니다.", now.via);
+        }
+        if (!allowed.test(now)) {
+            throw new RecheckException(403, "이 회의록에서 할 수 없는 일입니다.", now.via);
+        }
+        return h;
+    }
+
+    /** 공개범위 추가·연장(부장급만). 사람 단위 — 대상은 후보 규칙({@link BoardMinutesAccess#isScopeCandidate}). 사번은 응답·오류에 싣지 않는다. */
     public Map<String, Object> scopeAdd(final SysUser me, final Actor actor, BoardMinutes head, BoardMinutesAccess.Decision d,
                                         BoardMinutesIn.ScopeIn in) {
         requireView(head, d, d != null && d.scopeEdit);
@@ -1316,7 +1436,8 @@ public class BoardMinutesService {
         }
         final String target = in.getEmpNo() == null ? null : in.getEmpNo().trim();
         SysUser t = MenuPerms.isEmpNo(target) ? users.selectByEmpNo(target) : null;
-        if (t == null || !"ACTIVE".equals(t.getStatus())) {
+        // 대상 검사는 후보 목록과 같은 규칙 하나(isScopeCandidate)다. 기본 열람자(영업팀장·영업부장)만 아래에서 '이미 기본 열람자'로 먼저 돌려보낸다.
+        if (t == null || !"ACTIVE".equals(t.getStatus()) || (!access.isDefaultViewer(t) && !access.isScopeCandidate(t))) {
             throw coded(400, "SCOPE_TARGET_INVALID", "공개할 사람을 확인할 수 없습니다.");
         }
         String until = strictDate(in.getGrantUntil());
@@ -1333,10 +1454,7 @@ public class BoardMinutesService {
             return out;
         }
         return tx.execute(s -> {
-            BoardMinutes h = mapper.lockHead(id);
-            if (h == null || h.isDeleted()) {
-                throw notFound();
-            }
+            BoardMinutes h = lockAndRecheck(me, head, x -> x.scopeEdit);
             List<BoardMinutesScope> rows = mapper.selectScope(id);
             BoardMinutesScope existing = null;
             for (BoardMinutesScope r : rows) {
@@ -1387,10 +1505,7 @@ public class BoardMinutesService {
         }
         final long id = head.getMinutesId().longValue();
         return tx.execute(s -> {
-            BoardMinutes h = mapper.lockHead(id);
-            if (h == null || h.isDeleted()) {
-                throw notFound();
-            }
+            BoardMinutes h = lockAndRecheck(me, head, x -> x.scopeEdit);
             List<BoardMinutesScope> rows = mapper.selectScope(id);
             boolean present = false;
             for (BoardMinutesScope r : rows) {
@@ -1416,10 +1531,7 @@ public class BoardMinutesService {
         final int revNo = requireRev(in == null ? null : in.getRevNo());
         final long id = head.getMinutesId().longValue();
         return tx.execute(s -> {
-            BoardMinutes h = mapper.lockHead(id);
-            if (h == null || h.isDeleted()) {
-                throw notFound();
-            }
+            BoardMinutes h = lockAndRecheck(me, head, x -> x.delete);
             if (h.getRevNo() != revNo) {
                 throw revChanged(h.getRevNo());
             }
