@@ -420,9 +420,9 @@ test('goalTableHtml: 표 구조(caption·colgroup·머리 7열·월 머리), 상
   const cands = [{ id: 'I1', key: '11|가', name: '가', region: '11', endDate: '2026-12-31' }, { id: 'I2', key: '11|나', name: '나', region: '11', endDate: '' }];
   const em = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', cands: cands }));
   assert.ok(em.indexOf('<h3 class="hb-eh">2026 목표 기관이 아직 없습니다</h3>') > 0);
-  assert.ok(em.indexOf('<ul class="hb-cand2"><li><h4>협약 종료 1년 안 <b>2</b>곳</h4><ul class="hb-cand">') > 0 && em.indexOf('입찰 공고가 났거나 날 예정인 기관부터 보여 줍니다.') > 0);   // 묶음 2×2(6-8), 묶음 하나뿐이면 협약 종료 1년 안
+  assert.ok(em.indexOf('<p class="hb-rec-sub" id="hb-rec-sub">협약 종료 1년 안 <b>2</b>곳 · 협약이 1년 안에 끝나는 기관</p><ul class="hb-cand3" id="hb-rec-list"') > 0 && em.indexOf('입찰이 가까운 기관부터 추천합니다.') > 0 && em.indexOf('type="radio"') < 0);   // 묶음 하나뿐이면 라디오 없이 설명 줄에(design 11-24 A안)
   assert.ok(em.indexOf('<button type="button" class="hb-tag add" data-act="cand" data-inst="I1" data-key="11|가" aria-label="가 목표에 넣기">목표에 넣기</button>') > 0);
-  assert.ok(em.indexOf('협약 종료 2026-12-31') > 0 && em.indexOf('그 밖의 기관은 위 [목표 기관 추가]에서 찾습니다.') > 0);
+  assert.ok(em.indexOf('협약 종료 2026-12-31') > 0 && em.indexOf('찾는 기관이 없으면 위 [목표 기관 추가]에서 찾습니다.') > 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok' })).indexOf('협약이 1년 안에 끝나는 기관이 없습니다. [목표 기관 추가]에서 기관을 찾아 넣으세요.') > 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', year: 2027 })).indexOf('2027 목표 기관이 아직 없습니다') > 0);
   assert.strictEqual(kbb.oursHeadHtml(27, 8, 4), ' <b>27</b>곳 · 협약 종료 1년 안 <b>8</b>곳 · 그중 목표 <b>4</b>곳');

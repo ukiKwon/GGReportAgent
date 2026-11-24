@@ -150,6 +150,7 @@
   <a href="#c94">94 제안 준비 현황 — 표 머리·칸 가운데 정렬, 조회 범위 '내 작업·팀 작업·부서 작업'</a>
   <a href="#c95">95 회의록 — 공개범위 사람 추가 목록을 서버 명단(영업부서·임원급)으로, 공개할 수 없는 사람 안내 분리, 볼 수 있는 기한을 날짜로, [발언 보기]는 누를 때만 원문 받기</a>
   <a href="#c96">96 기관장 — 학력·경력 기간을 연도만으로도 입력, Word 기간은 연도만, [워드 내려받기] 받는 중 포커스·저장 실패 문구</a>
+  <a href="#c97">97 입찰 현황판 — 목표가 빈 해의 추천을 숫자 단추 + 한 줄 목록으로</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -1990,6 +1991,26 @@
   <p style="font-size:12px">Word 학력·경력 기간은 연도만: <span class="mono">2018 ~ 2022</span>, 재직 중 <span class="mono">2018 ~ 현재</span>, 같은 해면 <span class="mono">2018</span>. 임기·첫 취임일은 그대로(<span class="mono">2023.12 ~ 2027.12</span>, <span class="mono">2018.07.01</span>).</p>
   <p style="font-size:12px">[워드 내려받기] 받는 중: aria-disabled(흐림 .55, 포커스 링이 있을 때는 흐리지 않음 — 링 대비 6.84:1) + 화면에 안 보이는 낭독 줄 '워드 파일을 만드는 중입니다.' 키보드로 눌렀을 때만 끝난 뒤 포커스를 단추로 되돌림. 저장 실패: '파일은 만들어졌지만 이 컴퓨터에 저장하지 못했습니다. 다운로드가 막혀 있지 않은지 확인하고 다시 받으세요.'</p>
   <p class="legend-note">새 색·새 변수 0개, 자리·크기 그대로. qa가 8080 실화면에서 Enter 뒤 포커스 유지 확인(07649ad1). 캡처 없음 — 시연 준비 중이라 소스 대조. 화면 시험 head-card 109/109, 서버 2409 통과.</p>
+</div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c97">
+<h2>97 입찰 현황판 — 목표가 빈 해의 추천을 '숫자 단추 + 한 줄 목록'으로 (2026-11-24, 사용자 실사용 의견·A안 선택, design-reviewer 규격, frontend-dev 구현)</h2>
+<div class="why">왜: 사용자 11-24 — 목표 기관이 없을 때 '공고 중 n곳·추정 공고 예정 n곳·그 밖 n곳'을 나눠 보여 주는 화면이 눈에 잘 들어오지 않고, '그 밖 n곳'은 글자라 더 안 들어온다. 묶음(공고 중·추정 공고 예정·협약 종료)의 의미는 좋으니 더 효과적인 방법으로. 진단: 묶음 이름(12px 400 회색)이 기관 이름(13px 700)보다 약하고, 4묶음 2×2가 같은 무게라 우선순위가 안 보이며, '그 밖 N곳'은 누를 수 없는 막다른 글자였다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p><img src="../../handoff/agents/history/2026-11-24_rec_sian/rec_before.png" alt="전 — 2×2 묶음 격자, 묶음마다 3줄과 누를 수 없는 '그 밖 N곳'" style="width:100%"></p>
+  <p class="hint12">묶음 4개 2×2, 묶음마다 3줄. 시기가 이름 뒤에 붙어 줄마다 위치가 다르고, [목표에 넣기]가 두 열에 흩어졌다. 남은 기관은 '그 밖 N곳' 회색 글자뿐. 처음 화면 Tab 최대 24번.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p><img src="../../handoff/agents/history/2026-11-24_rec_sian/rec_after_default.png" alt="후 — 묶음 단추 한 줄(공고 중 7 · 추정 공고 예정 48 · 협약 종료 1년 안 3), 고른 묶음 5줄 목록과 [2곳 더 보기]" style="width:100%"></p>
+  <p style="font-size:12px"><b>숫자가 든 묶음 단추 한 줄</b>(13px, 숫자 700 모노, 고르지 않은 칸도 잉크색 13.65:1) — 비지 않은 첫 묶음(가장 급한 것)이 기본. 아래 회색 설명 한 줄이 범위와 정렬을 말한다(예: '지금 공고가 나 있는 기관 · 접수 마감이 가까운 순').</p>
+  <p style="font-size:12px"><b>한 줄 목록</b>: 시기(고정 132px, 모노) | 지역+기관 | [목표에 넣기], 줄 36px, 폭 720px, 처음 5줄. 정렬: 공고 중은 원래 순서(마감 전 → 마감일 미확인), 확정·추정은 날짜 순, 협약 종료는 종료일 순(같으면 이름 순, 종료일 없으면 맨 뒤).</p>
+  <p><img src="../../handoff/agents/history/2026-11-24_rec_sian/rec_after_more.png" alt="후 — [2곳 더 보기] 뒤 7줄, 6번째 줄 이름에 포커스 링" style="width:100%"></p>
+  <p style="font-size:12px"><b>'그 밖 N곳' → [N곳 더 보기] 단추</b>: 같은 자리에서 펼치고 포커스는 새로 나온 첫 줄로. 묶음을 바꾸면 다시 5줄로 접힌다.</p>
+  <p><img src="../../handoff/agents/history/2026-11-24_rec_sian/rec_after_tab.png" alt="후 — 추정 공고 예정 48을 고른 화면, 5줄과 [43곳 더 보기]" style="width:100%"></p>
+  <p class="legend-note">새 색 0개(.db-per 부품 재사용). 처음 화면 Tab 약 12번. 컨테이너 클래스는 [목표 기관 추가] 창 추천받기(.hb-rec)와 겹치지 않게 .hb-erec(qa 11-24 P1). 근거: handoff/agents/design-reviewer·qa-verifier·frontend-dev 2026-11-24 보고서.</p>
 </div></div></div>
 </div>
 </section>

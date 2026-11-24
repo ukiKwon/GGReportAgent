@@ -275,14 +275,70 @@ test('빈 목표 후보 4묶음: 공고 중 → 확정 공고 예정 → 추정 
   assert.strictEqual(groups[2].items[0].when, '추정 2027-01');
   assert.strictEqual(groups[3].items[0].when, '협약 종료 2026-12-31');
   const h = kbb.emptyHtml({ year: 2026, canEdit: true, groups: groups });
-  assert.ok(h.indexOf('<ul class="hb-cand2">') > 0 && (h.match(/<h4>/g) || []).length === 4);
-  assert.ok(h.indexOf('<h4>추정 공고 예정 <b>4</b>곳</h4>') > 0 && h.indexOf('<li><span class="hb-q">그 밖 1곳</span></li>') > 0);
-  assert.strictEqual((h.match(/data-act="cand"/g) || []).length, 2 + 1 + 3 + 1);
-  assert.ok(h.indexOf('그 밖의 기관은 위 [목표 기관 추가]에서 찾습니다.') > 0);
+  assert.ok(h.indexOf('<ul class="hb-cand3" id="hb-rec-list"') > 0 && h.indexOf('<h4>') < 0 && h.indexOf('hb-cand2') < 0);
+  assert.strictEqual((h.match(/<input type="radio" name="hb-rec"/g) || []).length, 4);                                                // 묶음 라디오 4개
+  assert.ok(h.indexOf('<input type="radio" name="hb-rec" id="hb-rec-notice" value="notice" checked') > 0 && h.indexOf('<span>추정 공고 예정 <b>4</b></span>') > 0);   // 기본 = 비지 않은 첫 묶음
+  assert.strictEqual((h.match(/data-act="cand"/g) || []).length, 2);                                                                  // 공고 중 2줄만 보인다
+  assert.ok(h.indexOf('hb-rec-more') < 0 && h.indexOf('찾는 기관이 없으면 위 [목표 기관 추가]에서 찾습니다.') > 0 && h.indexOf('그 밖의 기관은 위') < 0);
+  assert.ok(h.indexOf('<p>입찰이 가까운 기관부터 추천합니다. [목표에 넣기]를 누르면 기관을 채운 추가 창이 열립니다.</p>') > 0);
+  assert.ok(h.indexOf('<p class="hb-rec-sub" id="hb-rec-sub">지금 공고가 나 있는 기관 · 접수 마감이 가까운 순</p>') > 0);
+  // recTab 존중: 추정 묶음은 4줄(5줄 이하라 더 보기 없음), 사라진 recTab은 첫 묶음으로
+  const he = kbb.emptyHtml({ year: 2026, canEdit: true, groups: groups, recTab: 'est' });
+  assert.ok(he.indexOf('value="est" checked') > 0 && he.indexOf('value="notice" checked') < 0 && (he.match(/data-act="cand"/g) || []).length === 4);
+  assert.ok(he.indexOf('공고 시기를 짐작한 기관(확정 아님) · 시기 순') > 0);
+  assert.ok(kbb.emptyHtml({ year: 2026, canEdit: true, groups: groups, recTab: 'gone' }).indexOf('value="notice" checked') > 0);
   const only = kbb.emptyHtml({ year: 2026, canEdit: true, groups: kbb.candGroups({ notice: [], upcoming: [] }, {}, g, []) });
-  assert.strictEqual((only.match(/<h4>/g) || []).length, 1);                                                                          // 비는 묶음은 머리째 뺀다
+  assert.ok(only.indexOf('type="radio"') < 0 && only.indexOf('<fieldset') < 0);                                                       // 묶음이 하나뿐이면 라디오 없음
+  assert.ok(only.indexOf('<p class="hb-rec-sub" id="hb-rec-sub">협약 종료 1년 안 <b>1</b>곳 · 협약이 1년 안에 끝나는 기관</p>') > 0);
   assert.ok(kbb.emptyHtml({ year: 2026, canEdit: true, groups: [] }).indexOf('협약이 1년 안에 끝나는 기관이 없습니다.') > 0);
   assert.ok(kbb.emptyHtml({ year: 2026, canEdit: false, groups: groups }).indexOf('<button') < 0);
+});
+
+test('빈 목표 후보 추천: 처음 5줄 + [N곳 더 보기], recAll이면 전부·단추 없음, 묶음 안 정렬(날짜·종료일 순, 같으면 이름 순)', function () {
+  const it = function (id, name, extra) { return Object.assign({ key: '11|' + name, name: name, region: '11', rec: rec(id, name) }, extra); };
+  assert.strictEqual(kbb.CAND_MAX, 5);
+  const up = [];
+  ['07', '03', '05', '03', '09', '01', '08'].forEach(function (mm, i) { up.push(it('U' + i, '확정' + String.fromCharCode(97 + i), { confidence: '확정', date: '2027-' + mm + '-10', days: Number(mm) * 30 })); });
+  const soon = [['끝다', '2027-02-01'], ['끝가', '2027-02-01'], ['끝나', '2026-12-01']].map(function (p, i) { return { key: '11|' + p[0], name: p[0], region: '11', endDate: p[1], rec: rec('S' + i, p[0]) }; });
+  const groups = kbb.candGroups({ notice: [], upcoming: up }, {}, { soon: soon, next: [] }, []);
+  assert.deepStrictEqual(groups[0].items.map(function (x) { return x.when; }), ['공고 예정 2027-01-10', '공고 예정 2027-03-10', '공고 예정 2027-03-10', '공고 예정 2027-05-10', '공고 예정 2027-07-10', '공고 예정 2027-08-10', '공고 예정 2027-09-10']);
+  assert.deepStrictEqual(groups[0].items.slice(1, 3).map(function (x) { return x.name; }), ['확정b', '확정d']);   // 같은 날짜는 이름 순
+  assert.deepStrictEqual(groups[1].items.map(function (x) { return x.name; }), ['끝나', '끝가', '끝다']);   // 종료일 순, 같으면 이름 순
+  const h = kbb.emptyHtml({ year: 2026, canEdit: true, groups: groups });
+  assert.strictEqual((h.match(/data-act="cand"/g) || []).length, 5);
+  assert.ok(h.indexOf('<button type="button" id="hb-rec-more" data-group="plan">2곳 더 보기</button>') > 0);
+  const all = kbb.emptyHtml({ year: 2026, canEdit: true, groups: groups, recAll: true });
+  assert.strictEqual((all.match(/data-act="cand"/g) || []).length, 7);
+  assert.ok(all.indexOf('hb-rec-more') < 0);
+  const end = kbb.emptyHtml({ year: 2026, canEdit: true, groups: groups, recTab: 'end', recAll: true });
+  assert.ok(end.indexOf('value="end" checked') > 0 && (end.match(/data-act="cand"/g) || []).length === 3 && end.indexOf('협약이 1년 안에 끝나는 기관 · 종료일 순') > 0);
+  const js = src('js/kbboard.js');
+  assert.ok(js.indexOf("t.name === 'hb-rec'") > 0 && js.indexOf("case 'hb-rec-more'") > 0 && js.indexOf('gs.recAll = false') > 0);   // 이벤트·초기화 배선
+  assert.ok(js.indexOf("gs.recTab = btn.getAttribute('data-group')") > 0);                                                            // 더 보기는 지금 묶음으로 고정
+  // 사라진 묶음 + 펼침 → 첫 묶음 5줄 + 더 보기(펼침 무시)
+  const gone = kbb.emptyHtml({ year: 2026, canEdit: true, groups: groups, recTab: 'gone', recAll: true });
+  assert.strictEqual((gone.match(/data-act="cand"/g) || []).length, 5);
+  assert.ok(gone.indexOf('id="hb-rec-more" data-group="plan"') > 0);
+  // 라디오 id(다시 그릴 때 포커스 복원용) + 추천받기 창의 .hb-rec와 겹치지 않는 컨테이너 클래스
+  assert.ok(h.indexOf('id="hb-rec-plan"') > 0 && h.indexOf('class="hb-erec"') > 0 && h.indexOf('class="hb-rec"') < 0);
+  assert.ok(src('index.html').indexOf('.hb-erec {') > 0);
+});
+
+test('빈 목표 후보 정렬: 공고 중은 model 원래 순서 유지(일수가 둘 다 숫자일 때만 비교), 확정·추정은 일수 순, 종료일 없는 줄은 맨 뒤·when 빈 칸, XSS 이스케이프', function () {
+  const it = function (id, name, extra) { return Object.assign({ key: '11|' + name, name: name, region: '11', rec: rec(id, name) }, extra); };
+  // 마감일 미확인(숫자 아님) 두 곳은 들어온 순서(다, 가) 그대로 — 이름 순으로 섞이지 않는다
+  const m = { notice: [it('A', '다', { phase: 'receiving' }), it('B', '가', { phase: 'receiving' }), it('C', '나', { phase: 'receiving', deadlineDays: 5 })], upcoming: [
+    it('D', '확정나', { confidence: '확정', date: '2026-12-03', days: 9 }), it('E', '확정가', { confidence: '확정', date: '2026-12-03', days: 9 }), it('F', '확정다', { confidence: '확정', date: '2026-12-01', days: 7 }),
+    it('G', '추정나', { confidence: '추정', date: '2027-02-01', days: 70 }), it('H', '추정가', { confidence: '추정', date: '2027-01-01', days: 38 })] };
+  const g = { soon: [{ key: '11|없음', name: '없음', region: '11', endDate: '', rec: rec('S0', '없음') }, { key: '11|끝', name: '끝', region: '11', endDate: '2026-12-31', rec: rec('S1', '끝') }], next: [] };
+  const gr = kbb.candGroups(m, {}, g, []);
+  assert.deepStrictEqual(gr[0].items.map(function (x) { return x.name; }), ['다', '가', '나']);
+  assert.deepStrictEqual(gr[1].items.map(function (x) { return x.name; }), ['확정다', '확정가', '확정나']);
+  assert.deepStrictEqual(gr[2].items.map(function (x) { return x.name; }), ['추정가', '추정나']);
+  assert.deepStrictEqual(gr[3].items.map(function (x) { return [x.name, x.when]; }), [['끝', '협약 종료 2026-12-31'], ['없음', '']]);
+  const X = '<img onerror=x>';
+  const xs = kbb.emptyHtml({ year: 2026, canEdit: true, groups: [{ key: X, label: X, items: [{ id: 'I1', key: X, name: X, region: X, when: X }] }, { key: 'end', label: 'e', items: [{ id: 'I2', key: 'k', name: 'n', region: '11', when: '' }] }] });
+  assert.ok(xs.indexOf('&lt;img') > 0 && xs.indexOf('<img') < 0);
 });
 
 test('협약 중인 기관 팝업 줄: [목표에 넣기]는 해당 줄에만, 이미 걸린 줄은 칩, 예전 모양은 그대로', function () {
@@ -324,7 +380,7 @@ test('소스 구조: 새 버튼 id·역할, 보안(서버 글 textContent·esc, 
   assert.ok(/\.hb-tb select\.on, \.hb-tb input\.on \{ border-color:color-mix\(in srgb, var\(--accent-color\) 55%, var\(--line-strong\)\); \}/.test(css));
   assert.ok(/\.hb-sort \{ all:unset;/.test(css) && /\.hb-sort:focus-visible \{ outline:2px solid var\(--accent-color\); outline-offset:2px; \}/.test(css) && /\.hb-dd\.end \{[^}]*color:var\(--muted\)/.test(css));
   assert.ok(/\.hb-warn \{[^}]*border:1px solid var\(--orange\)[^}]*color-mix\(in srgb, var\(--orange\) 8%, transparent\)/.test(css) && /\.hb-warn \.t \{[^}]*color-mix\(in srgb, var\(--orange\) 72%, var\(--fg\)\)/.test(css));
-  assert.ok(/\.hb-cand2 \{[^}]*grid-template-columns:repeat\(2, minmax\(0,1fr\)\)[^}]*gap:12px 24px[^}]*max-width:920px/.test(css));
+  assert.ok(/\.hb-erec \{[^}]*max-width:720px/.test(css) && css.indexOf('.hb-erec {') > 0 &&/\.hb-cand3 li \{[^}]*grid-template-columns:132px minmax\(0,1fr\) auto/.test(css) && css.indexOf('.hb-cand2') < 0);
   assert.ok(/\.hb-tt col\.c-next \{ width:170px; \}/.test(css) && /\.hb-tt col\.c-wnm \{ width:200px; \}/.test(css) && /@media \(max-width:880px\) \{ \.hb-stgs \{[^}]*overflow-x:auto/.test(css));
   assert.ok(/\.hb-tp \{[^}]*calc\(100vh - 296px\)/.test(css) && css.indexOf('#hb-ours > summary') < 0);
   assert.deepStrictEqual(css.match(/#[0-9a-fA-F]{3,8}\b/g) || [], []);                                                                     // hex 없음
