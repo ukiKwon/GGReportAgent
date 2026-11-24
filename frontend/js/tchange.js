@@ -311,11 +311,11 @@
     return '<td class="ck"><label><input type="checkbox" data-pick="' + esc(r.id) + '" aria-label="' + esc(r.regionName) + ' ' + esc(r.name) + ' 고르기"' + (on ? ' checked' : '') + '></label></td>';
   };
   tc.selbarHtml = function () {   // 바닥 띠(#hb-ts와 #hb-tf 사이). 1곳 이상 골랐을 때만 보인다
-    // 왼쪽부터 숫자 문장·선택 지우기 | 바로 반영 단추 [수정하기…](고른 줄이 전부 목표일 때만) · 결재자 안내 · 결재 주 단추
+    // 왼쪽부터 숫자 문장·선택 지우기 | [수정하기…](고른 줄이 전부 목표일 때만). 결재 동작은 줄의 구분 메뉴에서 한다(사용자 11-25)
     return '<div class="hb-selbar" id="hb-selbar" role="region" aria-label="고른 기관" hidden><span class="n" id="hb-seln" role="status"></span>' +
       '<button type="button" id="hb-selclr" class="lnk">선택 지우기</button><span class="sp"></span>' +
       '<button type="button" id="hb-seledit" aria-haspopup="dialog" hidden>수정하기…</button>' +
-      '<span class="who" id="hb-selwho"></span><button type="button" id="hb-selgo" class="go" aria-haspopup="dialog"></button></div>';
+      '</div>';
   };
   // 숫자 문장(role=status). 20곳 한도 같은 짧은 알림은 같은 자리에서 읽힌다.
   // kinds = { goal, watch }(없으면 '고른 기관 n곳'), off = 이 화면 밖에 고른 줄 수(규격 6-1)

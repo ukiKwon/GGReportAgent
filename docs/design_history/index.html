@@ -160,6 +160,7 @@
   <a href="#c104">104 입찰 현황판 1차 수정 — 사유 칸 폭, 추천받기 6묶음, [목표 기관 추가] 강조, 고른 기관 띠</a>
   <a href="#c105">105 입찰 현황판 결재 줄이기 — 구분·메모는 결재 없이 바로, 고른 기관 띠는 결재 묶음 전용</a>
   <a href="#c106">106 입찰 현황판 '내 관심 기관' — 관심 기관은 사람마다 따로(내 것만 보임, 빼기는 사유 없이)</a>
+  <a href="#c107">107 입찰 현황판 고른 기관 띠 — 결재자 안내·[빼기·옮기기 결재 요청…] 버튼 없앰</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2175,6 +2176,20 @@
   <p style="font-size:12px"><b>목표와 내 관심은 따로</b>: 같은 기관이 팀 목표이면서 내 관심일 수 있음 — 협약 팝업 칩 '2026 목표 · 내 관심', 넣기 단추는 '자기 쪽'에 이미 있을 때만 숨김. '이미 있음' 판정은 넣을 곳 기준 하나(검색·추천 같음).</p>
   <p style="font-size:12px"><b>용어</b>: 창·메뉴·알림 '관심 기관' → '내 관심'. 기관 자료에 없는 기관(비지자체)도 서버 이름으로 줄 표시.</p>
   <p class="legend-note">새 색·CSS 0. 근거: frontend-dev a51e7e61·a6c1aa49, qa a79fb1e8(조건부 통과 → P2·P3 반영), node --test 현황판 시험 통과(실패는 kind-queue 기존 1 + 지도 세션 미커밋 3).</p>
+</div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c107">
+<h2>107 입찰 현황판 고른 기관 띠 — '영업팀장이 결재합니다'와 [빼기·옮기기 결재 요청…] 없앰 (2026-11-25, 사용자 요청)</h2>
+<div class="why">왜: 사용자 11-25 — 기관을 고른 뒤 아래 띠의 결재 안내와 결재 요청 버튼은 없애자(결재가 너무 많아 보임).</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+  <p class="hint12"><code>고른 목표 기관 n곳 · 선택 지우기 ……… [수정하기…] 영업팀장이 결재합니다. [빼기·옮기기 결재 요청…]</code></p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+  <p style="font-size:12px"><code>고른 목표 기관 n곳 · 선택 지우기 ……… [수정하기…]</code> — 빼기·관심으로 옮기기·다음 회차로는 줄의 구분 메뉴 '결재 필요' 묶음에서 한 곳씩(여러 곳을 결재 하나로 묶던 띠 경로는 없어짐, 창 코드는 남겨 둠).</p>
+  <p class="legend-note">CSS 2줄 삭제(.hb-selbar .who·.go), 새 색 0. 근거: frontend-dev a980339c, node --test 2007/2008(실패 1 = kind-queue 기존 건).</p>
 </div></div></div>
 </div>
 </section>

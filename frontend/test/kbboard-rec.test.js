@@ -136,7 +136,7 @@ test('CSS(사용자 1차 수정 11-24): 사유·연도 칸 폭, [목표 기관 �
   assert.ok(/\.hb-selbar \{[^}]*min-height:48px[^}]*color-mix\(in srgb, var\(--accent-color\) 12%, var\(--panel\)\)[^}]*border-top:2px solid var\(--accent-color\)[^}]*box-shadow:0 -6px 16px -6px rgba\(19,20,22,\.28\)/.test(html));
   assert.ok(/\.hb-selbar:not\(\[hidden\]\) \{ animation:hbSelIn \.2s cubic-bezier\(\.2,\.8,\.2,1\) both; \}/.test(html) && /@keyframes hbSelIn \{ from \{ transform:translateY\(12px\); \} to \{ transform:none; \} \}/.test(html));   // opacity 없음(현황판 블록 opacity 금지)
   assert.ok(/@media \(prefers-reduced-motion:reduce\) \{ \.hb-selbar:not\(\[hidden\]\) \{ animation:none; \} \}/.test(html));
-  assert.ok(/\.hb-selbar \.n \{[^}]*color:var\(--fg\)[^}]*font-weight:700/.test(html) && /\.hb-selbar \.go \{[^}]*background:var\(--panel\)/.test(html) && /\.hb-selbar\[hidden\] \{ display:none; \}/.test(html));
+  assert.ok(/\.hb-selbar \.n \{[^}]*color:var\(--fg\)[^}]*font-weight:700/.test(html) && !/\.hb-selbar \.go \{/.test(html) &&/\.hb-selbar\[hidden\] \{ display:none; \}/.test(html));
   assert.ok(/\.hb-rec-h \{[^}]*display:flex[^}]*width:100%[^}]*min-height:32px/.test(html) && /\.hb-rec-h:hover \{ background:var\(--panel2\); \}/.test(html));
   assert.ok(/\.hb-rec-h svg \{[^}]*transition:transform \.2s/.test(html) && /@media \(prefers-reduced-motion:reduce\) \{ \.hb-rec-h svg \{ transition:none; \} \}/.test(html) && /\.hb-rec-h\[aria-expanded="true"\] svg \{ transform:rotate\(180deg\); \}/.test(html));
 });

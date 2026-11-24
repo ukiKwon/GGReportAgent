@@ -2686,8 +2686,6 @@
     const kinds = tc.kindCounts(gs.sel), off = n - pickRows().filter(function (r) { return tc.isPicked(gs.sel, r); }).length;   // off = 탭·연도·거르기 때문에 지금 화면에 없는 고른 줄
     const h = tc.selStatusHtml(n, gs.selMsg, kinds, off);
     if (stEl && stEl.hbH !== h) { stEl.innerHTML = h; stEl.hbH = h; }
-    const who = $('hb-selwho'); if (who) who.textContent = tc.approverText(roleNow(), mode);
-    const go = $('hb-selgo'); if (go) go.textContent = tc.barBtnText(mode, tc.mixOf(gs.sel));
     const ed = $('hb-seledit'); if (ed) ed.hidden = !(kinds.goal > 0 && kinds.watch === 0 && canBulkEdit() && tc.pastCount(gs.sel, U.todayDate().getFullYear()) === 0);   // 고른 줄이 전부 목표일 때만(관심이 섞이면 숨김)
   }
   function canBulkEdit() { return (!!gs.data && gs.data.value_edit_mode === 'DIRECT') || goalMode() === 'DIRECT'; }
@@ -3162,7 +3160,6 @@
     switch (btn.id) {
       case 'hb-add': openAdd(null); break;
       case 'hb-selclr': clearSelection(); break;
-      case 'hb-selgo': openChange({ opener: btn }); break;
       case 'hb-seledit': openChange({ opener: btn, kind: 'edit' }); break;   // 구분·메모 한꺼번에 수정(결재 없음, NEXT 114)
       case 'hb-ours-btn': openPop(); break;
       case 'hb-ours-close': closePop(true); break;

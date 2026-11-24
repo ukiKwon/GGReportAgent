@@ -636,3 +636,9 @@
 - **현재**: 사용자 11-24 결정(Q-90·91 + 재확인: 관심 = 개인별, 목표 = 팀별, ♥ 끄면 빠짐). 설계 backend-dev 2342_adcd953c(Opus — WATCH_EMP_NO·PUT/DELETE /institutions/{id}/my-watch·GET /my-watch·관심과 목표 독립), security 설계 검토 a66eab8b(중-1 TO_GOAL 소유 검사 순서·중-2 history 거르기 SQL로·중-3 061 NULL 0건 확인·하-1·하-2 반영 필요). 사용자 질문 3건 open(미달성 이월 주인·기존 관심 배분·비영업 ♥).
 - **다음 한 걸음**: 질문 답 + 세션 97 커밋(BidTargetService 등 NEXT 114) 대기 → backend-dev-write로 설계+security 패치 적용 → mvn → 로컬 MySQL 061 → 지도 render.js ♥ 연결(frontend-dev-write) → kbboard.js '내 관심'·빼기 흐름은 97에 요청.
 - **자세히**: 위 두 보고서, frontend-dev 2328_a9988aa9(현재 ♥·관심 구조 조사).
+
+### 118. 사전준비 승인(작성 전 결재) 폐지 — 필수 과제가 끝나면 [제안서 작성하기]로 바로 + '아직 입찰 공고 전' 태그 (사용자 11-25) [담당: 세션 97(db·fa 미기동이라 이어받음) — backend-dev(Opus) → security → frontend-dev]
+- **현재**: 사용자 11-25 "작성 전 결재는 필요 없다. 개설 신청(담당 지정)이 사전준비를 공식화, 그 뒤 결재는 필요하면 제안서 제출 단계쯤" → 결재 = 목표 기관 추가 + 개설 신청(팀장). planner a6defa39 팀 권장: IN_PROGRESS→WRITING 직행(버튼 1개, DB 변경 없음), 이미 올라간 PREP_APPROVAL은 끝까지 처리·새 상신만 막음, '결재 끝난 건' 감사 범위 = 개설 승인 이후, 공고 전 태그 = 제안 준비 현황 목록·상세 머리(근거 = 공고 레코드 유무). NEXT 111 사전준비 승인 쪽 소멸. 제안서 제출 단계 결재는 보류(제출 단계 설계 때 인터뷰). 질문: 기획승인(진행 현황 5단계 확인 버튼, 영업부장)도 없앨지.
+- **보류(사용자 11-25 "지금은 입찰 현황판만")**: backend-dev 설계(aa3f9e83)는 세션 재시작으로 중단, 산출물 없음. 기획승인 질문도 이때 함께 묻는다.
+- **다음 한 걸음**: backend-dev(Opus) 설계 다시 시작 → security → 적용·mvn → prep.js·prepboard.js·dashboard.js(STAGE_OF 4단계) → design 대조·design_history. data-auditor: 진행 중 PREP_APPROVAL·WRITABLE 건수.
+- **자세히**: handoff/agents/planner/ 2026-11-25 a6defa39.

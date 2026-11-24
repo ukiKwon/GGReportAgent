@@ -553,7 +553,7 @@ test('현황판 소스 배선: 한 줄 동작은 결재 모드에서 일괄 창�
   assert.ok(k.indexOf("go.textContent = tc.addGoText('APPROVAL')") > 0 && k.indexOf("go.textContent = m.busy ? '저장 중…' : (watch ? '내 관심에 넣기' : '목표에 넣기')") > 0);   // 기존 줄은 그대로
   assert.ok(/role="tabpanel"><\/div>' \+ tc\.selbarHtml\(\) \+ '<div class="hb-tf" id="hb-tf"><\/div><\/div>'/.test(k));
   assert.ok(k.indexOf("if (t.id === 'hb-pickall' || (t.getAttribute && t.getAttribute('data-pick') !== null)) { onPick(t); return; }") > 0);
-  assert.ok(k.indexOf("if (btn.classList.contains('hb-pend')) {") > 0 && k.indexOf("case 'hb-selgo': openChange({ opener: btn }); break;") > 0);
+  assert.ok(k.indexOf("if (btn.classList.contains('hb-pend')) {") > 0 && k.indexOf("hb-selgo") < 0);   // 띠 결재 주 단추는 없앴다(사용자 11-25)
   assert.ok(k.indexOf("if (r.pend) return tc.pendCellHtml(r, { canEdit: o.canEdit });") > 0);
   assert.ok(k.indexOf("if (a && msg && act && act !== 'watch') a.innerHTML = tc.actHtml(act);") > 0 && k.indexOf("msg && act === 'watch' ? kbb.seeWatchHtml() : ''") > 0);
   assert.ok(/root\.dlg\.open\(ov, \{\s*isDirty:/.test(k) && k.indexOf('document.body.appendChild(ov);   // 덮개는 body 직계') > 0);   // 새 창은 공통 dlg
@@ -591,7 +591,8 @@ test('index.html: tchange.js는 logic·errtext 뒤 approvals·kbboard 앞, 새 C
 // ── NEXT 114(design-reviewer 2026-11-24_2327_a59fddd3 6절): 결재 줄이기 — 구분·메모는 바로 저장, 옮기기·빼기만 결재 ─────────────
 test('NEXT 114 띠: 고른 목표 기관 n곳·선택 지우기·[수정하기…]·결재자 안내·주 단추, 섞임·화면 밖 문구', function () {
   const b = tc.selbarHtml();
-  assert.ok(b.indexOf('<button type="button" id="hb-selclr" class="lnk">선택 지우기</button><span class="sp"></span><button type="button" id="hb-seledit" aria-haspopup="dialog" hidden>수정하기…</button><span class="who" id="hb-selwho"></span><button type="button" id="hb-selgo" class="go" aria-haspopup="dialog"></button>') > 0);
+  assert.ok(b.indexOf('<button type="button" id="hb-selclr" class="lnk">선택 지우기</button><span class="sp"></span><button type="button" id="hb-seledit" aria-haspopup="dialog" hidden>수정하기…</button></div>') > 0);
+  assert.ok(b.indexOf('hb-selwho') < 0 && b.indexOf('hb-selgo') < 0);   // 결재자 안내·결재 주 단추 없음(사용자 11-25)
   assert.ok(b.indexOf('고르기 해제') < 0);
   assert.strictEqual(tc.selStatusHtml(5, '', { goal: 5, watch: 0 }, 0), '<span class="sr-only">목표 기관 5곳 고름</span><span aria-hidden="true">고른 목표 기관 <b>5</b>곳</span>');
   assert.strictEqual(tc.selStatusHtml(2, '', { goal: 0, watch: 2 }, 0), '<span class="sr-only">관심 기관 2곳 고름</span><span aria-hidden="true">고른 관심 기관 <b>2</b>곳</span>');
@@ -608,7 +609,7 @@ test('NEXT 114 띠: 고른 목표 기관 n곳·선택 지우기·[수정하기�
   const k = src('js/kbboard.js');
   assert.ok(k.indexOf("ed.hidden = !(kinds.goal > 0 && kinds.watch === 0 && canBulkEdit() && tc.pastCount(") > 0);   // 관심이 섞이면 [수정하기…]를 숨긴다
   assert.ok(k.indexOf("case 'hb-seledit': openChange({ opener: btn, kind: 'edit' }); break;") > 0);
-  assert.ok(k.indexOf('tc.barBtnText(mode, tc.mixOf(gs.sel))') > 0);
+  assert.ok(k.indexOf('tc.barBtnText(') < 0 && k.indexOf('hb-selwho') < 0);   // 띠가 더는 쓰지 않는다(함수는 남김)
 });
 
 test('NEXT 114 메뉴: 구분 → 메모·협약 개시일(바로) → 결재 필요(옮기기·빼기), 결재 항목 aria-label에 (결재 필요), DIRECT는 머리글 없음', function () {
