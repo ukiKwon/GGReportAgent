@@ -1203,6 +1203,7 @@ public class BoardMinutesApiTest {
             assertEquals(404, status(r));
             assertTrue(text(r), text(r).contains("찾을 수 없습니다"));
             assertEquals("no-store", r.getResponse().getHeader("Cache-Control"));
+            assertEquals("필터가 직접 끊었다", "close", r.getResponse().getHeader("Connection"));
         } finally {
             ReflectionTestUtils.setField(settings, "enabled", enabled);
         }
@@ -1277,5 +1278,72 @@ public class BoardMinutesApiTest {
         MvcResult def = scopeAdd(id, HEAD, LEAD2, kst(1));
         assertEquals(text(def), 200, status(def));
         assertEquals("ALREADY_DEFAULT", json(def).path("reason").asText());
+    }
+
+    @Test
+    public void 재판정은_삭제된_회의록이면_본문_수정_공개_거둠_삭제_모두_404이고_쓰기가_없다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "n12");
+        assertEquals(200, status(scopeAdd(id, HEAD, DESIGNER, kst(3))));
+        BoardMinutes head = minutesMapper.selectHead(id);
+        BoardMinutesAccess.Decision memberD = minutesAccess.decide(sysUsers.selectByEmpNo(MEMBER), head);
+        BoardMinutesAccess.Decision headD = minutesAccess.decide(sysUsers.selectByEmpNo(HEAD), head);
+        assertTrue(memberD.edit);
+        assertTrue(headD.scopeEdit);
+        assertTrue(headD.delete);
+        jdbc.update("UPDATE BOARD_MINUTES SET DELETED_YN=1 WHERE MINUTES_ID=?", id);
+        flushCache();
+        int logs = count("SELECT COUNT(*) FROM BOARD_MINUTES_LOG WHERE MINUTES_ID=?", id);
+
+        BoardMinutesIn.EditIn edit = new BoardMinutesIn.EditIn();
+        edit.setText("가상 고친 문장");
+        edit.setRevNo(Integer.valueOf(0));
+        try {
+            minutesService.editUtter(sysUsers.selectByEmpNo(MEMBER), null, head, memberD, "1", edit);
+            fail("재판정이 거부해야 한다");
+        } catch (BoardMinutesService.RecheckException e) {
+            assertEquals(404, e.getStatus());
+            assertEquals(BoardMinutesAccess.Via.NONE, e.getVia());
+        }
+        BoardMinutesIn.ScopeIn sc = new BoardMinutesIn.ScopeIn();
+        sc.setEmpNo(DESIGNER);
+        try {
+            minutesService.scopeRemove(sysUsers.selectByEmpNo(HEAD), null, head, headD, sc);
+            fail("재판정이 거부해야 한다");
+        } catch (BoardMinutesService.RecheckException e) {
+            assertEquals(404, e.getStatus());
+            assertEquals(BoardMinutesAccess.Via.NONE, e.getVia());
+        }
+        BoardMinutesIn.DeleteIn del = new BoardMinutesIn.DeleteIn();
+        del.setRevNo(Integer.valueOf(0));
+        try {
+            minutesService.delete(sysUsers.selectByEmpNo(HEAD), null, head, headD, del);
+            fail("재판정이 거부해야 한다");
+        } catch (BoardMinutesService.RecheckException e) {
+            assertEquals(404, e.getStatus());
+            assertEquals(BoardMinutesAccess.Via.NONE, e.getVia());
+        }
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES_REV WHERE MINUTES_ID=?", id));
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MINUTES_SCOPE WHERE MINUTES_ID=?", id));
+        assertEquals(logs, count("SELECT COUNT(*) FROM BOARD_MINUTES_LOG WHERE MINUTES_ID=?", id));
+        assertEquals(0, count("SELECT COUNT(*) FROM BOARD_MINUTES_LOG WHERE MINUTES_ID=? AND EVENT_CD='DELETE'", id));
+    }
+
+    @Test
+    public void 후보는_직위_앞뒤_공백을_무시하고_기한이_지난_공개자는_granted와_expired다() throws Exception {
+        String[] fx = fixture();
+        long id = uploadOk(fx[1], MEMBER, "n13");
+        insertUser("9100004", "가상공백", "예산팀", " 본부장 ", "NONE");
+        assertEquals(200, status(scopeAdd(id, HEAD, DESIGNER, kst(1))));
+        jdbc.update("UPDATE BOARD_MINUTES_SCOPE SET GRANT_UNTIL=? WHERE MINUTES_ID=? AND GRANT_VALUE=?", kst(-1), id, DESIGNER);
+        flushCache();
+        JsonNode items = json(read("/board-minutes/" + id + "/scope/candidates", HEAD, "minutes_scope_open")).path("items");
+        assertNotNull(byEmp(items, "9100004"));
+        JsonNode des = byEmp(items, DESIGNER);
+        assertNotNull(des);
+        assertTrue(des.path("granted").asBoolean());
+        assertTrue(des.path("expired").asBoolean());
+        assertEquals(kst(-1), des.path("grant_until").asText());
+        assertFalse(byEmp(items, MEMBER).path("expired").asBoolean());
     }
 }
