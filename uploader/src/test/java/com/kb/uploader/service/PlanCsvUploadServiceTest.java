@@ -261,6 +261,30 @@ public class PlanCsvUploadServiceTest {
     }
 
     @Test
+    public void 날짜_경계_오늘과_2000년1월1일은_저장_내일은_거부() {
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+        String d = today.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        String t = today.plusDays(1).format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        assertTrue(up1("today-gu_" + d + "_plan.csv", csv("today-gu")).isSaved());
+        assertTrue(up1("old-gu_20000101_plan.csv", csv("old-gu")).isSaved());
+        assertFalse(up1("tmr-gu_" + t + "_plan.csv", csv("tmr-gu")).isSaved());
+    }
+
+    @Test
+    public void 영수증_머리줄은_한번만_같은_요청_같은_이름_둘째는_거부() throws Exception {
+        List<MultipartFile> l = Arrays.<MultipartFile>asList(mp(NAME, csv("sample-gu")), mp(NAME, csv("sample-gu")),
+                mp("b-gu_20261118_plan.csv", csv("b-gu")));
+        List<PlanCsvResultItem> r = sut.upload(l, "tester01", null, null);
+        assertTrue(r.get(0).isSaved());
+        assertFalse(r.get(1).isSaved());
+        assertTrue(r.get(2).isSaved());
+        List<String> lines = Files.readAllLines(new File(receipts, "plan-csv-receipts.tsv").toPath(), StandardCharsets.UTF_8);
+        assertEquals(3, lines.size());   // 머리 1 + 데이터 2
+        assertTrue(lines.get(0).startsWith("#"));
+        assertFalse(lines.get(1).startsWith("#") || lines.get(2).startsWith("#"));
+    }
+
+    @Test
     public void 표시_이름에서_제어문자_제거() {
         assertEquals("a?b", PlanCsvUploadService.shown("a\nb"));
     }

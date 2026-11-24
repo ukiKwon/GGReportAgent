@@ -170,7 +170,13 @@ public class PlanCsvUploadService {
                 o.write(raw);
             }
             synchronized (lock) {
-                if (existsIgnoreCase(root, name)) {
+                boolean exists;
+                try {
+                    exists = existsIgnoreCase(root, name);
+                } catch (IOException e) {
+                    return fail(shown, "LIST", e, "폴더 확인에 실패해 저장하지 않았습니다(파일이 너무 많거나 읽을 수 없음). 개발부서에 문의해 주세요.");
+                }
+                if (exists) {
                     return reject(shown, "EXISTS", MSG_EXISTS);
                 }
                 try {
@@ -182,7 +188,13 @@ public class PlanCsvUploadService {
                     appendReceipt(receipts, name, sha, raw.length, inst, day, uploader, remoteUser, clientIp);
                 } catch (IOException e) {
                     // 방금 우리가 공개한 파일이다(publish 는 덮어쓰지 않는다). 기록 없는 파일이 폴더에 남아 web 이 읽지 않게 되돌린다.
-                    Files.deleteIfExists(target);
+                    try {
+                        Files.deleteIfExists(target);
+                    } catch (IOException e2) {
+                        // 되돌리기까지 실패 — 기록 없는 파일이 남았다. 사람이 지워야 하므로 문구로 분명히 알린다(qa P3).
+                        return fail(shown, "RECEIPT_ROLLBACK", e2,
+                                "올린 기록을 남기지 못했고 파일 되돌리기도 실패했습니다. 반입하지 말고 개발부서에 파일 삭제를 요청해 주세요.");
+                    }
                     return fail(shown, "RECEIPT", e, "올린 기록을 남기지 못해 저장하지 않았습니다. 개발부서에 문의해 주세요.");
                 }
             }
@@ -213,7 +225,13 @@ public class PlanCsvUploadService {
             Files.move(tmp, target);   // 하드링크 불가 파일시스템(SMB 등) — JVM 락 + 확인 후 이동(단일 노드 한정 보장)
             return;
         }
-        Files.deleteIfExists(tmp);     // 실패해도 finally 가 한 번 더 지운다. 남아도 .tmp 라 web 이 무시
+        // 공개는 이미 끝났다 — 임시 파일 삭제 실패를 저장 실패로 올리면 '기록 없는 파일'이 남는다(qa P2).
+        // 여기서 삼키고 finally 가 한 번 더 지운다. 남아도 .tmp 라 web 이 무시한다.
+        try {
+            Files.deleteIfExists(tmp);
+        } catch (IOException e) {
+            log.warn("plan-csv tmp cleanup after publish failed err={}", e.getClass().getSimpleName());
+        }
     }
 
     // ── 검사 ─────────────────────────────────────────────
