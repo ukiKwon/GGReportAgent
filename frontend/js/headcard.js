@@ -71,6 +71,8 @@
     network: '서버에 연결하지 못했습니다. 서버가 켜져 있는지 확인하세요.',
     docxOk: '워드 파일을 내려받았습니다.',
     docxPhotoFailed: '사진은 불러오지 못해 넣지 않았습니다.',
+    docxBusy: '워드 파일을 만드는 중입니다.',
+    docxSaveFailed: '파일은 만들어졌지만 이 컴퓨터에 저장하지 못했습니다. 다운로드가 막혀 있지 않은지 확인하고 다시 받으세요.',
     docxEmpty: '문서에 담을 확정된 기관장 정보가 없습니다. [기관장 편집]에서 이름·직위 등을 확정한 뒤 다시 받으세요.',
     docxServer: '파일을 만들지 못했습니다. 열람 기록을 남기지 못하면 파일을 내보내지 않습니다. 잠시 뒤 다시 시도하세요.',
     docxUi: '화면 오류로 처리하지 못했습니다. 화면을 다시 불러온 뒤(F5) 다시 시도하세요.',
@@ -362,7 +364,7 @@
       '<div class="hc-foot"><p class="hc-meta">출처를 단 항목 <span class="v">' + (Number(h.source_count) || 0) + '</span>건 · 최근 확인 ' +
       (h.last_checked_on ? mono(h.last_checked_on) : chip()) + ' · 열람·내려받기 기록이 남습니다</p>' +
       '<span class="hc-foot-l">' + candBtn + '</span>' +
-      '<span class="sp"><button type="button" data-hc="docx"' + (dlBusy ? ' disabled' : '') + '>' + (dlBusy ? '만드는 중…' : '워드 내려받기') + '</button>' +
+      '<span class="sp"><button type="button" data-hc="docx"' + (dlBusy ? ' aria-disabled="true"' : '') + '>' + (dlBusy ? '만드는 중…' : '워드 내려받기') + '</button>' +
       '<button type="button" data-hc="refresh">새로 고침</button><button type="button" data-hc="edit">기관장 편집</button></span>' +
       hc.refHtml(view.dl, ctx) + '</div></article>';
   };
@@ -371,6 +373,7 @@
   // dl = { busy, err, ok } | null. 알릴 말(완료·오류)이 있을 때만 줄을 그린다. 진행 중에는 줄 대신 버튼 문구만 바뀐다.
   hc.refHtml = function (dl) {
     if (!dl) return '';
+    if (dl.busy) return '<p class="sr-only" role="status" id="hc-ref">' + esc(hc.TEXT.docxBusy) + '</p>';   // 받는 중 — 화면에는 안 보이고 낭독만
     let out = '';
     if (dl.err) out += '<p class="hc-err" role="alert">' + esc(dl.err) + '</p>';
     if (dl.ok) out += '<p class="hc-ok" role="status">' + esc(dl.ok) + '</p>';
@@ -1163,7 +1166,13 @@
     if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return null;
     return document.querySelector('#dm-box ' + sel) || document.querySelector('#hc-sec ' + sel);
   }
-  function focusPane(sel) { const el = paneQ(sel); if (el && el.focus) el.focus(); }
+  function focusPane(sel) { const el = paneQ(sel); if (el && el.focus) el.focus(); return !!el; }
+  // 다시 그리면 단추가 새 요소로 바뀌어 포커스가 body로 빠진다 — 그리기 전에 포커스가 그 단추에 있었는지 재 두었다가 있었을 때만 되돌린다.
+  function paneHasFocus(sel) {
+    if (typeof document === 'undefined') return false;
+    const el = paneQ(sel);
+    return !!el && document.activeElement === el;
+  }
   function useEnv(envFn) { const env = (envFn && envFn()) || {}; if (env.repaint) V.repaint = env.repaint; return env; }
   function paintDl() { if (V.repaint) V.repaint(); }
   // Blob을 파일로 저장(a[download]). 브라우저가 아니면 false.
@@ -1171,9 +1180,13 @@
     if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return false;
     const url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = fileName; a.style.display = 'none';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    const t = setTimeout(function () { revokeUrl(url); }, 1000);
-    if (t && t.unref) t.unref();
+    try {
+      document.body.appendChild(a); a.click();
+    } finally {   // 저장이 예외로 끝나도 임시 요소·주소는 치운다(예외는 그대로 위로)
+      try { document.body.removeChild(a); } catch (x) { /* 이미 빠졌으면 무시 */ }
+      const t = setTimeout(function () { revokeUrl(url); }, 1000);
+      if (t && t.unref) t.unref();
+    }
     return true;
   };
   // [워드 내려받기] — 펼침 없이 바로 받아서 저장한다. 진행 중에는 다시 누를 수 없다.
@@ -1182,21 +1195,32 @@
     const dl = V.dl || (V.dl = { busy: false, err: '', ok: '' });
     if (dl.busy) return Promise.resolve();
     useEnv(envFn);
+    const SEL = '[data-hc="docx"]';
+    const had0 = paneHasFocus(SEL);
     dl.busy = true; dl.err = ''; dl.ok = '';
     const mine = V;
     paintDl();
+    if (had0) focusPane(SEL);   // 키보드로 눌렀으면 받는 동안에도 포커스는 단추에
     return hc.fetchDocx(mine.instId, mine.screen).then(function (res) {
-      hc.saveBlob(res.blob, res.fileName);   // 기관을 옮겼어도 이미 받은 파일은 저장한다
+      let saveFailed = false;
+      try { hc.saveBlob(res.blob, res.fileName); } catch (x) { saveFailed = true; }   // 기관을 옮겼어도 이미 받은 파일은 저장한다
       if (V !== mine) return;
-      dl.busy = false; dl.ok = hc.docxOkText(res.photo, res.trimCareer, res.trimEdu);
+      const had = paneHasFocus(SEL);   // 받는 사이 다른 곳으로 옮겼다면 끌어오지 않는다
+      dl.busy = false;
+      if (saveFailed) dl.err = hc.TEXT.docxSaveFailed; else dl.ok = hc.docxOkText(res.photo, res.trimCareer, res.trimEdu);
       paintDl();
-      focusPane('[data-hc="docx"]');
+      if (had) focusPane(SEL);
     }).catch(function (e) {
       if (V !== mine) return;
+      const had = paneHasFocus(SEL);
       dl.busy = false; dl.err = hc.docxErrText(e.status, e.detail).text;
       paintDl();
-      focusPane('[data-hc="docx"]');
-      if (e.status === 409) hc.refresh(true, hc.BTN.refresh);   // 그 사이 기관장이 비었으면 카드를 최신으로(단추도 사라진다)
+      if (had) focusPane(SEL);
+      if (e.status === 409) {
+        // 그 사이 기관장이 비었으면 카드를 최신으로 — 단추가 사라질 수 있으니 남은 단추로 포커스를 옮긴다
+        const p = hc.refresh(true, hc.BTN.refresh);
+        if (had && p && p.then) p.then(function () { [SEL, '[data-hc="edit"]', '[data-hc="add-head"]'].some(function (s) { return focusPane(s); }); });
+      }
     });
   };
 

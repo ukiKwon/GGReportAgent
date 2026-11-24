@@ -1039,9 +1039,9 @@ test('워드: ok 카드에만 [워드 내려받기] 버튼 하나(펼침·번호
   });
 });
 
-test('워드: 받는 중이면 버튼만 disabled + "만드는 중…", 줄은 만들지 않는다', function () {
+test('워드: 받는 중이면 버튼만 aria-disabled + "만드는 중…"(포커스 유지), 줄은 만들지 않는다', function () {
   const b = hc.cardHtml(view({}, { dl: { busy: true, err: '', ok: '' } }), {});
-  assert.ok(/<button type="button" data-hc="docx" disabled>만드는 중…<\/button>/.test(b));
+  assert.ok(/<button type="button" data-hc="docx" aria-disabled="true">만드는 중…<\/button>/.test(b));
   assert.ok(b.indexOf('class="hc-ref"') < 0);
 });
 
@@ -1148,7 +1148,7 @@ test('워드: 받는 중 또 눌러도 요청은 한 번, 다음 내려받기를
     await withFakeDoc(async function () {
       const a = hc.onPaneClick('docx', function () { return env(); });
       assert.strictEqual(hc.view().dl.busy, true);
-      assert.ok(/data-hc="docx" disabled>만드는 중…/.test(hc.cardHtml(hc.view(), { today: TODAY })));
+      assert.ok(/data-hc="docx" aria-disabled="true">만드는 중…/.test(hc.cardHtml(hc.view(), { today: TODAY })));
       const b = hc.onPaneClick('docx', function () { return env(); });
       await Promise.all([a, b]);
       assert.strictEqual(calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; }).length, 1);
@@ -1159,6 +1159,79 @@ test('워드: 받는 중 또 눌러도 요청은 한 번, 다음 내려받기를
     });
     assert.strictEqual(calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; }).length, 2);
   } finally { cleanup(); }
+});
+
+test('워드: 받는 중 refHtml은 화면 낭독 전용 줄(sr-only, role=status)이고 .hc-ref 줄은 없다', function () {
+  const h = hc.refHtml({ busy: true, err: '', ok: '' });
+  assert.ok(/<p class="sr-only" role="status" id="hc-ref">워드 파일을 만드는 중입니다\.<\/p>/.test(h));
+  assert.ok(h.indexOf('class="hc-ref"') < 0);
+  assert.strictEqual(hc.refHtml(null), '');
+});
+
+function focusDoc(opts) {
+  const state = { activeElement: null, btn: null, saved: 0 };
+  const body = { tag: 'body' };
+  function mk() { const b = { focus: function () { state.activeElement = b; } }; return b; }
+  state.btn = mk();
+  state.activeElement = opts.startOnBtn ? state.btn : body;
+  state.rerender = function () { const had = state.activeElement === state.btn; state.btn = mk(); if (had) state.activeElement = body; };   // 다시 그리면 포커스는 body로
+  global.document = {
+    get activeElement() { return state.activeElement; },
+    querySelector: function (sel) { return sel.indexOf('#hc-sec') === 0 && sel.indexOf('data-hc="docx"') > 0 ? state.btn : null; },
+    createElement: function () { const a = { style: {}, click: function () { if (opts.clickThrows) throw new Error('blocked'); state.saved += 1; } }; return a; },
+    body: { appendChild: function () {}, removeChild: function () {} },
+  };
+  return state;
+}
+
+test('워드: 키보드로 눌러 받는 동안·끝난 뒤에도 포커스가 [워드 내려받기]에 남는다', async function () {
+  fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: { 'Content-Disposition': DOCX_CD } }));
+  try {
+    await okCard();
+    const st = focusDoc({ startOnBtn: true });
+    try {
+      const p = hc.onPaneClick('docx', function () { return env({ repaint: st.rerender }); });
+      assert.strictEqual(st.activeElement, st.btn);   // 받는 중에도 단추
+      await p;
+      assert.strictEqual(st.activeElement, st.btn);   // 끝난 뒤에도
+    } finally { delete global.document; }
+  } finally { cleanup(); }
+});
+
+test('워드: 받는 사이 포커스를 다른 곳으로 옮겼으면 끝나도 끌어오지 않는다', async function () {
+  fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: { 'Content-Disposition': DOCX_CD } }));
+  try {
+    await okCard();
+    const st = focusDoc({ startOnBtn: true });
+    try {
+      const p = hc.onPaneClick('docx', function () { return env({ repaint: st.rerender }); });
+      const other = { tag: 'other' }; st.activeElement = other;
+      await p;
+      assert.strictEqual(st.activeElement, other);
+    } finally { delete global.document; }
+  } finally { cleanup(); }
+});
+
+test('워드: 저장 단계 예외는 연결 실패가 아니라 저장 실패 문구, 상태는 busy 해제', async function () {
+  fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: { 'Content-Disposition': DOCX_CD } }));
+  try {
+    await okCard();
+    focusDoc({ startOnBtn: false, clickThrows: true });
+    try {
+      await hc.onPaneClick('docx', function () { return env(); });
+      const dl = hc.view().dl;
+      assert.strictEqual(dl.err, hc.TEXT.docxSaveFailed);
+      assert.notStrictEqual(dl.err, hc.TEXT.network);
+      assert.ok(!dl.busy && !dl.ok);
+    } finally { delete global.document; }
+  } finally { cleanup(); }
+});
+
+test('saveBlob: 저장 중 예외가 나도 임시 요소를 치우고 예외는 그대로 던진다', function () {
+  let removed = 0;
+  global.document = { createElement: function () { return { style: {}, click: function () { throw new Error('x'); } }; }, body: { appendChild: function () {}, removeChild: function () { removed += 1; } } };
+  try { assert.throws(function () { hc.saveBlob(new Blob(['d']), 'a.docx'); }, /x/); assert.strictEqual(removed, 1); }
+  finally { delete global.document; }
 });
 
 test('워드: 기관을 바꾸거나 [새로 고침]하면 안내가 지워지고, 기관장 없음(none)에는 단추가 없다', async function () {
