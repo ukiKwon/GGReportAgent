@@ -419,12 +419,29 @@ public class PlanCollectApiTest {
         JsonNode ra = find(body(r).path("recent_applied"), INST);
         assertTrue("반입 직후 recent_applied 에 있다", ra != null);
         assertFalse(ra.path("closed_at").isNull());
-        assertEquals("키는 institution_id·closed_at 뿐", 2, ra.size());
+        assertEquals("키는 institution_id·closed_at·close_reason", 3, ra.size());
+        assertTrue("사업계획 반입은 close_reason null", ra.path("close_reason").isNull());
         assertFalse("사번 없음", r.getContentAsString().contains(SALES));
         JsonNode des = body(call(get("/plan-collect/status"), DESIGNER));
         assertTrue("디자이너도 recent_applied 를 본다", find(des.path("recent_applied"), INST) != null);
         assertTrue("디자이너 last_closed 는 빈 배열", des.path("last_closed").isArray() && des.path("last_closed").size() == 0);
         assertEquals("재무부서는 status 자체가 403", 403, call(get("/plan-collect/status"), BUDGET).getStatus());
+    }
+
+    @Test
+    public void 뉴스_반입으로_닫힌_요청은_recent_applied의_close_reason이_NEWS다() throws Exception {
+        ask(SALES);
+        LocalDate d = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
+        String csv = "기관ID,분야,제목,언론사,보도일,출처URL,요약,확인일,수집자\n"
+                + INST + ",TREASURY,\"가상 금고 소식\",가상일보," + d.minusDays(2) + ",https://example.org/a,\"가상 요약이다.\"," + d + ",news-collector/1.0\n";
+        String name = INST + "_" + d.format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "_news.csv";
+        MockHttpServletResponse up = call(multipart("/institutions/" + INST + "/news/import")
+                .file(new MockMultipartFile("file", name, "text/csv", csv.getBytes(StandardCharsets.UTF_8))), ADMIN);
+        assertEquals(up.getContentAsString(), 201, up.getStatus());
+        JsonNode ra = find(body(call(get("/plan-collect/status"), SALES2)).path("recent_applied"), INST);
+        assertTrue("뉴스로 닫혀도 recent_applied 에 있다", ra != null);
+        assertEquals("NEWS", ra.path("close_reason").asText());
+        assertEquals(3, ra.size());
     }
 
     @Test

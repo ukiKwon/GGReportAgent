@@ -100,4 +100,27 @@ public class InstitutionNewsApiTest {
         assertFalse(res.getContentAsString().contains(ADMIN));
         assertEquals(404, getAs("/institutions/nosuch-x/news", SALES).getStatus());
     }
+
+    @Test
+    public void 사업계획_status는_기관별_최신_뉴스_요약만_준다() throws Exception {
+        JsonNode before = json.readTree(getAs("/institution-plans/status", SALES).getContentAsString());
+        assertTrue("뉴스 없으면 빈 배열", before.path("news").isArray() && before.path("news").size() == 0);
+        assertEquals(201, upload(ADMIN).getStatus());
+        // 같은 기관 두 번째(더 최신) 반입 — 같은 CSV는 SHA 중복으로 막히므로 행을 복사해 만든다
+        jdbc.update("INSERT INTO INST_NEWS_IMPORT (INSTITUTION_ID, FILE_DATE, FILE_SHA256, FILE_BYTES, ITEM_COUNT, BATCH_ID, IMPORTED_BY, IMPORTED_AT, IMPORTED_VERIFIED)"
+                + " SELECT INSTITUTION_ID, FILE_DATE, 'x' || SUBSTR(FILE_SHA256, 2), FILE_BYTES, 7, BATCH_ID, IMPORTED_BY, IMPORTED_AT, IMPORTED_VERIFIED FROM INST_NEWS_IMPORT WHERE INSTITUTION_ID = ?", INST);
+        MockHttpServletResponse res = getAs("/institution-plans/status", SALES);
+        assertEquals(res.getContentAsString(), 200, res.getStatus());
+        JsonNode news = json.readTree(res.getContentAsString()).path("news");
+        assertEquals("기관당 1건", 1, news.size());
+        JsonNode n = news.get(0);
+        assertEquals(INST, n.path("institution_id").asText());
+        assertEquals("최신 반입의 건수", 7, n.path("item_count").asInt());
+        assertEquals(d().toString(), n.path("checked_on").asText());
+        assertFalse(n.path("stale").asBoolean());
+        assertEquals("institution_id·item_count·checked_on·stale 뿐", 4, n.size());
+        assertFalse("사번 없음", res.getContentAsString().contains(ADMIN));
+        assertEquals(401, getAs("/institution-plans/status", null).getStatus());
+        assertEquals(403, getAs("/institution-plans/status", STRANGER).getStatus());
+    }
 }

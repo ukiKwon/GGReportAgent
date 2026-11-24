@@ -223,23 +223,41 @@
   // st = /institution-plans/status 한 건 또는 null, req = 열린 요청(REQUESTED·RUNNING) 또는 null, closed = 최근 실패·제외(last_closed, 요청 가능한 사람만 받는다) 또는 null,
   // isNew = 7일 안에 반영된 요청(/plan-collect/status recent_applied 한 건 { closed_at } 또는 true) 또는 falsy. 칩은 최대 4개, 글자는 모두 칩 안에(색만으로 전하지 않는다).
   const OPEN_CHIP = { REQUESTED: ['gap', '요청됨', '사업계획 요청됨'], RUNNING: ['pp-neutral', '수집 중', '사업계획 수집 중'] };   // [색, 자료 있을 때 짧은 글자, 자료 없을 때 긴 글자]
+  const NEWS_NONE_TAIL = ' 사업계획 문서를 찾지 못하면 관련 뉴스(최근 1년)로 대신 보여 줍니다.';   // 뉴스 조회를 시작한 상세(o.news 있음)에만 덧붙인다
   function stChip(cls, text, st) { return '<span class="wf-badge ' + cls + '" data-st="' + esc(st) + '">' + esc(text) + '</span>'; }
   function newChipHtml(isNew) {
     const day = isNew && typeof isNew === 'object' ? plans.kstYmd(isNew.closed_at) : '';
     const title = '수집 요청으로 ' + (day ? day + '에 ' : '') + '들어온 자료입니다(7일간 표시).';
     return '<span class="wf-badge cr-st ok" data-st="NEW" title="' + esc(title) + '"><span aria-hidden="true">new</span><span class="sr-only">새로 들어온 자료</span></span>';
   }
-  plans.stateChipsHtml = function (st, req, closed, isNew) {
+  // 뉴스로 닫힌 요청 칩(규격 107 6-4). 서버 recent_applied[].close_reason==='NEWS'. 'new'(새 계획이 들어옴)와 글자·색이 다르다. hasSt = 이 기관에 예전 사업계획이 있는가
+  function newsClosedChip(nc, hasSt) {
+    const day = nc && typeof nc === 'object' ? plans.kstYmd(nc.closed_at) : '';
+    const pre = day ? day + ' ' : '';
+    return hasSt
+      ? '<span class="wf-badge pp-cancel" data-st="NEWS_OLD" title="' + esc(pre + '수집에서 새 사업계획을 찾지 못했습니다. 지금 보이는 것은 예전 계획입니다(7일간 표시).') + '">새 계획 못 찾음</span>'
+      : '<span class="wf-badge pp-neutral" data-st="NEWS" title="' + esc(pre + '수집 결과: 사업계획을 찾지 못해 관련 뉴스로 대체했습니다(7일간 표시).') + '">뉴스로 대체</span>';
+  }
+  // ex = { news: 기관 뉴스 요약 { item_count } 또는 null, newsClosed: 7일 안에 뉴스로 닫힌 요청 { closed_at } 또는 null }. 생략하면 지금 동작 그대로.
+  plans.stateChipsHtml = function (st, req, closed, isNew, ex) {
+    ex = ex || {};
     const rc = req ? str(req.status_cd) : '';
     const open = Object.prototype.hasOwnProperty.call(OPEN_CHIP, rc) ? OPEN_CHIP[rc] : null;
     const cc = !open && closed && (closed.status_cd === 'FAILED' || closed.status_cd === 'EXCLUDED') ? closed.status_cd : '';
     const closedChip = cc === 'FAILED' ? stChip('cr-st none', '수집 실패', cc) : cc === 'EXCLUDED' ? stChip('pp-cancel', '수집 제외', cc) : '';
-    if (!st) return open ? stChip('cr-st ' + open[0], open[2], rc) : unk('자료 없음') + (closedChip ? ' ' + closedChip : '');
+    if (!st) {
+      const lead = [];
+      const nn = ex.news ? Number(ex.news.item_count) || 0 : 0;
+      if (nn > 0) lead.push(badgeHtml('pp-neutral', '뉴스 ' + mono(nn) + '건'));
+      if (ex.newsClosed) lead.push(newsClosedChip(ex.newsClosed, false));
+      if (open) return lead.concat(stChip('cr-st ' + open[0], open[2], rc)).join(' ');
+      return (lead.length ? lead.join(' ') : unk('자료 없음')) + (closedChip && !ex.newsClosed ? ' ' + closedChip : '');
+    }
     const out = [badgeHtml('pp-neutral', '사업계획 ' + mono(Number(st.item_count) || 0) + '건')];
-    if (isNew) out.push(newChipHtml(isNew));
+    if (isNew) out.push(newChipHtml(isNew)); else if (ex.newsClosed) out.push(newsClosedChip(ex.newsClosed, true));
     if (st.period_ended) out.push(badge('pp-cancel', '기간 지남'));
     if (st.stale && !isNew && !open) out.push(badge('cr-st gap', '오래됨'));   // 방금 들어왔거나 이미 다시 요청 중이면 '오래됨'을 뺀다
-    if (open) out.push(stChip('cr-st ' + open[0], open[1], rc)); else if (closedChip && !isNew) out.push(closedChip);   // 새 자료가 들어왔으면 그 뒤 재요청의 실패·제외는 칩으로 내지 않는다(qa 11-19 P2-2)
+    if (open) out.push(stChip('cr-st ' + open[0], open[1], rc)); else if (closedChip && !isNew && !ex.newsClosed) out.push(closedChip);   // 새 자료가 들어왔으면 그 뒤 재요청의 실패·제외는 칩으로 내지 않는다(qa 11-19 P2-2)
     return out.join(' ');
   };
   // ── 순수: 사업계획 수집 요청(서버 PlanCollectController). 규격 design-reviewer 2026-11-17_1509_af34bf60.md 6-1·6-2 ──
@@ -300,7 +318,41 @@
     if (res && res.outcome === 'DUPLICATE') return '이미 요청한 기관입니다(나 포함 ' + n + '명). 결과는 쪽지로 알려 드립니다.';
     return '이미 요청된 기관이라 요청자로 함께 올렸습니다(나 포함 ' + n + '명). 결과는 쪽지로 알려 드립니다.';
   };
-  // view = { status:'loading'|'noid'|'offline'|'denied'|'notfound'|'error'|'ok', data, code }, o = { name, sub, kw, req:{ item, can, busy }|null }
+  // ── 순수: 관련 뉴스(NEXT 107) — 사업계획 문서가 0일 때만 보인다. 규격 design-reviewer 2026-11-24 107 6-3. 본문은 저장하지 않는다(제목·언론사·보도일·링크·직접 쓴 요약뿐).
+  // 모든 값 esc, 링크는 safeHttpUrl(http·https 만)을 통과해야 <a>, 아니면 글자 + '링크 없음' 칩. 줄바꿈은 esc 뒤에 <br>.
+  plans.newsItemHtml = function (it) {
+    it = it || {};
+    const url = logic.safeHttpUrl(it.url);
+    const title = esc(str(it.title));
+    const field = str(it.field_name || it.field_cd).trim();
+    const t = url
+      ? '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" aria-describedby="pl-news-note">' + title + '</a>'
+      : '<span>' + title + '</span> ' + badge('pp-cancel', '링크 없음');
+    const sum = esc(str(it.summary)).replace(/\r\n?|\n/g, '<br>');
+    const day = ymd(it.published_on);
+    const press = str(it.press).trim();
+    const src = [press ? esc(press) : '', day ? '보도일 ' + mono(day) : ''].filter(Boolean).join(' · ');
+    return '<li class="pl-news-it">' +
+      '<p class="pl-news-t">' + (field ? badge('pp-neutral', field) : '') + t + '</p>' +
+      (src ? '<p class="db-why pl-news-src">' + src + '</p>' : '') +
+      (sum.trim() ? '<p class="pl-news-sum">' + sum + '</p>' : '') + '</li>';
+  };
+  // d = GET /institutions/{id}/news 응답(has_news true). months = d.stale_months(없으면 12). 보도일 최신순, 같으면 서버 순서. 입력 배열은 바꾸지 않는다.
+  plans.newsSecHtml = function (d, months) {
+    d = d || {};
+    const items = (Array.isArray(d.items) ? d.items : []).map(function (x, i) { return { x: x, i: i }; })
+      .sort(function (a, b) { const p = ymd(b.x && b.x.published_on), q = ymd(a.x && a.x.published_on); return p < q ? -1 : p > q ? 1 : a.i - b.i; })
+      .map(function (o) { return o.x; });
+    const mo = Number(months) > 0 ? Math.floor(Number(months)) : 12;
+    const meta = '확인 ' + mono(ymd(d.checked_on)) + ' · 보도일 ' + mono(ymd(d.window_from)) + ' ~ ' + mono(ymd(d.window_to)) +
+      '(최근 1년) · ' + mono(items.length) + '건';
+    return '<section class="db-sec pl-news" aria-labelledby="pl-news-h"><h3 id="pl-news-h">관련 뉴스</h3>' +
+      '<p class="db-why pl-news-meta">' + meta + '</p>' +
+      (d.stale ? '<p class="pl-warn">확인 ' + mono(ymd(d.checked_on)) + ' 뒤로 ' + mo + '개월 넘게 다시 확인하지 않았습니다. 새 기사가 있을 수 있으니 수집을 다시 요청하세요.</p>' : '') +
+      '<ul class="pl-news-list">' + items.map(function (x) { return plans.newsItemHtml(x); }).join('') + '</ul>' +
+      '<p class="db-why" id="pl-news-note">요약은 기사 원문이 아니라 수집할 때 따로 정리한 글입니다. 원문은 제목 링크로 엽니다(인터넷 PC에서 열림).</p></section>';
+  };
+  // view = { status:'loading'|'noid'|'offline'|'denied'|'notfound'|'error'|'ok', data, code }, o = { name, sub, kw, req:{ item, can, busy }|null, news:{ status:'loading'|'ok'|'error', data, code }|null }
   plans.detailHtml = function (view, o) {
     o = o || {};
     const v = view || { status: 'loading' };
@@ -325,9 +377,24 @@
     const reqLine = o.req ? plans.reqLineHtml(o.req.item, { can: o.req.can, hasData: docs.length > 0, busy: o.req.busy, closed: o.req.closed }) : '';
     const rq = o.req || null;
     const openReq = rq ? rq.item : null, closedReq = rq && rq.can ? rq.closed : null;   // 닫힌 실패·제외는 요청 가능한 사람에게만(reqLineHtml 과 같은 규칙)
+    const ex = { newsClosed: rq ? rq.newsClosed : null };
     if (!docs.length) {
-      return head() + sumSec(plans.stateChipsHtml(null, openReq, closedReq, null), '<p class="db-empty">' +
-        (rq && !rq.can ? '이 기관의 사업계획은 아직 수집되지 않았습니다. 영업부서가 수집을 요청하면 개발부서가 모아 올립니다.' : '이 기관의 사업계획은 아직 수집되지 않았습니다.') + '</p>' + reqLine);
+      const nv = o.news || null;   // 규격 107 6-1·6-2: 사업계획 문서가 0일 때만 뉴스를 본다(캐시에 뉴스가 있어도 docs 가 있으면 아래 가지로 가서 그리지 않는다)
+      const nd = nv && nv.status === 'ok' && nv.data ? nv.data : null;
+      if (nd && nd.has_news === true) {
+        const items = Array.isArray(nd.items) ? nd.items : [];
+        const orc = openReq ? str(openReq.status_cd) : '', oc = Object.prototype.hasOwnProperty.call(OPEN_CHIP, orc) ? OPEN_CHIP[orc] : null;
+        const nchips = [badgeHtml('pp-neutral', '관련 뉴스 ' + mono(items.length) + '건'), badge('pp-cancel', '사업계획 못 찾음')];   // 'new'·'뉴스로 대체' 칩은 상세에 넣지 않는다(본문이 같은 말, 4개 상한)
+        if (oc) nchips.push(stChip('cr-st ' + oc[0], oc[1], orc)); else if (nd.stale) nchips.push(badge('cr-st gap', '오래됨'));
+        const reqNews = o.req ? plans.reqLineHtml(o.req.item, { can: o.req.can, hasData: true, busy: o.req.busy, closed: o.req.closed }) : '';
+        return head() + sumSec(nchips.join(' '), '<p class="db-empty">사업계획 문서를 찾지 못해 관련 뉴스로 대신합니다. 사업계획이 들어오면 뉴스 대신 사업계획을 보여 줍니다.</p>' + reqNews) +
+          plans.newsSecHtml(nd, nd.stale_months);
+      }
+      const chips0 = plans.stateChipsHtml(null, openReq, closedReq, null, ex);
+      if (nv && nv.status === 'loading') return head() + sumSec(chips0, '<p class="db-empty" aria-busy="true">관련 뉴스가 있는지 확인하는 중입니다…</p>' + reqLine);
+      const none = (rq && !rq.can ? '이 기관의 사업계획은 아직 수집되지 않았습니다. 영업부서가 수집을 요청하면 개발부서가 모아 올립니다.' : '이 기관의 사업계획은 아직 수집되지 않았습니다.') + (nv ? NEWS_NONE_TAIL : '');
+      const nerr = nv && nv.status === 'error' ? '<p class="db-why">관련 뉴스를 불러오지 못했습니다(' + esc(nv.code || '연결 실패') + '). <button type="button" id="pl-retry-news">다시 불러오기</button></p>' : '';
+      return head() + sumSec(chips0, '<p class="db-empty">' + none + '</p>' + nerr + reqLine);
     }
     const n = docs.reduce(function (s, d) { return s + (Array.isArray(d.items) ? d.items.length : 0); }, 0);
     const imp = data.import || {};
@@ -336,7 +403,7 @@
       'placeholder="사업명·내용에서 찾기 (예: 청년, 소상공인, 디지털)" value="' + esc(o.kw || '') + '"></div>';
     const chips = plans.stateChipsHtml({
       item_count: n, period_ended: docs.every(function (d) { return d.period_ended; }), stale: docs.some(function (d) { return d.stale; }),
-    }, openReq, closedReq, rq && rq.applied);
+    }, openReq, closedReq, rq && rq.applied, ex);
     return head() + sumSec(chips, impLine + reqLine) + kw + '<div id="pl-docs">' + plans.docsHtml(data, o.kw, o.staleMonths) + '</div>';
   };
 
@@ -344,6 +411,13 @@
   plans.statusMap = function (data) {
     const m = {};
     ((data && data.items) || []).forEach(function (r) { if (r && r.institution_id) m[r.institution_id] = r; });
+    return m;
+  };
+  // /institution-plans/status 의 news[](서버가 곧 줄 값): 기관 ID → { institution_id, item_count, checked_on, stale }. 건수 0·키 없음·배열 아님(옛 응답)은 빈 값 → 목록은 지금처럼 '자료 없음'.
+  plans.newsMap = function (data) {
+    const m = {};
+    const a = data && data.news;
+    (Array.isArray(a) ? a : []).forEach(function (r) { if (r && r.institution_id && Number(r.item_count) > 0) ownPut(m, r.institution_id, r); });
     return m;
   };
   // ── 순수: 목록(모든 기관) ─────────────────────────────────────────────
@@ -583,14 +657,14 @@
     o = o || {};
     const d = D();
     const where = [d.regionName(r.region), d.kindOfRec(r.rec)].filter(Boolean).join(' · ') + (o.pinned ? ' · 직접 연 기관' : '');
-    const chips = o.loaded ? plans.stateChipsHtml(r.st, o.req, o.closed, o.isNew) : (o.pending ? '<span class="pl-wait" aria-hidden="true"></span>' : '');
+    const chips = o.loaded ? plans.stateChipsHtml(r.st, o.req, o.closed, o.isNew, { news: o.news, newsClosed: o.newsClosed }) : (o.pending ? '<span class="pl-wait" aria-hidden="true"></span>' : '');
     return '<li role="option" id="' + esc(o.id || '') + '" class="db-row" data-key="' + esc(r.key) + '" aria-selected="' + (o.selected ? 'true' : 'false') + '"' + (o.pinned ? ' data-pin="1"' : '') + '>' +
       '<span class="nm">' + esc(r.name) + '</span>' + plans.kindChipHtml(r.kind, r.years) +
       '<span class="meta"><span class="pl-reg">' + esc(where) + '</span>' + (chips ? '<span class="pl-st">' + chips + '</span>' : '') + '</span></li>';
   };
 
   // ── 서버 현황 캐시(이 화면과 현황판·지도 상세의 '사업계획' 절이 같이 쓴다) ──
-  function freshStatus() { return { state: 'idle', map: {}, today: '', code: 0, at: 0, staleMonths: 0 }; }
+  function freshStatus() { return { state: 'idle', map: {}, news: {}, today: '', code: 0, at: 0, staleMonths: 0 }; }
   let ST = freshStatus();
   let statusSeq = 0, statusPending = null, statusInflight = false;
   function serverOk() { try { return !!(root.store && root.store.isServerMode()) && !!((root.store.loadSession() || {}).emp); } catch (e) { return false; } }
@@ -598,7 +672,7 @@
   // 시험·재시도용: 서버 응답(JSON)을 직접 넣는다.
   plans.applyStatus = function (data) {
     statusSeq += 1; statusInflight = false;
-    ST = { state: 'ok', map: plans.statusMap(data), today: str(data && data.today), code: 0, at: Date.now(), staleMonths: Number(data && data.stale_months) || 0 };
+    ST = { state: 'ok', map: plans.statusMap(data), news: plans.newsMap(data), today: str(data && data.today), code: 0, at: Date.now(), staleMonths: Number(data && data.stale_months) || 0 };
   };
   plans.setStatusState = function (state, code) { statusSeq += 1; statusInflight = false; ST = Object.assign(freshStatus(), { state: state, code: code || 0 }); };
   plans.resetStatus = function () { statusSeq += 1; statusPending = null; statusInflight = false; ST = freshStatus(); plans.resetCollect(); plans.resetTargets(); };
@@ -606,7 +680,7 @@
 
   // ── 사업계획 수집 요청 현황 캐시(GET /plan-collect/status: 열린 요청만 + can_request) ──
   // 기존 현황(ST)과 같은 수명·같은 시점에 받는다(ensureStatus 가 함께 부른다). 실패해도 사업계획 화면은 그대로 쓴다(요청 줄·칩만 없음).
-  function freshCollect() { return { state: 'idle', can: false, map: {}, closed: {}, applied: {}, code: 0, at: 0 }; }
+  function freshCollect() { return { state: 'idle', can: false, map: {}, closed: {}, applied: {}, newsClosed: {}, code: 0, at: 0 }; }
   // 기관 ID 키 객체는 자기 키만 읽고 쓴다('constructor'·'toString' 이 상속값을 돌려주거나 '__proto__' 가 프로토타입을 바꾸지 않게)
   function ownGet(o, k) { return o && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : null; }
   function ownPut(o, k, v) { Object.defineProperty(o, k, { value: v, enumerable: true, writable: true, configurable: true }); }
@@ -629,19 +703,28 @@
   plans.appliedMap = function (data) {
     const m = {};
     const a = data && data.recent_applied;
-    (Array.isArray(a) ? a : []).forEach(function (r) { if (r && r.institution_id) ownPut(m, r.institution_id, r); });
+    (Array.isArray(a) ? a : []).forEach(function (r) { if (r && r.institution_id && str(r.close_reason) !== 'NEWS') ownPut(m, r.institution_id, r); });   // 뉴스로 닫힌 요청은 'new'(새 계획 들어옴)가 아니다
+    return m;
+  };
+  // recent_applied 중 close_reason === 'NEWS'(서버 고정 코드): 사업계획을 못 찾아 뉴스로 닫힌 요청. 기관 ID → { institution_id, closed_at, close_reason }. 값이 없는 옛 응답은 빈 값.
+  plans.newsClosedMap = function (data) {
+    const m = {};
+    const a = data && data.recent_applied;
+    (Array.isArray(a) ? a : []).forEach(function (r) { if (r && r.institution_id && str(r.close_reason) === 'NEWS') ownPut(m, r.institution_id, r); });
     return m;
   };
   // 시험·재시도용: 서버 응답(JSON)을 직접 넣는다.
   plans.applyCollect = function (data) {
     collectSeq += 1; collectInflight = false;
-    CS = { state: 'ok', can: !!(data && data.can_request), map: plans.collectMap(data), closed: plans.closedMap(data), applied: plans.appliedMap(data), code: 0, at: Date.now() };
+    CS = { state: 'ok', can: !!(data && data.can_request), map: plans.collectMap(data), closed: plans.closedMap(data), applied: plans.appliedMap(data), newsClosed: plans.newsClosedMap(data), code: 0, at: Date.now() };
   };
   plans.setCollectState = function (state, code) { collectSeq += 1; collectInflight = false; CS = Object.assign(freshCollect(), { state: state, code: code || 0 }); };
   plans.resetCollect = function () { collectSeq += 1; collectPending = null; collectInflight = false; CS = freshCollect(); };
   plans.collectState = function () { return CS.state; };
   function appliedOf(id) { return CS.state === 'ok' ? ownGet(CS.applied, id) : null; }   // new 칩. 요청 현황이 없거나 옛 응답이면 늘 null
-  function collectOf(id) { return CS.state === 'ok' ? { req: ownGet(CS.map, id), closed: ownGet(CS.closed, id), applied: appliedOf(id), can: CS.can } : null; }
+  function collectOf(id) { return CS.state === 'ok' ? { req: ownGet(CS.map, id), closed: ownGet(CS.closed, id), applied: appliedOf(id), newsClosed: ownGet(CS.newsClosed, id), can: CS.can } : null; }
+  // 상태 칩의 뉴스 쪽 입력(규격 107 6-4). 현황·요청 현황을 못 받았으면 둘 다 null → 칩은 지금 동작 그대로
+  function chipEx(id, rq) { return { news: ST.state === 'ok' ? ownGet(ST.news, id) : null, newsClosed: rq ? rq.newsClosed : null }; }
   plans.collectOf = collectOf;   // 시험용
   function reqSummaryHtml(req) { return ' <span class="db-why">· ' + mono(Number(req.requester_count) || 0) + '명 요청</span>'; }   // 칩은 stateChipsHtml 이 그린다. 사람 수만(규격 6-4)
   function ensureCollect(force) {
@@ -657,7 +740,7 @@
     const p = fetchJson('/plan-collect/status').then(function (r) {
       if (my !== collectSeq) return CS;
       collectInflight = false;
-      if (r.status === 'ok') CS = { state: 'ok', can: !!(r.data && r.data.can_request), map: plans.collectMap(r.data), closed: plans.closedMap(r.data), applied: plans.appliedMap(r.data), code: 0, at: Date.now() };
+      if (r.status === 'ok') CS = { state: 'ok', can: !!(r.data && r.data.can_request), map: plans.collectMap(r.data), closed: plans.closedMap(r.data), applied: plans.appliedMap(r.data), newsClosed: plans.newsClosedMap(r.data), code: 0, at: Date.now() };
       else if (r.status === 'denied' && r.code === 403) CS = Object.assign(freshCollect(), { state: 'forbidden', code: 403 });   // 조용히: 요청 줄·칩 없음, 오류 문구 없음
       else CS = Object.assign(freshCollect(), { state: r.status, code: r.code || 0 });
       refreshSlots();
@@ -689,7 +772,7 @@
     const p = fetchJson('/institution-plans/status').then(function (r) {
       if (my !== statusSeq) return ST;
       statusInflight = false;
-      if (r.status === 'ok') ST = { state: 'ok', map: plans.statusMap(r.data), today: str(r.data && r.data.today), code: 0, at: Date.now(), staleMonths: Number(r.data && r.data.stale_months) || 0 };
+      if (r.status === 'ok') ST = { state: 'ok', map: plans.statusMap(r.data), news: plans.newsMap(r.data), today: str(r.data && r.data.today), code: 0, at: Date.now(), staleMonths: Number(r.data && r.data.stale_months) || 0 };
       else ST = Object.assign(freshStatus(), { state: r.status, code: r.code || 0 });
       refreshSlots();
       onStatus();
@@ -711,8 +794,9 @@
     const st = ST.map[id];
     const rq = collectOf(id);   // 수집 요청 현황을 받은 뒤에만(서버 can_request·열린 요청). 표시만 하고 쓰기 버튼은 두지 않는다(규격 6-3)
     if (!st) {
-      const lead = rq && rq.req ? '기관 사업계획에서 보기' : (rq && rq.can ? '기관 사업계획에서 수집 요청' : '');
-      return h3 + '<dl class="db-dl"><dt>자료</dt><dd>' + plans.stateChipsHtml(null, rq && rq.req, null, null) + (rq && rq.req ? reqSummaryHtml(rq.req) : '') + '</dd></dl>' +
+      const hasNews = !!(ownGet(ST.news, id) || (rq && rq.newsClosed));   // 뉴스만 있는 기관은 요청 못 하는 사람도 열어 본다(qa 107 P2-2)
+      const lead = (rq && rq.req) || hasNews ? '기관 사업계획에서 보기' : (rq && rq.can ? '기관 사업계획에서 수집 요청' : '');
+      return h3 + '<dl class="db-dl"><dt>자료</dt><dd>' + plans.stateChipsHtml(null, rq && rq.req, null, null, chipEx(id, rq)) + (rq && rq.req ? reqSummaryHtml(rq.req) : '') + '</dd></dl>' +
         (lead ? '<p class="pl-open"><button type="button" class="link-btn" data-pl-open="' + esc(id) + '" aria-describedby="' + esc(nameId || 'db-name') + '">' + lead + '</button>' +
           ' <span class="pl-msg db-why" role="status"></span></p>' : '');
     }
@@ -720,7 +804,7 @@
     // 이 절이 보이는 사용자는 메뉴도 열 수 있다(위에서 menuVisible 로 걸렀다).
     const open = '<p class="pl-open"><button type="button" class="link-btn" data-pl-open="' + esc(id) + '" aria-describedby="' + esc(nameId || 'db-name') + '">사업계획 ' + mono(n) + '건 보기</button>' +
       ' <span class="pl-msg db-why" role="status"></span></p>';
-    return h3 + '<dl class="db-dl"><dt>자료</dt><dd>' + plans.stateChipsHtml(st, rq && rq.req, null, rq && rq.applied) + (rq && rq.req ? reqSummaryHtml(rq.req) : '') + '</dd>' +
+    return h3 + '<dl class="db-dl"><dt>자료</dt><dd>' + plans.stateChipsHtml(st, rq && rq.req, null, rq && rq.applied, chipEx(id, rq)) + (rq && rq.req ? reqSummaryHtml(rq.req) : '') + '</dd>' +
       (ymd(st.oldest_checked_on) ? '<dt>확인일</dt><dd>' + mono(ymd(st.oldest_checked_on)) + ' <span class="db-why">가장 오래된 문서 기준</span></dd>' : '') + '</dl>' + open;
   };
   // 기관 사업계획 화면을 이 사용자가 열 수 있는가 = 사이드바에 그 항목이 그려져 있는가(nav.build 가 이미 역할·서버 메뉴 키로 걸러 그린다).
@@ -879,7 +963,8 @@
       const cc = collectOf(r.id) || {};   // 수집 요청 현황이 아직 없거나 재무부서(403)면 st 칩만
       const csWait = ok && CS.state === 'loading';   // 수집 현황을 받는 중이면 '자료 없음'을 먼저 그렸다 바꾸지 않게 빈 자리(qa 11-19 P2-1)
       return plans.rowHtml(r, { id: 'pl-o-' + (n++), selected: !!(S.selRow && S.selRow.key === r.key), loaded: ok && !csWait, pending: ST.state === 'loading' || csWait, pinned: !!r.pinned,
-        req: cc.req || null, closed: cc.can ? (cc.closed || null) : null, isNew: cc.applied || null });   // 실패·제외는 요청 가능한 사람만(상세와 같은 가드, qa P3-1)
+        req: cc.req || null, closed: cc.can ? (cc.closed || null) : null, isNew: cc.applied || null,   // 실패·제외는 요청 가능한 사람만(상세와 같은 가드, qa P3-1)
+        news: ok ? ownGet(ST.news, r.id) : null, newsClosed: cc.newsClosed || null });
     };
     let h = '';
     if (vr.rows.length) {
@@ -967,7 +1052,7 @@
     const rec = row.rec || {};
     const view = !ID_RE.test(row.id) ? { status: 'noid' } : (S.cache[row.id] || { status: 'loading' });
     const sub = [D().kindOfRec(rec), D().regionName(rec.region)].filter(Boolean).join(' · ');
-    el.innerHTML = '<div class="db-pane-body">' + plans.detailHtml(view, { name: row.name, sub: sub, kw: S.kw, req: collectReq(row.id), staleMonths: ST.staleMonths }) + '</div>';
+    el.innerHTML = '<div class="db-pane-body">' + plans.detailHtml(view, { name: row.name, sub: sub, kw: S.kw, req: collectReq(row.id), staleMonths: ST.staleMonths, news: view.news || null }) + '</div>';
     if (S.focusTitle && view.status !== 'loading') { S.focusTitle = false; const h = $('pl-name'); if (h && h.focus) h.focus(); }
   }
   function renderDocs() {
@@ -993,7 +1078,29 @@
       if (state !== S) return;   // 그 사이 계정이 바뀌었으면 버린다
       state.cache[id] = r.status === 'ok' ? { status: 'ok', data: r.data }
         : { status: r.status === 'denied' ? 'denied' : (r.code === 404 ? 'notfound' : r.status), code: r.code };
+      const got = state.cache[id];
+      if (got.status === 'ok' && !(got.data && Array.isArray(got.data.docs) && got.data.docs.length)) loadNews(id);   // 규격 107 6-1: 사업계획 문서가 0일 때만 뉴스를 받는다
       if (host && state.selRow && state.selRow.id === id) renderPane();
+    });
+  }
+  // 관련 뉴스(NEXT 107). 결과는 S.cache[id].news = { status:'loading'|'ok'|'error', data, code }. 401·403·404 는 조용히 '뉴스 없음'(has_news:false).
+  function loadNews(id, force) {
+    const state = S, c = state && state.cache[id];
+    if (!c || c.status !== 'ok') return;
+    if (c.news && !force && (c.news.status === 'ok' || c.news.status === 'loading')) return;
+    c.news = { status: 'loading' };
+    fetchJson('/institutions/' + encodeURIComponent(id) + '/news').then(function (r) {
+      if (state !== S || state.cache[id] !== c) return;   // 그 사이 계정이 바뀌었거나 상세를 다시 받았다
+      c.news = r.status === 'ok' ? { status: 'ok', data: r.data }
+        : (r.code === 401 ? { status: 'error', code: 401 }   // 세션 만료는 '뉴스 없음'으로 단정하지 않는다(security 하)
+          : r.status === 'denied' || r.code === 404 ? { status: 'ok', data: { has_news: false } } : { status: 'error', code: r.code });
+      if (!(host && state.selRow && state.selRow.id === id)) return;
+      const a = document.activeElement, aid = a && a.id ? a.id : '', pane = $('pl-pane'), inPane = !!(a && pane && pane.contains(a));
+      renderPane();
+      if (inPane && !document.body.contains(a)) {   // 다시 그리느라 포커스가 사라졌으면 같은 id → 없으면 제목(pl-name)으로(qa 107 P2-1, onCollect 와 같은 방식)
+        const nx = (aid && $(aid)) || $('pl-name');
+        if (nx && nx.focus) nx.focus({ preventScroll: true });
+      }
     });
   }
   function markSelected() {
@@ -1074,7 +1181,7 @@
   // ── 수집 요청(기관 사업계획 상세의 .pl-req 줄) ──
   function collectReq(id) {
     if (CS.state !== 'ok') return null;
-    return { item: ownGet(CS.map, id), closed: ownGet(CS.closed, id), applied: appliedOf(id), can: CS.can, busy: S && S.reqBusy && S.reqBusy.id === id ? S.reqBusy.kind : '' };
+    return { item: ownGet(CS.map, id), closed: ownGet(CS.closed, id), applied: appliedOf(id), newsClosed: ownGet(CS.newsClosed, id), can: CS.can, busy: S && S.reqBusy && S.reqBusy.id === id ? S.reqBusy.kind : '' };
   }
   function onCollect() {   // 수집 요청 현황이 도착·갱신됐을 때: 칩과 요청 줄을 다시 그린다(검색 칸에 입력 중이면 상세는 건드리지 않는다)
     if (!host || !S) return;
@@ -1273,6 +1380,7 @@
         openBatchDialog();
         break;
       case 'pl-retry-detail': if (S.selRow) { delete S.cache[S.selRow.id]; loadDetail(S.selRow.id); renderPane(); } break;
+      case 'pl-retry-news': if (S.selRow) { loadNews(S.selRow.id, true); renderPane(); const hh = $('pl-name'); if (hh && hh.focus) hh.focus({ preventScroll: true }); } break;   // 눌린 단추가 사라지므로 포커스를 제목으로
       case 'pl-req-go': requestCollect('go'); break;
       case 'pl-req-cancel': requestCollect('cancel'); break;
       case 'pl-clear': S.q = ''; S.region = ''; fillControls(); renderList(); renderFoot(); break;

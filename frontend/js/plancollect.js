@@ -22,7 +22,9 @@
   pc.VIEWS = [['open', '처리 대기'], ['closed', '끝난 요청'], ['all', '모두']];
   pc.isOpen = function (st) { return st === 'REQUESTED' || st === 'RUNNING'; };
 
-  const CLOSED_LABEL = { APPLIED: '반영', FAILED: '실패', EXCLUDED: '제외', CANCELED: '취소' };
+  const CLOSED_LABEL = { APPLIED: '반영', NEWS: '뉴스 대체', FAILED: '실패', EXCLUDED: '제외', CANCELED: '취소' };
+  // 끝난 요청의 표시 키: 반영(APPLIED)이면서 close_reason 이 서버 고정 코드 'NEWS' 일 때만 'NEWS'(사업계획 못 찾음 → 뉴스 반입). 그 밖은 상태 코드 그대로.
+  pc.closedKey = function (it) { return it && it.status_cd === 'APPLIED' && str(it.close_reason) === 'NEWS' ? 'NEWS' : str(it && it.status_cd); };
   const MODE_LABEL = { MANUAL: '목록으로 표시', AGENT: '수집 서버로 보냄' };
   const RUN_RESULT = { AGENT_UNREACHABLE: '연결 안 됨 또는 응답 없음', AGENT_REJECTED: '수집 서버가 요청을 받지 않음', BAD_RESPONSE: '수집 서버 응답을 읽지 못함' };
   // 처리 결과 코드(서버 results[].result_cd) → 문구
@@ -93,12 +95,12 @@
   };
   pc.markFlash = function (total, results) {
     const ok = pc.okCount(results), bad = total - ok;
-    if (bad <= 0) return total + '곳을 \'수집 중\'으로 표시했습니다. 자료가 들어오면 자동으로 \'반영됨\'이 되고 요청자에게 쪽지가 갑니다.';
+    if (bad <= 0) return total + '곳을 \'수집 중\'으로 표시했습니다. 자료가 들어오면 자동으로 \'반영됨\'(뉴스면 \'뉴스로 대체\')이 되고 요청자에게 쪽지가 갑니다.';
     return (ok ? ok + '곳을 \'수집 중\'으로 표시했습니다. ' : '') + bad + '곳은 건너뛰었습니다 — ' + pc.failReasons(results).join(', ') + '. 목록을 다시 불러왔습니다.';
   };
   pc.runFlash = function (total, results) {
     const ok = pc.okCount(results), bad = total - ok;
-    if (bad <= 0) return total + '곳을 수집 서버로 보냈습니다(수집 중). 자료가 들어오면 자동으로 \'반영됨\'이 되고 요청자에게 쪽지가 갑니다.';
+    if (bad <= 0) return total + '곳을 수집 서버로 보냈습니다(수집 중). 자료가 들어오면 자동으로 \'반영됨\'(뉴스면 \'뉴스로 대체\')이 되고 요청자에게 쪽지가 갑니다.';
     return total + '곳 중 ' + ok + '곳을 보냈습니다(수집 중). ' + bad + '곳은 보내지 못했습니다 — ' + pc.failReasons(results).join(', ') + '. 목록을 다시 불러왔습니다.';
   };
   pc.closeFlash = function (kind, name, n) {
@@ -185,7 +187,7 @@
     let sub = '';
     if (it.status_cd === 'REQUESTED') { const d = pc.daysSince(it.first_requested_at, today); if (d !== null) sub = '요청 뒤 ' + mono(d) + '일'; }
     else if (it.status_cd === 'RUNNING') { const d = pc.daysSince(it.run_at, today); if (d !== null) sub = '내보낸 뒤 ' + mono(d) + '일'; }
-    else if (own(CLOSED_LABEL, str(it.status_cd)) && it.closed_at) sub = CLOSED_LABEL[it.status_cd] + ' ' + mono(PL().kstYmd(it.closed_at));
+    else { const k = pc.closedKey(it); if (own(CLOSED_LABEL, k) && it.closed_at) sub = CLOSED_LABEL[k] + ' ' + mono(PL().kstYmd(it.closed_at)); }
     return '<td>' + (first ? mono(first) : '') + (sub ? '<span class="cr-sub">' + sub + '</span>' : '') + '</td>';
   }
   // it = GET /plan-collect/requests 의 한 건, o = { checked, today, sub }
@@ -198,13 +200,15 @@
       : '<td class="cr-ck"></td>';
     const inst = '<td class="cr-inst"><span class="cr-nm">' + esc(name) + '</span>' + (o.sub ? '<span class="cr-sub">' + esc(o.sub) + '</span>' : '') + '</td>';
     const subs = [];
+    const news = pc.closedKey(it) === 'NEWS';   // 색(무채색)·글자 모두 '반영됨'(파랑)과 다르게
+    if (news) subs.push('사업계획 못 찾음 · 관련 뉴스 반입');
     if ((it.status_cd === 'FAILED' || it.status_cd === 'EXCLUDED') && str(it.close_reason).trim()) subs.push('사유: ' + esc(it.close_reason));
     if (it.status_cd === 'REQUESTED' && own(RUN_RESULT, str(it.run_result_cd))) subs.push('직전 실행: ' + esc(RUN_RESULT[it.run_result_cd]));
     if (it.status_cd === 'RUNNING') {
       const t = [str(it.run_by_name), own(MODE_LABEL, str(it.run_mode)) ? MODE_LABEL[it.run_mode] : ''].filter(Boolean).map(esc).join(' · ');
       if (t) subs.push(t);
     }
-    const status = '<td>' + PL().reqBadgeHtml(it.status_cd) + subs.map(function (s) { return '<span class="cr-sub">' + s + '</span>'; }).join('') + '</td>';
+    const status = '<td>' + (news ? '<span class="wf-badge pp-neutral" data-st="NEWS">뉴스로 대체</span>' : PL().reqBadgeHtml(it.status_cd)) + subs.map(function (s) { return '<span class="cr-sub">' + s + '</span>'; }).join('') + '</td>';
     const names = arr(it.requester_names).map(str);
     const shown = names.slice(0, 4).join(', ') + (names.length > 4 ? ' 외 ' + (names.length - 4) + '명' : '');
     const who = '<td class="cr-who">' + mono(Number(it.requester_count) || 0) + '명' + (shown ? '<span class="cr-sub">' + esc(shown) + '</span>' : '') + '</td>';
@@ -264,9 +268,9 @@
   // 서버: GET /plan-collect/inbox(폴더 확인) · POST /plan-collect/inbox/import {file_names}. 규격: design-reviewer 2026-11-23_0914_a4dba517.md 5·6절.
   // 서버 폴더 경로·파일 안 값은 화면에 없다. INVALID 의 message 는 서버 고정 문구뿐(security 확인 11-23)이라 msgOf 한 곳에서만 읽고 esc + 80자 + title 로만 낸다.
   pc.MAX_IMPORT = 50;   // 서버 PlanInboxService.MAX_IMPORT — 응답 max_import 가 있으면 그 값
-  pc.INTRO = '반입 폴더에 들어온 사업계획 파일을 확인합니다.';
+  pc.INTRO = '반입 폴더에 들어온 사업계획·뉴스 파일을 확인합니다.';
   pc.BUSY_SCAN = '파일이 많으면 20초까지 걸립니다.';
-  pc.IB_EMPTY = '반입 폴더에 사업계획 파일이 없습니다. 수집한 파일(기관ID_YYYYMMDD_plan.csv)이 폴더에 들어오면 여기에 보입니다.';
+  pc.IB_EMPTY = '반입 폴더에 파일이 없습니다. 수집한 파일(기관ID_YYYYMMDD_plan.csv 또는 _news.csv)이 폴더에 들어오면 여기에 보입니다.';
   pc.TRUNC_TEXT = '파일이 많아 최근 날짜부터 일부만 확인했습니다. 반입한 뒤 [폴더 확인]을 다시 누르세요.';   // 숫자 없음(응답에 max_list 가 없다)
   pc.CSV_LEAD_ONLY = '목록 내려받기는 개발부서 팀장만 할 수 있습니다.';
   const CLS_NONE = 'wf-badge cr-st none', CLS_DONE = 'wf-badge pp-cancel';
@@ -277,7 +281,7 @@
     OLDER: ['더 새 자료 있음', CLS_DONE, '이 기관은 더 최근 날짜 파일이 반입되어 있습니다'],
     INVALID: ['내용 오류', CLS_NONE, ''],
     NO_INSTITUTION: ['등록되지 않은 기관', CLS_NONE, '파일 이름의 기관 ID가 기관 목록에 없습니다'],
-    BAD_NAME: ['이름 형식 오류', CLS_NONE, '이름은 기관ID_YYYYMMDD_plan.csv 형식이어야 합니다'],
+    BAD_NAME: ['이름 형식 오류', CLS_NONE, '이름은 기관ID_YYYYMMDD_plan.csv 또는 기관ID_YYYYMMDD_news.csv 형식이어야 합니다'],
     BAD_DATE: ['날짜 오류', CLS_NONE, '파일 이름의 날짜를 읽지 못했습니다'],
     TOO_LARGE: ['파일이 너무 큼', CLS_NONE, '5MB를 넘습니다'],
     UNSAFE: ['읽지 않음', CLS_NONE, '일반 파일이 아니어서 건너뛰었습니다'],
@@ -295,6 +299,8 @@
     CONFLICT: ['다른 반입과 겹침', CLS_NONE, '잠시 뒤 다시 확인하세요'],
     ERROR: ['처리하지 못함', CLS_NONE, ''],
   };
+  const KIND_LABEL = { PLAN: '사업계획', NEWS: '뉴스' };   // 서버 inbox 응답의 kind. 모르는 값·없는 값은 칩을 그리지 않는다
+  function kindOf(k) { return own(KIND_LABEL, str(k)) ? str(k) : ''; }
   function ibLookup(table, code) { const c = str(code); return own(table, c) ? table[c] : [c || '알 수 없음', CLS_DONE, '']; }   // 모르는 코드는 원문(호출자가 esc)
   function ibChip(code, t) { return '<span class="' + t[1] + '" data-ib-st="' + esc(code) + '">' + esc(t[0]) + '</span>'; }
   function msgOf(x) { const m = x && x.message; return typeof m === 'string' ? m : ''; }   // 이 파일에서 서버 message 를 읽는 유일한 곳(INVALID 고정 문구)
@@ -346,7 +352,7 @@
   };
   pc.ibCountHtml = function (ib) { const c = pc.ibCounts(ib); return '반입 가능 <b>' + c.ready + '</b> · 반입됨 <b>' + c.done + '</b> · 반입 못 함 <b>' + c.bad + '</b>'; };
   pc.scanFlash = function (n, k) { return n > 0 ? '파일 ' + n + '개를 확인했습니다 — ' + (k > 0 ? '반입 가능 ' + k + '개.' : '반입할 파일이 없습니다.') : ''; };
-  pc.ignoredText = function (n) { return '이름 형식이 맞지 않는 파일 ' + n + '개는 건너뛰었습니다(이름: 기관ID_YYYYMMDD_plan.csv).'; };
+  pc.ignoredText = function (n) { return '이름 형식이 맞지 않는 파일 ' + n + '개는 건너뛰었습니다(이름: 기관ID_YYYYMMDD_plan.csv 또는 _news.csv).'; };
   // 반입 결과 → { fail, text }. results[].result_cd 로 센다(서버 합계 키에 기대지 않는다).
   pc.importFlash = function (total, results) {
     let a = 0, b = 0, c = 0;
@@ -377,11 +383,14 @@
     const ck = ready
       ? '<td class="cr-ck"><label><input type="checkbox" name="ib-sel" value="' + esc(file) + '" aria-label="' + esc(name + ' ' + dt + ' 파일 선택') + '"' + (o.checked ? ' checked' : '') + '></label></td>'
       : '<td class="cr-ck"></td>';
-    const inst = '<td class="cr-inst ib-inst"><span class="cr-nm">' + esc(name) + '</span><span class="cr-sub v">' + esc(file) + '</span></td>';
+    const kd = kindOf(it.kind);
+    const inst = '<td class="cr-inst ib-inst"><span class="cr-nm">' + esc(name) + '</span>' + (kd ? ' <span class="wf-badge pp-neutral" data-kind="' + kd + '">' + KIND_LABEL[kd] + '</span>' : '') +
+      '<span class="cr-sub v">' + esc(file) + '</span></td>';
     const code = res ? str(res.result_cd) : str(it.status_cd), t = ibLookup(res ? IB_RESULT : IB_STATUS, code);
     const full = code === 'INVALID' ? pc.invalidFull(msgOf(res || it)) : '';
     const sub = full ? '<span class="cr-sub" title="' + esc(full) + '">' + esc(pc.invalidText(full)) + '</span>' : (t[2] ? '<span class="cr-sub">' + esc(t[2]) + '</span>' : '');
-    const docs = it.doc_count != null ? esc((Number(it.doc_count) || 0) + ' · ' + (Number(it.item_count) || 0)) : '';
+    const docs = kd === 'NEWS' ? (it.item_count != null ? esc('뉴스 ' + (Number(it.item_count) || 0)) : '')
+      : (it.doc_count != null ? esc('문서 ' + (Number(it.doc_count) || 0) + ' · 사업 ' + (Number(it.item_count) || 0)) : '');
     const warn = it.warning_count == null ? '' : (Number(it.warning_count) > 0 ? String(Number(it.warning_count)) : null);
     return '<tr data-ib-file="' + esc(file) + '">' + ck + inst + '<td>' + (dt ? mono(dt) : '—') + '</td><td>' + ibChip(code, t) + sub + '</td>' +
       (docs ? '<td class="ib-num">' + docs + '</td>' : '<td class="ib-num">—</td>') +
@@ -391,7 +400,7 @@
     const res = resOf(ib), sel = arr(ib.sel), ready = pc.ibReady(ib);
     const head = '<thead><tr><th scope="col" class="cr-ck">' +
       (ready.length ? '<label><input type="checkbox" id="ib-all" aria-label="반입 가능 파일 모두 선택"' + (pc.ibAllOn(ib) ? ' checked' : '') + '></label>' : '<span class="sr-only">선택</span>') + '</th>' +
-      '<th scope="col">기관</th><th scope="col">파일 날짜</th><th scope="col">상태</th><th scope="col" class="ib-num">문서 · 사업</th><th scope="col" class="ib-num">경고</th></tr></thead>';
+      '<th scope="col">기관</th><th scope="col">파일 날짜</th><th scope="col">상태</th><th scope="col" class="ib-num">건수</th><th scope="col" class="ib-num">경고</th></tr></thead>';
     const rows = arr(ib.items).filter(Boolean).map(function (it) {
       const f = str(it.file_name);
       return pc.ibRowHtml(it, { checked: sel.indexOf(f) >= 0, result: own(res, f) ? res[f] : null });
@@ -418,15 +427,16 @@
   pc.ibDialogHtml = function (rows) {
     const n = rows.length, w = rows.filter(function (r) { return Number(r.warning_count) > 0; }).length;
     const body = rows.map(function (r) {
-      return '<tr><td>' + esc(str(r.name_ko) || str(r.institution_id)) + '</td><td class="v">' + esc(ymd8(r.file_date)) + '</td><td class="v">' + esc(Number(r.item_count) || 0) +
-        '</td>' + (Number(r.warning_count) > 0 ? '<td class="v">' + esc(Number(r.warning_count)) + '</td>' : '<td>없음</td>') + '</tr>';
+      const kd = kindOf(r.kind), cnt = Number(r.item_count) || 0;
+      return '<tr><td>' + esc(str(r.name_ko) || str(r.institution_id)) + '</td><td>' + (kd ? KIND_LABEL[kd] : '—') + '</td><td class="v">' + esc(ymd8(r.file_date)) + '</td><td class="v">' +
+        esc((kd === 'NEWS' ? '뉴스 ' : '사업 ') + cnt) + '</td>' + (Number(r.warning_count) > 0 ? '<td class="v">' + esc(Number(r.warning_count)) + '</td>' : '<td>없음</td>') + '</tr>';
     }).join('');
     return '<div id="ib-dlg" class="modal-overlay" style="display:none"><div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="ib-dlg-t" aria-describedby="ib-dlg-p">' +
-      '<header class="dlg-bar"><h2 class="dlg-t" id="ib-dlg-t" tabindex="-1">사업계획 파일 ' + mono(n) + '개 반입</h2></header>' +
+      '<header class="dlg-bar"><h2 class="dlg-t" id="ib-dlg-t" tabindex="-1">파일 ' + mono(n) + '개 반입</h2></header>' +
       '<div class="dlg-note"><p class="dlg-hint" id="ib-dlg-busy" hidden>창을 닫아도 반입은 계속되고 결과는 화면 위 띠에 나옵니다.</p><p class="dlg-err" id="ib-dlg-err" role="alert"></p></div>' +
-      '<div class="dlg-body"><p id="ib-dlg-p">고른 파일을 기관 사업계획에 반입합니다. 이 기관들의 열린 수집 요청은 \'반영됨\'이 되고 요청자에게 쪽지가 갑니다.</p>' +
+      '<div class="dlg-body"><p id="ib-dlg-p">사업계획 파일은 기관 사업계획에, 뉴스 파일은 관련 뉴스에 반입합니다. 이 기관들의 열린 수집 요청은 사업계획이면 \'반영됨\', 뉴스면 \'뉴스로 대체\'가 되고 요청자에게 쪽지가 갑니다.</p>' +
       '<div class="pl-dlg-scroll" tabindex="0" role="region" aria-label="반입할 파일"><table class="pl-dlg-tbl"><caption class="sr-only">반입할 파일</caption>' +
-      '<thead><tr><th scope="col">기관</th><th scope="col">파일 날짜</th><th scope="col">사업</th><th scope="col">경고</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+      '<thead><tr><th scope="col">기관</th><th scope="col">종류</th><th scope="col">파일 날짜</th><th scope="col">건수</th><th scope="col">경고</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
       (w ? '<p class="db-why">경고가 있는 파일 ' + mono(w) + '개도 함께 반입됩니다.</p>' : '') + '</div>' +
       '<footer class="dlg-foot"><button type="button" id="ib-dlg-cancel">취소</button><button type="button" id="ib-dlg-ok" class="dlg-go">' + esc(n) + '개 반입</button></footer></div></div>';
   };

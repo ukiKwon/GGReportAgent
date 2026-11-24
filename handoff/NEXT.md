@@ -324,9 +324,9 @@
 
 
 ### 107. 사업계획을 못 찾은 기관 — 관련 뉴스 기사 정리로 대신 준비 [담당: f3(옛 05) 세션]
-- **현재**: 11-24 서버 구현(060 쌍 INST_NEWS_IMPORT·ITEM, NewsCsv 9열·10행·개인정보 검사, 반입 POST /institutions/{id}/news/import·조회 GET /institutions/{id}/news, 폴더 반입 kind 분기·상한 100, 뉴스 반입이 열린 수집 요청을 CLOSE_REASON='NEWS'로 닫음, SCHEMA ⑪-6·⑪-9, uploader plan|news). 사용자 답 = 한 번 못 찾으면 바로·최근 1년 10건·본문 없이 직접 쓴 요약. 서버 전체 2472·uploader 108 통과, security·qa 조건부 통과(qa P2 반입 순서 고침). 결정 모음 handoff/agents/history/2026-11-24_56_107_결정.md.
-- **다음 한 걸음**: 커밋 → 사용자 로컬 DB 060 적용 → 화면(design: 사업계획 상세 '관련 기사' 자리·'뉴스로 대체됨'·처리 화면 APPLIED/NEWS 구분 → frontend, esc 뒤 줄바꿈·safeHttpUrl) → 첫 표본에서 나이 패턴 오탐·우회 조정(data-auditor, security 하A~C).
-- **자세히**: backend 2026-11-24_NEXT107_뉴스_서버_패치.md·1310_a3977783(설계), planner 1151_a1790612, security 1316_a9d22481·적용분 재검토, qa 107 검토, handoff/sessions/2026-11-20_0930_05.md(11-24 절), Q-2026-11-20-63.
+- **현재**: 서버 5a752aa5(060·뉴스 반입·조회) + 11-24 오후 화면·서버 보강 커밋(상세 '관련 뉴스' 절·'뉴스로 대체'·반입 표 사업계획/뉴스 꼬리표, status에 recent_applied.close_reason·news[], design_history 100장). 로컬 DB 060 사용자 적용 끝. qa·security 조건부 통과(P2 포커스·뉴스만 있는 기관 링크·401 처리 고침). 사용자 U6: 뉴스로 채운 기관 정기 재수집은 3개월 뒤.
+- **다음 한 걸음**: ① T10 '판보다 새 뉴스가 있으면 계획 아래 뉴스 절'(design 문구·배치 → frontend, backend는 계획 반입일·뉴스 반입일 비교 값 확인) ② U6 missing.csv '대체 자료' 열 + 뉴스 반입 3개월 안 기관 정기 수집 제외(backend) ③ 화면 safeHttpUrl '@' 거부(security 하, logic.js 공용 — 다른 세션과 조율) ④ 8080 재기동 뒤 실화면 확인 요청 ⑤ 첫 표본에서 나이 패턴 조정(data-auditor).
+- **자세히**: 결정 handoff/agents/history/2026-11-24_56_107_결정.md(U1~U6·T1~T11), design 1556_aa36798b, planner(이관 2건), qa·security 11-24 오후 보고, handoff/sessions/2026-11-20_0930_05.md.
 ### 51. 이사회 작성 모드 선택 스포트라이트 후속 — **구현 완료(8c577bb·36415f5), 확인·판단 3건 남음** [담당: qa-verifier ∥ design-reviewer → frontend-dev / 사용자 답]
 - **현재**: 층 구분·그림자, 클릭 가림 보정, 편집 줄 저장/끝내기, 선택 스포트라이트(비집중 글자 가라앉힘·틸 테두리·짝 칩·십자 머리·대조 첫 줄·표 A/B 행 이름 라벨), Esc 해제 문구·resize 보정이 들어갔다(화면 611 통과, 출처 `2026-11-06_summary.md`).
 - **다음 한 걸음**: ① 929px·창 크기 변경 가림 보정을 qa가 실화면에서 확인 ② 큰 카드(C-5) 안에서 같은 카드의 다른 칸도 가라앉힐지 design-reviewer 판단 ③ 사용자 답(2026-11-06): 필요한 것은 '영역 구분'(어두운 화면 자체가 싫은 것이 아님). 선택 스포트라이트·층 구분으로 1차 반영했고, 사용자가 2026-11-06 실화면에서 '살짝 구분됨'을 확인했다(더 키울지는 사용자의 다음 지시를 기다림) — 부족하면 카드·원본 패널·상태 줄의 면 색 단계와 경계선을 더 키운다(밝은 테마는 불필요).

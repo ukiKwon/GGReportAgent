@@ -1,5 +1,6 @@
 package com.kbstar.kgi.ggreport.web.mapper;
 
+import com.kbstar.kgi.ggreport.web.domain.InstNewsImport;
 import com.kbstar.kgi.ggreport.web.domain.InstPlanDoc;
 import com.kbstar.kgi.ggreport.web.domain.InstPlanImport;
 import com.kbstar.kgi.ggreport.web.domain.InstPlanItem;
@@ -21,6 +22,8 @@ public interface InstitutionPlanMapper {
     int countImportsByOrigin(@Param("institutionId") String institutionId, @Param("originCd") String originCd);
     int countImportBySha(@Param("institutionId") String institutionId, @Param("sha") String sha);
     List<InstPlanImport> selectLatestImports();
+    /** 기관별 최신 뉴스 반입 1건(060) — status 의 news 요약용. 한 번의 쿼리. */
+    List<InstNewsImport> selectLatestNewsImports();
     List<InstPlanDoc> selectLatestDocs();
     List<InstPlanDoc> selectDocsOfImport(@Param("importId") Long importId);
     List<InstPlanItem> selectItemsOfImport(@Param("importId") Long importId);

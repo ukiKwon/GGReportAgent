@@ -900,3 +900,193 @@ test('목표·관심 칩: 같은 폭(min-width 72px·가운데), 관심 칩 글�
   assert.ok(/.pl-tag {[^}]*min-width:72px[^}]*text-align:center/.test(css), '두 칩 같은 폭');
   assert.ok(SRC.indexOf("data-kind=\"WATCH\">나의 관심</span>") > 0 && SRC.indexOf("r.kind === 'WATCH' ? '나의 관심'") > 0);
 });
+
+// ── NEXT 107: 관련 뉴스(사업계획 판이 없을 때만) — 규격 design-reviewer 2026-11-24 107 ──
+function nwsItem(over) {
+  return Object.assign({ news_id: 1, field_cd: 'FINANCE', field_name: '재정', title: '금고 지정 심의', press: '한국일보', published_on: '2026-10-01',
+    url: 'https://news.example.com/a?x=1&y=2', summary: '첫 줄\n둘째 줄' }, over || {});
+}
+function nwsData(items, over) {
+  return Object.assign({ institution_id: 'jongno', has_news: true, stale: false, stale_months: 12, checked_on: '2026-11-18', window_from: '2025-11-18',
+    window_to: '2026-11-18', item_count: items.length, items: items }, over || {});
+}
+const NWS_EMPTY = { status: 'ok', data: { institution_id: 'jongno', name_ko: '종로구', import: null, docs: [] } };
+
+test('newsItemHtml: 제목·요약 esc 뒤 줄바꿈, 링크는 http(s)만 + _blank noopener noreferrer, 막히면 글자 + 링크 없음 칩', function () {
+  const h = plans.newsItemHtml(nwsItem());
+  assert.ok(h.indexOf('<a href="https://news.example.com/a?x=1&amp;y=2" target="_blank" rel="noopener noreferrer" aria-describedby="pl-news-note">금고 지정 심의</a>') >= 0);
+  assert.ok(h.indexOf('<span class="wf-badge pp-neutral">재정</span>') >= 0);
+  assert.ok(h.indexOf('<p class="db-why pl-news-src">한국일보 · 보도일 <span class="v">2026-10-01</span></p>') >= 0);
+  assert.ok(h.indexOf('<p class="pl-news-sum">첫 줄<br>둘째 줄</p>') >= 0);
+  const evil = plans.newsItemHtml(nwsItem({ title: '<img src=x onerror=alert(1)>', press: '<b>언론</b>', summary: 'a<b>\r\nc\rd', field_name: '<i>' }));
+  assert.ok(evil.indexOf('<img') < 0 && evil.indexOf('<b>') < 0 && evil.indexOf('<i>') < 0);
+  assert.ok(evil.indexOf('&lt;img src=x onerror=alert(1)&gt;') >= 0 && evil.indexOf('a&lt;b&gt;<br>c<br>d') >= 0, 'esc 가 먼저, 그 뒤 줄바꿈만 <br>');
+  ['javascript:alert(1)', 'JAVASCRIPT:alert(1)', 'data:text/html,x', '//evil.example.com', 'ftp://x.example.com', '', null].forEach(function (u) {
+    const x = plans.newsItemHtml(nwsItem({ url: u }));
+    assert.ok(x.indexOf('<a ') < 0 && x.indexOf('href=') < 0, String(u) + ': 링크를 내지 않는다');
+    assert.ok(x.indexOf('<span>금고 지정 심의</span> <span class="wf-badge pp-cancel">링크 없음</span>') >= 0, String(u));
+  });
+  assert.ok(plans.newsItemHtml(nwsItem({ url: '  https://ok.example.com/x  ' })).indexOf('href="https://ok.example.com/x"') >= 0, '앞뒤 공백은 safeHttpUrl 이 뗀다');
+  assert.ok(plans.newsItemHtml(nwsItem({ url: 'https://a.example.com/"onmouseover="x' })).indexOf('"onmouseover="x') < 0, '따옴표는 속성 밖으로 못 나간다');
+  const f1 = plans.newsItemHtml(nwsItem({ field_name: null, field_cd: 'BUDGET' }));
+  assert.ok(f1.indexOf('<span class="wf-badge pp-neutral">BUDGET</span>') >= 0);
+  assert.ok(plans.newsItemHtml(nwsItem({ field_name: '', field_cd: '' })).indexOf('pp-neutral') < 0, '분야가 없으면 칩을 그리지 않는다');
+  const bare = plans.newsItemHtml(nwsItem({ press: '', published_on: null, summary: '' }));
+  assert.ok(bare.indexOf('pl-news-src') < 0 && bare.indexOf('pl-news-sum') < 0, '출처·요약이 비면 빈 줄을 그리지 않는다');
+  assert.ok(plans.newsItemHtml(nwsItem({ press: '', published_on: '2026-10-01' })).indexOf('pl-news-src">보도일 ') >= 0, '언론사가 없어도 앞에 · 가 붙지 않는다');
+  assert.ok(plans.newsItemHtml(null).indexOf('<li class="pl-news-it">') === 0, 'null 도 죽지 않는다');
+});
+
+test('newsSecHtml: 보도일 최신순(같으면 서버 순서·날짜 없음은 맨 끝), 입력 불변, 요약 줄, stale 줄은 stale 일 때만, 맺음 줄 id', function () {
+  const items = [nwsItem({ title: '가', published_on: '2026-01-05' }), nwsItem({ title: '나', published_on: '2026-10-01' }),
+    nwsItem({ title: '다', published_on: '2026-10-01' }), nwsItem({ title: '라', published_on: null })];
+  const s = plans.newsSecHtml(nwsData(items));
+  const at = function (t) { return s.indexOf('>' + t + '</a>'); };
+  assert.ok(at('나') > 0 && at('나') < at('다') && at('다') < at('가') && at('가') < at('라'));
+  assert.deepStrictEqual(items.map(function (x) { return x.title; }), ['가', '나', '다', '라'], '입력 배열을 바꾸지 않는다');
+  assert.ok(s.indexOf('<section class="db-sec pl-news" aria-labelledby="pl-news-h"><h3 id="pl-news-h">관련 뉴스</h3>') === 0);
+  assert.ok(s.indexOf('<p class="db-why pl-news-meta">확인 <span class="v">2026-11-18</span> · 보도일 <span class="v">2025-11-18</span> ~ <span class="v">2026-11-18</span>(최근 1년) · <span class="v">4</span>건</p>') >= 0);
+  assert.ok(s.indexOf('pl-warn') < 0, 'stale 이 아니면 경고 줄 없음');
+  assert.ok(s.indexOf('<ul class="pl-news-list">') > 0 && (s.match(/<li class="pl-news-it">/g) || []).length === 4);
+  assert.ok(s.indexOf('<p class="db-why" id="pl-news-note">요약은 기사 원문이 아니라 수집할 때 따로 정리한 글입니다. 원문은 제목 링크로 엽니다(인터넷 PC에서 열림).</p></section>') > 0);
+  const st = plans.newsSecHtml(nwsData([nwsItem()], { stale: true }), 6);
+  assert.ok(st.indexOf('<p class="pl-warn">확인 <span class="v">2026-11-18</span> 뒤로 6개월 넘게 다시 확인하지 않았습니다. 새 기사가 있을 수 있으니 수집을 다시 요청하세요.</p>') >= 0);
+  assert.ok(plans.newsSecHtml(nwsData([nwsItem()], { stale: true })).indexOf('뒤로 12개월 넘게') >= 0, 'months 가 없으면 12');
+  assert.ok(plans.newsSecHtml(nwsData([nwsItem()], { stale: true }), 0).indexOf('뒤로 12개월 넘게') >= 0);
+  assert.ok(plans.newsSecHtml(nwsData([]), 12).indexOf('<span class="v">0</span>건') >= 0, 'items 가 비어도 죽지 않는다');
+  assert.ok(plans.newsSecHtml(null).indexOf('pl-news-list') > 0);
+});
+
+test('detailHtml(뉴스): docs 0 + has_news 면 뉴스 배치(칩 2~4개·본문 문장·요청 줄 hasData·뉴스 절), 검색칸 없음', function () {
+  const REQ = { institution_id: 'jongno', status_cd: 'REQUESTED', requester_count: 2, requested_by_me: false, first_requested_at: '2026-11-17T01:00:00+09:00' };
+  const chips = function (h) { return (h.match(/class="wf-badge/g) || []).length; };
+  const nv = { status: 'ok', data: nwsData([nwsItem(), nwsItem({ title: '둘', published_on: '2026-09-01' })]) };
+  const h = plans.detailHtml(NWS_EMPTY, { name: '종로구', news: nv, req: { item: null, can: true, busy: '' } });
+  assert.ok(h.indexOf('<span class="wf-badge pp-neutral">관련 뉴스 <span class="v">2</span>건</span> <span class="wf-badge pp-cancel">사업계획 못 찾음</span>') >= 0);
+  assert.ok(h.indexOf('<p class="db-empty">사업계획 문서를 찾지 못해 관련 뉴스로 대신합니다. 사업계획이 들어오면 뉴스 대신 사업계획을 보여 줍니다.</p>') >= 0);
+  assert.ok(idx(h, 'class="db-sec pl-sum"') < idx(h, 'class="pl-req"') && idx(h, 'class="pl-req"') < idx(h, 'class="db-sec pl-news"'), '요청 줄은 사업계획 절 끝, 뉴스 절은 그 아래');
+  assert.ok(h.indexOf('새 계획이 나왔으면 다시 요청하세요.') >= 0 && h.indexOf('id="pl-req-go"') >= 0, '요청 줄은 hasData:true 문구');
+  assert.ok(h.indexOf('pop-unk') < 0 && h.indexOf('id="pl-kw"') < 0 && h.indexOf('아직 수집되지 않았습니다') < 0);
+  assert.strictEqual(chips(h.slice(0, idx(h, 'class="db-sec pl-news"'))), 2);
+  const stale = plans.detailHtml(NWS_EMPTY, { news: { status: 'ok', data: nwsData([nwsItem()], { stale: true }) }, req: { item: null, can: true, busy: '' } });
+  assert.ok(stale.indexOf('wf-badge cr-st gap">오래됨') >= 0, 'stale 이고 열린 요청이 없으면 오래됨');
+  const open = plans.detailHtml(NWS_EMPTY, { news: { status: 'ok', data: nwsData([nwsItem()], { stale: true }) }, req: { item: REQ, can: true, busy: '' } });
+  assert.ok(open.indexOf('data-st="REQUESTED">요청됨</span>') >= 0 && open.indexOf('오래됨') < 0, '열린 요청이 있으면 짧은 글자로, 오래됨은 뺀다');
+  assert.strictEqual(chips(open.slice(0, idx(open, 'class="db-sec pl-news"'))), 3);
+  const nc = plans.detailHtml(NWS_EMPTY, { news: nv, req: { item: REQ, can: true, busy: '', newsClosed: { closed_at: '2026-11-24T01:00:00+09:00' } } });
+  assert.ok(nc.indexOf('data-st="NEWS"') < 0 && nc.indexOf('뉴스로 대체') < 0, "상세는 '뉴스로 대체' 칩을 넣지 않는다(본문이 같은 말)");
+  const noReq = plans.detailHtml(NWS_EMPTY, { news: nv });
+  assert.ok(noReq.indexOf('class="pl-req"') < 0 && noReq.indexOf('db-sec pl-news') > 0, '요청 현황이 없어도 뉴스는 보인다');
+});
+
+test('detailHtml(뉴스): 불러오는 중·오류·뉴스 없음·o.news 없음, docs 가 있으면 뉴스를 그리지 않는다', function () {
+  const can = { item: null, can: true, busy: '' };
+  const ld = plans.detailHtml(NWS_EMPTY, { news: { status: 'loading' }, req: can });
+  assert.ok(ld.indexOf('<p class="db-empty" aria-busy="true">관련 뉴스가 있는지 확인하는 중입니다…</p>') >= 0 && ld.indexOf('pop-unk">자료 없음') >= 0 && ld.indexOf('id="pl-req-go"') >= 0);
+  assert.ok(ld.indexOf('아직 수집되지 않았습니다') < 0, '확인 중에는 없다고 단정하지 않는다');
+  const er = plans.detailHtml(NWS_EMPTY, { news: { status: 'error', code: 500 }, req: can });
+  assert.ok(er.indexOf('<p class="db-why">관련 뉴스를 불러오지 못했습니다(500). <button type="button" id="pl-retry-news">다시 불러오기</button></p>') >= 0);
+  assert.ok(er.indexOf('아직 수집되지 않았습니다. 사업계획 문서를 찾지 못하면 관련 뉴스(최근 1년)로 대신 보여 줍니다.') >= 0 && er.indexOf('id="pl-req-go"') >= 0);
+  assert.ok(plans.detailHtml(NWS_EMPTY, { news: { status: 'error', code: 0 }, req: can }).indexOf('(연결 실패)') >= 0);
+  assert.ok(plans.detailHtml(NWS_EMPTY, { news: { status: 'error', code: '<b>' }, req: can }).indexOf('<b>') < 0);
+  const none = plans.detailHtml(NWS_EMPTY, { news: { status: 'ok', data: { has_news: false } }, req: can });
+  assert.ok(none.indexOf('이 기관의 사업계획은 아직 수집되지 않았습니다. 사업계획 문서를 찾지 못하면 관련 뉴스(최근 1년)로 대신 보여 줍니다.</p>') >= 0);
+  assert.ok(none.indexOf('pop-unk">자료 없음') >= 0 && none.indexOf('pl-news') < 0 && none.indexOf('pl-retry-news') < 0);
+  const des = plans.detailHtml(NWS_EMPTY, { news: { status: 'ok', data: { has_news: false } }, req: { item: null, can: false, busy: '' } });
+  assert.ok(des.indexOf('영업부서가 수집을 요청하면 개발부서가 모아 올립니다.') >= 0 && des.indexOf('관련 뉴스(최근 1년)로 대신 보여 줍니다.') >= 0 && des.indexOf('pl-req') < 0, '요청 못 하는 사용자도 뉴스 안내를 본다');
+  const plain = plans.detailHtml(NWS_EMPTY, { req: can });
+  assert.ok(plain.indexOf('이 기관의 사업계획은 아직 수집되지 않았습니다.</p>') >= 0 && plain.indexOf('관련 뉴스') < 0, 'o.news 가 없으면 지금 동작 그대로');
+  const hid = plans.detailHtml(view([doc()]), { name: '종로구', news: { status: 'ok', data: nwsData([nwsItem()]) } });
+  assert.ok(hid.indexOf('pl-news') < 0 && hid.indexOf('관련 뉴스') < 0 && hid.indexOf('id="pl-kw"') >= 0, '문서가 있으면 캐시에 뉴스가 있어도 숨긴다');
+});
+
+test('stateChipsHtml(뉴스, 5번째 인자 ex): 뉴스로 대체·새 계획 못 찾음·뉴스 N건, 서버 값이 없으면 지금 모양 그대로, 칩은 최대 4개', function () {
+  const chips = function (h) { return (h.match(/class="wf-badge/g) || []).length; };
+  const R = function (c) { return { status_cd: c }; };
+  const UNK = '<span class="pop-unk">자료 없음</span>';
+  const NC = { institution_id: 'a', closed_at: '2026-11-24T01:00:00+09:00', close_reason: 'NEWS' };
+  assert.strictEqual(plans.stateChipsHtml(null, null, null, null, {}), UNK);
+  assert.strictEqual(plans.stateChipsHtml(null, null, null, null, { news: null, newsClosed: null }), UNK);
+  assert.strictEqual(plans.stateChipsHtml(null, null, null, null, { news: { item_count: 0 } }), UNK, '건수 0 은 뉴스 없음');
+  assert.strictEqual(plans.stateChipsHtml(null, null, null, null, { news: { item_count: 3 } }), '<span class="wf-badge pp-neutral">뉴스 <span class="v">3</span>건</span>');
+  assert.strictEqual(plans.stateChipsHtml(null, null, null, null, { newsClosed: NC }),
+    '<span class="wf-badge pp-neutral" data-st="NEWS" title="2026-11-24 수집 결과: 사업계획을 찾지 못해 관련 뉴스로 대체했습니다(7일간 표시).">뉴스로 대체</span>');
+  const both = plans.stateChipsHtml(null, R('REQUESTED'), null, null, { news: { item_count: 3 }, newsClosed: NC });
+  assert.ok(idx(both, '뉴스 <span') < idx(both, '뉴스로 대체') && idx(both, '뉴스로 대체') < idx(both, 'data-st="REQUESTED">사업계획 요청됨') && both.indexOf('pop-unk') < 0 && chips(both) === 3);
+  assert.ok(plans.stateChipsHtml(null, null, R('FAILED'), null, { news: { item_count: 2 } }).indexOf('data-st="FAILED">수집 실패') >= 0, '뉴스만 있고 예전 실패 기록은 그대로');
+  assert.ok(plans.stateChipsHtml(null, null, R('FAILED'), null, { newsClosed: NC }).indexOf('FAILED') < 0, '방금 뉴스로 닫혔으면 옛 실패 칩은 내지 않는다');
+  const AP = { institution_id: 'a', closed_at: '2026-11-19T01:00:00+09:00' };
+  const old = plans.stateChipsHtml({ item_count: 2, stale: true }, null, null, null, { newsClosed: NC });
+  assert.ok(old.indexOf('<span class="wf-badge pp-cancel" data-st="NEWS_OLD" title="2026-11-24 수집에서 새 사업계획을 찾지 못했습니다. 지금 보이는 것은 예전 계획입니다(7일간 표시).">새 계획 못 찾음</span>') >= 0);
+  assert.ok(old.indexOf('data-st="NEW"') < 0 && old.indexOf('오래됨') >= 0, "'new' 가 아니고 오래됨은 그대로");
+  assert.ok(idx(old, '사업계획 ') < idx(old, 'NEWS_OLD') && idx(old, 'NEWS_OLD') < idx(old, '오래됨'));
+  const both2 = plans.stateChipsHtml({ item_count: 2 }, null, null, AP, { newsClosed: NC });
+  assert.ok(both2.indexOf('data-st="NEW"') >= 0 && both2.indexOf('NEWS_OLD') < 0, '진짜 반영(new)이 있으면 그쪽');
+  assert.ok(plans.stateChipsHtml({ item_count: 2 }, null, R('FAILED'), null, { newsClosed: NC }).indexOf('FAILED') < 0);
+  assert.strictEqual(chips(plans.stateChipsHtml({ item_count: 2, period_ended: true, stale: true }, null, null, null, { newsClosed: NC })), 4);
+  assert.strictEqual(chips(plans.stateChipsHtml({ item_count: 2, period_ended: true, stale: true }, R('REQUESTED'), null, null, { newsClosed: NC })), 4);
+  assert.strictEqual(plans.stateChipsHtml({ item_count: 2 }, null, null, null, { news: { item_count: 9 } }), plans.stateChipsHtml({ item_count: 2 }), '사업계획이 있으면 뉴스 칩은 없다');
+  const r = plans.baseRows([{ name: '가구', region: '11', type: '지자체', institutionId: 'ga' }], null, null)[0];
+  assert.ok(plans.rowHtml(r, { loaded: true, news: { item_count: 4 } }).indexOf('뉴스 <span class="v">4</span>건') >= 0 && plans.rowHtml(r, { loaded: true, news: { item_count: 4 } }).indexOf('pop-unk') < 0);
+  assert.ok(plans.rowHtml(r, { loaded: true, newsClosed: NC }).search(/data-st="NEWS"[^>]*>뉴스로 대체/) >= 0);
+  assert.ok(plans.rowHtml(r, { loaded: true }).indexOf('pop-unk">자료 없음') >= 0);
+});
+
+test('newsMap·newsClosedMap·appliedMap: 서버 값이 없는 옛 응답은 빈 값, 뉴스로 닫힌 행은 new 에서 빠진다, __proto__ 안전', function () {
+  assert.deepStrictEqual(plans.newsMap({}), {});
+  assert.deepStrictEqual(plans.newsMap(null), {});
+  assert.deepStrictEqual(plans.newsMap({ news: 'x' }), {});
+  assert.deepStrictEqual(Object.keys(plans.newsMap({ news: [{ institution_id: 'a', item_count: 3 }, { institution_id: 'b', item_count: 0 }, null, { item_count: 2 }] })), ['a']);
+  const d = { recent_applied: [{ institution_id: 'a', closed_at: 'x', close_reason: 'NEWS' }, { institution_id: 'b', closed_at: 'y', close_reason: null }, { institution_id: 'c' }, null] };
+  assert.deepStrictEqual(Object.keys(plans.appliedMap(d)), ['b', 'c'], "NEWS 행은 'new' 에 넣지 않는다");
+  assert.deepStrictEqual(Object.keys(plans.newsClosedMap(d)), ['a']);
+  assert.deepStrictEqual(plans.newsClosedMap({}), {});
+  assert.deepStrictEqual(plans.newsClosedMap({ recent_applied: 'x' }), {});
+  const p = plans.newsClosedMap({ recent_applied: [{ institution_id: '__proto__', close_reason: 'NEWS' }] });
+  assert.ok(Object.prototype.hasOwnProperty.call(p, '__proto__') && Object.getPrototypeOf(p) === Object.prototype);
+  assert.ok(Object.prototype.hasOwnProperty.call(plans.newsMap({ news: [{ institution_id: '__proto__', item_count: 1 }] }), '__proto__'));
+  plans.resetStatus();
+  try {
+    plans.applyStatus({ items: [{ institution_id: 'sung', item_count: 5, stale: true }], news: [{ institution_id: 'nw', item_count: 3, checked_on: '2026-11-18', stale: false }] });
+    plans.applyCollect({ can_request: true, items: [], recent_applied: [{ institution_id: 'nw2', closed_at: '2026-11-24T01:00:00+09:00', close_reason: 'NEWS' }, { institution_id: 'sung', closed_at: '2026-11-24T01:00:00+09:00', close_reason: 'NEWS' }] });
+    assert.ok(plans.sectionInner('nw', 'db-name').indexOf('뉴스 <span class="v">3</span>건') >= 0 && plans.sectionInner('nw', 'db-name').indexOf('pop-unk') < 0, '현황판 절: 뉴스만 있는 기관');
+    assert.ok(plans.sectionInner('nw2', 'db-name').search(/data-st="NEWS"[^>]*>뉴스로 대체/) >= 0);
+    const old = plans.sectionInner('sung', 'db-name');
+    assert.ok(old.search(/data-st="NEWS_OLD"[^>]*>새 계획 못 찾음/) >= 0 && old.indexOf('data-st="NEW"') < 0 && old.indexOf('오래됨') >= 0);
+    assert.ok(plans.collectOf('sung').newsClosed && plans.collectOf('sung').applied === null);
+    assert.deepStrictEqual([plans.collectOf('constructor').newsClosed, plans.collectOf('__proto__').newsClosed], [null, null]);
+    plans.applyCollect({ can_request: true, items: [], recent_applied: [{ institution_id: 'sung', closed_at: '2026-11-24T01:00:00+09:00' }] });
+    assert.ok(plans.sectionInner('sung', 'db-name').indexOf('data-st="NEW"') >= 0, 'close_reason 가 없으면 지금처럼 new');
+  } finally { plans.resetStatus(); }
+});
+
+test('소스·CSS(107): 뉴스는 docs 0 일 때만 받고, 링크는 safeHttpUrl 한 곳, 7줄 CSS 는 사업계획 블록 안', function () {
+  assert.ok(/fetchJson\('\/institutions\/' \+ encodeURIComponent\(id\) \+ '\/news'\)/.test(SRC));
+  assert.ok(/got\.status === 'ok' && !\(got\.data && Array\.isArray\(got\.data\.docs\) && got\.data\.docs\.length\)\) loadNews\(id\)/.test(SRC), 'docs 0 일 때만');
+  assert.ok(/r\.status === 'denied' \|\| r\.code === 404 \? \{ status: 'ok', data: \{ has_news: false \} \}/.test(SRC), '401·403·404 는 조용히 뉴스 없음');
+  assert.ok(/case 'pl-retry-news': if \(S\.selRow\) \{ loadNews\(S\.selRow\.id, true\)/.test(SRC));
+  const nws = SRC.slice(SRC.indexOf('plans.newsItemHtml = '), SRC.indexOf('plans.detailHtml = '));
+  assert.strictEqual((nws.match(/logic\.safeHttpUrl\(/g) || []).length, 1);
+  assert.ok(nws.indexOf('target="_blank" rel="noopener noreferrer"') > 0 && nws.indexOf('<a href="\' + esc(url)') > 0);
+  const a = HTML.indexOf('/* 기관 사업계획 시작'), b = HTML.indexOf('/* 기관 사업계획 끝 */');
+  const css = HTML.slice(a, b);
+  ['.pl-news-meta {', '.pl-news-list {', '.pl-news-it {', '.pl-news-t {', '.pl-news-src {', '.pl-news-sum {', '#pl-news-note {'].forEach(function (s) { assert.ok(css.indexOf(s) >= 0, s); });
+  assert.ok(css.indexOf('/* 관련 뉴스(NEXT 107)') >= 0 && css.indexOf('line-clamp') < 0, '요약은 줄을 자르지 않는다');
+});
+
+test('loadNews 다시 그리기 뒤 포커스 복귀(qa 107 P2-1)', function () {
+  const fn = SRC.slice(SRC.indexOf('function loadNews('), SRC.indexOf('function markSelected('));
+  assert.ok(/activeElement/.test(fn) && /pl-name/.test(fn), '뉴스 도착 뒤 renderPane 이 포커스를 잃지 않게 되돌린다');
+});
+
+test('sectionInner: 뉴스만 있는 기관은 요청 못 하는 사람도 여는 링크가 있다(qa 107 P2-2)', function () {
+  plans.resetStatus();
+  try {
+    plans.applyStatus({ items: [], news: [{ institution_id: 'nw', item_count: 3 }] });
+    plans.applyCollect({ can_request: false, items: [], recent_applied: [] });
+    const h = plans.sectionInner('nw', 'db-name');
+    assert.ok(h.indexOf('뉴스 <span class="v">3</span>건') >= 0);
+    assert.ok(h.indexOf('data-pl-open="nw"') >= 0 && h.indexOf('기관 사업계획에서 보기') >= 0, '열람 링크');
+    assert.ok(plans.sectionInner('zz', 'db-name').indexOf('data-pl-open') < 0, '뉴스도 요청도 없고 요청 못 하면 링크 없음');
+  } finally { plans.resetStatus(); }
+});

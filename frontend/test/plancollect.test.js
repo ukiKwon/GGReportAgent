@@ -265,7 +265,7 @@ test('문구 표: errorText 상태·코드, resultText, 결과 문구(표시·�
   assert.strictEqual(pc.reasonCheck('  '), '사유를 적으세요.');
   assert.ok(pc.reasonCheck(new Array(102).join('가')).indexOf('100자') >= 0);
   assert.strictEqual(pc.reasonCheck('수집 불가'), '');
-  assert.strictEqual(pc.markFlash(2, [{ result_cd: 'OK' }, { result_cd: 'OK' }]), '2곳을 \'수집 중\'으로 표시했습니다. 자료가 들어오면 자동으로 \'반영됨\'이 되고 요청자에게 쪽지가 갑니다.');
+  assert.strictEqual(pc.markFlash(2, [{ result_cd: 'OK' }, { result_cd: 'OK' }]), '2곳을 \'수집 중\'으로 표시했습니다. 자료가 들어오면 자동으로 \'반영됨\'(뉴스면 \'뉴스로 대체\')이 되고 요청자에게 쪽지가 갑니다.');
   assert.ok(pc.markFlash(2, [{ result_cd: 'OK' }, { result_cd: 'NOT_REQUESTED' }]).indexOf('1곳은 건너뛰었습니다 — 이미 다른 사람이 처리함. 목록을 다시 불러왔습니다.') >= 0);
   assert.ok(pc.runFlash(3, [{ result_cd: 'SENT' }, { result_cd: 'AGENT_UNREACHABLE' }, { result_cd: 'AGENT_UNREACHABLE' }]).indexOf('3곳 중 1곳을 보냈습니다(수집 중). 2곳은 보내지 못했습니다 — 수집 서버 연결 안 됨 또는 응답 없음. 목록을 다시 불러왔습니다.') >= 0);
   assert.ok(pc.closeFlash('exclude', '도봉구청', 3).indexOf('요청을 제외했습니다. 요청자 3명에게 쪽지로 알렸습니다.') >= 0);
@@ -511,13 +511,13 @@ test('반입 대기 파일 상태 칩: 12종 글자·클래스, READY 만 체크
   const ready = pc.ibRowHtml(ibItem(), { checked: true });
   assert.ok(ready.indexOf('name="ib-sel" value="dobong_20261119_plan.csv" aria-label="서울 도봉구청 2026-11-19 파일 선택" checked') >= 0);
   assert.ok(ready.indexOf('<span class="cr-nm">서울 도봉구청</span><span class="cr-sub v">dobong_20261119_plan.csv</span>') >= 0);
-  assert.ok(ready.indexOf('<td><span class="v">2026-11-19</span></td>') >= 0 && ready.indexOf('<td class="ib-num">2 · 130</td>') >= 0 && ready.indexOf('<td class="ib-num">4</td>') >= 0);
+  assert.ok(ready.indexOf('<td><span class="v">2026-11-19</span></td>') >= 0 && ready.indexOf('<td class="ib-num">문서 2 · 사업 130</td>') >= 0 && ready.indexOf('<td class="ib-num">4</td>') >= 0);
   assert.ok(pc.ibRowHtml(ibItem({ warning_count: 0 }), {}).indexOf('<td class="ib-num"><span class="ad-note">없음</span></td>') >= 0);
   const imp = pc.ibRowHtml(ibItem({ status_cd: 'IMPORTED', doc_count: undefined, item_count: undefined, warning_count: undefined }), {});
   assert.ok(imp.indexOf('<span class="cr-sub">같은 내용의 파일이 이미 들어가 있습니다</span>') >= 0 && imp.indexOf('<td class="ib-num">—</td>') >= 0 && imp.indexOf('<td>—</td>') < 0);
   assert.ok(pc.ibRowHtml(ibItem({ status_cd: 'NOT_CHECKED' }), {}).indexOf('[폴더 확인]을 다시 누르세요') >= 0);
   const noid = pc.ibRowHtml({ file_name: 'zz_plan.csv', institution_id: null, name_ko: null, file_date: null, status_cd: 'BAD_NAME' }, {});
-  assert.ok(noid.indexOf('(알 수 없음)') >= 0 && noid.indexOf('이름은 기관ID_YYYYMMDD_plan.csv 형식이어야 합니다') >= 0);
+  assert.ok(noid.indexOf('(알 수 없음)') >= 0 && noid.indexOf('이름은 기관ID_YYYYMMDD_plan.csv 또는 기관ID_YYYYMMDD_news.csv 형식이어야 합니다') >= 0);
   const x = pc.ibRowHtml(ibItem({ status_cd: '<b>x' }), {});
   assert.ok(x.indexOf('<b>x') < 0 && x.indexOf('&lt;b&gt;x') >= 0 && x.indexOf('pp-cancel') >= 0);
   assert.ok(pc.ibRowHtml(ibItem({ status_cd: 'constructor' }), {}).indexOf('pp-cancel" data-ib-st="constructor">constructor') >= 0);
@@ -564,7 +564,7 @@ test('반입 결과 칩·문구: result_cd → 칩, 체크 사라짐, 결과 요
   assert.strictEqual(pc.scanFlash(7, 3), '파일 7개를 확인했습니다 — 반입 가능 3개.');
   assert.strictEqual(pc.scanFlash(7, 0), '파일 7개를 확인했습니다 — 반입할 파일이 없습니다.');
   assert.strictEqual(pc.scanFlash(0, 0), '');
-  assert.strictEqual(pc.ignoredText(2), '이름 형식이 맞지 않는 파일 2개는 건너뛰었습니다(이름: 기관ID_YYYYMMDD_plan.csv).');
+  assert.strictEqual(pc.ignoredText(2), '이름 형식이 맞지 않는 파일 2개는 건너뛰었습니다(이름: 기관ID_YYYYMMDD_plan.csv 또는 _news.csv).');
   assert.ok(!/\d/.test(pc.TRUNC_TEXT) && pc.TRUNC_TEXT.indexOf('최근 날짜부터 일부만 확인했습니다') >= 0, 'truncated 문구에는 숫자가 없다');
   const c = pc.ibCounts(ibState({ items: [ibItem(), ibItem({ file_name: 'b_20261119_plan.csv' }), ibItem({ file_name: 'c_20261119_plan.csv', status_cd: 'IMPORTED' }), ibItem({ file_name: 'd_20261119_plan.csv', status_cd: 'OLDER' })],
     results: { 'b_20261119_plan.csv': I } }));
@@ -610,14 +610,14 @@ test('반입 절 그리기: 접힘(안내+[폴더 확인])·확인 중·빈 폴�
   const c = pc.ibHtml(pc.ibFresh());
   assert.ok(c.indexOf('<section class="ib-sec" id="ib-sec" aria-labelledby="ib-t"><h3 id="ib-t">반입 대기 파일</h3>') >= 0);
   assert.ok(c.indexOf('id="ib-scan" data-cr="ib-scan">폴더 확인</button>') >= 0 && c.indexOf('id="ib-go"') < 0 && c.indexOf('id="ib-table"') < 0);
-  assert.ok(c.indexOf('id="ib-hint">반입 폴더에 들어온 사업계획 파일을 확인합니다.</span>') >= 0);
+  assert.ok(c.indexOf('id="ib-hint">반입 폴더에 들어온 사업계획·뉴스 파일을 확인합니다.</span>') >= 0);
   const busy = pc.ibHtml(Object.assign(pc.ibFresh(), { busy: 'scan' }));
   assert.ok(busy.indexOf('id="ib-scan" data-cr="ib-scan" disabled>확인하는 중…</button>') >= 0 && busy.indexOf('파일이 많으면 20초까지 걸립니다.') >= 0);
   assert.ok(busy.indexOf('<section class="ib-sec" id="ib-sec" aria-labelledby="ib-t" aria-busy="true"><h3') >= 0, '첫 확인 중에는 표가 없으니 aria-busy 는 절에');
   assert.ok(c.indexOf('aria-busy') < 0 && pc.ibHtml(ibState({ items: [ibItem()] })).indexOf('aria-busy') < 0, '확인 중이 아니면 없다');
   assert.ok(pc.ibHtml(ibState({ items: [ibItem()], busy: 'scan' })).indexOf('<section class="ib-sec" id="ib-sec" aria-labelledby="ib-t" aria-busy="true">') >= 0);
   const empty = pc.ibHtml(ibState());
-  assert.ok(empty.indexOf('반입 폴더에 사업계획 파일이 없습니다. 수집한 파일(기관ID_YYYYMMDD_plan.csv)이 폴더에 들어오면 여기에 보입니다.') >= 0 && empty.indexOf('id="ib-table"') < 0);
+  assert.ok(empty.indexOf('반입 폴더에 파일이 없습니다. 수집한 파일(기관ID_YYYYMMDD_plan.csv 또는 _news.csv)이 폴더에 들어오면 여기에 보입니다.') >= 0 && empty.indexOf('id="ib-table"') < 0);
   assert.ok(empty.indexOf('id="ib-go" data-cr="ib-ask" disabled>선택한 <span class="v">0</span>개 반입</button>') >= 0 && empty.indexOf('id="ib-count"') >= 0);
   const notes = pc.ibHtml(ibState({ items: [ibItem()], ignored: 2, truncated: true }));
   assert.ok(notes.indexOf('이름 형식이 맞지 않는 파일 2개는 건너뛰었습니다') >= 0 && notes.indexOf('파일이 많아 최근 날짜부터 일부만 확인했습니다. 반입한 뒤 [폴더 확인]을 다시 누르세요.') >= 0);
@@ -684,17 +684,17 @@ test('LEAD_ONLY: 403 detail.code 를 일반 403(개발부서만 씁니다)보다
 test('반입 확인 창: 공통 dlg 의 alertdialog, [취소][n개 반입] 오른쪽 아래, 둘째 문장, 경고 줄은 경고 있는 파일이 있을 때만, esc', function () {
   const h = pc.ibDialogHtml([ibItem(), ibItem({ file_name: 'x_20261118_plan.csv', name_ko: '<b>x</b>', warning_count: 0 })]);
   assert.ok(h.indexOf('<div id="ib-dlg" class="modal-overlay" style="display:none"><div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="ib-dlg-t" aria-describedby="ib-dlg-p">') >= 0);
-  assert.ok(h.indexOf('<h2 class="dlg-t" id="ib-dlg-t" tabindex="-1">사업계획 파일 <span class="v">2</span>개 반입</h2>') >= 0);
-  assert.ok(h.indexOf('고른 파일을 기관 사업계획에 반입합니다. 이 기관들의 열린 수집 요청은 \'반영됨\'이 되고 요청자에게 쪽지가 갑니다.') >= 0);
+  assert.ok(h.indexOf('<h2 class="dlg-t" id="ib-dlg-t" tabindex="-1">파일 <span class="v">2</span>개 반입</h2>') >= 0);
+  assert.ok(h.indexOf('사업계획 파일은 기관 사업계획에, 뉴스 파일은 관련 뉴스에 반입합니다. 이 기관들의 열린 수집 요청은 사업계획이면 \'반영됨\', 뉴스면 \'뉴스로 대체\'가 되고 요청자에게 쪽지가 갑니다.') >= 0);
   assert.ok(h.indexOf('<footer class="dlg-foot"><button type="button" id="ib-dlg-cancel">취소</button><button type="button" id="ib-dlg-ok" class="dlg-go">2개 반입</button></footer>') >= 0);
   assert.ok(h.indexOf('id="ib-dlg-busy" hidden>창을 닫아도 반입은 계속되고 결과는 화면 위 띠에 나옵니다.') >= 0 && h.indexOf('id="ib-dlg-err" role="alert"') >= 0);
-  assert.ok(h.indexOf('<th scope="col">기관</th><th scope="col">파일 날짜</th><th scope="col">사업</th><th scope="col">경고</th>') >= 0 && h.indexOf('class="pl-dlg-scroll" tabindex="0" role="region" aria-label="반입할 파일"') >= 0);
+  assert.ok(h.indexOf('<th scope="col">기관</th><th scope="col">종류</th><th scope="col">파일 날짜</th><th scope="col">건수</th><th scope="col">경고</th>') >= 0 && h.indexOf('class="pl-dlg-scroll" tabindex="0" role="region" aria-label="반입할 파일"') >= 0);
   assert.ok(h.indexOf('<b>x') < 0 && h.indexOf('&lt;b&gt;x&lt;/b&gt;') >= 0);
   assert.ok(h.indexOf('경고가 있는 파일 <span class="v">1</span>개도 함께 반입됩니다.') >= 0);
   assert.ok(pc.ibDialogHtml([ibItem({ warning_count: 0 })]).indexOf('경고가 있는 파일') < 0);
   const zero = pc.ibDialogHtml([ibItem({ warning_count: 0 })]);
   assert.ok(zero.indexOf('<td>없음</td></tr>') >= 0 && zero.indexOf('<td class="v">0</td></tr>') < 0, '경고 0 은 파일 표와 같이 없음');
-  assert.ok(h.indexOf('<td class="v">130</td><td class="v">4</td></tr>') >= 0 && h.indexOf('<td class="v">0</td>') < 0, '경고가 있으면 숫자');
+  assert.ok(h.indexOf('<td class="v">사업 130</td><td class="v">4</td></tr>') >= 0 && h.indexOf('<td class="v">0</td>') < 0, '경고가 있으면 숫자');
   assert.ok(/root\.dlg\.open\(ov, \{ onClose[\s\S]*?restoreFallback/.test(PC_SRC) && PC_SRC.indexOf("'/plan-collect/inbox/import', { file_names:") > 0 && PC_SRC.indexOf("'/plan-collect/inbox')") > 0);
   assert.ok(/function onIbDlgClick[\s\S]*?ib-dlg-cancel[\s\S]*?requestClose/.test(PC_SRC), '보내는 중에도 닫는다(plans.batchDialog 선례)');
 });
@@ -722,7 +722,7 @@ test('반입 창 닫힘·잠금 보완(qa P3-1·P3-5·P3-6): 복귀 대상은 �
 });
 
 test('admin 수집 요청 머리 안내: 팀원도 맞는 설명형 문장(design P2-1)', function () {
-  const want = "영업부서가 요청한 기관을 기관 단위로 묶어 보여 줍니다. 개발부서 팀장이 목록을 내려받아 수집하고, 보낸 기관은 '수집 중'으로 표시합니다. 수집한 파일을 반입하면 그 기관의 요청은 '반영됨'이 됩니다.";
+  const want = "영업부서가 요청한 기관을 기관 단위로 묶어 보여 줍니다. 개발부서 팀장이 목록을 내려받아 수집하고, 보낸 기관은 '수집 중'으로 표시합니다. 수집한 파일을 반입하면 그 기관의 요청은 '반영됨'이 됩니다. 사업계획을 찾지 못해 관련 뉴스 파일을 반입하면 그 요청은 '뉴스로 대체'가 됩니다.";
   assert.ok(ADMIN_SRC.indexOf('collect: "' + want + '"') > 0);
   assert.ok(ADMIN_SRC.indexOf("'수집 중'으로 표시하세요") < 0, '팀원에게 할 수 없는 일을 시키는 명령형이 남지 않았다');
 });
@@ -736,4 +736,72 @@ test('index.html 반입 CSS: 수집 요청 블록 안, 토큰만, .ad-toolbar > 
   assert.ok(css.indexOf('#cr-csv[aria-disabled="true"]:focus-visible { opacity:1; }') >= 0, '흐린 CSV 단추도 포커스 링은 5.7:1');
   assert.ok(/#pl-foot #pl-bat\[aria-disabled="true"\]:focus-visible \{ opacity:1; \}/.test(HTML), '#pl-bat 도 같은 처리(기관 사업계획 블록)');
   assert.ok(HTML.indexOf('#pl-foot #pl-bat[aria-disabled="true"]:focus-visible') > HTML.indexOf('#pl-foot #pl-bat[aria-disabled="true"] {'), '꺼진 규칙 뒤에 놓여 덮어쓴다');
+});
+
+// ── NEXT 107: 뉴스로 대체(6-5)·반입 표 kind 구분(6-6) — 규격 design-reviewer 2026-11-24 107 ──
+test('closedKey: APPLIED + close_reason NEWS 만 NEWS, 그 밖은 상태 코드 그대로', function () {
+  assert.strictEqual(pc.closedKey({ status_cd: 'APPLIED', close_reason: 'NEWS' }), 'NEWS');
+  assert.strictEqual(pc.closedKey({ status_cd: 'APPLIED', close_reason: null }), 'APPLIED');
+  assert.strictEqual(pc.closedKey({ status_cd: 'APPLIED' }), 'APPLIED');
+  assert.strictEqual(pc.closedKey({ status_cd: 'FAILED', close_reason: 'NEWS' }), 'FAILED');
+  assert.strictEqual(pc.closedKey({ status_cd: 'EXCLUDED', close_reason: '사유' }), 'EXCLUDED');
+  assert.strictEqual(pc.closedKey({ status_cd: 'REQUESTED', close_reason: 'NEWS' }), 'REQUESTED');
+  assert.strictEqual(pc.closedKey(null), '');
+});
+
+test('rowHtml(뉴스로 대체): 무채색 칩 + 보조 줄 + 날짜 칸 뉴스 대체, tr data-st 는 APPLIED 그대로, 반영됨은 옛 모양 그대로', function () {
+  const news = pc.rowHtml(adm({ status_cd: 'APPLIED', close_reason: 'NEWS', closed_at: '2026-11-24T01:00:00+09:00' }), { today: '2026-11-24' });
+  assert.ok(news.indexOf('<span class="wf-badge pp-neutral" data-st="NEWS">뉴스로 대체</span><span class="cr-sub">사업계획 못 찾음 · 관련 뉴스 반입</span>') >= 0);
+  assert.ok(news.indexOf('반영됨') < 0 && news.indexOf('cr-st ok') < 0, '파랑 반영됨과 다르다');
+  assert.ok(news.indexOf('data-req="' + K1 + '" data-st="APPLIED"') >= 0);
+  assert.ok(news.indexOf('<span class="cr-sub">뉴스 대체 <span class="v">2026-11-24</span></span>') >= 0);
+  assert.strictEqual((news.match(/<td/g) || []).length, 8);
+  const plan = pc.rowHtml(adm({ status_cd: 'APPLIED', close_reason: null, closed_at: '2026-11-24T01:00:00+09:00' }), { today: '2026-11-24' });
+  assert.ok(plan.indexOf('data-st="APPLIED">반영됨</span>') >= 0 && plan.indexOf('<span class="cr-sub">반영 <span class="v">2026-11-24</span></span>') >= 0 && plan.indexOf('뉴스') < 0);
+  const fail = pc.rowHtml(adm({ status_cd: 'FAILED', close_reason: 'NEWS', closed_at: '2026-11-24T01:00:00+09:00' }), {});
+  assert.ok(fail.indexOf('뉴스로 대체') < 0 && fail.indexOf('사유: NEWS') >= 0, '실패는 close_reason 을 사유로 쓰는 옛 규칙 그대로');
+});
+
+test('반입 표 kind(6-6): 기관 칸 칩(사업계획/뉴스), 건수 칸(문서 n · 사업 m / 뉴스 n), kind 없음·모르는 값은 칩 없음(esc)', function () {
+  const nw = pc.ibRowHtml(ibItem({ file_name: 'dobong_20261119_news.csv', kind: 'NEWS', item_count: 7 }), {});
+  assert.ok(nw.indexOf('<span class="cr-nm">서울 도봉구청</span> <span class="wf-badge pp-neutral" data-kind="NEWS">뉴스</span><span class="cr-sub v">dobong_20261119_news.csv</span>') >= 0);
+  assert.ok(nw.indexOf('<td class="ib-num">뉴스 7</td>') >= 0 && nw.indexOf('문서') < 0);
+  const pl = pc.ibRowHtml(ibItem({ kind: 'PLAN' }), {});
+  assert.ok(pl.indexOf('<span class="wf-badge pp-neutral" data-kind="PLAN">사업계획</span>') >= 0 && pl.indexOf('<td class="ib-num">문서 2 · 사업 130</td>') >= 0);
+  ['', null, undefined, 'constructor', '<b>x', 'plan', 'news'].forEach(function (k) {
+    const h = pc.ibRowHtml(ibItem({ kind: k }), {});
+    assert.ok(h.indexOf('data-kind') < 0 && h.indexOf('<b>x') < 0, 'kind=' + String(k));
+    assert.ok(h.indexOf('<td class="ib-num">문서 2 · 사업 130</td>') >= 0, '모르는 kind 는 사업계획 모양 그대로');
+  });
+  assert.ok(pc.ibRowHtml(ibItem({ kind: 'NEWS', item_count: undefined }), {}).indexOf('<td class="ib-num">—</td>') >= 0, '뉴스인데 건수가 없으면 —');
+  const bad = pc.ibRowHtml({ file_name: 'zz.csv', institution_id: null, name_ko: null, file_date: null, status_cd: 'BAD_NAME' }, {});
+  assert.ok(bad.indexOf('이름은 기관ID_YYYYMMDD_plan.csv 또는 기관ID_YYYYMMDD_news.csv 형식이어야 합니다') >= 0);
+  assert.ok(pc.ibTableHtml(ibState({ items: [ibItem()] })).indexOf('<th scope="col" class="ib-num">건수</th>') >= 0);
+});
+
+test('반입 확인 창(6-6): 제목 파일 n개 반입, 둘째 문장, 열 기관·종류·파일 날짜·건수·경고, 종류별 건수, esc', function () {
+  const h = pc.ibDialogHtml([ibItem({ kind: 'PLAN' }), ibItem({ file_name: 'x_20261118_news.csv', name_ko: '<b>x</b>', kind: 'NEWS', item_count: 5, file_date: '20261118', warning_count: 0 }), ibItem({ file_name: 'y.csv', kind: undefined })]);
+  assert.ok(h.indexOf('<h2 class="dlg-t" id="ib-dlg-t" tabindex="-1">파일 <span class="v">3</span>개 반입</h2>') >= 0);
+  assert.ok(h.indexOf('사업계획 파일은 기관 사업계획에, 뉴스 파일은 관련 뉴스에 반입합니다. 이 기관들의 열린 수집 요청은 사업계획이면 \'반영됨\', 뉴스면 \'뉴스로 대체\'가 되고 요청자에게 쪽지가 갑니다.') >= 0);
+  assert.ok(h.indexOf('<th scope="col">기관</th><th scope="col">종류</th><th scope="col">파일 날짜</th><th scope="col">건수</th><th scope="col">경고</th>') >= 0);
+  assert.ok(h.indexOf('<td>서울 도봉구청</td><td>사업계획</td><td class="v">2026-11-19</td><td class="v">사업 130</td><td class="v">4</td></tr>') >= 0);
+  assert.ok(h.indexOf('<td>&lt;b&gt;x&lt;/b&gt;</td><td>뉴스</td><td class="v">2026-11-18</td><td class="v">뉴스 5</td><td>없음</td></tr>') >= 0);
+  assert.ok(h.indexOf('<td>—</td>') >= 0 && h.indexOf('<b>x') < 0, 'kind 가 없으면 종류 칸은 —');
+  assert.ok(h.indexOf('<button type="button" id="ib-dlg-ok" class="dlg-go">3개 반입</button>') >= 0);
+});
+
+test('문구(107): 반입 안내·빈 폴더·건너뜀·수집 표시/실행 안내·admin 설명이 뉴스를 함께 말한다', function () {
+  assert.strictEqual(pc.INTRO, '반입 폴더에 들어온 사업계획·뉴스 파일을 확인합니다.');
+  assert.strictEqual(pc.IB_EMPTY, '반입 폴더에 파일이 없습니다. 수집한 파일(기관ID_YYYYMMDD_plan.csv 또는 _news.csv)이 폴더에 들어오면 여기에 보입니다.');
+  assert.strictEqual(pc.ignoredText(2), '이름 형식이 맞지 않는 파일 2개는 건너뛰었습니다(이름: 기관ID_YYYYMMDD_plan.csv 또는 _news.csv).');
+  assert.strictEqual(pc.markFlash(2, [{ result_cd: 'OK' }, { result_cd: 'OK' }]), '2곳을 \'수집 중\'으로 표시했습니다. 자료가 들어오면 자동으로 \'반영됨\'(뉴스면 \'뉴스로 대체\')이 되고 요청자에게 쪽지가 갑니다.');
+  assert.strictEqual(pc.runFlash(2, [{ result_cd: 'SENT' }, { result_cd: 'SENT' }]), '2곳을 수집 서버로 보냈습니다(수집 중). 자료가 들어오면 자동으로 \'반영됨\'(뉴스면 \'뉴스로 대체\')이 되고 요청자에게 쪽지가 갑니다.');
+  assert.ok(ADMIN_SRC.indexOf("그 기관의 요청은 '반영됨'이 됩니다. 사업계획을 찾지 못해 관련 뉴스 파일을 반입하면 그 요청은 '뉴스로 대체'가 됩니다.\"") > 0);
+  assert.strictEqual(pc.MAX_IMPORT, 50, '폴백 상한은 그대로');
+  assert.strictEqual((PC_SRC.match(/\.message\b/g) || []).length, 1, '서버 message 는 msgOf 한 곳(11-23 security)');
+});
+
+test('closedKey: 공백·소문자 close_reason 은 NEWS 가 아니다(qa 107)', function () {
+  assert.strictEqual(pc.closedKey({ status_cd: 'APPLIED', close_reason: ' NEWS' }), 'APPLIED');
+  assert.strictEqual(pc.closedKey({ status_cd: 'APPLIED', close_reason: 'news' }), 'APPLIED');
 });

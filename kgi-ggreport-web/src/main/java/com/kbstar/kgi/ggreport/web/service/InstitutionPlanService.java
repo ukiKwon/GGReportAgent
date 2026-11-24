@@ -1,5 +1,6 @@
 package com.kbstar.kgi.ggreport.web.service;
 
+import com.kbstar.kgi.ggreport.web.domain.InstNewsImport;
 import com.kbstar.kgi.ggreport.web.domain.InstPlanDoc;
 import com.kbstar.kgi.ggreport.web.domain.InstPlanImport;
 import com.kbstar.kgi.ggreport.web.domain.InstPlanItem;
@@ -356,6 +357,17 @@ public class InstitutionPlanService {
         out.put("today", today.toString());
         out.put("stale_months", STALE_MONTHS);
         out.put("items", items);
+        // 기관별 최신 뉴스 반입 요약(060) — 기관 목록의 '뉴스 N건' 표시용(NEXT 107). 한 번의 쿼리, 본문 없음.
+        List<Map<String, Object>> news = new ArrayList<>();
+        for (InstNewsImport n : mapper.selectLatestNewsImports()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("institution_id", n.getInstitutionId());
+            m.put("item_count", n.getItemCount());
+            m.put("checked_on", n.getFileDate());
+            m.put("stale", isStale(n.getFileDate(), today));
+            news.add(m);
+        }
+        out.put("news", news);
         return out;
     }
 

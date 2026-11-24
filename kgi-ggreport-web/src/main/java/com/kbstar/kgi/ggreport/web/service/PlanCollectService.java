@@ -431,6 +431,7 @@ public class PlanCollectService {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("institution_id", r.getInstitutionId());
             m.put("closed_at", r.getClosedAt());
+            m.put("close_reason", NEWS.equals(r.getCloseReason()) ? NEWS : null);   // 서버 고정 코드만(자유 글 차단) — 뉴스로 대체해 닫힌 건 구분용(NEXT 107)
             recentApplied.add(m);
         }
         Map<String, Object> out = new LinkedHashMap<>();
@@ -760,7 +761,7 @@ public class PlanCollectService {
         List<String> emps = mapper.selectActiveRequesterEmpNos(instId, open.getReqSeq());
         if (mapper.applyOpenNews(instId, Times.nowIso(), actor.getEmpNo()) != 1) return;
         audit.record(instId, newsImportId, ACTION_APPLY, NEWS, emps.size(), null, actor, ui);
-        String text = "[사업계획 수집 결과] " + label(instId) + " 사업계획은 찾지 못해 관련 뉴스로 대체했습니다. 기관 화면에서 확인해 주세요.";
+        String text = "[사업계획 수집 결과] " + label(instId) + " 사업계획은 찾지 못해 관련 뉴스로 대체했습니다. 기관 사업계획 화면에서 확인해 주세요.";
         notifyQuietly(emps, text);
     }
 
