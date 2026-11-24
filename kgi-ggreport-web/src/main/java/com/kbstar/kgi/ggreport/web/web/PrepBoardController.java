@@ -24,6 +24,8 @@ import java.util.Map;
 /**
  * 대시보드(NEXT 102). 감사(BID_PREP_ACT): 목록 DASH_LIST(끝난 건 포함이면 DASH_LIST_ENDED, 건 NONE) + 표에 실린 결재 끝난 건(WRITABLE·WRITING)마다
  * DASH_LIST_ROW(건 번호·그 건 상태, 같은 LOGGED_AT — planner 11-23 P3-3), 체크 DASH_CHECK·DASH_CHECK_SAME(TASK_CD CK_{열}) — 누가·어느 화면·어느 버튼.
+ * 목록 요약 줄 TASK_CD = 조회 범위(SCOPE_MINE|TEAM|DEPT).
+ * 거부·실패 줄 TASK_CD = 요청 범위(형식 맞을 때만, 아니면 NULL), 성공 줄 = 실제 적용 범위.
  * 체크 성공 줄은 서비스가 저장과 같은 트랜잭션에, 목록 성공 줄과 모든 실패 줄은 여기서 따로 커밋한다(성공 줄 실패 = 500, fail-closed).
  * 접근 이력 DETAIL 에는 줄 수·건·상태·행위·열 코드만(아이콘 값·날짜·이름·쿼리값 없음). ⚠️ X-Emp-No·X-Screen-Id·X-Button-Id 는 자기신고다.
  *
@@ -48,35 +50,38 @@ public class PrepBoardController {
 
     @GetMapping("/prep-board")
     public Map<String, Object> list(@RequestParam(name = "include_ended", required = false) String includeEnded,
+                                    @RequestParam(name = "scope", required = false) String scope,
                                     HttpServletRequest req) {
         Actor actor = Actor.of(req);
         BoardUiIds.Ui ui = PrepBoardUiIds.of(req);
+        String scopeTag = PrepBoardService.scopeTag(scope);   // 형식이 맞을 때만 SCOPE_*(입력값 원문은 감사·접근 이력에 싣지 않는다)
         boolean all = "true".equals(includeEnded) || "1".equals(includeEnded);
         String act = all ? PrepBoardService.ACT_LIST_ENDED : PrepBoardService.ACT_LIST;   // 끝난 건 보기를 켰는지 감사에 남긴다(security F2)
         SysUser me;
         try {
             me = guard.requireActiveUser(req);
         } catch (ApiException e) {
-            if (e.getStatus() == 403) { fail(NO_CASE, act, "DENIED", NO_CASE, null, actor, ui); }   // 401 은 ACCESS_LOG 에만
+            if (e.getStatus() == 403) { fail(NO_CASE, act, "DENIED", NO_CASE, scopeTag, actor, ui); }   // 401 은 ACCESS_LOG 에만
             throw e;
         }
         Map<String, Object> out;
         try {
-            out = board.list(me, all);
+            out = board.list(me, all, scope);
         } catch (ApiException e) {
-            fail(NO_CASE, act, PrepAudit.outcomeOf(e.getStatus()), NO_CASE, null, actor, ui);
+            fail(NO_CASE, act, PrepAudit.outcomeOf(e.getStatus()), NO_CASE, scopeTag, actor, ui);   // 400 BAD_SCOPE 는 scopeTag=null
             if (e.getStatus() == 403) { throw guard.denied(req, e); }
             throw e;
         } catch (RuntimeException e) {
-            fail(NO_CASE, act, "ERROR", NO_CASE, null, actor, ui);
+            fail(NO_CASE, act, "ERROR", NO_CASE, scopeTag, actor, ui);
             throw e;
         }
         List<String[]> seen = PrepBoardService.auditRows(out);
+        String applied = PrepBoardService.scopeTag((String) out.get("scope"));   // 기본값을 썼어도 실제 적용 범위를 남긴다
         try {
-            audit.recordList(act, PrepBoardService.ACT_LIST_ROW, seen, actor, ui);
+            audit.recordList(act, PrepBoardService.ACT_LIST_ROW, seen, applied, actor, ui);
         } catch (RuntimeException e) {
             LOG.error("대시보드 목록 감사를 남기지 못했다(응답 500): cause={}", e.getClass().getSimpleName());
-            fail(NO_CASE, act, "ERROR", NO_CASE, null, actor, ui);   // PrepAudit 머리 규칙(NEXT 70) — 성공 줄 기록 실패도 ERROR 한 줄(security 11-23)
+            fail(NO_CASE, act, "ERROR", NO_CASE, applied, actor, ui);   // PrepAudit 머리 규칙(NEXT 70) — 성공 줄 기록 실패도 ERROR 한 줄(security 11-23)
             throw e;
         }
         req.setAttribute(AccessLogInterceptor.DETAIL, "prep-board rows=" + ((List<?>) out.get("rows")).size() + " audited=" + seen.size());

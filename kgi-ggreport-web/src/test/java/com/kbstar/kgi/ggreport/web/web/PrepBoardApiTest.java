@@ -40,6 +40,7 @@ public class PrepBoardApiTest {
 
     private static final String LEAD = "5047192";
     private static final String HEAD = "2674805";
+    private static final String LEAD2 = "5640327";   // 다른 영업팀장(시드: 아래 팀원 없음)
     private static final String MEMBER = "3918264";
     private static final String MEMBER2 = "3361829";
     private static final String DESIGNER = "7130526";
@@ -244,9 +245,10 @@ public class PrepBoardApiTest {
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST_ENDED' AND OUTCOME='OK' AND BID_CASE_ID='NONE'"
                 + " AND ACTOR_EMP_NO=? AND SCREEN_ID='prep_dashboard' AND BUTTON_ID='refresh' AND UI_VALID=1", MEMBER));
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST' AND OUTCOME='OK'"));   // 앞의 기본 목록 한 줄은 그대로
-        // F3 기본값: 상세를 못 여는 끝난 건은 확정자 이름을 싣지 않는다 — 상세를 열 수 있으면 싣는다.
-        JsonNode other = row(json(list(MEMBER2, "include_ended=1", "refresh")), bid);
-        assertEquals(other.path("can_view").asBoolean(), !other.path("confirmed_by_name").isNull());
+        // 확정 취소(개설 전)는 결재가 없어 팀·부서 작업에 실리지 않고, 확정자 본인의 '내 작업'에만 남는다(사용자 11-24).
+        assertNull(row(json(list(MEMBER2, "include_ended=1", "refresh")), bid));
+        assertNull(row(json(list(LEAD, "include_ended=1", "refresh")), bid));
+        assertNull(row(json(list(HEAD, "include_ended=1&scope=dept", "refresh")), bid));
         assertFalse(with.path("confirmed_by_name").isNull());   // 확정자 본인은 상세를 볼 수 있다
     }
 
@@ -422,6 +424,7 @@ public class PrepBoardApiTest {
         for (String st : new String[] {"CONFIRMED", "OPEN_PENDING"}) {
             setState(bid, st);
             assertFalse(st, row(json(list(MEMBER2, null, "refresh")), bid).path("can_check").asBoolean());
+            assertEquals(st, "PRE_OPEN", row(json(list(MEMBER2, null, "refresh")), bid).path("check_block").asText());
             MvcResult r = check(MEMBER2, bid, COL, mark("DONE", 0));
             assertEquals(st, 409, r.getResponse().getStatus());
             assertEquals(st, "STATE_CHANGED", json(r).path("detail").path("code").asText());
@@ -691,5 +694,241 @@ public class PrepBoardApiTest {
         assertEquals("하나은행", b.get(0).path("bank_name").asText());
         assertEquals("KB국민은행", b.get(1).path("bank_name").asText());
         assertEquals("신한은행", b.get(2).path("bank_name").asText());
+    }
+
+    @Test
+    public void D40_약정_끝이_연_또는_연월이면_그_해_그_달_말일까지_유효하고_지난해_지난달_깨진_값은_빠진다() throws Exception {
+        clearBanks();
+        String bid = confirm(MEMBER, INST);
+        LocalDate today = LocalDate.parse(Times.todayKst());
+        bankRev(INST, 1, 1, "SAVE", "FIRST", "B02", null, String.valueOf(today.getYear()));              // 올해 → 12-31 까지 유효
+        bankRev(INST, 2, 1, "SAVE", "SECOND", "B03", null, today.toString().substring(0, 7));            // 이번 달 → 말일까지 유효
+        bankRev(INST, 3, 1, "SAVE", "FIRST", "B05", null, String.valueOf(today.getYear() - 1));          // 지난해 → 제외
+        bankRev(INST, 4, 1, "SAVE", "FIRST", "B04", null, "abc");                                         // 깨진 값 → 제외
+        bankRev(INST, 5, 1, "SAVE", "FIRST", "B05", null, today.minusMonths(1).toString().substring(0, 7));   // 지난달 → 제외
+        JsonNode b = banksOf(MEMBER, bid);
+        assertEquals(2, b.size());
+        assertEquals("KB국민은행", b.get(0).path("bank_name").asText());
+        assertEquals("신한은행", b.get(1).path("bank_name").asText());
+    }
+
+    @Test
+    public void D41_은행이_기타이면_직접_입력_이름이_나오고_이름이_없으면_코드표_이름_그것도_없으면_코드값이다() throws Exception {
+        clearBanks();
+        String bid = confirm(MEMBER, INST);
+        bankRev(INST, 1, 1, "SAVE", "FIRST", "ETC", "가상조합", ymd(365));
+        bankRev(INST, 2, 1, "SAVE", "SECOND", "ETC", null, ymd(365));
+        bankRev(INST, 3, 1, "SAVE", "FIRST", "Z99", null, ymd(365));
+        bankRev(INST, 4, 1, "SAVE", "SECOND", "ETC", "   ", ymd(365));   // 공백만 → 이름 없음으로 본다
+        JsonNode b = banksOf(MEMBER, bid);
+        assertEquals(4, b.size());
+        assertEquals("기타(직접 입력)", b.get(3).path("bank_name").asText());
+        assertEquals("가상조합", b.get(0).path("bank_name").asText());
+        assertEquals("기타(직접 입력)", b.get(1).path("bank_name").asText());
+        assertEquals("Z99", b.get(2).path("bank_name").asText());
+    }
+
+    @Test
+    public void D42_check_block은_상태_먼저_담당_나중이고_can_check와_짝이다() throws Exception {
+        String pre = confirm(MEMBER, "dobong");          // CONFIRMED — 승인 전
+        String open = opened(INST);                       // IN_PROGRESS, 담당 MEMBER2
+        JsonNode asMember2 = json(list(MEMBER2, "include_ended=true", "refresh"));
+        assertNull("남이 확정만 한 건은 내 작업에 없다", row(asMember2, pre));   // PRE_OPEN 검사는 아래 MEMBER(확정자)가 맡는다
+        assertTrue(row(asMember2, open).path("check_block").isNull());
+        assertTrue(row(asMember2, open).path("can_check").asBoolean());
+        JsonNode asMember = json(list(MEMBER, "include_ended=true", "refresh"));
+        assertEquals("NOT_MINE", row(asMember, open).path("check_block").asText());
+        assertEquals("PRE_OPEN", row(asMember, pre).path("check_block").asText());   // 상태가 먼저 — 담당이 아니어도 PRE_OPEN
+        setState(open, "CANCELLED");                      // 합성: 배정은 활성으로 남는다
+        assertEquals("ENDED", row(json(list(MEMBER2, "include_ended=true", "refresh")), open).path("check_block").asText());
+        JsonNode endedAsMember = row(json(list(MEMBER, "include_ended=true", "refresh")), open);   // 담당이 아닌 사람 눈에도 ENDED
+        assertEquals("ENDED", endedAsMember.path("check_block").asText());
+        assertFalse(endedAsMember.path("is_mine").asBoolean());
+        assertFalse(endedAsMember.path("can_check").asBoolean());
+        for (JsonNode r : json(list(MEMBER2, "include_ended=true", "refresh")).path("rows")) {
+            assertEquals(r.path("check_block").isNull(), r.path("can_check").asBoolean());
+        }
+    }
+
+    @Test
+    public void D43_담당이_아닌_사용자가_승인_전_줄이나_남의_줄을_PUT하면_403이다() throws Exception {
+        String pre = confirm(MEMBER, "dobong");
+        assertEquals(403, check(MEMBER2, pre, COL, mark("DONE", 0)).getResponse().getStatus());
+        String open = opened(INST);
+        assertEquals(403, check(MEMBER, open, COL, mark("DONE", 0)).getResponse().getStatus());
+        assertEquals(0, checkRows(pre));
+        assertEquals(0, checkRows(open));
+    }
+
+    // ── 조회 범위(scope=mine|team|dept, 사용자 11-24) ─────────────────
+
+    private JsonNode body(String emp, String query) throws Exception {
+        MvcResult r = list(emp, query, "refresh");
+        assertEquals(r.getResponse().getContentAsString(), 200, r.getResponse().getStatus());
+        return json(r);
+    }
+
+    private int summaryTag(String action, String emp, String tag) {
+        return tag == null
+                ? count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD=? AND BID_CASE_ID='NONE' AND ACTOR_EMP_NO=? AND TASK_CD IS NULL", action, emp)
+                : count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD=? AND BID_CASE_ID='NONE' AND ACTOR_EMP_NO=? AND TASK_CD=?", action, emp, tag);
+    }
+
+    @Test
+    public void D44_scope가_없으면_역할_기본값_팀원_mine_팀장_team_부장_dept다() throws Exception {
+        opened(INST);
+        String[][] cases = {{MEMBER2, "mine"}, {LEAD, "team"}, {HEAD, "dept"}};
+        for (String[] c : cases) {
+            JsonNode b = body(c[0], null);
+            assertEquals(c[0], c[1], b.path("scope").asText());
+            assertEquals(c[0], c[1], b.path("scope_default").asText());
+            assertTrue(c[0], b.path("team_resolved").asBoolean());
+        }
+    }
+
+    @Test
+    public void D45_scope가_형식_밖이면_400_BAD_SCOPE이고_입력값을_싣지_않으며_감사는_TASK_CD_없이_INVALID다() throws Exception {
+        opened(INST);
+        for (String q : new String[]{"scope=all", "scope=MINE", "scope="}) {
+            MvcResult r = list(MEMBER, q, "refresh");
+            assertEquals(q, 400, r.getResponse().getStatus());
+            JsonNode d = json(r).path("detail");
+            assertEquals(q, "BAD_SCOPE", d.path("code").asText());
+            assertFalse(q, d.path("message").asText().contains("MINE") || d.path("message").asText().contains("all"));
+        }
+        assertEquals(3, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST' AND OUTCOME='INVALID' AND BID_CASE_ID='NONE'"
+                + " AND ACTOR_EMP_NO=? AND TASK_CD IS NULL", MEMBER));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST_ROW' AND ACTOR_EMP_NO=?", MEMBER));
+    }
+
+    @Test
+    public void D46_mine은_확정자_본인과_활성_담당의_건이고_개설_전도_포함한다() throws Exception {
+        String pre = confirm(MEMBER, "dobong");
+        String open = opened(INST);
+        JsonNode m2 = body(MEMBER2, null);
+        assertNotNull(row(m2, open));
+        assertNull(row(m2, pre));
+        JsonNode m1 = body(MEMBER, null);
+        assertNotNull(row(m1, open));
+        assertFalse(row(m1, open).path("is_mine").asBoolean());
+        assertNotNull(row(m1, pre));
+        JsonNode lead = body(LEAD, "scope=mine");
+        assertNull(row(lead, open));
+        assertNull(row(lead, pre));
+    }
+
+    @Test
+    public void D47_팀_부서_작업은_개설_승인_전_건을_싣지_않고_mine에는_싣는다() throws Exception {
+        String pre = confirm(MEMBER, "dobong");   // CONFIRMED
+        String pend = confirm(MEMBER, INST);
+        MvcResult r = postJson("/bidcases/" + pend + "/prep/open-requests", MEMBER, "{\"emp_nos\":[\"" + MEMBER2 + "\"]}");
+        assertEquals(r.getResponse().getContentAsString(), 201, r.getResponse().getStatus());   // OPEN_PENDING, 승인 안 함
+        JsonNode[] views = {body(MEMBER, "scope=team"), body(LEAD, null), body(HEAD, null), body(HEAD, "scope=dept")};
+        for (JsonNode v : views) {
+            assertNull(row(v, pre));
+            assertNull(row(v, pend));
+        }
+        JsonNode mine = body(MEMBER, null);
+        assertNotNull(row(mine, pre));
+        assertNotNull(row(mine, pend));
+    }
+
+    @Test
+    public void D48_팀은_결재선_기준이고_다른_팀장은_못_보며_수동_지정이_풀리면_나_혼자로_좁힌다() throws Exception {
+        String open = opened(INST);   // 담당 MEMBER2
+        assertNotNull(row(body(LEAD, null), open));
+        assertNotNull(row(body(MEMBER, "scope=team"), open));
+        JsonNode other = body(LEAD2, null);
+        assertEquals("team", other.path("scope").asText());
+        assertTrue(other.path("team_resolved").asBoolean());
+        assertNull(row(other, open));
+        assertNotNull(row(body(LEAD2, "scope=dept"), open));
+        jdbc.update("UPDATE USERS SET APPROVER_MANUAL=0 WHERE EMP_NO=?", MEMBER);
+        flushCache();
+        JsonNode narrowed = body(MEMBER, "scope=team");
+        assertFalse(narrowed.path("team_resolved").asBoolean());
+        assertNull(row(narrowed, open));
+    }
+
+    // D52~D55: 테스트 트랜잭션이 끝나면 USERS·배정 변경은 롤백된다(D48 과 같은 방식) — 별도 원복 불필요.
+
+    @Test
+    public void D52_부장의_team은_dept와_같은_행이고_team_resolved는_true다() throws Exception {
+        opened(INST);
+        confirm(MEMBER, "dobong");
+        JsonNode team = body(HEAD, "scope=team");
+        JsonNode dept = body(HEAD, "scope=dept");
+        assertEquals("team", team.path("scope").asText());
+        assertTrue(team.path("team_resolved").asBoolean());
+        assertEquals(dept.path("rows").size(), team.path("rows").size());
+        for (JsonNode r : dept.path("rows")) {
+            assertNotNull(row(team, r.path("bid_case_id").asText()));
+        }
+    }
+
+    @Test
+    public void D53_결재선에_영업팀장이_없는_팀원은_team이_나_혼자로_좁혀진다() throws Exception {
+        String open = opened(INST);   // 담당 MEMBER2
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", HEAD, MEMBER);   // 수동 지정, 결재자 = 부장 직결
+        flushCache();
+        JsonNode b = body(MEMBER, "scope=team");
+        assertFalse(b.path("team_resolved").asBoolean());
+        assertNull(row(b, open));
+    }
+
+    @Test
+    public void D54_결재선의_첫_팀장이_비활성이면_그_팀원의_team은_나_혼자로_좁혀진다() throws Exception {
+        String open = opened(INST);
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", LEAD);
+        flushCache();
+        JsonNode b = body(MEMBER, "scope=team");
+        assertFalse(b.path("team_resolved").asBoolean());
+        assertNull(row(b, open));
+    }
+
+    @Test
+    public void D55_팀장_본인만_담당인_건도_같은_팀_팀원의_team에는_보인다() throws Exception {
+        String open = opened(INST);
+        jdbc.update("UPDATE BID_ASSIGNMENT SET EMP_NO=? WHERE BID_CASE_ID=? AND EMP_NO=?", LEAD, open, MEMBER2);
+        JsonNode b = body(MEMBER, "scope=team");
+        assertTrue(b.path("team_resolved").asBoolean());
+        assertNotNull(row(b, open));
+    }
+
+    @Test
+    public void D49_끝난_건은_개설_뒤_중단만_팀_부서에_실리고_확정_취소는_확정자_mine에만_남는다() throws Exception {
+        String stopped = opened(INST);
+        assertEquals(200, postJson("/bidcases/" + stopped + "/prep/cancel", LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
+        String unconfirmed = confirm(MEMBER, "dobong");
+        assertEquals(200, postJson("/bidcases/" + unconfirmed + "/prep/unconfirm", LEAD, "{\"reason\":\"가상 취소\"}").getResponse().getStatus());
+        for (String emp : new String[]{LEAD, HEAD, MEMBER2, MEMBER}) {
+            JsonNode v = body(emp, "include_ended=true");
+            assertNotNull(emp, row(v, stopped));
+            if (!MEMBER.equals(emp)) { assertNull(emp, row(v, unconfirmed)); }
+        }
+        assertNotNull(row(body(MEMBER, "include_ended=true"), unconfirmed));
+        assertNull(row(body(LEAD2, "include_ended=true"), stopped));
+        assertNull(row(body(LEAD2, "include_ended=true"), unconfirmed));
+    }
+
+    @Test
+    public void D50_목록_요약_감사_줄의_TASK_CD는_실제_적용_범위이고_건_줄은_NULL이다() throws Exception {
+        String done = opened(INST);
+        setState(done, "WRITABLE");
+        assertEquals(200, list(MEMBER, null, "open").getResponse().getStatus());
+        assertEquals(200, list(MEMBER2, "scope=dept", "open").getResponse().getStatus());
+        assertEquals(200, list(LEAD, "include_ended=true", "refresh").getResponse().getStatus());
+        assertEquals(1, summaryTag("DASH_LIST", MEMBER, "SCOPE_MINE"));
+        assertEquals(1, summaryTag("DASH_LIST", MEMBER2, "SCOPE_DEPT"));
+        assertEquals(1, summaryTag("DASH_LIST_ENDED", LEAD, "SCOPE_TEAM"));
+        assertEquals(3, actByCol(done, "DASH_LIST_ROW", "OK", null));
+    }
+
+    @Test
+    public void D51_영업부서_밖은_범위_값과_무관하게_403이고_거부_감사의_TASK_CD는_형식이_맞을_때만_남는다() throws Exception {
+        assertEquals(403, list(DESIGNER, "scope=team", "open").getResponse().getStatus());
+        assertEquals(403, list(DESIGNER, "scope=bad", "open").getResponse().getStatus());
+        assertEquals(1, summaryTag("DASH_LIST", DESIGNER, "SCOPE_TEAM"));
+        assertEquals(1, summaryTag("DASH_LIST", DESIGNER, null));
     }
 }

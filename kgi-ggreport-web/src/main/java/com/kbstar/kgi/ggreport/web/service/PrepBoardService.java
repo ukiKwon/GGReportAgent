@@ -9,7 +9,6 @@ import com.kbstar.kgi.ggreport.web.domain.PrepBoardCheck;
 import com.kbstar.kgi.ggreport.web.domain.PrepBoardRef;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.PrepBoardIn;
-import com.kbstar.kgi.ggreport.web.mapper.BankContractMapper;
 import com.kbstar.kgi.ggreport.web.mapper.ExtCheckMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepBoardMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepMapper;
@@ -42,6 +41,7 @@ import java.util.Set;
  * 이름 가림: 상세를 못 여는 끝난 건(ended·can_view=false)은 확정자·담당자·체크자 이름을 모두 싣지 않는다(planner 11-23 P3-4).
  * 칸 값은 아이콘 4값(V 완료 DONE · △ 진행 IN_PROGRESS · - 대상 아님 NA · 빈칸 시작 전 NONE, 사용자 11-20 ③). 날짜는 입력받지 않고 서버가 체크한 날(KST)을 남긴다.
  * 열람: 영업팀·영업팀장·영업부장(영업부서 전원, ⑥) — 디자이너·그 밖은 403. 체크: 그 건의 활성 담당자만(setTask 와 같은 규칙, 팀장·부장도 담당이 아니면 403).
+ * 조회 범위(사용자 11-24): scope=mine|team|dept(없으면 역할 기본값, 그 밖 400) — 편의 거르기이지 열람 경계가 아니다(상세는 canSee 그대로).
  * 입찰 예정일(⑤, 사용자 11-23): 공고가 나온 기관은 공고 제출 마감일(EXT_CHECK notice·found·DEADLINE_AT 최신 1건, 지났어도 그대로), 없으면 약정 만료일.
  * 근거는 bid_expected_basis(notice|expiry). 행 순서: 입찰 예정일 오름차순(없으면 맨 뒤) → 확정 시각 → 기관 이름.
  * 저장: 건 행 잠금 → 담당 검사(security 3·4) → … → 추가 전용 INSERT + 성공 감사(같은 트랜잭션). 감사·접근 이력에 아이콘 값·날짜·이름을 넣지 않는다.
@@ -66,6 +66,14 @@ public class PrepBoardService {
      */
     static final Set<String> CHECK_STATES = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             PrepService.IN_PROGRESS, PrepService.APPROVAL_PENDING, PrepService.WRITABLE, PrepService.WRITING)));
+    public static final String SCOPE_MINE = "mine", SCOPE_TEAM = "team", SCOPE_DEPT = "dept";
+    static final List<String> SCOPES = Collections.unmodifiableList(Arrays.asList(SCOPE_MINE, SCOPE_TEAM, SCOPE_DEPT));
+    /**
+     * 팀·부서 작업에 실리는 상태 — 팀장 결재(개설 승인)가 끝난 건(사용자 11-24). 허용 목록이라 모르는 상태는 빠진다.
+     * CHECK_STATES 와 값은 같지만 뜻이 달라 따로 둔다(체크 허용 ≠ 열람 범위) — 한쪽을 바꿀 때 다른 쪽을 따라 바꾸지 말 것.
+     */
+    static final Set<String> SCOPE_OPENED_STATES = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+            PrepService.IN_PROGRESS, PrepService.APPROVAL_PENDING, PrepService.WRITABLE, PrepService.WRITING)));
     static final String BASIS_NOTICE = "notice", BASIS_EXPIRY = "expiry";
     static final String NONE = "NONE", IN_PROGRESS = "IN_PROGRESS", DONE = "DONE", NA = "NA";
     static final String MARK_GROUP = "DASH_MARK";          // 054 코드표
@@ -87,15 +95,72 @@ public class PrepBoardService {
     private final PrepBoardMapper mapper;
     private final PrepService prep;
     private final BidAssignmentService assignments;
-    private final BankContractMapper banks;   // P3-8 뒤 목록은 mapper 묶음 질의를 쓴다 — 생성자 시그니처 유지용(PrepBoardServiceTest), 다음 정리 때 제거
     private final NoticeRoundService notices;
     private final PrepAudit audit;
     private final ExtCheckMapper extChecks;
 
     public PrepBoardService(PrepMapper preps, PrepBoardMapper mapper, PrepService prep, BidAssignmentService assignments,
-                            BankContractMapper banks, NoticeRoundService notices, PrepAudit audit, ExtCheckMapper extChecks) {
+                            NoticeRoundService notices, PrepAudit audit, ExtCheckMapper extChecks) {
         this.preps = preps; this.mapper = mapper; this.prep = prep; this.assignments = assignments;
-        this.banks = banks; this.notices = notices; this.audit = audit; this.extChecks = extChecks;
+        this.notices = notices; this.audit = audit; this.extChecks = extChecks;
+    }
+
+    /** 점검 불가 사유(check_block) — null 이면 can_check. 상태 먼저, 담당 여부 나중(PUT save 는 반대로 담당 403 이 먼저지만 응답에는 상태가 더 알기 쉽다). */
+    // CANCELLED·승인 전 등 상태 판정을 담당 판정보다 먼저 한다 — 이름 가림 줄(P3-4)에서 담당 여부가 새지 않게. 순서를 바꾸지 말 것.
+    static String checkBlock(String stateCd, boolean mine) {
+        if (!CHECK_STATES.contains(stateCd)) {
+            if (PrepService.CONFIRMED.equals(stateCd) || PrepService.OPEN_PENDING.equals(stateCd)) { return "PRE_OPEN"; }
+            if (PrepService.CANCELLED.equals(stateCd)) { return "ENDED"; }
+            return "STATE";
+        }
+        return mine ? null : "NOT_MINE";
+    }
+
+    /** 만료 판정 — 날짜 풀이는 BankContractRules 한 곳(YYYY=12-31, YYYY-MM=그 달 말일). 오늘 만료는 유효, null·파싱 불가는 만료로 보아 제외. */
+    static boolean expired(String termTo, LocalDate today) {
+        LocalDate end = BankContractRules.endOrNull(termTo == null ? null : termTo.trim());
+        return end == null || end.isBefore(today);
+    }
+
+    /** 역할 기본값(팀 결정 11-24): 영업부장 dept, 영업팀장 team, 영업팀 mine. */
+    static String defaultScope(SysUser u) {
+        String r = u.getRole() == null ? "" : u.getRole().trim();
+        if (BidAssignmentService.HEAD_ROLE.equals(r)) { return SCOPE_DEPT; }
+        if (BidAssignmentService.LEAD_ROLE.equals(r)) { return SCOPE_TEAM; }
+        return SCOPE_MINE;
+    }
+
+    /** 파라미터가 없을 때만 역할 기본값. 빈 값·대소문자 다름·공백 포함은 400(입력값을 메시지에 되풀이하지 않는다). */
+    static String resolveScope(SysUser u, String raw) {
+        if (raw == null) { return defaultScope(u); }
+        if (!SCOPES.contains(raw)) {
+            throw coded(400, "BAD_SCOPE", "조회 범위는 내 작업·팀 작업·부서 작업 중 하나여야 합니다.");
+        }
+        return raw;
+    }
+
+    /** 감사 TASK_CD 값 — 형식이 맞을 때만 SCOPE_*, 아니면 null(입력값을 감사에 싣지 않는다). */
+    public static String scopeTag(String scope) {
+        return scope != null && SCOPES.contains(scope) ? "SCOPE_" + scope.toUpperCase(java.util.Locale.ROOT) : null;
+    }
+
+    /**
+     * 범위 판정. active: 그 건의 활성 담당 사번, ever: 끝난 건의 배정 이력 사번, team: 팀 사번(null 이면 팀 제한 없음 — 부장의 team).
+     * mine = 확정자 본인 또는 활성 담당(개설 전 포함) + 끝난 건은 옛 담당도.
+     * team/dept = 개설 승인 뒤(SCOPE_OPENED_STATES) + 끝난 건은 개설 뒤 중단(OPENED_AT 있음)만 — 확정 취소(개설 전)는 결재가 없어 빠진다.
+     */
+    static boolean inScope(String scope, BidPrep p, String meEmp, Set<String> active, Set<String> ever, Set<String> team) {
+        boolean ended = PrepService.CANCELLED.equals(p.getStateCd());
+        if (SCOPE_MINE.equals(scope)) {
+            return meEmp.equals(p.getConfirmedBy()) || active.contains(meEmp) || (ended && ever.contains(meEmp));
+        }
+        boolean opened = ended ? p.getOpenedAt() != null : SCOPE_OPENED_STATES.contains(p.getStateCd());
+        if (!opened) { return false; }
+        if (SCOPE_DEPT.equals(scope) || team == null) { return true; }
+        for (String e : ended ? ever : active) {
+            if (team.contains(e)) { return true; }
+        }
+        return false;
     }
 
     /** 영업부서 전원 — 영업팀·영업팀장·영업부장(사용자 11-20 ⑥). */
@@ -155,18 +220,44 @@ public class PrepBoardService {
 
     // ── 목록(행 × 열 한 번에) ─────────────────────────────────────────
     @Transactional(readOnly = true)
-    public Map<String, Object> list(SysUser me, boolean includeEnded) {
+    public Map<String, Object> list(SysUser me, boolean includeEnded, String scopeRaw) {
         if (!canList(me)) {
             throw new ApiException(403, "이 기능을 쓸 권한이 없습니다.");
         }
-        // 활성 건은 기관당 1줄(selectList 는 CONFIRMED_AT DESC — 024 잠금 규칙이 활성 1건 보장, 어긋나면 최근 확정 1건).
+        String scope = resolveScope(me, scopeRaw);   // 403 다음에 400 — 영업부서 밖은 범위 값과 무관하게 403
+        Map<String, List<String>> names = new HashMap<String, List<String>>();
+        Set<String> mine = new HashSet<String>();   // 활성 담당(isActiveAssignee 와 같은 기준: BID_ASSIGNMENT.ACTIVE_YN=1 + 사번) — 묶음 질의로 판정
+        Map<String, Set<String>> activeEmps = new HashMap<String, Set<String>>();
+        for (PrepBoardRef a : mapper.selectActiveAssignees()) {
+            if (a.getName() != null) { bucket(names, a.getBidCaseId()).add(a.getName()); }
+            if (me.getEmpNo().equals(a.getEmpNo())) { mine.add(a.getBidCaseId()); }
+            bucketSet(activeEmps, a.getBidCaseId()).add(a.getEmpNo());
+        }
+        Map<String, Set<String>> everEmps = new HashMap<String, Set<String>>();
+        if (includeEnded && !SCOPE_DEPT.equals(scope)) {   // dept 는 사람을 보지 않는다 — 질의 생략
+            for (PrepBoardRef a : mapper.selectEndedEverAssignees()) { bucketSet(everEmps, a.getBidCaseId()).add(a.getEmpNo()); }
+        }
+        Set<String> team = null;   // null = 팀 제한 없음(dept, 부장의 team)
+        boolean teamResolved = true;
+        if (SCOPE_TEAM.equals(scope) && !BidAssignmentService.HEAD_ROLE.equals(me.getRole() == null ? "" : me.getRole().trim())) {
+            Set<String> t = assignments.salesTeamEmpNos(me);
+            teamResolved = t != null;
+            team = t != null ? t : Collections.singleton(me.getEmpNo());   // 팀장을 못 정하면 나 혼자로 좁힌다(넓히지 않음)
+        }
+        Set<String> none = Collections.<String>emptySet();
+        // 활성 건은 기관당 1줄(selectList 는 CONFIRMED_AT DESC — 024 잠금 규칙이 활성 1건 보장, 어긋나면 최근 확정 1건) — 기관 중복 제거를 범위 거르기보다 먼저(옛 활성 중복이 대신 올라오지 않게).
         // 끝난 건(CANCELLED)은 include_ended 일 때 건마다 1줄 — 같은 기관의 옛 취소·중단 건도 열 수 있게(planner 11-23 P3-6).
         List<BidPrep> ordered = new ArrayList<BidPrep>();
         Set<String> activeInst = new HashSet<String>();
         for (BidPrep p : preps.selectList()) {
             if (!PrepService.CANCELLED.equals(p.getStateCd())) {
-                if (activeInst.add(p.getInstitutionId())) { ordered.add(p); }
-            } else if (includeEnded) {
+                if (!activeInst.add(p.getInstitutionId())) { continue; }
+            } else if (!includeEnded) {
+                continue;
+            }
+            String bid = p.getBidCaseId();
+            if (inScope(scope, p, me.getEmpNo(), activeEmps.containsKey(bid) ? activeEmps.get(bid) : none,
+                    everEmps.containsKey(bid) ? everEmps.get(bid) : none, team)) {
                 ordered.add(p);
             }
         }
@@ -174,12 +265,6 @@ public class PrepBoardService {
         Collections.sort(ordered, rowOrder(noticeDue));
         Map<String, List<BidPrepTask>> tasks = new HashMap<String, List<BidPrepTask>>();
         for (BidPrepTask t : mapper.selectAllTasks()) { bucket(tasks, t.getBidCaseId()).add(t); }
-        Map<String, List<String>> names = new HashMap<String, List<String>>();
-        Set<String> mine = new HashSet<String>();   // 활성 담당(isActiveAssignee 와 같은 기준: BID_ASSIGNMENT.ACTIVE_YN=1 + 사번) — 묶음 질의로 판정
-        for (PrepBoardRef a : mapper.selectActiveAssignees()) {
-            if (a.getName() != null) { bucket(names, a.getBidCaseId()).add(a.getName()); }
-            if (me.getEmpNo().equals(a.getEmpNo())) { mine.add(a.getBidCaseId()); }
-        }
         Map<String, String> confirmers = new HashMap<String, String>();
         for (PrepBoardRef c : mapper.selectConfirmers()) { confirmers.put(c.getBidCaseId(), c.getName()); }
         Set<String> designFinal = new HashSet<String>(mapper.selectDesignFinalCases(Teams.DESIGNER_TEAM, Teams.FINAL_STATUS));
@@ -199,7 +284,7 @@ public class PrepBoardService {
             m.put(c.getColCd(), c);
         }
         String today = Times.todayKst();
-        Map<String, List<Map<String, Object>>> banksByInst = currentBanksByInst(today);   // P3-8: 기관별 묶음 1회
+        Map<String, List<Map<String, Object>>> banksByInst = currentBanksByInst(LocalDate.parse(today));   // P3-8: 기관별 묶음 1회
         List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>();
         for (BidPrep p : ordered) {
             String bid = p.getBidCaseId();
@@ -226,7 +311,9 @@ public class PrepBoardService {
                     ? banksByInst.get(p.getInstitutionId()) : Collections.<Map<String, Object>>emptyList());
             m.put("can_view", canView);
             m.put("is_mine", mine.contains(bid));
-            m.put("can_check", mine.contains(bid) && CHECK_STATES.contains(p.getStateCd()));
+            String block = checkBlock(p.getStateCd(), mine.contains(bid));
+            m.put("can_check", block == null);
+            m.put("check_block", block);
             Map<String, Object> cells = new LinkedHashMap<String, Object>();
             for (PrepBoardColumns.Col c : PrepBoardColumns.ALL) {
                 if (PrepBoardColumns.NOTICE.equals(c.kind)) {
@@ -245,6 +332,9 @@ public class PrepBoardService {
         out.put("groups", PrepBoardColumns.GROUPS);
         out.put("marks", marks());
         out.put("today", today);
+        out.put("scope", scope);
+        out.put("scope_default", defaultScope(me));
+        out.put("team_resolved", teamResolved);
         out.put("rows", rows);
         return out;
     }
@@ -324,10 +414,10 @@ public class PrepBoardService {
     }
 
     /** 기관 → 지금 유효한(만료 안 된) 약정 줄. 질의 1회(qa P3-8 — 예전엔 행마다 selectLatestValid). 같은 기관 안 순서는 줄 번호순. */
-    private Map<String, List<Map<String, Object>>> currentBanksByInst(String today) {
+    private Map<String, List<Map<String, Object>>> currentBanksByInst(LocalDate today) {
         Map<String, List<Map<String, Object>>> out = new HashMap<String, List<Map<String, Object>>>();
         for (PrepBoardBank c : mapper.selectLatestValidBanks()) {
-            if (c.getTermTo() == null || c.getTermTo().compareTo(today) < 0) { continue; }
+            if (expired(c.getTermTo(), today)) { continue; }
             Map<String, Object> b = new LinkedHashMap<String, Object>();
             b.put("rank_cd", c.getRankCd());
             b.put("bank_name", c.getBankName());
@@ -459,6 +549,12 @@ public class PrepBoardService {
         List<T> l = m.get(k);
         if (l == null) { l = new ArrayList<T>(); m.put(k, l); }
         return l;
+    }
+
+    private static Set<String> bucketSet(Map<String, Set<String>> m, String k) {
+        Set<String> s = m.get(k);
+        if (s == null) { s = new HashSet<String>(); m.put(k, s); }
+        return s;
     }
 
     private static ApiException stale() {

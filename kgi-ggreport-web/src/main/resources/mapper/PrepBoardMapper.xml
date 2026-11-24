@@ -25,6 +25,15 @@
      ORDER BY a.BID_CASE_ID, a.ASSIGNED_AT, a.EMP_NO
   </select>
 
+  <!-- 조회 범위(NEXT 102 scope) — 끝난 건(CANCELLED)의 옛 담당까지(ACTIVE_YN 무관, 실제 중단은 배정을 해제한다). 사번만, 이름 없음. -->
+  <select id="selectEndedEverAssignees" resultType="PrepBoardRef" flushCache="true">
+    SELECT DISTINCT a.BID_CASE_ID, a.EMP_NO
+      FROM BID_ASSIGNMENT a
+      JOIN BID_PREP p ON p.BID_CASE_ID = a.BID_CASE_ID
+     WHERE p.STATE_CD = 'CANCELLED'
+     ORDER BY a.BID_CASE_ID, a.EMP_NO
+  </select>
+
   <select id="selectConfirmers" resultType="PrepBoardRef" flushCache="true">
     SELECT p.BID_CASE_ID, p.CONFIRMED_BY AS EMP_NO, u.NAME
       FROM BID_PREP p
@@ -41,9 +50,10 @@
   </select>
 
   <!-- 약정 줄별 최신 개정이 SAVE 인 것(BankContractMapper.selectLatestValid 와 같은 기준: 줄의 더 큰 REV_NO 가 없고 ACTION_CD='SAVE')을 전 기관 한 번에(P3-8).
-       은행 이름은 COMMON_CODE(BANK) 이름, 없으면 BANK_NAME_ETC. 만료(TERM_TO) 걸러내기는 서비스가 오늘 날짜로 한다. -->
+       은행 이름: ETC 이고 직접 입력 이름이 있으면 그 이름, 아니면 COMMON_CODE(BANK) 이름 → BANK_NAME_ETC → 코드값(InstSummaryPrefill.bankText 와 같은 순서). 만료(TERM_TO) 걸러내기는 서비스가 오늘 날짜로 한다. -->
   <select id="selectLatestValidBanks" resultType="PrepBoardBank" flushCache="true">
-    SELECT b.INSTITUTION_ID, b.CONTRACT_NO, b.RANK_CD, COALESCE(c.CODE_NAME, b.BANK_NAME_ETC) AS BANK_NAME, b.TERM_TO
+    SELECT b.INSTITUTION_ID, b.CONTRACT_NO, b.RANK_CD, CASE WHEN b.BANK_CD = 'ETC' AND NULLIF(TRIM(b.BANK_NAME_ETC), '') IS NOT NULL THEN b.BANK_NAME_ETC
+                ELSE COALESCE(c.CODE_NAME, b.BANK_NAME_ETC, b.BANK_CD) END AS BANK_NAME, b.TERM_TO
       FROM INST_BANK_CONTRACT b
       LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'BANK' AND c.CODE = b.BANK_CD
      WHERE b.ACTION_CD = 'SAVE'

@@ -49,9 +49,9 @@ public class PrepAudit {
      * 호출한 쪽이 500 을 낸다(데이터 안 나감). 이름·칸 값은 쓰지 않는다.
      */
     @Transactional
-    public void recordList(String action, String rowAction, List<String[]> rows, Actor actor, BoardUiIds.Ui ui) {
+    public void recordList(String action, String rowAction, List<String[]> rows, String summaryTaskCd, Actor actor, BoardUiIds.Ui ui) {
         String at = Times.nowIso();
-        insert("NONE", action, "OK", "NONE", null, null, actor, ui, at);
+        insert("NONE", action, "OK", "NONE", summaryTaskCd, null, actor, ui, at);   // 요약 줄 TASK_CD = 조회 범위(SCOPE_*), 건 줄은 NULL 그대로
         for (String[] r : rows) {
             insert(r[0], rowAction, "OK", r[1], null, null, actor, ui, at);
         }

@@ -149,6 +149,25 @@ test('glyphSvg: 체크·세모·가로줄 획 글리프, 시작 전은 빈 글�
   assert.strictEqual(pb.glyphKind('DONE') + pb.glyphKind('IN_PROGRESS') + pb.glyphKind('NA') + pb.glyphKind('NONE'), 'doneprogna');
 });
 
+// ── 열 머리 글자·표 정렬 규격(design 11-24 6-1~6-3) ──
+test('headLabel: esc 먼저, 괄호 앞에만 <wbr> — 머리 출력에 반영', function () {
+  assert.strictEqual(pb.headLabel('가결위(재무)'), '가결위<wbr>(재무)');
+  assert.strictEqual(pb.headLabel('A<b>(x)'), 'A&lt;b&gt;<wbr>(x)');
+  assert.strictEqual(pb.headLabel('사무국'), '사무국');
+  const head = pb.headHtml(COLUMNS, GROUPS);
+  assert.ok(head.indexOf('rowspan="2" scope="col">가결위<wbr>(재무)') > 0);
+  assert.ok(head.indexOf('출심위<wbr>(사업부)') > 0);
+});
+
+test('CSS: 칸 열 68px, 머리 세로 가운데, 칸 안 2줄 grid', function () {
+  assert.ok(/col\.c-mk \{ width:68px; \}/.test(HTML));
+  assert.ok(!/col\.c-mk \{ width:60px; \}/.test(HTML));
+  assert.ok(/thead th\[rowspan="2"\] \{[^}]*vertical-align:middle;/.test(HTML));
+  assert.ok(!/thead th\[rowspan="2"\] \{[^}]*vertical-align:bottom;/.test(HTML));
+  assert.ok(/thead th\.pb-corner \{[^}]*vertical-align:middle;/.test(HTML));
+  assert.ok(/\.pb-in, \.pb-mk \{[^}]*grid-template-rows:14px 14px;[^}]*height:43px;/.test(HTML));
+});
+
 // ── 표 전체 ──
 test('tableHtml: 머리 2줄·행마다 이름 칸 + 27칸·aria 수·끝난 행·이름 링크 여부', function () {
   const rows = [
@@ -183,41 +202,86 @@ test('rowHtml: 담당이 없으면 \'담당 미정\', 상태 이름이 비면 �
 });
 
 // ── 거르기 ──
-test('filterRows: 이름 검색·담당자·내 담당 — 서버 순서(입찰 예정일 순)를 그대로 둔다', function () {
+test('filterRows: 이름 검색만 — 범위(is_mine)로 다시 거르지 않고 서버 순서(입찰 예정일 순)를 그대로 둔다', function () {
   const rows = [
-    row({ bid_case_id: 'a', institution_name: '청주시', assignee_names: ['김영업'], is_mine: true }),
-    row({ bid_case_id: 'b', institution_name: '진주시', assignee_names: ['이영업', '김영업'], is_mine: false }),
-    row({ bid_case_id: 'c', institution_name: '서울시', assignee_names: [], is_mine: false }),
-    row({ bid_case_id: 'd', institution_name: '청주시청', assignee_names: ['이영업'], is_mine: false }),
+    row({ bid_case_id: 'a', institution_name: '청주시', is_mine: true }),
+    row({ bid_case_id: 'b', institution_name: '진주시', is_mine: false }),
+    row({ bid_case_id: 'c', institution_name: '서울시', is_mine: false }),
+    row({ bid_case_id: 'd', institution_name: '청주시청', is_mine: false }),
   ];
   const ids = function (f) { return pb.filterRows(rows, f).map(function (r) { return r.bid_case_id; }).join(''); };
   assert.strictEqual(ids({}), 'abcd');
   assert.strictEqual(ids({ q: '  청주 ' }), 'ad');
   assert.strictEqual(ids({ q: '시' }), 'abcd');
-  assert.strictEqual(ids({ who: pb.WHO_MINE }), 'a');
-  assert.strictEqual(ids({ who: '김영업' }), 'ab');
-  assert.strictEqual(ids({ who: '이영업', q: '진주' }), 'b');
-  assert.strictEqual(ids({ who: '없는사람' }), '');
+  assert.strictEqual(ids({ q: '진주' }), 'b');
+  assert.strictEqual(ids({ q: '없는곳' }), '');
   assert.strictEqual(ids(null), 'abcd');
+  assert.strictEqual(ids({ who: '@mine' }), 'abcd', '옛 담당자 거르기는 없다');
   assert.deepStrictEqual(pb.filterRows(null, {}), []);
+  assert.strictEqual(pb.whoOptions, undefined); assert.strictEqual(pb.WHO_MINE, undefined);
 });
 
-test('whoOptions: 전체 · 내 담당 · 이름 가나다순(중복 제거)', function () {
-  const rows = [row({ assignee_names: ['이영업', '김영업'] }), row({ assignee_names: ['김영업', '박영업'] }), row({ assignee_names: [] })];
-  assert.deepStrictEqual(pb.whoOptions(rows).map(function (o) { return o.label; }), ['전체', '내 담당', '김영업', '박영업', '이영업']);
-  assert.deepStrictEqual(pb.whoOptions(rows).slice(0, 2).map(function (o) { return o.value; }), ['', pb.WHO_MINE]);
-  assert.deepStrictEqual(pb.whoOptions([]).map(function (o) { return o.label; }), ['전체', '내 담당']);
+// ── 조회 범위(내 작업·팀 작업·부서 작업, 사용자 11-24) ──
+test('scopeLabel·scopeValid: 3가지뿐, 모르면 내 작업', function () {
+  assert.deepStrictEqual(pb.SCOPES, ['mine', 'team', 'dept']);
+  assert.deepStrictEqual(['mine', 'team', 'dept'].map(pb.scopeLabel), ['내 작업', '팀 작업', '부서 작업']);
+  assert.strictEqual(pb.scopeLabel(''), '내 작업');
+  assert.strictEqual(pb.scopeValid('team'), true);
+  ['', 'all', 'MINE', null, undefined].forEach(function (s) { assert.strictEqual(pb.scopeValid(s), false); });
+});
+
+test('boardUrl: 첫 요청은 scope 없이, 범위를 알면 scope를, 끝난 건 포함은 &로', function () {
+  assert.strictEqual(pb.boardUrl('', false), '/prep-board');
+  assert.strictEqual(pb.boardUrl(undefined, false), '/prep-board');
+  assert.strictEqual(pb.boardUrl('team', false), '/prep-board?scope=team');
+  assert.strictEqual(pb.boardUrl('dept', true), '/prep-board?scope=dept&include_ended=true');
+  assert.strictEqual(pb.boardUrl('', true), '/prep-board?include_ended=true');
+  assert.strictEqual(pb.boardUrl('all', false), '/prep-board', '모르는 값은 싣지 않는다');
+});
+
+test('scopeNoteText·liveText: 팀·부서일 때만 안내, team_resolved:false는 앞에 결재선 안내', function () {
+  assert.strictEqual(pb.scopeNoteText('mine', true), '');
+  assert.strictEqual(pb.scopeNoteText('', true), '');
+  assert.strictEqual(pb.scopeNoteText('team', true), pb.T.scopeNote);
+  assert.strictEqual(pb.scopeNoteText('dept', true), pb.T.scopeNote);
+  assert.strictEqual(pb.scopeNoteText('dept', false), pb.T.scopeNote, '부서는 team_resolved와 무관');
+  const t = pb.scopeNoteText('team', false);
+  assert.ok(t.indexOf('상위 결재자(소속 팀장)가 지정되지 않아 팀 작업에 내가 담당한 기관만 나옵니다. 시스템 관리자에게 상위 결재자 지정을 요청하세요.') === 0 && t.indexOf(pb.T.scopeNote) > 0);
+  assert.ok(pb.T.scopeNote.indexOf('개설 승인(팀장 결재)이 끝난 기관만') > 0);
+  assert.strictEqual(pb.liveText('team', 12), '팀 작업, 기관 12곳');
+  assert.strictEqual(pb.liveText('mine', 0), '내 작업, 기관 0곳');
 });
 
 test('countHtml·emptyModel·readOnlyAll', function () {
   assert.strictEqual(pb.countHtml(pb.countModel(12, 12)), '기관 <b>12</b>곳');
   assert.strictEqual(pb.countHtml(pb.countModel(3, 12)), '기관 <b>3</b>곳 중 <b>12</b>곳');
-  assert.deepStrictEqual(pb.emptyModel(0, 0, {}), { kind: 'none', text: pb.T.empty, action: 'map' });
-  assert.strictEqual(pb.emptyModel(5, 2, {}), null);
-  assert.deepStrictEqual(pb.emptyModel(5, 0, { q: ' 가나 ' }), { kind: 'query', text: '\'가나\'와 맞는 기관이 없습니다.', action: 'clear' });
-  assert.strictEqual(pb.emptyModel(5, 0, { who: '김영업' }).text, '김영업 담당 기관이 없습니다.');
-  assert.strictEqual(pb.emptyModel(5, 0, { who: pb.WHO_MINE }).text, '내 담당 기관이 없습니다.');
-  assert.ok(pb.T.empty.indexOf('[제안 확정]') > 0 && pb.T.openMap === '지역별 공고현황 열기');
+  const acts = function (m) { return m.actions.map(function (a) { return a.act + ':' + a.label; }).join('|'); };
+  // 빈 결과 6-4: 범위별 문구·단추
+  const m0 = pb.emptyModel(0, 0, { scope: 'mine' });
+  assert.strictEqual(m0.text, pb.T.emptyMine);
+  assert.strictEqual(acts(m0), 'map:지역별 공고현황 열기|scope-team:팀 작업 보기');
+  assert.deepStrictEqual(pb.emptyModel(0, 0, {}), m0, '범위를 모르면 내 작업');
+  const mt = pb.emptyModel(0, 0, { scope: 'team' });
+  assert.strictEqual(mt.text, '팀에 개설 승인이 끝난 기관이 없습니다. 개설 전 기관은 내 작업에서 봅니다.');
+  assert.strictEqual(acts(mt), 'scope-mine:내 작업 보기');
+  const ms = pb.emptyModel(0, 0, { scope: 'team', teamResolved: false });
+  assert.strictEqual(ms.text, '내가 담당한 기관 중 개설 승인이 끝난 곳이 없습니다. 개설 전 기관은 내 작업에서 봅니다.');
+  assert.strictEqual(acts(ms), 'scope-mine:내 작업 보기');
+  assert.strictEqual(pb.emptyModel(0, 0, { scope: 'team', teamResolved: true }).text, pb.T.emptyTeam, '결재선이 있으면 팀 문구');
+  assert.strictEqual(pb.emptyModel(0, 0, { scope: 'dept', teamResolved: false }).text, pb.T.emptyDept, '부서는 team_resolved와 무관');
+  const md = pb.emptyModel(0, 0, { scope: 'dept' });
+  assert.strictEqual(md.text, '부서에 개설 승인이 끝난 기관이 없습니다. 개설 전 기관은 내 작업에서 봅니다.');
+  assert.strictEqual(acts(md), 'scope-mine:내 작업 보기');
+  assert.strictEqual(pb.emptyModel(5, 2, { scope: 'team' }), null);
+  assert.strictEqual(pb.emptyModel(5, 0, { scope: 'team' }), null, '검색어가 없으면 표를 그린다');
+  // 범위 안 검색 0건: 받침에 맞춰 과/와, 단추는 검색어만 지움
+  const q1 = pb.emptyModel(5, 0, { q: ' 청주 ', scope: 'team' });
+  assert.deepStrictEqual(q1, { kind: 'query', text: '팀 작업에서 \'청주\'와 맞는 기관이 없습니다.', actions: [{ act: 'clearq', label: '검색 지우기' }] });
+  assert.strictEqual(pb.emptyModel(5, 0, { q: '진주', scope: 'dept' }).text, '부서 작업에서 \'진주\'와 맞는 기관이 없습니다.');
+  assert.strictEqual(pb.emptyModel(5, 0, { q: '북구', scope: 'mine' }).text, '내 작업에서 \'북구\'와 맞는 기관이 없습니다.');
+  assert.strictEqual(pb.emptyModel(5, 0, { q: '강남', scope: 'mine' }).text, '내 작업에서 \'강남\'과 맞는 기관이 없습니다.');
+  assert.ok(pb.T.emptyMine.indexOf('[제안 확정]') > 0 && pb.T.openMap === '지역별 공고현황 열기');
+  assert.strictEqual(pb.T.all, '전체', 'headModel이 쓰는 T.all은 남긴다');
   assert.strictEqual(pb.readOnlyAll([row({ can_check: false }), row({ can_check: false })]), true);
   assert.strictEqual(pb.readOnlyAll([row({ can_check: false }), row({ can_check: true })]), false);
   assert.strictEqual(pb.readOnlyAll([]), false);
@@ -420,7 +484,9 @@ test('소스 규칙: 저장소·자동 새로고침·confirm·외부 주소·새
   assert.ok(SRC.indexOf("pb.SCREEN = 'prep_dashboard'") > 0);
   assert.ok(SRC.indexOf("ui('dash_check')") > 0 && SRC.indexOf('function ui(button) { return { screen: pb.SCREEN, button: button }; }') > 0);
   assert.ok(/load\(x\.reload \? 'refresh' : 'open'/.test(SRC) && /load\('refresh'\)/.test(SRC));
-  assert.ok(SRC.indexOf("'/prep-board' + (B.ended ? '?include_ended=true' : '')") > 0);
+  assert.ok(SRC.indexOf("hooks.req('GET', pb.boardUrl(B.scope, B.ended), undefined, ui(button))") > 0);
+  assert.ok(!/B\.who|el\('pb-who'\)|WHO_MINE|whoOptions/.test(SRC), '담당자 거르기 없음(이름 칸의 .pb-who 글자 줄은 별개)');
+  assert.strictEqual((SRC.match(/\.is_mine/g) || []).length, 1, 'is_mine은 \'내 담당\' 칩에만 쓴다(범위 거르기에 쓰지 않는다)');
   assert.ok(SRC.indexOf("'/prep/board-checks/'") > 0 && /'PUT', '\/bidcases\//.test(SRC));
   assert.ok(/mark_cd: mark, base_rev: base/.test(SRC), '본문은 mark_cd·base_rev만(날짜·사람은 서버가 정한다)');
   assert.ok(!/done_date/.test(SRC));
@@ -457,7 +523,7 @@ test('prep.openCase·상세 요청 화면 이름: 표에서 연 상세만 prep_d
 // ── index.html (main이 마크업·script·CSS를 넣은 뒤부터 켜진다) ──
 test('index.html: 표 마크업·script 순서·CSS 규칙(들어간 경우에만)', function () {
   if (HTML.indexOf('id="pp-board"') < 0 && HTML.indexOf('js/prepboard.js') < 0) return;
-  ['pp-board', 'pb-title', 'pb-q', 'pb-who', 'pb-ended', 'pb-count', 'pb-at', 'pb-refresh', 'pb-legend', 'pb-ro', 'pb-err', 'pb-scroll', 'pb-info', 'pb-live'].forEach(function (id) {
+  ['pp-board', 'pb-title', 'pb-scope', 'pb-scope-note', 'pb-q', 'pb-ended', 'pb-count', 'pb-at', 'pb-refresh', 'pb-legend', 'pb-ro', 'pb-err', 'pb-scroll', 'pb-info', 'pb-live'].forEach(function (id) {
     assert.ok(HTML.indexOf('id="' + id + '"') > 0, id);
   });
   ['pp-root', 'pp-gate', 'pp-wrap', 'pp-list', 'pp-pane', 'pp-case', 'pp-modal'].forEach(function (id) { assert.ok(HTML.indexOf('id="' + id + '"') > 0, id); });
@@ -471,6 +537,25 @@ test('index.html: 표 마크업·script 순서·CSS 규칙(들어간 경우에�
   assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')), '새 hex 금지(토큰만)');
   (css.match(/font-size:\s*(\d+)px/g) || []).forEach(function (m) { assert.ok(Number(m.match(/(\d+)/)[1]) >= 12, m); });
   assert.ok(!/box-shadow:\s*0\s/.test(css), '번지는 그림자 금지');
+});
+
+test('조회 범위 세그먼트 마크업: 그룹 이름·단추 3개·aria-pressed·안내 줄, 담당자 select 없음, #pb-q는 그 뒤', function () {
+  const i = HTML.indexOf('<div class="pb-scope"');
+  assert.ok(i > 0, '세그먼트 있음');
+  const g = HTML.slice(i, HTML.indexOf('</div>', i));
+  assert.ok(g.indexOf('id="pb-scope"') > 0 && g.indexOf('role="group"') > 0 && g.indexOf('aria-label="조회 범위"') > 0 && g.indexOf('aria-describedby="pb-scope-note"') > 0);
+  assert.deepStrictEqual(g.match(/<button type="button" class="pb-sc" data-scope="(mine|team|dept)" aria-pressed="(true|false)">[^<]+<\/button>/g), [
+    '<button type="button" class="pb-sc" data-scope="mine" aria-pressed="true">내 작업</button>',
+    '<button type="button" class="pb-sc" data-scope="team" aria-pressed="false">팀 작업</button>',
+    '<button type="button" class="pb-sc" data-scope="dept" aria-pressed="false">부서 작업</button>']);
+  assert.ok(HTML.indexOf('id="pb-q"') > HTML.indexOf('id="pb-scope"'), '검색은 범위 뒤');
+  assert.ok(HTML.indexOf('id="pb-who"') < 0 && HTML.indexOf('담당자 <select') < 0);
+  assert.ok(/<p id="pb-scope-note" class="pb-legend" hidden>[^<]*개설 승인\(팀장 결재\)이 끝난 기관만[^<]*<\/p>/.test(HTML));
+  assert.ok(HTML.indexOf('id="pb-scope-note"') < HTML.indexOf('id="pb-legend"'), '안내 줄은 범례 앞');
+  assert.ok(/\.pb-sc\[aria-pressed="true"\] \{[^}]*font-weight:700;/.test(HTML) && /\.pb-sc:focus-visible \{/.test(HTML) && /\.pb-scope \{ display:inline-flex; \}/.test(HTML));
+  // JS 문구와 마크업이 같은 말
+  assert.ok(HTML.indexOf(pb.T.scopeNote) > 0);
+  ['scopeMine', 'scopeTeam', 'scopeDept'].forEach(function (k) { assert.ok(g.indexOf('>' + pb.T[k] + '<') > 0, k); });
 });
 
 // ── DOM 모의: 계정 전환(reset) 회귀 (qa 11-23 P2-1·P3-1) ──
@@ -531,6 +616,224 @@ test('T9 reset: 칸 메뉴가 열린 채 계정 전환 → 메뉴는 숨겨진�
   assert.strictEqual(ENV.menu.style.display, '', '메뉴가 열렸다');
   pb.reset();
   assert.strictEqual(ENV.menu.style.display, 'none', 'reset 뒤 메뉴가 숨겨진다');
+}));
+
+// ── 조회 범위 동작(DOM 모의) ──
+function recHooks() {
+  const h = { calls: [], pend: [], roleLabel: '영업', openCase: function () {}, openMap: function () {} };
+  h.req = function (method, url) { h.calls.push(url); return new Promise(function (res, rej) { h.pend.push({ res: res, rej: rej }); }); };
+  return h;
+}
+function btnOf(attrs) {   // 칸이 아닌 일반 단추(범위 칩·빈 표 단추)
+  const b = { classList: { contains: function () { return false; } }, id: attrs.id || '',
+    getAttribute: function (k) { return has(attrs, k) ? attrs[k] : null; }, closest: function (s) { return s === 'button' ? b : null; } };
+  return b;
+}
+function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+function scopeData(scope, names, extra) {
+  return Object.assign({ columns: COLUMNS, groups: GROUPS, marks: MARKS, today: '2026-11-24', scope: scope, scope_default: 'mine', team_resolved: true,
+    rows: names.map(function (n, i) { return row({ bid_case_id: 'B' + i, institution_name: n, is_mine: i === 0 }); }) }, extra || {});
+}
+// 범위 묶음·안내 줄·알림 칸을 흉내 낸다(기본 ENV에는 없다)
+function withScopeEls(fn) {
+  return withDom(async function () {
+    const pressed = {};
+    const chips = ['mine', 'team', 'dept'].map(function (s) {
+      pressed[s] = 'true';
+      return { getAttribute: function (k) { return k === 'data-scope' ? s : null; }, setAttribute: function (k, v) { if (k === 'aria-pressed') pressed[s] = v; } };
+    });
+    const els = { 'pb-scope': { querySelectorAll: function () { return chips; } }, 'pb-scope-note': { hidden: true, textContent: '' }, 'pb-live': { textContent: '' }, 'pb-err': { textContent: '' } };
+    const orig = ENV.doc.getElementById;
+    ENV.doc.getElementById = function (id) { return has(els, id) ? els[id] : orig(id); };
+    try { await fn({ pressed: pressed, note: els['pb-scope-note'], live: els['pb-live'], err: els['pb-err'] }); }
+    finally { ENV.doc.getElementById = orig; }
+  });
+}
+
+test('범위 요청: 첫 요청은 scope 없이, 칩을 바꾸면 scope가 붙고 새로 고침·끝난 건 포함에도 유지, 계정 전환 뒤에는 다시 scope 없이', withDom(async function () {
+  const h = recHooks();
+  pb.show(h, {});
+  assert.deepStrictEqual(h.calls, ['/prep-board']);
+  h.pend[0].res(scopeData('team', ['청주시']));
+  await flush();
+  ENV.L.click({ target: btnOf({ 'data-scope': 'mine' }) });
+  assert.strictEqual(h.calls[1], '/prep-board?scope=mine');
+  h.pend[1].res(scopeData('mine', ['청주시']));
+  await flush();
+  ENV.L.click({ target: btnOf({ id: 'pb-refresh' }) });
+  assert.strictEqual(h.calls[2], '/prep-board?scope=mine');
+  h.pend[2].res(scopeData('mine', ['청주시']));
+  await flush();
+  ENV.L.change({ target: { id: 'pb-ended', checked: true } });
+  assert.strictEqual(h.calls[3], '/prep-board?scope=mine&include_ended=true');
+  h.pend[3].res(scopeData('mine', ['청주시']));
+  await flush();
+  ENV.L.click({ target: btnOf({ 'data-scope': 'mine' }) });   // 이미 눌린 범위를 또 눌러도 다시 부르지 않는다
+  assert.strictEqual(h.calls.length, 4);
+  ENV.L.click({ target: btnOf({ 'data-scope': 'bad' }) });    // 모르는 값은 무시
+  assert.strictEqual(h.calls.length, 4);
+  pb.reset();
+  const h2 = recHooks();
+  pb.show(h2, {});
+  assert.deepStrictEqual(h2.calls, ['/prep-board'], '계정 전환 뒤 범위는 새 응답으로 정해진다');
+}));
+
+test('범위 칩: 응답 scope가 눌림·안내 줄을 정하고, 칩을 누르면 바로 눌리고 로딩, 서버가 준 줄은 is_mine과 무관하게 모두 보인다', withScopeEls(async function (e) {
+  const h = recHooks();
+  pb.show(h, {});
+  h.pend[0].res(scopeData('team', ['청주시', '진주시'], { team_resolved: false }));
+  await flush();
+  assert.deepStrictEqual([e.pressed.mine, e.pressed.team, e.pressed.dept], ['false', 'true', 'false']);
+  assert.strictEqual(e.note.hidden, false);
+  assert.ok(e.note.textContent.indexOf('상위 결재자(소속 팀장)가 지정되지 않아 팀 작업에 내가 담당한 기관만 나옵니다.') === 0);
+  assert.ok(ENV.box.innerHTML.indexOf('청주시') >= 0 && ENV.box.innerHTML.indexOf('진주시') >= 0, 'is_mine=false 줄도 그대로');
+  ENV.L.click({ target: btnOf({ 'data-scope': 'mine' }) });
+  assert.deepStrictEqual([e.pressed.mine, e.pressed.team, e.pressed.dept], ['true', 'false', 'false'], '누르자마자 눌린 모양');
+  assert.strictEqual(e.note.hidden, true, '내 작업은 안내 줄 없음');
+  assert.ok(ENV.box.innerHTML.indexOf(pb.T.loading) >= 0, '표 자리에 불러오는 중');
+  h.pend[1].res(scopeData('mine', ['청주시']));
+  await flush();
+  assert.strictEqual(e.live.textContent, '내 작업, 기관 1곳');
+  ENV.L.click({ target: btnOf({ 'data-scope': 'dept' }) });
+  h.pend[2].res(scopeData('dept', ['청주시', '진주시', '서울시']));
+  await flush();
+  assert.strictEqual(e.live.textContent, '부서 작업, 기관 3곳');
+  assert.strictEqual(e.note.hidden, false);
+  assert.strictEqual(e.note.textContent, pb.T.scopeNote, '부서는 결재선 안내 없이 범위 안내만');
+}));
+
+test('범위 칩: 불러오기 실패는 칩 상태를 유지하고 [다시 시도]가 같은 범위로 다시 부른다', withScopeEls(async function (e) {
+  const h = recHooks();
+  pb.show(h, {});
+  h.pend[0].res(scopeData('mine', ['청주시']));
+  await flush();
+  ENV.L.click({ target: btnOf({ 'data-scope': 'team' }) });
+  h.pend[1].rej({ status: 500 });
+  await flush();
+  assert.strictEqual(e.pressed.team, 'true');
+  assert.ok(ENV.box.innerHTML.indexOf(pb.T.loadErr) >= 0 && ENV.box.innerHTML.indexOf('data-pb="retry"') > 0);
+  assert.strictEqual(e.live.textContent, '', '실패는 개수 알림을 하지 않는다');
+  ENV.L.click({ target: btnOf({ 'data-pb': 'retry' }) });
+  assert.strictEqual(h.calls[2], '/prep-board?scope=team');
+}));
+
+test('빈 결과: 범위별 문구·단추가 그려지고, 단추로 범위를 바꾸며, 검색 0건은 검색어만 지운다', withScopeEls(async function (e) {
+  const h = recHooks();
+  pb.show(h, {});
+  h.pend[0].res(scopeData('mine', []));
+  await flush();
+  assert.ok(ENV.box.innerHTML.indexOf(pb.T.emptyMine.slice(0, 12)) >= 0);
+  assert.ok(ENV.box.innerHTML.indexOf('data-pb="map"') > 0 && ENV.box.innerHTML.indexOf('data-pb="scope-team"') > 0 && ENV.box.innerHTML.indexOf('팀 작업 보기') > 0);
+  ENV.L.click({ target: btnOf({ 'data-pb': 'scope-team' }) });
+  assert.strictEqual(h.calls[1], '/prep-board?scope=team');
+  assert.strictEqual(e.pressed.team, 'true');
+  h.pend[1].res(scopeData('team', []));
+  await flush();
+  assert.ok(ENV.box.innerHTML.indexOf('팀에 개설 승인이 끝난 기관이 없습니다.') >= 0 && ENV.box.innerHTML.indexOf('data-pb="scope-mine"') > 0 && ENV.box.innerHTML.indexOf('data-pb="map"') < 0);
+  ENV.L.click({ target: btnOf({ 'data-pb': 'scope-mine' }) });
+  h.pend[2].res(scopeData('mine', ['청주시']));
+  await flush();
+  assert.ok(ENV.box.innerHTML.indexOf('청주시') >= 0);
+  ENV.L.input({ target: { id: 'pb-q', value: '강남' } });
+  assert.ok(ENV.box.innerHTML.indexOf('내 작업에서') >= 0 && ENV.box.innerHTML.indexOf('과 맞는 기관이 없습니다.') > 0, '받침 있는 검색어는 과');
+  assert.ok(ENV.box.innerHTML.indexOf('data-pb="clearq"') > 0 && ENV.box.innerHTML.indexOf('검색 지우기') > 0);
+  ENV.L.click({ target: btnOf({ 'data-pb': 'clearq' }) });
+  assert.ok(ENV.box.innerHTML.indexOf('청주시') >= 0, '검색어를 지우면 표가 돌아온다');
+  assert.strictEqual(e.pressed.mine, 'true', '범위는 그대로');
+  assert.strictEqual(h.calls.length, 3, '검색 지우기는 다시 부르지 않는다');
+}));
+
+// ── 범위 전환 경합(qa 11-24 P3-1·시험 공백) ──
+function markBtnOf(bid, cd) {   // 칸 단추(T9와 같은 모의)
+  const tr = { getAttribute: function (k) { return k === 'data-bid' ? bid : null; } };
+  const td = { parentNode: tr, getAttribute: function (k) { return k === 'data-col' ? cd : null; } };
+  const btn = { classList: { contains: function (c) { return c === 'pb-mk'; } }, getAttribute: function () { return null; },
+    setAttribute: function () {}, contains: function () { return false; }, focus: function () {},
+    getBoundingClientRect: function () { return { left: 0, top: 0, bottom: 10 }; },
+    closest: function (s) { return s === 'td' ? td : s === 'button' ? btn : null; } };
+  return btn;
+}
+
+test('범위 경합(a): 범위를 A→B로 연달아 눌러 B 응답이 먼저 오고 A가 늦게 와도 B 기준을 유지', withScopeEls(async function (e) {
+  const h = recHooks();
+  pb.show(h, {});
+  h.pend[0].res(scopeData('mine', ['청주시']));
+  await flush();
+  ENV.L.click({ target: btnOf({ 'data-scope': 'dept' }) });   // A
+  ENV.L.click({ target: btnOf({ 'data-scope': 'team' }) });   // B
+  assert.deepStrictEqual(h.calls.slice(1), ['/prep-board?scope=dept', '/prep-board?scope=team']);
+  h.pend[2].res(scopeData('team', ['충주시']));
+  await flush();
+  h.pend[1].res(scopeData('dept', ['진주시']));
+  await flush();
+  assert.ok(ENV.box.innerHTML.indexOf('충주시') >= 0 && ENV.box.innerHTML.indexOf('진주시') < 0, 'B 응답이 남는다');
+  assert.deepStrictEqual([e.pressed.mine, e.pressed.team, e.pressed.dept], ['false', 'true', 'false']);
+  assert.strictEqual(e.live.textContent, '팀 작업, 기관 1곳');
+}));
+
+test('범위 경합(b): 범위 전환 중 reset 뒤 옛 응답은 무시하고, 새 첫 요청은 scope 없이', withScopeEls(async function (e) {
+  const h = recHooks();
+  pb.show(h, {});
+  h.pend[0].res(scopeData('mine', ['청주시']));
+  await flush();
+  ENV.L.click({ target: btnOf({ 'data-scope': 'team' }) });
+  pb.reset();
+  const h2 = recHooks();
+  pb.show(h2, {});
+  assert.deepStrictEqual(h2.calls, ['/prep-board']);
+  h.pend[1].res(scopeData('team', ['옛계정시']));
+  await flush();
+  assert.ok(ENV.box.innerHTML.indexOf('옛계정시') < 0, '옛 응답은 버린다');
+  h2.pend[0].res(scopeData('mine', ['새계정시']));
+  await flush();
+  assert.ok(ENV.box.innerHTML.indexOf('새계정시') >= 0 && ENV.box.innerHTML.indexOf('옛계정시') < 0);
+  assert.strictEqual(e.pressed.mine, 'true');
+}));
+
+test('범위 경합(c): 저장 응답 대기 중 [팀 작업]을 눌러 표가 비었을 때 저장 성공이 와도 오류 없이 끝난다', withScopeEls(async function (e) {
+  const h = recHooks();
+  pb.show(h, {});
+  h.pend[0].res(scopeData('mine', ['청주시']));
+  await flush();
+  ENV.L.click({ target: markBtnOf('B0', 'PT') });
+  assert.ok(ENV.menu.style.display === '', '메뉴가 열렸다');
+  ENV.menu.listeners.click({ target: { closest: function () { return { getAttribute: function () { return 'DONE'; } }; } } });
+  assert.strictEqual(h.calls[1], '/bidcases/B0/prep/board-checks/PT', 'PUT 대기');
+  ENV.L.click({ target: btnOf({ 'data-scope': 'team' }) });
+  assert.strictEqual(h.calls[2], '/prep-board?scope=team');
+  h.pend[1].res({ saved: true, cell: { mark_cd: 'DONE', rev_no: 1 } });
+  await flush();
+  assert.strictEqual(e.err.textContent, '', '저장 실패 문구가 뜨지 않는다');
+  assert.strictEqual(e.live.textContent, '', '표를 비운 동안은 저장 알림도 하지 않는다');
+  h.pend[2].res(scopeData('team', ['청주시']));
+  await flush();
+  assert.ok(ENV.box.innerHTML.indexOf('청주시') >= 0, '새 목록 응답이 표를 다시 그린다');
+  assert.strictEqual(e.err.textContent, '');
+}));
+
+test('범위 경합(c2): 저장 실패 응답도 표가 비어 있으면 실패 문구 없이 끝난다', withScopeEls(async function (e) {
+  const h = recHooks();
+  pb.show(h, {});
+  h.pend[0].res(scopeData('mine', ['청주시']));
+  await flush();
+  ENV.L.click({ target: markBtnOf('B0', 'PT') });
+  ENV.menu.listeners.click({ target: { closest: function () { return { getAttribute: function () { return 'DONE'; } }; } } });
+  ENV.L.click({ target: btnOf({ 'data-scope': 'team' }) });
+  h.pend[1].rej({ status: 500 });
+  await flush();
+  assert.strictEqual(e.err.textContent, '');
+}));
+
+test('상세 복귀(d): pb.show(h, {reload:true}) → 요청 1회, 이전 범위(scope=dept)를 유지', withScopeEls(async function () {
+  const h = recHooks();
+  pb.show(h, {});
+  h.pend[0].res(scopeData('dept', ['청주시']));
+  await flush();
+  pb.leave();
+  const n = h.calls.length;
+  pb.show(h, { reload: true });
+  assert.strictEqual(h.calls.length, n + 1, '요청 1회');
+  assert.strictEqual(h.calls[n], '/prep-board?scope=dept');
 }));
 
 // qa P3-7 — 표에서 상세를 열 때 숨은 왼쪽 목록(GET /preps)을 부르지 않는다. 옛 화면(refresh)은 그대로.

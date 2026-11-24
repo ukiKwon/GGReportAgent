@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -681,6 +682,57 @@ public class BidAssignmentService {
             return ApproverRules.active(line) && Ranks.mayApprove(requester, line) ? line : null;
         }
         return null;   // 결재선에 영업팀장이 없으면 정하지 않는다 — 관리자가 결재자(팀장)를 지정(security 11-23 중: '유일한 활성 팀장' 대체는 다른 팀 팀장으로 넘어감)
+    }
+
+    /** 결재선 기준 소속 영업팀장 — 구조만 본다(활성·직급 무관: 열람 묶음 판정이지 결재 권한이 아님). 결재자가 자동(AUTO) 지정이면 null(sameTeamLead 와 같은 이유). */
+    static SysUser structuralLead(SysUser u, Map<String, SysUser> byEmp) {
+        if (u.getApproverManual() != 1) {
+            return null;
+        }
+        return ApproverRules.firstInChain(u, byEmp, LEAD_ROLE);
+    }
+
+    /**
+     * 대시보드 '팀 작업'(NEXT 102 scope=team)의 팀 사번. 영업팀장 = 나 + 구조상 팀장이 나인 영업팀원.
+     * 영업팀원 = 내 구조상 팀장 + 그 팀장 아래 영업팀원 + 나. 팀장을 못 정하거나 영업팀·영업팀장이 아니면 null(호출한 쪽이 '나 혼자'로 좁힌다 — 넓히지 않음).
+     * 비활성 사용자도 담는다 — 옛 담당의 건도 팀 건으로 본다. 단 영업팀원의 구조상 팀장이 비활성이면 null(그 팀원의 팀을 정하지 않는다 — 현직 팀장 묶음에는 안 들어간다).
+     */
+    Set<String> salesTeamEmpNos(SysUser me) {
+        String r = roleOf(me);
+        if (!LEAD_ROLE.equals(r) && !MEMBER_ROLE.equals(r)) {
+            return null;
+        }
+        List<SysUser> all = users.selectAll();
+        Map<String, SysUser> byEmp = new HashMap<>();
+        for (SysUser u : all) {
+            byEmp.put(u.getEmpNo(), u);
+        }
+        String leadEmp;
+        if (LEAD_ROLE.equals(r)) {
+            leadEmp = me.getEmpNo();
+        } else {
+            SysUser l = structuralLead(me, byEmp);
+            if (l != null && !ApproverRules.active(l)) {
+                l = null;   // 내 팀장이 비활성이면 팀을 정하지 않는다 — 퇴직·잠금 팀장 칸에 옛 팀원이 남아 팀 묶음을 넓히는 것을 막음(security 11-24)
+            }
+            leadEmp = l == null ? null : l.getEmpNo();
+        }
+        if (leadEmp == null) {
+            return null;
+        }
+        Set<String> out = new HashSet<>();
+        out.add(leadEmp);
+        out.add(me.getEmpNo());
+        for (SysUser u : all) {
+            if (!MEMBER_ROLE.equals(roleOf(u))) {
+                continue;
+            }
+            SysUser l = structuralLead(u, byEmp);
+            if (l != null && leadEmp.equals(l.getEmpNo())) {
+                out.add(u.getEmpNo());
+            }
+        }
+        return out;
     }
 
     /** 진행 중인 변경 신청(없거나 끝났으면 null) — {@code PENDING_REQ_ID} 가 가리키는 요청이 PENDING 일 때만. */

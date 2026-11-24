@@ -2,7 +2,7 @@
   'use strict';
   // 영업 추진 준비 › 제안 준비 현황 — 제안 확정 기관 × 준비 체크리스트 표(NEXT 102). 엑셀 머리줄(묶음 1행 + 하위 칸 2행)을 그대로 옮긴다.
   // 규격: handoff/agents/design-reviewer/2026-11-23_1049_ae4db5c1.md 5·6절. 서버 계약: handoff/agents/backend-dev/2026-11-23_1027_ab347621.md 3-0.
-  //   GET /prep-board?include_ended=true · PUT /bidcases/{id}/prep/board-checks/{col} {mark_cd, base_rev}
+  //   GET /prep-board[?scope=mine|team|dept][&include_ended=true] (조회 범위 11-24, backend af8643b6) · PUT /bidcases/{id}/prep/board-checks/{col} {mark_cd, base_rev}
   //   머리 X-Screen-Id: prep_dashboard · X-Button-Id: open | refresh | dash_check
   // main 결정(11-23): 칸은 columns[] 그대로(27), 묶음 머리는 groups, 정렬은 서버 순서, 자동 새로고침 없음, 브라우저 저장소 안 씀.
   // 앞 절반은 순수 함수(node 테스트 대상), 뒤 절반은 DOM 배선 — prep.js가 show()를 부를 때만 실행된다.
@@ -17,7 +17,9 @@
 
   pb.SCREEN = 'prep_dashboard';
   pb.MARK_ORDER = ['DONE', 'IN_PROGRESS', 'NA', 'NONE'];
-  pb.WHO_MINE = '@mine';
+  // 조회 범위(사용자 11-24): 내 작업·팀 작업·부서 작업 3가지뿐(전체·이름별 거르기 없음). 범위는 서버가 거른다 — GET /prep-board?scope=
+  pb.SCOPES = ['mine', 'team', 'dept'];
+  pb.scopeValid = function (s) { return pb.SCOPES.indexOf(s) >= 0; };
   // 개설 승인 전 — 활성 담당 배정이 개설 승인 때 생기므로 이 줄의 손 칸은 아무도 체크하지 못한다(D31, 팀 결정 A).
   pb.PRE_OPEN_STATES = ['CONFIRMED', 'OPEN_PENDING'];
   pb.preOpen = function (row) {
@@ -34,12 +36,21 @@
     loadErr: '제안 준비 현황을 불러오지 못했습니다.',
     refresh: '새로 고침',
     refreshing: '새로 고치는 중…',
-    empty: '제안 확정한 기관이 없습니다. 지역별 공고현황에서 공고가 난 기관을 고르고 [제안 확정]을 누르면 여기에 한 줄씩 생깁니다.',
+    scopeMine: '내 작업',
+    scopeTeam: '팀 작업',
+    scopeDept: '부서 작업',
+    scopeNote: '팀 작업·부서 작업에는 개설 승인(팀장 결재)이 끝난 기관만 나옵니다. 개설 전 기관은 내 작업에서 봅니다.',
+    teamUnresolved: '상위 결재자(소속 팀장)가 지정되지 않아 팀 작업에 내가 담당한 기관만 나옵니다. 시스템 관리자에게 상위 결재자 지정을 요청하세요.',
+    emptyMine: '내가 제안 확정했거나 담당한 기관이 없습니다. 지역별 공고현황에서 공고가 난 기관을 고르고 [제안 확정]을 누르면 여기에 생깁니다.',
+    emptyTeam: '팀에 개설 승인이 끝난 기관이 없습니다. 개설 전 기관은 내 작업에서 봅니다.',
+    emptyTeamSolo: '내가 담당한 기관 중 개설 승인이 끝난 곳이 없습니다. 개설 전 기관은 내 작업에서 봅니다.',
+    emptyDept: '부서에 개설 승인이 끝난 기관이 없습니다. 개설 전 기관은 내 작업에서 봅니다.',
+    seeMine: '내 작업 보기',
+    seeTeam: '팀 작업 보기',
+    clearQ: '검색 지우기',
     openMap: '지역별 공고현황 열기',
-    clear: '거르기 지우기',
     readOnly: '지금 계정이 담당한 기관이 없어 보기만 합니다. 체크는 각 기관의 담당 영업이 합니다.',
-    all: '전체',
-    mine: '내 담당',
+    all: '전체',   // headModel이 묶음 이름과 같은 하위 칸 이름으로 쓴다(조회 범위와 무관)
     chipMine: '내 담당',
     chipEnded: '확정 취소',
     noAssignee: '담당 미정',
@@ -234,25 +245,29 @@
   };
 
   // ── 거르기 ───────────────────────────────────────────────────────
-  // 담당자 선택지: 전체 · 내 담당(rows[].is_mine) · 이름 가나다순.
-  pb.whoOptions = function (rows) {
-    const set = {};
-    (Array.isArray(rows) ? rows : []).forEach(function (r) {
-      (Array.isArray(r && r.assignee_names) ? r.assignee_names : []).forEach(function (n) { if (n) set[str(n)] = true; });
-    });
-    const names = Object.keys(set).sort(function (a, b) { return a.localeCompare(b, 'ko'); });
-    return [{ value: '', label: T.all }, { value: pb.WHO_MINE, label: T.mine }].concat(names.map(function (n) { return { value: n, label: n }; }));
+  // 조회 범위 이름·요청 주소·안내 줄. 범위를 모르면(첫 응답 전) 화면에는 내 작업으로 보이되 요청에는 scope를 싣지 않는다.
+  pb.scopeLabel = function (scope) {
+    return scope === 'team' ? T.scopeTeam : scope === 'dept' ? T.scopeDept : T.scopeMine;
   };
-  // f: { q, who }. 서버 순서(입찰 예정일 빠른 순)를 그대로 둔다 — 다시 정렬하지 않는다.
+  // 서버 계약: 첫 요청은 scope 없이(역할 기본값), 칩을 바꾸면 scope=team 등을 붙여 다시 불러온다.
+  pb.boardUrl = function (scope, ended) {
+    const q = [];
+    if (pb.scopeValid(scope)) q.push('scope=' + scope);
+    if (ended) q.push('include_ended=true');
+    return '/prep-board' + (q.length ? '?' + q.join('&') : '');
+  };
+  // 팀·부서일 때만 안내 줄. 팀인데 결재선이 없어 내 건만 오면(team_resolved:false) 그 사실을 앞에 붙인다.
+  pb.scopeNoteText = function (scope, teamResolved) {
+    if (scope !== 'team' && scope !== 'dept') return '';
+    return (scope === 'team' && teamResolved === false ? T.teamUnresolved + ' ' : '') + T.scopeNote;
+  };
+  pb.liveText = function (scope, n) { return pb.scopeLabel(scope) + ', 기관 ' + Number(n) + '곳'; };
+  // f: { q }. 범위는 서버가 거르므로 여기서는 이름만 거른다 — is_mine으로 다시 거르지 않는다. 서버 순서(입찰 예정일 빠른 순)를 그대로 둔다.
   pb.filterRows = function (rows, f) {
     const q = str(f && f.q).trim().toLowerCase();
-    const who = str(f && f.who);
     return (Array.isArray(rows) ? rows : []).filter(function (r) {
       if (!r) return false;
-      if (q && str(r.institution_name).toLowerCase().indexOf(q) < 0) return false;
-      if (who === pb.WHO_MINE) return r.is_mine === true;
-      if (who) return (Array.isArray(r.assignee_names) ? r.assignee_names : []).indexOf(who) >= 0;
-      return true;
+      return !q || str(r.institution_name).toLowerCase().indexOf(q) >= 0;
     });
   };
   // 개수 줄: { shown, total, filtered }
@@ -260,14 +275,19 @@
   pb.countHtml = function (m) {
     return '기관 <b>' + Number(m.shown) + '</b>곳' + (m.filtered ? ' 중 <b>' + Number(m.total) + '</b>곳' : '');
   };
-  // 빈 표 안내 → null(표를 그린다) | { kind, text, action: 'map'|'clear'|'' }
+  // 빈 표 안내 → null(표를 그린다) | { kind, text, actions:[{act,label}] }. f: { q, scope, teamResolved }
+  // act: map(지역별 공고현황) · scope-mine · scope-team(범위 바꿔 다시 불러옴) · clearq(검색어만 지움, 범위 유지)
   pb.emptyModel = function (total, shown, f) {
-    if (total === 0) return { kind: 'none', text: T.empty, action: 'map' };
+    const scope = f && pb.scopeValid(f.scope) ? f.scope : 'mine';
+    if (total === 0) {
+      if (scope === 'team') return { kind: 'none', text: f && f.teamResolved === false ? T.emptyTeamSolo : T.emptyTeam, actions: [{ act: 'scope-mine', label: T.seeMine }] };
+      if (scope === 'dept') return { kind: 'none', text: T.emptyDept, actions: [{ act: 'scope-mine', label: T.seeMine }] };
+      return { kind: 'none', text: T.emptyMine, actions: [{ act: 'map', label: T.openMap }, { act: 'scope-team', label: T.seeTeam }] };
+    }
     if (shown > 0) return null;
     const q = str(f && f.q).trim();
-    const who = str(f && f.who);
-    if (q) return { kind: 'query', text: '\'' + q + '\'와 맞는 기관이 없습니다.', action: 'clear' };
-    return { kind: 'who', text: who === pb.WHO_MINE ? '내 담당 기관이 없습니다.' : who + ' 담당 기관이 없습니다.', action: 'clear' };
+    if (!q) return null;
+    return { kind: 'query', text: pb.scopeLabel(scope) + '에서 \'' + q + '\'' + prep.josa(q, '과', '와') + ' 맞는 기관이 없습니다.', actions: [{ act: 'clearq', label: T.clearQ }] };
   };
   // 개설 승인 뒤 줄이 있는데 내가 체크할 수 있는 줄이 없을 때(끝난 줄·개설 전 줄은 세지 않는다)
   pb.readOnlyAll = function (rows) {
@@ -334,15 +354,19 @@
       (hasPre ? '<span><i class="sw-pre"></i>' + esc(T.legendPre) + '</span>' : '');
   };
 
+  // 열 머리 글자: esc 먼저, 그다음 괄호 앞에 줄 바꿈 허용점(<wbr>)
+  function headLabel(s) { return esc(s).replace(/\(/g, '<wbr>('); }
+  pb.headLabel = headLabel;
+
   pb.headHtml = function (columns, groups) {
     const h = pb.headModel(columns, groups);
     let r1 = '<th class="pb-corner" rowspan="2" scope="col">기관</th>';
     h.top.forEach(function (t) {
       if (t.type === 'group') r1 += '<th class="pb-grp gs" colspan="' + t.span + '" scope="colgroup">' + esc(t.label) + '</th>';
-      else r1 += '<th rowspan="2" scope="col">' + esc(t.label) + (t.auto ? '<span class="pb-auto">자동</span>' : '') + '</th>';
+      else r1 += '<th rowspan="2" scope="col">' + headLabel(t.label) + (t.auto ? '<span class="pb-auto">자동</span>' : '') + '</th>';
     });
     const r2 = h.sub.map(function (s) {
-      return '<th scope="col"' + (s.gs ? ' class="gs"' : '') + '>' + esc(s.label) + (s.auto ? '<span class="pb-auto">자동</span>' : '') + '</th>';
+      return '<th scope="col"' + (s.gs ? ' class="gs"' : '') + '>' + headLabel(s.label) + (s.auto ? '<span class="pb-auto">자동</span>' : '') + '</th>';
     }).join('');
     return '<thead><tr>' + r1 + '</tr><tr>' + r2 + '</tr></thead>';
   };
@@ -416,7 +440,7 @@
   // 아래는 DOM 배선 — prep.js가 show()를 부를 때만 실행된다(노드 테스트 대상 아님).
   // ════════════════════════════════════════════════════════════════
   function fresh() {
-    return { data: null, state: 'idle', q: '', who: '', ended: false, at: '', refreshing: false, pending: {}, failed: {}, errText: '',
+    return { data: null, state: 'idle', q: '', scope: '', teamResolved: true, announce: false, ended: false, at: '', refreshing: false, pending: {}, failed: {}, errText: '',
              pos: { r: 0, c: 0 }, seq: 0, hooks: null, scroll: null, menu: null, touched: false };
   }
   let B = fresh();
@@ -426,7 +450,7 @@
 
   function el(id) { return document.getElementById(id); }
   function ui(button) { return { screen: pb.SCREEN, button: button }; }
-  function visibleRows() { return B.data ? pb.filterRows(B.data.rows, { q: B.q, who: B.who }) : []; }
+  function visibleRows() { return B.data ? pb.filterRows(B.data.rows, { q: B.q }) : []; }
   function rowById(bid) { return (B.data ? B.data.rows : []).filter(function (r) { return str(r.bid_case_id) === bid; })[0] || null; }
   function infoOf(cd) { return pb.colInfos(B.data.columns, B.data.groups).filter(function (i) { return i.cd === cd; })[0] || null; }
   function setErr(text) { B.errText = text || ''; const e = el('pb-err'); if (e) e.textContent = B.errText; }
@@ -435,7 +459,8 @@
   function normalize(d) {
     const x = d && typeof d === 'object' ? d : {};
     return { columns: Array.isArray(x.columns) ? x.columns : [], groups: x.groups && typeof x.groups === 'object' ? x.groups : {},
-             marks: Array.isArray(x.marks) ? x.marks : [], today: str(x.today), rows: Array.isArray(x.rows) ? x.rows : [] };
+             marks: Array.isArray(x.marks) ? x.marks : [], today: str(x.today), rows: Array.isArray(x.rows) ? x.rows : [],
+             scope: pb.scopeValid(x.scope) ? x.scope : '', teamResolved: x.team_resolved !== false };
   }
 
   function paintMeta() {
@@ -450,16 +475,23 @@
     const e = el('pb-ended'); if (e) e.checked = B.ended;
     const sec = el('pp-board'); if (sec) sec.setAttribute('aria-busy', B.state === 'loading' ? 'true' : 'false');
   }
-  function paintWho() {
-    const sel = el('pb-who');
-    if (!sel) return;
-    const opts = pb.whoOptions(B.data ? B.data.rows : []);
-    if (!opts.some(function (o) { return o.value === B.who; })) B.who = '';
-    sel.innerHTML = opts.map(function (o) { return '<option value="' + esc(o.value) + '">' + esc(o.label) + '</option>'; }).join('');
-    sel.value = B.who;
+  // 조회 범위 세그먼트: 눌린 단추(aria-pressed)와 안내 줄. 범위를 아직 모르면 내 작업으로 보인다.
+  function paintScope() {
+    const g = el('pb-scope');
+    const cur = B.scope || 'mine';
+    if (g && g.querySelectorAll) {
+      Array.prototype.forEach.call(g.querySelectorAll('.pb-sc'), function (b) {
+        b.setAttribute('aria-pressed', b.getAttribute('data-scope') === cur ? 'true' : 'false');
+      });
+    }
+    const n = el('pb-scope-note');
+    if (n) { const msg = pb.scopeNoteText(cur, B.teamResolved); n.hidden = !msg; n.textContent = msg; }
   }
   function stateBox(text, action) {
     return '<p class="wf-empty">' + esc(text) + '</p>' + action;
+  }
+  function actionBtn(a) {
+    return '<button type="button" data-pb="' + esc(a.act) + '">' + esc(a.label) + '</button>';
   }
   function paintTable() {
     const box = el('pb-scroll');
@@ -472,10 +504,9 @@
     else if (B.state === 'forbidden') box.innerHTML = stateBox(T.forbidden(B.hooks && B.hooks.roleLabel), '');
     else if (B.data) {
       const rows = visibleRows();
-      const em = pb.emptyModel(B.data.rows.length, rows.length, { q: B.q, who: B.who });
+      const em = pb.emptyModel(B.data.rows.length, rows.length, { q: B.q, scope: B.scope, teamResolved: B.teamResolved });
       if (em) {
-        box.innerHTML = stateBox(em.text, em.action === 'map' ? '<button type="button" data-pb="map">' + esc(T.openMap) + '</button>'
-          : em.action === 'clear' ? '<button type="button" data-pb="clear">' + esc(T.clear) + '</button>' : '');
+        box.innerHTML = stateBox(em.text, em.actions.map(actionBtn).join(' '));
       } else {
         box.innerHTML = pb.tableHtml({ columns: B.data.columns, groups: B.data.groups, marks: B.data.marks, rows: rows, today: B.data.today, pending: B.pending, failed: B.failed });
         B.pos.r = Math.min(B.pos.r, rows.length - 1);
@@ -489,7 +520,7 @@
   }
   function paintAll() {
     const lg = el('pb-legend'); if (lg) lg.innerHTML = pb.legendHtml(!!(B.data && B.data.rows.some(function (x) { return pb.preOpen(x); })));
-    paintWho();
+    paintScope();
     const q = el('pb-q'); if (q && q.value !== B.q) q.value = B.q;
     paintTable();
     setErr(B.errText);
@@ -561,15 +592,18 @@
     if (!hooks) return;
     const token = B.seq = ++reqSeq;
     if (!B.data) { B.state = 'loading'; paintAll(); } else { B.refreshing = true; paintMeta(); }
-    hooks.req('GET', '/prep-board' + (B.ended ? '?include_ended=true' : ''), undefined, ui(button)).then(function (d) {
+    hooks.req('GET', pb.boardUrl(B.scope, B.ended), undefined, ui(button)).then(function (d) {
       if (token !== B.seq) return;
       B.data = normalize(d);
+      if (B.data.scope) B.scope = B.data.scope;   // 첫 응답(scope 없이 요청)이면 역할 기본값이 여기서 정해진다
+      B.teamResolved = B.data.teamResolved;
       B.state = 'ok';
       B.refreshing = false;
       B.at = pb.hm(new Date());
       B.pending = {}; B.failed = {};
       setErr('');
       paintAll();
+      if (B.announce) { B.announce = false; live(pb.liveText(B.scope, visibleRows().length)); }
       if (focusBid) {
         const r = visibleRows().findIndex(function (x) { return str(x.bid_case_id) === focusBid; });
         if (r >= 0) focusAt(r, 0);
@@ -578,6 +612,7 @@
     }).catch(function (e) {
       if (token !== B.seq) return;
       B.refreshing = false;
+      B.announce = false;
       const st = e && e.status;
       if (!B.data) {
         B.state = st === 403 ? 'forbidden' : st === 401 ? 'login' : 'err';
@@ -591,6 +626,20 @@
   function restoreScroll() {
     const box = el('pb-scroll');
     if (box && B.scroll) { box.scrollLeft = B.scroll.l; box.scrollTop = B.scroll.t; B.scroll = null; }
+  }
+
+  // 범위를 바꾸면 서버에서 다시 불러온다(표 자리에 '불러오는 중…'). 검색어·끝난 건 포함은 그대로. 체크 저장 중인 칸이 있을 수 있다 — 표를 비운 동안 도착한 저장 응답은 save()가 B.data가 null이면 조용히 끝내고, 저장 중·실패 표시는 새 목록 응답이 비운다.
+  function setScope(scope) {
+    if (!pb.scopeValid(scope) || scope === B.scope || !B.hooks) return;
+    closeMenu(false);
+    B.scope = scope;
+    B.data = null;
+    B.pos = { r: 0, c: 0 };
+    B.touched = false;
+    B.announce = true;
+    setErr('');
+    paintScope();
+    load('refresh');
   }
 
   // ── 칸 메뉴 ──
@@ -683,6 +732,7 @@
     B.hooks.req('PUT', '/bidcases/' + encodeURIComponent(bid) + '/prep/board-checks/' + encodeURIComponent(cd), { mark_cd: mark, base_rev: base }, ui('dash_check')).then(function (res) {
       if (b !== B) return;   // 그 사이 계정이 바뀜
       delete B.pending[key];
+      if (!B.data) return;   // 범위 전환 중(setScope가 표를 비움): 표 갱신 없이 끝낸다 — 새 목록 응답이 칸을 다시 그린다
       const cur = rowById(bid);   // 새로 고침으로 행 객체가 바뀌었을 수 있다
       if (cur) { cur.cells = cur.cells || {}; cur.cells[cd] = Object.assign({}, prev, res && res.cell && typeof res.cell === 'object' ? res.cell : { mark_cd: mark }); }
       const oldFailed = Object.keys(B.failed);
@@ -694,6 +744,7 @@
     }).catch(function (e) {
       if (b !== B) return;
       delete B.pending[key];
+      if (!B.data) return;   // 범위 전환 중: 실패 표시를 하지 않는다(새 목록 응답이 서버 값으로 다시 그린다)
       if (rowById(bid) === row) row.cells[cd] = prev;   // 새로 고침으로 바뀐 행은 서버 값이 맞으니 되돌리지 않는다
       B.failed[key] = true;
       setErr(pb.saveError(e && e.status, e && e.detail ? (typeof e.detail === 'object' ? str(e.detail.code) : '') : '', { inst: str(row.institution_name), col: info.fullLabel }));
@@ -714,6 +765,8 @@
     if (c0) { B.pos = { r: Number(c0.getAttribute('data-r')), c: Number(c0.getAttribute('data-c')) }; B.touched = true; applyRoving(); paintInfo(); }
     if (t.classList.contains('pb-mk')) { if (t.getAttribute('aria-disabled') !== 'true') openMenu(t); return; }
     if (t.id === 'pb-refresh') { if (!B.refreshing) { setErr(''); load('refresh'); } return; }
+    const sc = t.getAttribute('data-scope');
+    if (sc) { setScope(sc); return; }
     const act = t.getAttribute('data-pb');
     if (act === 'open') {
       const tr = t.closest('tr');
@@ -722,7 +775,9 @@
       if (row && row.can_view !== false && B.hooks && B.hooks.openCase) B.hooks.openCase(bid, str(row.institution_name));
     } else if (act === 'retry') { B.state = 'loading'; B.data = null; load('open'); }
     else if (act === 'map') { if (B.hooks && B.hooks.openMap) B.hooks.openMap(); }
-    else if (act === 'clear') { B.q = ''; B.who = ''; const q = el('pb-q'); if (q) q.value = ''; paintWho(); paintTable(); }
+    else if (act === 'scope-mine') setScope('mine');
+    else if (act === 'scope-team') setScope('team');
+    else if (act === 'clearq') { B.q = ''; B.pos = { r: 0, c: 0 }; const q = el('pb-q'); if (q) q.value = ''; paintTable(); }
   }
   function onKey(e) {
     if (B.menu) return;
@@ -755,8 +810,7 @@
     sec.addEventListener('change', function (e) {
       const t = e.target;
       if (!t) return;
-      if (t.id === 'pb-who') { B.who = t.value; B.pos = { r: 0, c: 0 }; paintTable(); }
-      else if (t.id === 'pb-ended') { B.ended = !!t.checked; setErr(''); load('refresh'); }
+      if (t.id === 'pb-ended') { B.ended = !!t.checked; setErr(''); load('refresh'); }
     });
     wired = true;
     return true;
@@ -789,6 +843,7 @@
     // 계정 전환 뒤 옛 계정의 표 위 안내·'개설 전' 범례 항목이 남지 않게(qa 11-23 밤 P3). 다음 load의 paintAll/paintMeta가 다시 채운다.
     const ro = el('pb-ro'); if (ro) ro.hidden = true;
     const lg = el('pb-legend'); if (lg) lg.innerHTML = pb.legendHtml(false);
+    paintScope();   // 범위는 다음 계정의 첫 응답 scope로 다시 정해진다
     setErr('');
   };
 

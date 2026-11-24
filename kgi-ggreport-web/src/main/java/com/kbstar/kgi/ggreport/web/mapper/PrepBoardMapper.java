@@ -15,6 +15,7 @@ import java.util.List;
 public interface PrepBoardMapper {
     List<BidPrepTask> selectAllTasks();
     List<PrepBoardRef> selectActiveAssignees();
+    List<PrepBoardRef> selectEndedEverAssignees();   // 범위 거르기(scope) — 끝난 건의 배정 이력 전체(사번만)
     List<PrepBoardRef> selectConfirmers();
     List<String> selectDesignFinalCases(@Param("team") String team, @Param("status") String status);
     List<BankContractCode> selectCodes(@Param("group") String group);

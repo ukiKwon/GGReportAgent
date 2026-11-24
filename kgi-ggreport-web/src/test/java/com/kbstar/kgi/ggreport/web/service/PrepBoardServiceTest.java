@@ -4,7 +4,6 @@ import com.kbstar.kgi.ggreport.web.domain.BidPrep;
 import com.kbstar.kgi.ggreport.web.domain.PrepBoardCheck;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.PrepBoardIn;
-import com.kbstar.kgi.ggreport.web.mapper.BankContractMapper;
 import com.kbstar.kgi.ggreport.web.mapper.ExtCheckMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepBoardMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepMapper;
@@ -59,7 +58,7 @@ public class PrepBoardServiceTest {
         mapper = mock(PrepBoardMapper.class);
         assignments = mock(BidAssignmentService.class);
         audit = mock(PrepAudit.class);
-        svc = new PrepBoardService(preps, mapper, mock(PrepService.class), assignments, mock(BankContractMapper.class),
+        svc = new PrepBoardService(preps, mapper, mock(PrepService.class), assignments,
                 mock(NoticeRoundService.class), audit, mock(ExtCheckMapper.class));
         me = new SysUser();
         me.setEmpNo("3361829");
@@ -203,6 +202,38 @@ public class PrepBoardServiceTest {
     }
 
     @Test
+    public void U10_만료_판정은_연_연월을_끝날로_풀고_오늘은_유효_null_깨진_값은_제외다() {
+        java.time.LocalDate today = java.time.LocalDate.of(2026, 11, 24);
+        assertFalse(PrepBoardService.expired("2026", today));        // 12-31 까지
+        assertFalse(PrepBoardService.expired("2026-11", today));     // 11-30 까지
+        assertFalse(PrepBoardService.expired("2026-11-24", today));  // 오늘 만료는 유효
+        assertTrue(PrepBoardService.expired("2026-11-23", today));
+        assertTrue(PrepBoardService.expired("2025", today));
+        assertTrue(PrepBoardService.expired("2026-10", today));
+        assertTrue(PrepBoardService.expired(null, today));
+        assertTrue(PrepBoardService.expired("abc", today));
+        assertTrue(PrepBoardService.expired("", today));
+        assertFalse(PrepBoardService.expired("2027-02", today));
+        assertFalse(PrepBoardService.expired(" 2026 ", today));      // 앞뒤 공백은 잘라서 푼다
+        assertTrue(PrepBoardService.expired("2026-02-30", today));   // 없는 날짜 → 파싱 실패 → 제외
+        assertTrue(PrepBoardService.expired("2026-13", today));      // 없는 달 → 제외
+    }
+
+    @Test
+    public void U11_check_block은_상태_먼저_담당_나중이다() {
+        assertNull(PrepBoardService.checkBlock("IN_PROGRESS", true));
+        assertNull(PrepBoardService.checkBlock("WRITING", true));
+        assertEquals("NOT_MINE", PrepBoardService.checkBlock("WRITABLE", false));
+        assertEquals("PRE_OPEN", PrepBoardService.checkBlock("CONFIRMED", true));
+        assertEquals("PRE_OPEN", PrepBoardService.checkBlock("OPEN_PENDING", false));
+        assertEquals("ENDED", PrepBoardService.checkBlock("CANCELLED", true));
+        assertEquals("STATE", PrepBoardService.checkBlock("WEIRD", true));
+        assertEquals("STATE", PrepBoardService.checkBlock(null, false));
+        assertEquals("ENDED", PrepBoardService.checkBlock("CANCELLED", false));    // 담당이 아니어도 상태가 먼저
+        assertEquals("PRE_OPEN", PrepBoardService.checkBlock("CONFIRMED", false));
+    }
+
+    @Test
     public void U9_공고_마감일이_있는_기관은_그_날짜로_먼저_정렬되고_없으면_약정_만료일이다() {
         BidPrep a = prep("가기관", "2027-06-30", "2026-11-01T00:00:00+00:00");
         a.setInstitutionId("A");
@@ -216,5 +247,66 @@ public class PrepBoardServiceTest {
         Collections.addAll(rows, b, a);
         Collections.sort(rows, PrepBoardService.rowOrder(due));
         assertEquals("가기관", rows.get(0).getInstitutionName());
+    }
+
+    private static java.util.Set<String> set(String... v) {
+        return new java.util.HashSet<String>(java.util.Arrays.asList(v));
+    }
+
+    private static BidPrep scoped(String state, String confirmedBy, String openedAt) {
+        BidPrep p = new BidPrep();
+        p.setStateCd(state);
+        p.setConfirmedBy(confirmedBy);
+        p.setOpenedAt(openedAt);
+        return p;
+    }
+
+    /** 요청 U7 — 이 파일에는 U7·U8 이 이미 있어 다음 빈 번호(U12)로 둔다. */
+    @Test
+    public void U12_범위_판정_조합표_mine_team_dept() {
+        java.util.Set<String> none = Collections.<String>emptySet();
+        // mine
+        assertTrue(PrepBoardService.inScope("mine", scoped("CONFIRMED", "A", null), "A", none, none, null));       // 확정자 본인(개설 전 포함)
+        assertTrue(PrepBoardService.inScope("mine", scoped("IN_PROGRESS", "X", "t"), "A", set("A"), none, null));   // 활성 담당
+        assertTrue(PrepBoardService.inScope("mine", scoped("CANCELLED", "X", "t"), "A", none, set("A"), null));     // 끝난 건 옛 담당
+        assertFalse(PrepBoardService.inScope("mine", scoped("IN_PROGRESS", "X", "t"), "A", set("B"), set("A"), null));   // 진행 중 건은 옛 담당 이력 무관
+        assertFalse(PrepBoardService.inScope("mine", scoped("IN_PROGRESS", "X", "t"), "A", set("B"), none, null));  // 무관
+        // team
+        java.util.Set<String> team = set("A", "B");
+        assertFalse(PrepBoardService.inScope("team", scoped("CONFIRMED", "A", null), "A", set("A"), none, team));
+        assertFalse(PrepBoardService.inScope("team", scoped("OPEN_PENDING", "A", null), "A", set("A"), none, team));
+        assertTrue(PrepBoardService.inScope("team", scoped("IN_PROGRESS", "X", "t"), "A", set("B"), none, team));
+        assertFalse(PrepBoardService.inScope("team", scoped("IN_PROGRESS", "X", "t"), "A", set("Z"), none, team));
+        assertFalse(PrepBoardService.inScope("team", scoped("CANCELLED", "X", null), "A", none, set("B"), team));   // 개설 전 취소
+        assertTrue(PrepBoardService.inScope("team", scoped("CANCELLED", "X", "t"), "A", none, set("B"), team));
+        assertFalse(PrepBoardService.inScope("team", scoped("CANCELLED", "X", "t"), "A", none, set("Z"), team));
+        // team == null 이면 dept 와 같다
+        assertTrue(PrepBoardService.inScope("team", scoped("WRITING", "X", "t"), "A", set("Z"), none, null));
+        assertTrue(PrepBoardService.inScope("dept", scoped("WRITABLE", "X", "t"), "A", set("Z"), none, team));
+        assertFalse(PrepBoardService.inScope("dept", scoped("CONFIRMED", "X", null), "A", none, none, null));
+        assertFalse(PrepBoardService.inScope("dept", scoped("WEIRD", "X", "t"), "A", none, none, null));            // 모르는 상태
+        assertFalse(PrepBoardService.inScope("team", scoped("WEIRD", "X", "t"), "A", set("A"), none, team));
+    }
+
+    /** 요청 U8 — 이미 있어 U13 으로 둔다. */
+    @Test
+    public void U13_범위_해석과_감사_태그() {
+        SysUser head = new SysUser(); head.setRole(BidAssignmentService.HEAD_ROLE);
+        SysUser lead = new SysUser(); lead.setRole(BidAssignmentService.LEAD_ROLE);
+        assertEquals("mine", PrepBoardService.resolveScope(me, null));
+        assertEquals("team", PrepBoardService.resolveScope(lead, null));
+        assertEquals("dept", PrepBoardService.resolveScope(head, null));
+        assertEquals("dept", PrepBoardService.resolveScope(me, "dept"));
+        for (String bad : new String[]{"", "Team", "MINE", "all", " mine"}) {
+            try {
+                PrepBoardService.resolveScope(me, bad);
+                fail("400 이 나와야 한다: " + bad);
+            } catch (ApiException e) {
+                assertEquals(400, e.getStatus());
+            }
+        }
+        assertNull(PrepBoardService.scopeTag("x"));
+        assertNull(PrepBoardService.scopeTag(null));
+        assertEquals("SCOPE_TEAM", PrepBoardService.scopeTag("team"));
     }
 }
