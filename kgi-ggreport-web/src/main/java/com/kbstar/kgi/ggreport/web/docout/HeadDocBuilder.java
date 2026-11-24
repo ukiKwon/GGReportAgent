@@ -21,7 +21,8 @@ import java.util.Set;
 /**
  * 기관장 정보 상세({@code InstitutionHeadService.detail} 결과) → 문서 모델(NEXT 100 S1).
  * 사용자 참고 양식(11-20): 쪽 테두리, 가운데·굵게·밑줄 제목 「{기관명} {이름} {직위} Profile」(22pt), 왼쪽 사진·오른쪽 ■ 줄(14pt, 테두리 없는 표),
- * [ 학 력 ]·[ 경 력 ](16pt 굵게). 학력·경력은 둘 다 테두리 없는 2열 표(기간 28% | 내용 72%, 12pt, 기간 'YYYY.MM ~ YYYY.MM')로 열을 맞춘다.
+ * [ 학 력 ]·[ 경 력 ](16pt 굵게). 학력·경력은 표 없이 한 줄씩 '■ 내용'(12pt, ■ 뒤 한 칸, 줄바꿈하면 내어쓰기)이다(사용자 11-24).
+ * 기본(요약본)은 날짜가 없고, 날짜 포함 모드는 내용 바로 뒤 괄호에 '(2018.07 ~ 2022.06)'·'(2018)'·'(2018.07 ~ 현재)'·'(2026.01)'을 붙인다 — 확인 안 되는 날짜는 적지 않는다.
  * 글자 크기는 줄이지 않는다(사용자 11-23). 확정된 칸만 쓰고, 값이 없는 절은 머리째 생략한다.
  * <b>출처·이용 조건·기준일·안내 문구는 문서에 쓰지 않는다</b>(사용자 11-23: 웹 화면에서만). 사진을 못 넣은 사정은 문서가 아니라
  * 응답 머리 X-Head-Photo(included|none|failed)로 알린다 — {@link Built#photoStatus()}.
@@ -70,10 +71,9 @@ public final class HeadDocBuilder {
     private static final double INFO_LINE_MM = 9.5;      // 14pt 줄 + 뒤 8pt
     private static final double INFO_EXTRA_MM = 6.6;     // 줄바꿈 추가마다
     private static final double SECTION_MM = 13;         // 절 머리(16pt, 앞 12 뒤 4)
-    private static final double AFTER_TABLE_MM = 1;      // 표 뒤 빈 문단
-    private static final double ROW_MM = 7.8;            // 표 1행 12pt
-    private static final double ROW_EXTRA_MM = 5.6;      // 내용 칸 줄바꿈 추가마다
-    private static final double CONTENT_CAP = 28;        // 내용 열 한 줄 가중 글자수
+    private static final double ROW_MM = 7.0;            // 학력·경력 한 줄(12pt 줄 5.6 + 뒤 3pt + 여유)
+    private static final double ROW_EXTRA_MM = 5.6;      // 줄바꿈 추가마다
+    private static final double CONTENT_CAP = 38;        // 한 줄 가중 글자수 = (본문 170mm − 내어쓰기·■ 약 5.5mm) ÷ 12pt 한글 4.23mm ≈ 38.9
     private static final double CHAR_MM = 4.94;          // 14pt 한글 1자 폭
     private static final double INFO_PAD_MM = 3.5 + 4.9; // 칸 여백 3.5 + 14pt 내어쓰기 4.9
 
@@ -184,6 +184,11 @@ public final class HeadDocBuilder {
      * @param photoJpeg 서버에 저장된 재인코딩 JPEG 본문. null 이거나 못 읽는 그림이면 사진 없이 만든다(상태 failed).
      */
     public static Built buildDoc(Map<String, Object> detail, String instName, String baseDate, byte[] photoJpeg) {
+        return buildDoc(detail, instName, baseDate, photoJpeg, false);   // 기본 = 요약본(날짜 없음)
+    }
+
+    /** @param withDates true 면 학력·경력 내용 뒤 괄호에 날짜(연도 또는 YYYY.MM)를 붙인다. false(기본)면 날짜 없이 내용만(사용자 11-24 요약본/날짜정보 포함). */
+    public static Built buildDoc(Map<String, Object> detail, String instName, String baseDate, byte[] photoJpeg, boolean withDates) {
         Map<String, Object> head = map(detail.get("head"));
         List<Map<String, Object>> edu = sortPeriod(listOf(head.get("education")));      // 카드(hc sortPeriod)와 같은 순서
         List<Map<String, Object>> career = sortPeriod(listOf(head.get("career")));
@@ -228,7 +233,7 @@ public final class HeadDocBuilder {
         // 경력이 0줄이 돼도 넘치면 마지막 수단으로 학력도 오래된 것부터 뺀다. 둘 다 0줄이면 멈춘다(제목·정보·사진만으로 넘치면 줄일 것이 없음).
         int careerDropped = 0;
         int eduDropped = 0;
-        while (estimateMm(titleStr, 0, infoTexts, hasPhoto, contentsOf(edu), contentsOf(career)) > BUDGET_MM) {
+        while (estimateMm(titleStr, 0, infoTexts, hasPhoto, contentsOf(edu, withDates), contentsOf(career, withDates)) > BUDGET_MM) {
             if (!career.isEmpty()) {
                 career.remove(oldestIndex(career));
                 careerDropped++;
@@ -239,8 +244,8 @@ public final class HeadDocBuilder {
                 break;
             }
         }
-        List<String> eduContents = contentsOf(edu);
-        List<String> careerContents = contentsOf(career);
+        List<String> eduContents = contentsOf(edu, withDates);
+        List<String> careerContents = contentsOf(career, withDates);
         int stage = hasPhoto ? chooseStage(titleStr, infoTexts, true, eduContents, careerContents) : 0;
 
         List<DocModel.Block> blocks = new ArrayList<DocModel.Block>();
@@ -284,11 +289,11 @@ public final class HeadDocBuilder {
 
         if (!edu.isEmpty()) {
             blocks.add(sectionPara("[ 학 력 ]"));
-            blocks.add(periodTable(edu));
+            blocks.addAll(lineParas(edu, withDates));
         }
         if (!career.isEmpty()) {
             blocks.add(sectionPara("[ 경 력 ]"));
-            blocks.add(periodTable(career));
+            blocks.addAll(lineParas(career, withDates));
         }
         return new Built(new DocModel(blocks).withPageBorder(), status, careerDropped, eduDropped);
     }
@@ -335,7 +340,7 @@ public final class HeadDocBuilder {
         if (contents.isEmpty()) {
             return 0;   // 0건이면 절 머리째 생략
         }
-        double h = SECTION_MM + AFTER_TABLE_MM;
+        double h = SECTION_MM;   // 표가 없어 표 뒤 빈 문단도 없다
         for (String c : contents) {
             h += ROW_MM + ROW_EXTRA_MM * (wrapLines(c, CONTENT_CAP) - 1);
         }
@@ -446,11 +451,6 @@ public final class HeadDocBuilder {
                 14, DocModel.Align.LEFT).withSpacing(0, 8);
     }
 
-    /** 표 안 문단 12pt(기간·내용 모두). */
-    private static DocModel.Para cellPara(DocModel.Bullet bullet, String text) {
-        return new DocModel.Para(Collections.singletonList(DocModel.Run.of(text)), bullet, 0, 12, DocModel.Align.LEFT);
-    }
-
     /** 임기 '(2023.12 ~ 2027.12)'. lead 는 앞에 붙일 줄바꿈. */
     private static String termText(String start, String end, String lead) {
         if (!start.isEmpty()) {
@@ -459,36 +459,41 @@ public final class HeadDocBuilder {
         return lead + "(~ " + ym(end) + ")";
     }
 
-    /**
-     * 학력·경력 공용: 테두리 없는 2열 표(기간 28 | 내용 72, 기간 47.6mm | 내용 122.4mm). 기간 칸 ■, 내용 칸 글머리 없음.
-     * 기간이 없는 항목도 칸을 합치지 않는다 — 기간 칸은 '■'만, 내용은 오른쪽 열. 최근 것부터(sortPeriod 가 이미 정렬).
-     */
-    private static DocModel.Table periodTable(List<Map<String, Object>> items) {
-        List<List<DocModel.Cell>> rows = new ArrayList<List<DocModel.Cell>>();
+    /** 학력·경력 한 줄 12pt — '■ ' 는 DocxKit 이 붙이고(■ 뒤 한 칸) 둘째 줄부터는 내어쓰기(left=hanging=240twip). 사용자 11-24 "띄어쓰기 1~2개 정도". */
+    private static List<DocModel.Block> lineParas(List<Map<String, Object>> items, boolean withDates) {
+        List<DocModel.Block> out = new ArrayList<DocModel.Block>();
         for (Map<String, Object> it : items) {
-            rows.add(Arrays.asList(
-                    DocModel.Cell.of(Collections.<DocModel.Block>singletonList(cellPara(DocModel.Bullet.SQUARE, periodOf(it)))),
-                    DocModel.Cell.of(Collections.<DocModel.Block>singletonList(cellPara(DocModel.Bullet.NONE, str(it.get("value")))))));
+            out.add(new DocModel.Para(Collections.singletonList(DocModel.Run.of(lineText(it, withDates))), DocModel.Bullet.SQUARE, 0, 12,
+                    DocModel.Align.LEFT).withSpacing(0, 3));
         }
-        return new DocModel.Table(2, new double[]{28, 72}, rows, 0, true).withoutBorders();
+        return out;
     }
 
-    /** 기간 'A ~ B'(연도만). 시작만이면 'A ~ 현재', 끝만이면 '~ B', 둘 다 없으면 "". 저장값 'YYYY-MM' 의 월은 Word 에 쓰지 않는다(사용자 11-24). */
-    private static String periodOf(Map<String, Object> i) {
-        String from = yr(str(i.get("from")).trim());
-        String to = yr(str(i.get("to")).trim());
+    /** 한 줄 글자('■ ' 제외). 요약본은 내용만, 날짜 포함은 내용 + 괄호(앞 공백 없음) — 사용자 11-24 '마산공업고등학교 졸업(2026.01)'. */
+    static String lineText(Map<String, Object> it, boolean withDates) {
+        String v = str(it.get("value")).trim();
+        return withDates ? v + datesOf(it) : v;
+    }
+
+    /**
+     * 날짜 괄호. 저장값 YYYY / YYYY-MM(-DD) 를 연도 또는 'YYYY.MM'(일은 버림)으로. 형식 밖 값은 '확인 안 됨'으로 보아 적지 않는다.
+     * 둘 다: '(A ~ B)', 같으면 '(A)' · 시작만: '(A ~ 현재)' · 끝만: '(B)' · 둘 다 없음: "".
+     */
+    private static String datesOf(Map<String, Object> it) {
+        String from = dateText(str(it.get("from")));
+        String to = dateText(str(it.get("to")));
         if (!from.isEmpty() && !to.isEmpty()) {
-            return from.equals(to) ? from : from + " ~ " + to;   // 같은 해면 '2018' 하나로(qa a910bf7a P3-3)
+            return from.equals(to) ? "(" + from + ")" : "(" + from + " ~ " + to + ")";
         }
         if (!from.isEmpty()) {
-            return from + " ~ 현재";
+            return "(" + from + " ~ 현재)";
         }
-        return to.isEmpty() ? "" : "~ " + to;
+        return to.isEmpty() ? "" : "(" + to + ")";
     }
 
-    /** 'YYYY'·'YYYY-MM'·'YYYY-MM-DD' → 'YYYY'. 그 밖은 그대로. 학력·경력 기간 칸 전용(임기·취임일은 ym/ymd 유지). */
-    private static String yr(String s) {
-        return s.matches("\\d{4}(-\\d{2}(-\\d{2})?)?") ? s.substring(0, 4) : s;
+    private static String dateText(String raw) {
+        String s = raw.trim();
+        return s.matches("\\d{4}(-\\d{2}(-\\d{2})?)?") ? ym(s) : "";
     }
 
     /** 'YYYY-MM' 또는 'YYYY-MM-DD' → 'YYYY.MM'. 그 밖(연도만 등)은 그대로. 표시할 때만 바꾼다. */
@@ -524,10 +529,10 @@ public final class HeadDocBuilder {
         return s.matches("\\d{4}") ? s + (endSide ? "-12" : "-01") : s;
     }
 
-    private static List<String> contentsOf(List<Map<String, Object>> items) {
+    private static List<String> contentsOf(List<Map<String, Object>> items, boolean withDates) {
         List<String> out = new ArrayList<String>();
         for (Map<String, Object> it : items) {
-            out.add(str(it.get("value")));
+            out.add(lineText(it, withDates));   // 높이 추정도 실제 출력 글자(날짜 괄호 포함)로
         }
         return out;
     }

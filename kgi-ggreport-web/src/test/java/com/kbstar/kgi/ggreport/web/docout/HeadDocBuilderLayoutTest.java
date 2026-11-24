@@ -196,14 +196,13 @@ public class HeadDocBuilderLayoutTest {
         assertEquals("제목 22pt", "44", runSizeBefore(xml, "서울시 가구청 홍길동 구청장 Profile"));
         assertEquals("정보 줄 14pt", "28", runSizeBefore(xml, "성 명 : 홍길동"));
         assertEquals("절 제목 16pt", "32", runSizeBefore(xml, "[ 학 력 ]"));
-        assertEquals("표 내용 12pt", "24", runSizeBefore(xml, "행정학석사"));
-        assertEquals("표 기간 12pt", "24", runSizeBefore(xml, "1990 ~ 1994"));
+        assertEquals("학력·경력 줄 12pt", "24", runSizeBefore(xml, "행정학석사"));
     }
 
     @Test
     public void 사진_정보_학력_경력_표는_테두리가_없다() throws Exception {
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(render(true)))) {
-            assertEquals("사진+정보 표, 학력 표, 경력 표", 3, d.getTables().size());
+            assertEquals("사진+정보 표 하나(학력·경력은 표 없이 한 줄씩 — 사용자 11-24)", 1, d.getTables().size());
             assertEquals("사진은 1개", 1, d.getAllPictures().size());
             for (XWPFTable t : d.getTables()) {
                 CTTblBorders b = t.getCTTbl().getTblPr().getTblBorders();
@@ -219,48 +218,18 @@ public class HeadDocBuilderLayoutTest {
     }
 
     @Test
-    public void 사진이_없으면_사진_표_없이_학력_경력_표만_나온다() throws Exception {
+    public void 사진이_없으면_표가_없다() throws Exception {
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(render(false)))) {
-            assertEquals("학력·경력 표만", 2, d.getTables().size());
+            assertEquals("학력·경력도 표 없이 한 줄씩(사용자 11-24)", 0, d.getTables().size());
         }
     }
 
     @Test
-    public void 학력과_경력은_같은_열_폭이고_기간_없는_항목도_칸을_합치지_않는다() throws Exception {
-        Map<String, Object> d = detail(false);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> head = (Map<String, Object>) d.get("head");
-        head.put("career", Arrays.asList(item("기간없는경력", null, null), item("경력진행", "2018-07", null)));
-        byte[] docx = DocxKit.render(HeadDocBuilder.build(d, "서울시 가구청", "2026-11-20", null), DocxKit.Footer.pageNumberOnly());
-        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(docx))) {
-            assertEquals("학력 표 + 경력 표", 2, doc.getTables().size());
-            String grid0 = null;
-            for (XWPFTable t : doc.getTables()) {
-                for (XWPFTableRow r : t.getRows()) {
-                    assertEquals("모든 행이 2칸", 2, r.getTableCells().size());
-                }
-                String grid = t.getCTTbl().getTblGrid().toString().replaceAll("\\s+", "");
-                if (grid0 == null) {
-                    grid0 = grid;
-                }
-                assertEquals("두 표의 열 폭이 같다(내용 열 시작이 같다)", grid0, grid);
-            }
-            XWPFTable career = doc.getTables().get(1);
-            assertEquals("기간 없는 항목은 기간 칸에 ■만", "■", career.getRow(1).getCell(0).getText().trim());
-            assertTrue(career.getRow(1).getCell(1).getText().contains("기간없는경력"));
-        }
-    }
-
-    @Test
-    public void 기간은_YYYY_MM이고_연도만_값은_그대로며_날짜_생년_표기는_없다() throws Exception {
+    public void 요약본_기본은_학력_경력에_날짜가_없고_네모_뒤_한_칸이며_날짜_생년_표기는_없다() throws Exception {
         String xml = xml(render(true));
-        assertTrue("경력 진행", xml.contains("2018 ~ 현재"));   // 사용자 11-24: Word 기간은 연도만
-        assertTrue("경력 끝 있음", xml.contains("2001 ~ 2005"));
-        assertFalse("기간에 월 없음(첫 취임일 2018.07.01은 그대로)", xml.contains("2018.07 ~") || xml.contains("2018-07"));
-        assertTrue("학력도 A ~ B", xml.contains("1990 ~ 1994") && xml.contains("행정학석사"));
-        assertTrue("학력 연도만", xml.contains("1986 ~ 1990") && xml.contains("대학교졸업"));
-        assertFalse("월 표기 폐지", xml.contains("1990.03") || xml.contains("2001.01 ~") || xml.contains("1990.03~1994.02") || xml.contains("(1986~1990)"));
-        assertTrue("기간이 내용 앞(학력)", xml.indexOf("1990 ~ 1994") < xml.indexOf("행정학석사"));
+        assertTrue("■ 뒤 한 칸 + 내용", xml.contains("■ 경력진행") && xml.contains("■ 행정학석사") && xml.contains("■ 대학교졸업"));
+        assertFalse("요약본: 학력·경력 날짜 없음(사용자 11-24)", xml.contains("2018 ~ 현재") || xml.contains("2001 ~ 2005") || xml.contains("1990 ~ 1994")
+                || xml.contains("1986 ~ 1990") || xml.contains("1990.03") || xml.contains("2001.01"));
         assertTrue("임기", xml.contains("(2023.12") && xml.contains(" ~ 2027.12"));
         assertTrue("첫 취임일", xml.contains("첫 취임일 : 2018.07.01"));
         assertFalse("저장 형식 없음", xml.contains("2018-07") || xml.contains("2023-12") || xml.contains("2027-12"));
@@ -385,7 +354,7 @@ public class HeadDocBuilderLayoutTest {
     public void KOGL1_사진도_출처_없이_넣는다() throws Exception {
         byte[] docx = render("KOGL1", jpeg());
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
-            assertEquals("사진+정보, 학력, 경력 표", 3, d.getTables().size());
+            assertEquals("사진+정보 표 하나", 1, d.getTables().size());
             assertEquals(1, d.getAllPictures().size());
         }
         String xml = xml(docx);
@@ -397,7 +366,7 @@ public class HeadDocBuilderLayoutTest {
         for (String lic : new String[]{"LOCAL_ONLY", "KOGL2", "PRESS_PERMIT", "XYZ"}) {
             byte[] docx = render(lic, jpeg());
             try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
-                assertEquals(lic, 3, d.getTables().size());   // 사진+정보 표·학력·경력(사진이 들어가면 정보가 표 안으로)
+                assertEquals(lic, 1, d.getTables().size());   // 사진+정보 표 하나(학력·경력은 표 없이 한 줄씩)
                 assertEquals(lic, 1, d.getAllPictures().size());
             }
             assertFalse(lic, xml(docx).contains("넣지 않았") || xml(docx).contains("이용 조건") || xml(docx).contains(lic));
@@ -414,7 +383,7 @@ public class HeadDocBuilderLayoutTest {
         byte[] docx = render("INST_PERMIT", bad);
         assertFalse(xml(docx).contains("넣지 않았") || xml(docx).contains("불러오지"));
         try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
-            assertEquals("학력·경력 표만", 2, d.getTables().size());
+            assertEquals("사진을 못 읽으면 표 없음", 0, d.getTables().size());
             assertEquals(0, d.getAllPictures().size());
         }
     }

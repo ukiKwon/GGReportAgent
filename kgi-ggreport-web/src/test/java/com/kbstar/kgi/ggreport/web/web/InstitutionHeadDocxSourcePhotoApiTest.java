@@ -225,34 +225,49 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         addItemOk(INST, L1, periodItem(head, "EDU", "학력먼저E", "1990-03", "1994-02"), 201);
         addItemOk(INST, L1, periodItem(head, "EDU", "학력나중F", "1996-03", "1998-02"), 201);
 
-        MvcResult r = docx();
+        MvcResult r = docx("?mode=dated");   // 사용자 11-24 날짜정보 포함: 내용 뒤 괄호
         assertEquals(text(r), 200, r.getResponse().getStatus());
         String xml = documentXml(bytes(r));
         assertTrue("현재 진행이 맨 위", xml.indexOf("경력진행중B") < xml.indexOf("경력최근C"));
         assertTrue(xml.indexOf("경력최근C") < xml.indexOf("경력옛날A"));
         assertTrue(xml.indexOf("학력나중F") < xml.indexOf("학력먼저E"));
-        assertTrue("진행 중은 ~ 현재", xml.contains("2019 ~ 현재"));   // 사용자 11-24: Word 기간은 연도만
-        assertTrue("기간은 연도만", xml.contains("2010 ~ 2018"));
-        assertTrue("학력도 A ~ B 기간 표", xml.contains("1990 ~ 1994"));
-        assertTrue("기간이 값 앞(학력)", xml.indexOf("1990 ~ 1994") < xml.indexOf("학력먼저E"));
-        assertFalse("월 표기 없음", xml.contains("1990.03") || xml.contains("2010.03") || xml.contains("2019.07"));
-        assertTrue("기간이 값 앞(경력)", xml.indexOf("2010 ~ 2018") < xml.indexOf("경력최근C"));
+        assertTrue("진행 중은 (A ~ 현재)", xml.contains("경력진행중B(2019.07 ~ 현재)"));
+        assertTrue("괄호 안 연월", xml.contains("경력최근C(2010.03 ~ 2018.12)"));
+        assertTrue(xml.contains("학력먼저E(1990.03 ~ 1994.02)"));
+        assertTrue(xml.contains("경력옛날A(2001.01 ~ 2005.12)"));
         assertFalse("저장 형식 없음", xml.contains("2019-07") || xml.contains("2010-03"));
+        String sum = documentXml(bytes(docx()));   // 요약본(기본): 날짜 없음
+        assertTrue(sum.contains("■ 경력최근C") && !sum.contains("2010.03") && !sum.contains("경력최근C("));
+    }
+
+    private MvcResult docx(String query) throws Exception {
+        return mockMvc.perform(as(get(headPath(INST) + "/docx" + query), T1)
+                .header("X-Screen-Id", "head_card").header("X-Button-Id", "head_docx")).andReturn();
     }
 
     @Test
-    public void 경력_연도만_시작과_연월_끝은_받고_Word에는_연도만_나온다() throws Exception {   // 사용자 11-24
+    public void 모르는_mode는_400_BAD_VALUE() throws Exception {
+        addHeadOk(INST, L1, "홍길동", "구청장");
+        for (String v : new String[]{"full", "DATED", "1"}) {
+            MvcResult r = docx("?mode=" + v);
+            assertEquals(v, 400, r.getResponse().getStatus());
+            assertEquals("BAD_VALUE", code(json(r)));
+        }
+    }
+
+    @Test
+    public void 경력_연도만_시작과_연월_끝은_받고_날짜_포함이면_저장값대로_나온다() throws Exception {   // 사용자 11-24
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         addItemOk(INST, L1, periodItem(head, "CAREER", "경력연도만P", "2018", "2020-06"), 201);
         addItemOk(INST, L1, periodItem(head, "CAREER", "경력같은해Q", "2018-07", "2018"), 201);   // 시작 2018-07, 끝 2018 허용
         MvcResult bad = postJson(headPath(INST) + "/items", L1, periodItem(head, "CAREER", "경력역순R", "2019", "2018-12"));
         assertEquals(400, bad.getResponse().getStatus());
         assertEquals("INVALID_DATE", code(json(bad)));
-        MvcResult r = docx();
+        MvcResult r = docx("?mode=dated");
         assertEquals(text(r), 200, r.getResponse().getStatus());
         String xml = documentXml(bytes(r));
-        assertTrue(xml.contains("2018 ~ 2020"));
-        assertFalse(xml.contains("2020-06") || xml.contains("2020.06"));
+        assertTrue(xml.contains("경력연도만P(2018 ~ 2020.06)"));
+        assertFalse(xml.contains("2020-06"));
     }
 
     @Test

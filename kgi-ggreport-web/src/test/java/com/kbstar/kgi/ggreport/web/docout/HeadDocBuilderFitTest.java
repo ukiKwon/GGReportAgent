@@ -47,8 +47,9 @@ public class HeadDocBuilderFitTest {
 
     @Test
     public void 행이_늘면_단계가_내려가고_넘치면_S0이다() {
-        assertEquals("한 절만 15행: S3 는 넘고 S2 는 들어간다", 2, HeadDocBuilder.chooseStage(INFO, true, NONE, rows(15)));
-        assertEquals("두 절 14행: S1 도 넘으면 S0", 0, HeadDocBuilder.chooseStage(INFO, true, rows(2), rows(12)));
+        // 학력·경력 한 줄 7.0mm·표 뒤 빈 문단 없음(사용자 11-24 '■ 내용' 한 줄)
+        assertEquals("한 절만 17행: S3 는 넘고 S2 는 들어간다", 2, HeadDocBuilder.chooseStage(INFO, true, NONE, rows(17)));
+        assertEquals("두 절 18행: S1 도 넘으면 S0", 0, HeadDocBuilder.chooseStage(INFO, true, rows(2), rows(16)));
         assertEquals("어느 단계도 안 들어가면 S0(2쪽으로 넘김)", 0, HeadDocBuilder.chooseStage(INFO, true, rows(10), rows(30)));
     }
 
@@ -66,13 +67,13 @@ public class HeadDocBuilderFitTest {
     public void 내용이_길면_줄바꿈이_높이에_반영된다() {
         List<String> shortRows = rows(5);
         List<String> longRows = new ArrayList<String>(shortRows);
-        longRows.set(0, repeat('가', 60));   // 3줄 = +2×5.6
+        longRows.set(0, repeat('가', 80));   // 한 줄 38자 → 3줄 = +2×5.6
         double a = HeadDocBuilder.estimateMm(3, INFO, true, NONE, shortRows);
         double b = HeadDocBuilder.estimateMm(3, INFO, true, NONE, longRows);
         assertEquals(11.2, b - a, 0.01);
-        assertEquals("한 절 14행(239.5mm)은 S3", 3, HeadDocBuilder.chooseStage(INFO, true, NONE, rows(14)));
-        List<String> mixed = new ArrayList<String>(rows(14));
-        mixed.set(0, repeat('가', 60));   // +11.2mm → 250.7mm
+        assertEquals("한 절 16행은 S3", 3, HeadDocBuilder.chooseStage(INFO, true, NONE, rows(16)));
+        List<String> mixed = new ArrayList<String>(rows(16));
+        mixed.set(0, repeat('가', 80));   // +11.2mm
         assertTrue("긴 줄 때문에 S3 보다 작은 단계", HeadDocBuilder.chooseStage(INFO, true, NONE, mixed) < 3);
     }
 
@@ -82,8 +83,8 @@ public class HeadDocBuilderFitTest {
         String longTitle = "가나다라마바사아자차카타파하가나다라마바사아자공단 홍길동 이사장 Profile";
         assertEquals(10.3, HeadDocBuilder.estimateMm(longTitle, 3, INFO, true, rows(2), rows(10))
                 - HeadDocBuilder.estimateMm(shortTitle, 3, INFO, true, rows(2), rows(10)), 0.01);
-        assertEquals("짧은 제목·두 절 13행은 S3", 3, HeadDocBuilder.chooseStage(shortTitle, INFO, true, rows(2), rows(11)));
-        assertTrue("긴 제목이면 한 단계 이상 낮다", HeadDocBuilder.chooseStage(longTitle, INFO, true, rows(2), rows(11)) < 3);
+        assertEquals("짧은 제목·두 절 14행은 S3", 3, HeadDocBuilder.chooseStage(shortTitle, INFO, true, rows(2), rows(12)));
+        assertTrue("긴 제목이면 한 단계 이상 낮다", HeadDocBuilder.chooseStage(longTitle, INFO, true, rows(2), rows(12)) < 3);
     }
 
     @Test

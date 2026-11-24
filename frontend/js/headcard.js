@@ -69,14 +69,23 @@
     offline: '서버에 연결되면 기관장 정보를 볼 수 있습니다.',
     error: '기관장 정보를 불러오지 못했습니다.',
     network: '서버에 연결하지 못했습니다. 서버가 켜져 있는지 확인하세요.',
-    docxOk: '워드 파일을 내려받았습니다.',
     docxPhotoFailed: '사진은 불러오지 못해 넣지 않았습니다.',
-    docxBusy: '워드 파일을 만드는 중입니다.',
     docxSaveFailed: '파일은 만들어졌지만 이 컴퓨터에 저장하지 못했습니다. 다운로드가 막혀 있지 않은지 확인하고 다시 받으세요.',
     docxEmpty: '문서에 담을 확정된 기관장 정보가 없습니다. [기관장 편집]에서 이름·직위 등을 확정한 뒤 다시 받으세요.',
     docxServer: '파일을 만들지 못했습니다. 열람 기록을 남기지 못하면 파일을 내보내지 않습니다. 잠시 뒤 다시 시도하세요.',
     docxUi: '화면 오류로 처리하지 못했습니다. 화면을 다시 불러온 뒤(F5) 다시 시도하세요.',
   };
+  // 워드 내려받기 종류(사용자 11-24 요약본(기본)/날짜정보 포함). cd = 서버 ?mode= 값. 첫 항목이 기본값.
+  hc.DL_MODES = [{ cd: 'summary', label: '요약본' }, { cd: 'dated', label: '날짜정보 포함' }];
+  hc.DL_OPT_LABEL = '워드에 넣을 내용';   // 선택 상자의 화면에 안 보이는 이름(aria-label)
+  function dlModeOf(v) { return hc.DL_MODES.some(function (m) { return m.cd === v; }) ? v : 'summary'; }
+  function dlLabel(v) { return hc.DL_MODES.filter(function (m) { return m.cd === dlModeOf(v); })[0].label; }
+  // 마지막 선택(같은 화면에서만 유지 — 저장하지 않는다, F5면 요약본). hc.reset()이 건드리지 않아 기관을 옮겨도 유지된다.
+  let dlOpt = 'summary';
+  hc.getDlMode = function () { return dlOpt; };
+  hc.setDlMode = function (v) { dlOpt = dlModeOf(v); return dlOpt; };
+  hc.docxOkLead = function (mode) { return '워드 파일(' + dlLabel(mode) + ')을 내려받았습니다.'; };
+  hc.docxBusyText = function (mode) { return '워드 파일(' + dlLabel(mode) + ')을 만드는 중입니다.'; };
 
   // ── 순수: 값 도우미 ────────────────────────────────────────────────
   function str(v) { return v == null ? '' : String(v); }
@@ -369,7 +378,9 @@
       '<div class="hc-foot"><p class="hc-meta">출처를 단 항목 <span class="v">' + (Number(h.source_count) || 0) + '</span>건 · 최근 확인 ' +
       (h.last_checked_on ? mono(h.last_checked_on) : chip()) + ' · 열람·내려받기 기록이 남습니다</p>' +
       '<span class="hc-foot-l">' + candBtn + '</span>' +
-      '<span class="sp"><button type="button" data-hc="docx"' + (dlBusy ? ' aria-disabled="true"' : '') + '>' + (dlBusy ? '만드는 중…' : '워드 내려받기') + '</button>' +
+      '<span class="sp"><span class="hc-dl"><select data-hc="docx-opt" aria-label="' + esc(hc.DL_OPT_LABEL) + '">' +
+      hc.DL_MODES.map(function (m) { return '<option value="' + m.cd + '"' + (m.cd === dlOpt ? ' selected' : '') + '>' + esc(m.label) + '</option>'; }).join('') + '</select>' +
+      '<button type="button" data-hc="docx"' + (dlBusy ? ' aria-disabled="true"' : '') + '>' + (dlBusy ? '만드는 중…' : '워드 내려받기') + '</button></span>' +
       '<button type="button" data-hc="refresh">새로 고침</button><button type="button" data-hc="edit">기관장 편집</button></span>' +
       hc.refHtml(view.dl, ctx) + '</div></article>';
   };
@@ -378,7 +389,7 @@
   // dl = { busy, err, ok } | null. 알릴 말(완료·오류)이 있을 때만 줄을 그린다. 진행 중에는 버튼 문구가 바뀌고 화면에 안 보이는 낭독 줄(sr-only)만 둔다.
   hc.refHtml = function (dl) {
     if (!dl) return '';
-    if (dl.busy) return '<p class="sr-only" role="status" id="hc-ref">' + esc(hc.TEXT.docxBusy) + '</p>';   // 받는 중 — 화면에는 안 보이고 낭독만
+    if (dl.busy) return '<p class="sr-only" role="status" id="hc-ref">' + esc(hc.docxBusyText(dl.mode)) + '</p>';   // 받는 중 — 화면에는 안 보이고 낭독만
     let out = '';
     if (dl.err) out += '<p class="hc-err" role="alert">' + esc(dl.err) + '</p>';
     if (dl.ok) out += '<p class="hc-ok" role="status">' + esc(dl.ok) + '</p>';
@@ -386,10 +397,10 @@
   };
   // 완료 문구. 서버 응답 머리 X-Head-Photo가 failed일 때만 사진 안내를 덧붙인다(included·none·없음은 덧붙이지 않는다).
   // 1장 맞춤(사용자 11-23 Q-2026-11-23-17): X-Head-Trimmed-Career·Edu가 1 이상이면 뺀 줄 수를 덧붙인다(0·없음은 덧붙이지 않는다).
-  hc.docxOkText = function (photo, trimCareer, trimEdu) {
+  hc.docxOkText = function (photo, trimCareer, trimEdu, mode) {
     const n = function (v) { const x = parseInt(trim(v), 10); return x > 0 ? x : 0; };
     const c = n(trimCareer), e = n(trimEdu);
-    let out = hc.TEXT.docxOk + (trim(photo).toLowerCase() === 'failed' ? ' ' + hc.TEXT.docxPhotoFailed : '');
+    let out = hc.docxOkLead(mode) + (trim(photo).toLowerCase() === 'failed' ? ' ' + hc.TEXT.docxPhotoFailed : '');
     if (c || e) out += ' 1장에 맞추려고 파일에서 ' + (c ? '경력 ' + c + '줄' : '') + (c && e ? '·' : '') + (e ? '학력 ' + e + '줄' : '') + '을 오래된 것부터 뺐습니다(카드 기록은 그대로).';
     return out;
   };
@@ -472,9 +483,9 @@
   };
 
   // 워드 본문: 새 창으로 열면 신원 헤더가 안 붙어 400 UI_ID_REQUIRED가 된다 — fetch로 받아 Blob으로 넘긴다.
-  hc.docxUrl = function (instId) { return base(instId) + '/head/docx'; };
-  hc.fetchDocx = function (instId, screen) {
-    return fetch(hc.docxUrl(instId), { method: 'GET', headers: uiHeaders(hc.BTN.docx, screen) }).then(function (r) {
+  hc.docxUrl = function (instId, mode) { return base(instId) + '/head/docx?mode=' + dlModeOf(mode); };   // 항상 명시(서버 기본=summary)
+  hc.fetchDocx = function (instId, screen, mode) {
+    return fetch(hc.docxUrl(instId, mode), { method: 'GET', headers: uiHeaders(hc.BTN.docx, screen) }).then(function (r) {
       if (r.ok) {
         const hd = function (k) { return r.headers && r.headers.get ? r.headers.get(k) : ''; };
         const cd = hd('Content-Disposition'), photo = hd('X-Head-Photo');
@@ -1204,27 +1215,30 @@
     const dl = V.dl || (V.dl = { busy: false, err: '', ok: '' });
     if (dl.busy) return Promise.resolve();
     useEnv(envFn);
-    const SEL = '[data-hc="docx"]';
+    const SEL = '[data-hc="docx"]', OPT = '[data-hc="docx-opt"]';
     const had0 = paneHasFocus(SEL);
-    dl.busy = true; dl.err = ''; dl.ok = '';
+    const mode = dlOpt;   // 시작할 때 고정 — 받는 중 선택을 바꿔도 이번 파일·문구에는 영향이 없다
+    dl.busy = true; dl.err = ''; dl.ok = ''; dl.mode = mode;
     const mine = V;
     paintDl();
     if (had0) focusPane(SEL);   // 키보드로 눌렀으면 받는 동안에도 포커스는 단추에
-    return hc.fetchDocx(mine.instId, mine.screen).then(function (res) {
+    return hc.fetchDocx(mine.instId, mine.screen, mode).then(function (res) {
       let saveFailed = false;
       try { hc.saveBlob(res.blob, res.fileName); } catch (x) { saveFailed = true; }   // 기관을 옮겼어도 이미 받은 파일은 저장한다
       if (V !== mine) return;
       const had = paneHasFocus(SEL, had0);   // 받는 사이 다른 곳으로 옮겼다면 끌어오지 않는다
+      const hadOpt = paneHasFocus(OPT);      // 받는 사이 선택 상자로 옮겼다면 다시 그린 뒤 그 칸으로
       dl.busy = false;
-      if (saveFailed) dl.err = hc.TEXT.docxSaveFailed; else dl.ok = hc.docxOkText(res.photo, res.trimCareer, res.trimEdu);
+      if (saveFailed) dl.err = hc.TEXT.docxSaveFailed; else dl.ok = hc.docxOkText(res.photo, res.trimCareer, res.trimEdu, mode);
       paintDl();
-      if (had) focusPane(SEL);
+      if (had) focusPane(SEL); else if (hadOpt) focusPane(OPT);
     }).catch(function (e) {
       if (V !== mine) return;
       const had = paneHasFocus(SEL, had0);
+      const hadOpt = paneHasFocus(OPT);
       dl.busy = false; dl.err = hc.docxErrText(e.status, e.detail).text;
       paintDl();
-      if (had) focusPane(SEL);
+      if (had) focusPane(SEL); else if (hadOpt) focusPane(OPT);
       if (e.status === 409) {
         // 그 사이 기관장이 비었으면 카드를 최신으로 — 단추가 사라질 수 있으니 남은 단추로 포커스를 옮긴다
         const p = hc.refresh(true, hc.BTN.refresh);
@@ -1234,6 +1248,11 @@
   };
 
   // 상세 칸의 [편집]·[기관장 추가]·[새로 고침] 버튼(data-hc). envFn은 openModal과 같다.
+  // 선택 상자(data-hc="docx-opt")의 change. dashboard.js 위임은 click만 받으므로 headcard가 문서 수준에서 직접 듣는다.
+  hc.onPaneChange = function (what, value) {
+    if (what === 'docx-opt') hc.setDlMode(value);   // 다시 그리지 않는다 — 다음에 그릴 때 dlOpt로 내보낸다
+    return null;
+  };
   hc.onPaneClick = function (what, envFn) {
     if (what === 'docx') return hc.docxGo(envFn);
     if (what === 'refresh') {
@@ -1246,6 +1265,12 @@
     return null;
   };
 
+  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {   // 브라우저에서만(node 시험에는 document가 없다)
+    document.addEventListener('change', function (e) {
+      const t = e && e.target;
+      if (t && t.getAttribute && t.getAttribute('data-hc') === 'docx-opt') hc.onPaneChange('docx-opt', t.value);
+    });
+  }
   if (isNode) module.exports = hc;
   else root.headcard = hc;
 })(typeof self !== 'undefined' ? self : this);

@@ -145,8 +145,20 @@ public class InstitutionHeadController {
      * 응답 머리 {@code X-Head-Photo}: included(그림 넣음) | none(사진 없음·허용 밖) | failed(허용 조건인데 못 읽음). 참고자료 번호는 없앴다 — 예전 화면이 보내도 무시한다(11-23).
      * 감사 행위 코드 HEAD_DOCX 는 응답 전에 기록하고 HEAD_ID 열에 그 현 기관장 번호를 채운다(실패하면 500, 파일 안 나감). 접근 이력에는 기관·코드만(이름·파일명 없음).
      */
+    /** docx mode: 없음·빈 값·summary → false(요약본), dated → true(날짜정보 포함). 그 밖은 400 BAD_VALUE(입력값은 메시지에 싣지 않는다). 감사에는 모드를 남기지 않는다. */
+    private static boolean datedMode(String mode) {
+        if (mode == null || mode.isEmpty() || "summary".equals(mode)) {
+            return false;
+        }
+        if ("dated".equals(mode)) {
+            return true;
+        }
+        throw coded(400, "BAD_VALUE", "문서 형식은 summary 또는 dated 로 지정하세요.");
+    }
+
     @GetMapping("/institutions/{institutionId}/head/docx")
-    public ResponseEntity<byte[]> docx(@PathVariable final String institutionId, HttpServletRequest req) {
+    public ResponseEntity<byte[]> docx(@PathVariable final String institutionId,
+                                       @RequestParam(name = "mode", required = false) final String mode, HttpServletRequest req) {
         final BoardUiIds.Ui ui = HeadUiIds.of(req);
         DocOut out = run(req, institutionId, null, null, "HEAD_DOCX", true, new Call<DocOut>() {
             @Override
@@ -154,13 +166,14 @@ public class InstitutionHeadController {
                 if (!ui.isValid()) {
                     throw coded(400, "UI_ID_REQUIRED", "화면·버튼 식별자가 필요합니다.");
                 }
+                final boolean dated = datedMode(mode);   // 사용자 11-24 요약본(기본)/날짜정보 포함 — DB 를 건드리기 전에 거른다(400 → 감사 INVALID)
                 Map<String, Object> d = heads.detail(me, actor, institutionId);
                 if (d.get("head") == null || Boolean.TRUE.equals(d.get("head_empty")) || !HeadDocBuilder.hasContent(d)) {
                     throw coded(409, "HEAD_EMPTY", "확정된 현 기관장 정보가 없습니다.");
                 }
                 String name = plans.selectInstitutionName(institutionId);
                 byte[] photo = HeadDocBuilder.photoWanted(d) ? photos.contentForDoc(me, institutionId, HeadDocBuilder.photoIdOf(d)) : null;   // 못 읽으면 null → 사진 없이(사용자 11-20)
-                HeadDocBuilder.Built built = HeadDocBuilder.buildDoc(d, name, Times.todayKst(), photo);
+                HeadDocBuilder.Built built = HeadDocBuilder.buildDoc(d, name, Times.todayKst(), photo, dated);
                 byte[] bytes = DocxKit.render(built.model(), DocxKit.Footer.pageNumberOnly());
                 return new DocOut(bytes, name, HeadDocBuilder.headIdOf(d), built.photoStatus(), built.careerDropped(), built.eduDropped());
             }

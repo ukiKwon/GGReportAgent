@@ -1054,20 +1054,20 @@ test('워드: 완료는 role=status(.hc-ok), 오류는 role=alert(.hc-err), 이�
 
 test('docxOkText: X-Head-Photo가 failed일 때만 사진 안내를 덧붙인다', function () {
   const T = hc.TEXT;
-  assert.strictEqual(T.docxOk, '워드 파일을 내려받았습니다.');
-  assert.strictEqual(hc.docxOkText('failed'), T.docxOk + ' 사진은 불러오지 못해 넣지 않았습니다.');
-  ['included', 'none', '', null, undefined].forEach(function (v) { assert.strictEqual(hc.docxOkText(v), T.docxOk, String(v)); });
+  assert.strictEqual(hc.docxOkLead('summary'), '워드 파일(요약본)을 내려받았습니다.');   // 사용자 11-24 받은 종류를 문구에
+  assert.strictEqual(hc.docxOkText('failed'), hc.docxOkLead('summary') + ' 사진은 불러오지 못해 넣지 않았습니다.');
+  ['included', 'none', '', null, undefined].forEach(function (v) { assert.strictEqual(hc.docxOkText(v), hc.docxOkLead('summary'), String(v)); });
 });
 
 test('docxOkText: X-Head-Trimmed-Career·Edu가 1 이상일 때만 뺀 줄 수를 덧붙인다(사용자 11-23 1장)', function () {
   const T = hc.TEXT;
-  assert.strictEqual(hc.docxOkText('included', '5', '0'), T.docxOk + ' 1장에 맞추려고 파일에서 경력 5줄을 오래된 것부터 뺐습니다(카드 기록은 그대로).');
-  assert.strictEqual(hc.docxOkText('none', '3', '2'), T.docxOk + ' 1장에 맞추려고 파일에서 경력 3줄·학력 2줄을 오래된 것부터 뺐습니다(카드 기록은 그대로).');
-  assert.strictEqual(hc.docxOkText('failed', '1', null), T.docxOk + ' 사진은 불러오지 못해 넣지 않았습니다. 1장에 맞추려고 파일에서 경력 1줄을 오래된 것부터 뺐습니다(카드 기록은 그대로).');
-  [['0', '0'], [null, null], ['', ''], ['x', '-1']].forEach(function (p) { assert.strictEqual(hc.docxOkText('included', p[0], p[1]), T.docxOk, String(p)); });
+  assert.strictEqual(hc.docxOkText('included', '5', '0'), hc.docxOkLead('summary') + ' 1장에 맞추려고 파일에서 경력 5줄을 오래된 것부터 뺐습니다(카드 기록은 그대로).');
+  assert.strictEqual(hc.docxOkText('none', '3', '2'), hc.docxOkLead('summary') + ' 1장에 맞추려고 파일에서 경력 3줄·학력 2줄을 오래된 것부터 뺐습니다(카드 기록은 그대로).');
+  assert.strictEqual(hc.docxOkText('failed', '1', null), hc.docxOkLead('summary') + ' 사진은 불러오지 못해 넣지 않았습니다. 1장에 맞추려고 파일에서 경력 1줄을 오래된 것부터 뺐습니다(카드 기록은 그대로).');
+  [['0', '0'], [null, null], ['', ''], ['x', '-1']].forEach(function (p) { assert.strictEqual(hc.docxOkText('included', p[0], p[1]), hc.docxOkLead('summary'), String(p)); });
 });
 
-test('워드: 누르면 바로 GET /head/docx(질의 없음) + X-Screen-Id head_card·X-Button-Id head_docx, 파일 이름 규칙 유지', async function () {
+test('워드: 누르면 바로 GET /head/docx?mode=summary(기본 요약본) + X-Screen-Id head_card·X-Button-Id head_docx, 파일 이름 규칙 유지', async function () {
   const calls = fakeFetch(docxRoutes({ status: 200, blob: new Blob(['docx']), headers: { 'Content-Disposition': DOCX_CD } }));
   try {
     await okCard();
@@ -1075,15 +1075,15 @@ test('워드: 누르면 바로 GET /head/docx(질의 없음) + X-Screen-Id head_
       await hc.onPaneClick('docx', function () { return env(); });
       const c = calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; });
       assert.strictEqual(c.length, 1);
-      assert.strictEqual(c[0].url, '/institutions/11010/head/docx');
+      assert.strictEqual(c[0].url, '/institutions/11010/head/docx?mode=summary');
       assert.strictEqual(c[0].init.method, 'GET');
       assert.deepStrictEqual(c[0].init.headers, { 'X-Screen-Id': 'head_card', 'X-Button-Id': 'head_docx' });
       assert.strictEqual(saved.length, 1);
       assert.strictEqual(saved[0].download, '기관장정보_가람시_20261119.docx');
     });
     const dl = hc.view().dl;
-    assert.ok(!dl.busy && !dl.err && dl.ok === hc.TEXT.docxOk);
-    assert.ok(hc.cardHtml(hc.view(), { today: TODAY }).indexOf('role="status">워드 파일을 내려받았습니다.') >= 0);
+    assert.ok(!dl.busy && !dl.err && dl.ok === hc.docxOkLead('summary'));
+    assert.ok(hc.cardHtml(hc.view(), { today: TODAY }).indexOf('role="status">워드 파일(요약본)을 내려받았습니다.') >= 0);
   } finally { cleanup(); }
 });
 
@@ -1099,7 +1099,7 @@ test('워드: X-Head-Photo=failed면 완료 문구 끝에 사진 안내, include
       await withFakeDoc(async function () { await hc.onPaneClick('docx', function () { return env(); }); });
       const ok = hc.view().dl.ok;
       assert.strictEqual(ok.slice(-tail.length) === tail, c[1], String(c[0]));
-      assert.ok(ok.indexOf(hc.TEXT.docxOk) === 0);
+      assert.ok(ok.indexOf(hc.docxOkLead('summary')) === 0);
     } finally { cleanup(); }
   }
 });
@@ -1163,7 +1163,8 @@ test('워드: 받는 중 또 눌러도 요청은 한 번, 다음 내려받기를
 
 test('워드: 받는 중 refHtml은 화면 낭독 전용 줄(sr-only, role=status)이고 .hc-ref 줄은 없다', function () {
   const h = hc.refHtml({ busy: true, err: '', ok: '' });
-  assert.ok(/<p class="sr-only" role="status" id="hc-ref">워드 파일을 만드는 중입니다\.<\/p>/.test(h));
+  assert.ok(/<p class="sr-only" role="status" id="hc-ref">워드 파일\(요약본\)을 만드는 중입니다\.<\/p>/.test(h));   // mode 없으면 요약본
+  assert.ok(hc.refHtml({ busy: true, err: '', ok: '', mode: 'dated' }).indexOf('워드 파일(날짜정보 포함)을 만드는 중입니다.') >= 0);
   assert.ok(h.indexOf('class="hc-ref"') < 0);
   assert.strictEqual(hc.refHtml(null), '');
 });
@@ -1238,6 +1239,63 @@ test('워드: 저장 단계 예외는 연결 실패가 아니라 저장 실패 �
       assert.ok(!dl.busy && !dl.ok);
     } finally { delete global.document; }
   } finally { cleanup(); }
+});
+
+test('워드: 선택 상자 — 기본 요약본 selected, 고르면 날짜정보 포함 selected, reset에도 유지, 모르는 값은 요약본(사용자 11-24)', function () {
+  try {
+    hc.setDlMode('summary');
+    const h = hc.cardHtml(view(), { today: TODAY });
+    assert.ok(h.indexOf('<select data-hc="docx-opt" aria-label="워드에 넣을 내용">') >= 0);
+    assert.ok(h.indexOf('<option value="summary" selected>요약본</option><option value="dated">날짜정보 포함</option>') >= 0);
+    hc.onPaneChange('docx-opt', 'dated');
+    assert.strictEqual(hc.getDlMode(), 'dated');
+    assert.ok(hc.cardHtml(view(), { today: TODAY }).indexOf('<option value="summary">요약본</option><option value="dated" selected>날짜정보 포함</option>') >= 0);
+    hc.reset();
+    assert.strictEqual(hc.getDlMode(), 'dated');
+    hc.onPaneChange('docx-opt', 'weird');
+    assert.strictEqual(hc.getDlMode(), 'summary');
+  } finally { hc.setDlMode('summary'); }
+});
+
+test('워드: 선택 상자는 단추 앞(.hc-dl 한 덩어리), 받는 중에도 disabled 아님, id 없음', function () {
+  const h = hc.cardHtml(view({}, { dl: { busy: true, err: '', ok: '', mode: 'summary' } }), { today: TODAY });
+  assert.ok(h.indexOf('data-hc="docx-opt"') < h.indexOf('data-hc="docx"') && h.indexOf('data-hc="docx"') < h.indexOf('data-hc="refresh"'));
+  assert.ok(/<span class="hc-dl"><select data-hc="docx-opt"[^>]*>[\s\S]*<\/select><button type="button" data-hc="docx" aria-disabled="true">만드는 중…<\/button><\/span>/.test(h));
+  assert.ok(!/<select[^>]*disabled/.test(h) && !/<select[^>]*id=/.test(h));
+});
+
+test('워드: URL에 mode — 날짜정보 포함 고르면 ?mode=dated, 헤더는 그대로', async function () {
+  const calls = fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: { 'Content-Disposition': DOCX_CD } }));
+  try {
+    assert.strictEqual(hc.docxUrl('11010', 'x'), '/institutions/11010/head/docx?mode=summary');
+    await okCard();
+    await withFakeDoc(async function () {
+      hc.onPaneChange('docx-opt', 'dated');
+      await hc.onPaneClick('docx', function () { return env(); });
+    });
+    const c = calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; });
+    assert.strictEqual(c[0].url, '/institutions/11010/head/docx?mode=dated');
+    assert.deepStrictEqual(c[0].init.headers, { 'X-Screen-Id': 'head_card', 'X-Button-Id': 'head_docx' });
+    assert.strictEqual(hc.view().dl.ok, '워드 파일(날짜정보 포함)을 내려받았습니다.');
+  } finally { hc.setDlMode('summary'); cleanup(); }
+});
+
+test('워드: 받는 중 선택을 바꿔도 이번 요청·완료 문구는 시작할 때 값, 다음부터 새 값', async function () {
+  const calls = fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: { 'Content-Disposition': DOCX_CD } }));
+  try {
+    await okCard();
+    await withFakeDoc(async function () {
+      const a = hc.onPaneClick('docx', function () { return env(); });
+      assert.strictEqual(hc.view().dl.mode, 'summary');
+      hc.onPaneChange('docx-opt', 'dated');
+      await a;
+      assert.strictEqual(hc.view().dl.ok, '워드 파일(요약본)을 내려받았습니다.');
+      await hc.onPaneClick('docx', function () { return env(); });
+      assert.strictEqual(hc.view().dl.ok, '워드 파일(날짜정보 포함)을 내려받았습니다.');
+    });
+    const c = calls.filter(function (x) { return x.url.indexOf('/docx') >= 0; });
+    assert.deepStrictEqual(c.map(function (x) { return x.url; }), ['/institutions/11010/head/docx?mode=summary', '/institutions/11010/head/docx?mode=dated']);
+  } finally { hc.setDlMode('summary'); cleanup(); }
 });
 
 test('saveBlob: 저장 중 예외가 나도 임시 요소를 치우고 예외는 그대로 던진다', function () {
@@ -1370,7 +1428,7 @@ test('워드: headcard는 document 입력·키 처리기를 달지 않는다(번
   try {
     delete require.cache[p];
     require('../js/headcard.js');
-    assert.deepStrictEqual(ls, []);
+    assert.deepStrictEqual(ls, ['change']);   // 워드 종류 선택 상자(docx-opt) change 하나만 — 입력·키 처리기는 없다(사용자 11-24)
   } finally { delete global.document; require.cache[p] = saved; }
 });
 
