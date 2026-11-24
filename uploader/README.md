@@ -312,6 +312,16 @@ spring.servlet.multipart.max-file-size=100MB
 spring.servlet.multipart.max-request-size=200MB
 ```
 
+### 7-5. 사업계획·뉴스 CSV 올리기 (NEXT 56 U1·107, 2026-11-24)
+
+- 창구 `POST /upload/plan-csv`, 화면 `/upload`의 '사업계획 CSV' 카드. 파일 이름 `{기관ID}_{YYYYMMDD}_plan.csv`(사업계획)·`{기관ID}_{YYYYMMDD}_news.csv`(관련 뉴스), 한 번에 100개, 파일당 5MB. 형식 정본은 `collector/SCHEMA.md` ⑪·⑪-9.
+- 설정 `upload.plan-csv-dir`(kgi-ggreport-web `ggreport.plan-inbox.location`과 **같은 폴더**)·`upload.plan-csv-receipt-dir`(겹치지 않는 별도 폴더, 권한 0750 권장). **둘 다 채워야 켜지고, 하나라도 비면 꺼짐.** 폴더는 미리 만든다(앱이 만들지 않음). 경로 이름은 사용자 미정.
+- 같은 이름(대소문자만 달라도)은 덮어쓰지 않고 거부한다 — 새로 내려면 날짜를 바꾼다.
+- 영수증 `plan-csv-receipts.tsv`에 시각·파일 이름·SHA-256·크기·기관ID·올린 사람(**자기신고**)·컨테이너 사용자·접속 주소(**참고값**)를 한 줄씩 남긴다. 신원 증명이 아니라 web 반입 판(`INST_PLAN_IMPORT.FILE_SHA256`)과 사람이 대조하는 보조 기록이다.
+- **영수증 보관 기간: 1년**(사용자 2026-11-24). 1년 지난 줄은 개발부서가 정리한다(자동 삭제 없음).
+- 올리는 PC 제한(IP 허용 목록)은 없다 — 올리는 PC는 가상 PC 예정이나 미정(사용자 2026-11-24). 남는 위험: 오늘 날짜 이름을 먼저 올려 정상 파일을 막는 '이름 선점', web 폴더 확인(최신 100개) 밀어내기. 웹에서 사람이 확인하고 반입하는 단계가 막는다.
+- 한 번에 100개 × 5MB는 `max-request-size`(200MB)를 넘을 수 있다 — 크면 나눠 올린다.
+
 ---
 
 ## 8. 서버 주소·포트 설정 (외부 API 호출 대응)

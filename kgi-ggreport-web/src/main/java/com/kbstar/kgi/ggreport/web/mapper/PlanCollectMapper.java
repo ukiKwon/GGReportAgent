@@ -48,4 +48,5 @@ public interface PlanCollectMapper {
                  @Param("at") String at, @Param("empNo") String empNo, @Param("reason") String reason);
     int applyOpen(@Param("institutionId") String institutionId, @Param("importId") Long importId, @Param("at") String at,
                   @Param("empNo") String empNo);
+    int applyOpenNews(@Param("institutionId") String institutionId, @Param("at") String at, @Param("empNo") String empNo);
 }

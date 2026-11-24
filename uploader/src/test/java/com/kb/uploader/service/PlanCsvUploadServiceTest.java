@@ -236,9 +236,9 @@ public class PlanCsvUploadServiceTest {
     }
 
     @Test(expected = PlanCsvUploadService.PlanCsvException.class)
-    public void 한번에_51개는_거부() {
+    public void 한번에_101개는_거부() {
         List<MultipartFile> l = new ArrayList<MultipartFile>();
-        for (int i = 0; i < 51; i++) l.add(mp("a" + i + "_20261118_plan.csv", csv("a" + i)));
+        for (int i = 0; i < 101; i++) l.add(mp("a" + i + "_20261118_plan.csv", csv("a" + i)));
         sut.upload(l, "tester01", null, null);
     }
 

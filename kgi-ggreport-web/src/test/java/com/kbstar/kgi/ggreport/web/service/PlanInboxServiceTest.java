@@ -52,10 +52,11 @@ public class PlanInboxServiceTest {
 
     @Rule public TemporaryFolder tmp = new TemporaryFolder();
     @Autowired private InstitutionPlanService plans;
+    @Autowired private InstitutionNewsService news;
     @Autowired private PlanAudit audit;
     @Autowired private JdbcTemplate jdbc;
 
-    private PlanInboxService svc() { return new PlanInboxService(plans, audit, tmp.getRoot().getAbsolutePath()); }
+    private PlanInboxService svc() { return new PlanInboxService(plans, news, audit, tmp.getRoot().getAbsolutePath()); }
     private static Actor admin() { return Actor.claimed(ADMIN); }
     private static BoardUiIds.Ui ui() { return PlanUiIds.inboxImport(); }
     private static LocalDate daysAgo(int n) { return LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(n); }
@@ -92,7 +93,7 @@ public class PlanInboxServiceTest {
 
     @Test
     public void 설정이_비면_503_OFF이고_반입_시도는_감사된다() {
-        PlanInboxService s = new PlanInboxService(plans, audit, "");
+        PlanInboxService s = new PlanInboxService(plans, news, audit, "");
         assertFalse(s.enabled());
         try { s.scan(); fail(); } catch (ApiException e) { assertEquals(503, e.getStatus()); assertEquals(PlanInboxService.OFF, code(e)); }
         try { s.importFiles(Collections.singletonList("jongno_20261118_plan.csv"), admin(), ui()); fail(); }
@@ -102,7 +103,7 @@ public class PlanInboxServiceTest {
 
     @Test
     public void 없는_폴더는_503_BAD_CONFIG이고_문구에_경로가_없다() {
-        PlanInboxService s = new PlanInboxService(plans, audit, tmp.getRoot().toPath().resolve("nope-folder").toString());
+        PlanInboxService s = new PlanInboxService(plans, news, audit, tmp.getRoot().toPath().resolve("nope-folder").toString());
         try { s.scan(); fail(); } catch (ApiException e) {
             assertEquals(503, e.getStatus());
             assertEquals(PlanInboxService.BAD_CONFIG, code(e));
@@ -175,7 +176,7 @@ public class PlanInboxServiceTest {
     public void 요청_이름이_형식_밖이거나_개수가_틀리면_400() {
         for (List<String> bad : Arrays.asList(Collections.singletonList("../a_20261118_plan.csv"),
                 Collections.singletonList("a_20261118_plan.csv:x"), Collections.<String>singletonList(null),
-                Collections.<String>emptyList(), Collections.nCopies(51, "a_20261118_plan.csv"))) {
+                Collections.<String>emptyList(), Collections.nCopies(101, "a_20261118_plan.csv"))) {
             try { svc().importFiles(bad, admin(), ui()); fail(String.valueOf(bad)); }
             catch (ApiException e) { assertEquals(400, e.getStatus()); assertEquals("BAD_FILES", code(e)); }
         }
@@ -239,7 +240,7 @@ public class PlanInboxServiceTest {
     @Test
     public void 시간_상한을_넘으면_남은_파일은_NOT_CHECKED() throws Exception {
         String n = plan(daysAgo(1), "시험 사업");
-        PlanInboxService s = new PlanInboxService(plans, audit, tmp.getRoot().getAbsolutePath(), Duration.ofSeconds(-1));
+        PlanInboxService s = new PlanInboxService(plans, news, audit, tmp.getRoot().getAbsolutePath(), Duration.ofSeconds(-1));
         assertEquals("NOT_CHECKED", item(s.scan(), n).get("status_cd"));
     }
 
@@ -268,7 +269,7 @@ public class PlanInboxServiceTest {
         String newer = plan(daysAgo(1), "시험 사업");
         String older = plan(daysAgo(2), "시험 사업");
         long size = Files.size(tmp.getRoot().toPath().resolve(newer));
-        PlanInboxService s = new PlanInboxService(plans, audit, tmp.getRoot().getAbsolutePath(), Duration.ofSeconds(20), size + 1);
+        PlanInboxService s = new PlanInboxService(plans, news, audit, tmp.getRoot().getAbsolutePath(), Duration.ofSeconds(20), size + 1);
         Map<String, Object> scan = s.scan();
         assertEquals("READY", item(scan, newer).get("status_cd"));         // 최신 날짜부터 읽어 예산 안
         assertEquals("NOT_CHECKED", item(scan, older).get("status_cd"));   // 남은 예산 1바이트 < 파일 크기
@@ -296,5 +297,75 @@ public class PlanInboxServiceTest {
         assertEquals("NOT_FOUND", r.get("result_cd"));
         assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='IMPORT' AND OUTCOME='HIDDEN' AND INSTITUTION_ID='NONE' AND BUTTON_ID='plan_inbox_import'"));
         assertEquals(0, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE INSTITUTION_ID='nosuch-x'"));
+    }
+
+    private static final String NEWS_HDR = "기관ID,분야,제목,언론사,보도일,출처URL,요약,확인일,수집자";
+    private String news(LocalDate d, String title) throws IOException {
+        String n = INST + "_" + d.format(YMD) + "_news.csv";
+        write(n, NEWS_HDR + "\n" + String.join(",", INST, "TREASURY", "\"" + title + "\"", "가상일보", d.minusDays(2).toString(),
+                "https://example.org/n/" + Math.abs(title.hashCode()), "\"가상 요약이다.\"", d.toString(), "news-collector/1.0") + "\n");
+        return n;
+    }
+
+    @Test
+    public void 한_폴더의_두_종류는_kind로_가르고_ignored에_세지_않는다() throws Exception {
+        String p = plan(daysAgo(1), "시험 사업");
+        String nw = news(daysAgo(1), "가상 뉴스 하나");
+        write("readme.txt", "x");
+        Map<String, Object> s = svc().scan();
+        assertEquals("PLAN", item(s, p).get("kind"));
+        assertEquals("NEWS", item(s, nw).get("kind"));
+        assertEquals("READY", item(s, nw).get("status_cd"));
+        assertEquals(1, ((Number) item(s, nw).get("item_count")).intValue());
+        assertEquals(1, s.get("ignored_count"));   // readme.txt 만
+        assertEquals(100, s.get("max_import"));
+    }
+
+    @Test
+    public void 한_번에_두_종류를_반입하고_뉴스는_다시_하면_ALREADY() throws Exception {
+        String p = plan(daysAgo(1), "시험 사업");
+        String nw = news(daysAgo(1), "가상 뉴스 하나");
+        Map<String, Object> out = svc().importFiles(Arrays.asList(p, nw), admin(), ui());
+        assertEquals("IMPORTED", result(out, p).get("result_cd"));
+        assertEquals("IMPORTED", result(out, nw).get("result_cd"));
+        assertEquals("NEWS", result(out, nw).get("kind"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_NEWS_IMPORT WHERE INSTITUTION_ID=? AND BATCH_ID LIKE 'inbox-%'", INST));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='NEWS_IMPORT' AND OUTCOME='OK' AND BUTTON_ID='plan_inbox_import'"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='IMPORT' AND OUTCOME='OK' AND BUTTON_ID='plan_inbox_import'"));
+        assertEquals("ALREADY", importOne(svc(), nw).get("result_cd"));   // MSG_SAME 상수 재사용(하2)
+        assertEquals("IMPORTED", item(svc().scan(), nw).get("status_cd"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void 같은_날짜면_사업계획을_뉴스보다_먼저_반입한다() throws Exception {
+        String p = plan(daysAgo(1), "시험 사업");
+        String nw = news(daysAgo(1), "가상 뉴스 하나");
+        Map<String, Object> out = svc().importFiles(Arrays.asList(nw, p), admin(), ui());   // 요청 순서는 뉴스 먼저
+        List<Map<String, Object>> rs = (List<Map<String, Object>>) out.get("results");
+        assertEquals(p, rs.get(0).get("file_name"));    // qa 107 P2 — 뉴스가 먼저면 열린 요청을 '뉴스로 대체'로 닫는다
+        assertEquals(nw, rs.get(1).get("file_name"));
+    }
+
+    @Test
+    public void 뉴스_파일의_실패_감사는_NEWS_IMPORT로_남는다() throws Exception {   // security 하1
+        byte[] big = new byte[(int) (5L * 1024 * 1024) + 1];
+        String n = INST + "_" + daysAgo(1).format(YMD) + "_news.csv";
+        Files.write(tmp.getRoot().toPath().resolve(n), big);
+        assertEquals("TOO_LARGE", importOne(svc(), n).get("result_cd"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='NEWS_IMPORT' AND OUTCOME='TOO_LARGE' AND INSTITUTION_ID=?", INST));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_PLAN_ACT WHERE ACTION_CD='IMPORT' AND OUTCOME='TOO_LARGE'"));
+    }
+
+    @Test
+    public void 뉴스_내용_오류는_INVALID이고_문구에_원문이_없다() throws Exception {
+        LocalDate d = daysAgo(1);
+        String n = INST + "_" + d.format(YMD) + "_news.csv";
+        write(n, NEWS_HDR + "\n" + String.join(",", INST, "TREASURY", "\"가상 제목\"", "가상일보", d.minusDays(2).toString(),
+                "https://example.org/a", "\"전화 010-7777-6666 입니다\"", d.toString(), "news-collector/1.0") + "\n");
+        Map<String, Object> r = importOne(svc(), n);
+        assertEquals("INVALID", r.get("result_cd"));
+        assertTrue(String.valueOf(r.get("message")).startsWith("row 1"));
+        assertFalse(String.valueOf(r.get("message")).contains("7777"));
     }
 }

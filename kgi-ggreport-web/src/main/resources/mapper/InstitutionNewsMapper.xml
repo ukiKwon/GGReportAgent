@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- INST_NEWS_* — 060(기관 뉴스 반입). 두 방언에서 같은 문장. INSERT·SELECT 만. 모든 SELECT 는 flushCache. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.InstitutionNewsMapper">
+
+  <sql id="importCols">IMPORT_ID, INSTITUTION_ID, FILE_DATE, FILE_SHA256, FILE_BYTES, ITEM_COUNT, BATCH_ID, IMPORTED_BY, IMPORTED_AT, IMPORTED_VERIFIED</sql>
+  <sql id="itemCols">NEWS_ID, IMPORT_ID, INSTITUTION_ID, ROW_NO, FIELD_CD, TITLE, PRESS, PUBLISHED_ON, SRC_URL, SUMMARY, CHECKED_ON, COLLECTOR_AGENT</sql>
+
+  <select id="selectLatestImport" resultType="InstNewsImport" flushCache="true">
+    SELECT <include refid="importCols"/> FROM INST_NEWS_IMPORT
+     WHERE IMPORT_ID = (SELECT MAX(IMPORT_ID) FROM INST_NEWS_IMPORT WHERE INSTITUTION_ID = #{institutionId})
+  </select>
+  <select id="countImportBySha" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_NEWS_IMPORT WHERE INSTITUTION_ID = #{institutionId} AND FILE_SHA256 = #{sha}
+  </select>
+  <select id="selectItemsOfImport" resultType="InstNewsItem" flushCache="true">
+    SELECT <include refid="itemCols"/> FROM INST_NEWS_ITEM WHERE IMPORT_ID = #{importId} ORDER BY ROW_NO
+  </select>
+
+  <insert id="insertImport" useGeneratedKeys="true" keyProperty="importId" keyColumn="IMPORT_ID">
+    INSERT INTO INST_NEWS_IMPORT (INSTITUTION_ID, FILE_DATE, FILE_SHA256, FILE_BYTES, ITEM_COUNT, BATCH_ID, IMPORTED_BY, IMPORTED_AT, IMPORTED_VERIFIED)
+    VALUES (#{institutionId}, #{fileDate}, #{fileSha256}, #{fileBytes}, #{itemCount}, #{batchId,jdbcType=VARCHAR}, #{importedBy}, #{importedAt}, #{importedVerified})
+  </insert>
+  <insert id="insertItem">
+    INSERT INTO INST_NEWS_ITEM (IMPORT_ID, INSTITUTION_ID, ROW_NO, FIELD_CD, TITLE, PRESS, PUBLISHED_ON, SRC_URL, SUMMARY, CHECKED_ON, COLLECTOR_AGENT)
+    VALUES (#{importId}, #{institutionId}, #{rowNo}, #{fieldCd}, #{title}, #{press}, #{publishedOn}, #{srcUrl}, #{summary}, #{checkedOn}, #{collectorAgent})
+  </insert>
+</mapper>

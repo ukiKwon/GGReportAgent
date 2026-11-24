@@ -157,7 +157,7 @@ public class PlanCollectController {
         return out;
     }
 
-    /** 고른 파일 반입. 본문 {"file_names":[...]} JSON 만(415). 1~50. 파일별 결과, 오류가 있어도 200. */
+    /** 고른 파일 반입. 본문 {"file_names":[...]} JSON 만(415). 1~100. 파일별 결과, 오류가 있어도 200. */
     @PostMapping("/plan-collect/inbox/import")
     public Map<String, Object> inboxImport(@RequestBody(required = false) InboxIn body, HttpServletRequest req) {
         Actor actor = requireAdmin(req, InstitutionPlanService.ACTION_IMPORT, PlanUiIds.inboxImport());

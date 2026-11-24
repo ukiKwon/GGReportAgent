@@ -59,14 +59,14 @@ public class BoardWriteLimitFilter implements Filter {
     private static final Pattern ATTACH = Pattern.compile("(?:^|/)bidcases/+[^/]+/+prep/+attachments/*$", Pattern.CASE_INSENSITIVE);
     /** POST /institutions/{id}/head/photos — 기관장 사진(026). 5MB + 여유 1MB, 래퍼 없이 통과(multipart). */
     private static final Pattern HEAD_PHOTO = Pattern.compile("(?:^|/)institutions/+[^/]+/+head/+photos/*$", Pattern.CASE_INSENSITIVE);
-    /** POST /institutions/{id}/plans/import — 기관 사업계획 CSV(034). 5MB + 여유 1MB, 래퍼 없이 통과(multipart). */
-    private static final Pattern PLAN_IMPORT = Pattern.compile("(?:^|/)institutions/+[^/]+/+plans/+import/*$", Pattern.CASE_INSENSITIVE);
+    /** POST /institutions/{id}/(plans|news)/import — 기관 사업계획 CSV(034)·기관 뉴스 CSV(060). 5MB + 여유 1MB, 래퍼 없이 통과(multipart). */
+    private static final Pattern PLAN_IMPORT = Pattern.compile("(?:^|/)institutions/+[^/]+/+(?:plans|news)/+import/*$", Pattern.CASE_INSENSITIVE);
     /** POST /institution-plans/missing.csv — 기관 id 최대 1,000개 JSON. 64KB. */
     static final long PLAN_LIST_MAX = 64L * 1024;
     private static final Pattern PLAN_MISSING = Pattern.compile("(?:^|/)institution-plans/+missing\\.csv/*$", Pattern.CASE_INSENSITIVE);
-    /** POST /plan-collect/{run|mark-running|exclude|fail|export.csv|batch} — 요청 키·기관 id 최대 50개 + 사유 100자 JSON. 16KB. */
+    /** POST /plan-collect/{run|mark-running|exclude|fail|export.csv|batch|inbox/import} — 요청 키·기관 id 최대 50개 + 사유 100자, 폴더 반입 파일 이름 최대 100개(약 9KB) JSON. 16KB. */
     private static final Pattern PLAN_COLLECT = Pattern.compile(
-            "(?:^|/)plan-collect/+(?:run|mark-running|exclude|fail|export\\.csv|batch)/*$", Pattern.CASE_INSENSITIVE);
+            "(?:^|/)plan-collect/+(?:run|mark-running|exclude|fail|export\\.csv|batch|inbox/+import)/*$", Pattern.CASE_INSENSITIVE);
     /** 그 밖의 기관장 쓰기(JSON) — 16KB. */
     private static final Pattern HEAD_SMALL = Pattern.compile(
             "(?:^|/)(?:institutions/+[^/]+/+heads?(?:/+[^/]+)*|institution-heads(?:/+[^/]+)+)/*$", Pattern.CASE_INSENSITIVE);

@@ -43,7 +43,7 @@ public final class PlanCsv {
     private static final Pattern RATE = Pattern.compile("\\d{1,3}(\\.\\d)?");
     private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
     /** 수집 프로그램 식별자: 영문자로 시작, 영숫자·점·밑줄·하이픈 40자까지 + 선택 '/버전'. 공백·@·한글·숫자만의 값은 못 통과한다. */
-    private static final Pattern AGENT = Pattern.compile("[A-Za-z][A-Za-z0-9._-]{0,39}(/[0-9][0-9A-Za-z.]{0,15})?");
+    static final Pattern AGENT = Pattern.compile("[A-Za-z][A-Za-z0-9._-]{0,39}(/[0-9][0-9A-Za-z.]{0,15})?");   // NewsCsv 가 같이 쓴다
     private static final BigDecimal HUNDRED = new BigDecimal(100);
     private static final int MAX_DOCS = 20;
     private static final int MAX_WARNINGS = 100;
@@ -409,7 +409,7 @@ public final class PlanCsv {
         return y;
     }
 
-    private static String date(String raw, int row, LocalDate today) {
+    static String date(String raw, int row, LocalDate today) {   // NewsCsv 가 같이 쓴다
         String v = text(raw, row, 10, false, false);
         try {
             if (DATE.matcher(v).matches()) {

@@ -2,6 +2,7 @@ package com.kbstar.kgi.ggreport.web.service;
 
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.CsvLimits;
+import com.kbstar.kgi.ggreport.web.support.NewsCsv;
 import com.kbstar.kgi.ggreport.web.support.PlanCsv;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
@@ -36,13 +37,15 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * 사업계획 서버 폴더 반입(NEXT 56, collector/SCHEMA.md ⑪). 폴더는 설정 ggreport.plan-inbox.location 한 곳 — 요청으로 경로를 받지 않는다(시드 선례). 비면 꺼짐(503).
  * <ul>
  *   <li>폴더는 읽기만 한다 — 옮기거나 지우지 않는다(uploader DB 의 저장 경로 보존). 처리 여부는 INST_PLAN_IMPORT(기관·SHA-256)로 판정한다.</li>
- *   <li>파일 이름은 PlanCsv.FILE_NAME 만(구분자·'.'·':'·'~' 불가). 링크·폴더·장치 거부, 실제 경로의 부모가 root 여야 한다. 하드링크·확인 뒤 바꿔치기는 막지 못한다(알려진 한계 — 폴더 쓰기 권한이 신뢰 경계).</li>
- *   <li>상한: 이름 열거 100,000 · 확인은 이름 날짜 내림차순 최신 100개·읽기 64MB·20초(넘으면 NOT_CHECKED) · 파일 5MB · 반입 한 번 50파일. 폴더 확인·반입은 JVM 안에서 동시에 1건(409 BUSY).</li>
+ *   <li>파일 이름은 PlanCsv.FILE_NAME(_plan.csv) 또는 NewsCsv.FILE_NAME(_news.csv)만 — 종류는 서버에서 '어느 정규식이 맞았나'로만 정한다(요청 값을 되받지 않는다).
+ *       구분자·'.'·':'·'~' 불가. 링크·폴더·장치 거부, 실제 경로의 부모가 root 여야 한다. 하드링크·확인 뒤 바꿔치기는 막지 못한다(알려진 한계 — 폴더 쓰기 권한이 신뢰 경계).</li>
+ *   <li>상한: 이름 열거 100,000 · 확인은 이름 날짜 내림차순 최신 100개·읽기 64MB·20초(넘으면 NOT_CHECKED) · 파일 5MB · 반입 한 번 100파일(50기관 × 사업계획·뉴스 2종). 폴더 확인·반입은 JVM 안에서 동시에 1건(409 BUSY).</li>
  *   <li>반입은 InstitutionPlanService.importFile(=apply) — 파일마다 독립 트랜잭션·감사 1행, 묶음은 BATCH_ID 'inbox-…'.</li>
  * </ul>
  * ⚠️ 사번은 X-Emp-No 자기신고일 수 있다. 권한 검사는 업무 규칙이지 사칭 방지가 아니다.
@@ -55,17 +58,24 @@ public class PlanInboxService {
     public static final String BAD_CONFIG = "PLAN_INBOX_BAD_CONFIG";
     static final int MAX_ENTRIES = 100000;               // 이름 열거 상한(이름만 — 싸다, security S2)
     static final int MAX_LIST = 100;                     // 내용까지 확인하는 파일 수(이름 날짜 최신부터)
-    static final int MAX_IMPORT = 50;                    // SCHEMA ⑪-5(목록 한 번 = 50기관)
+    static final int MAX_IMPORT = 100;                   // SCHEMA ⑪-5(목록 한 번 = 50기관 × 사업계획·뉴스 2종)
+    static final String KIND_PLAN = "PLAN";
+    static final String KIND_NEWS = "NEWS";
     static final long SCAN_BUDGET = 64L * 1024 * 1024;   // 확인 한 번에 읽는 바이트 상한
     static final Duration SCAN_TIME = Duration.ofSeconds(20);   // 확인 한 번의 읽기 시간 상한(security S3)
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final Comparator<String> NEWEST_FIRST =
             Comparator.comparing(PlanInboxService::dateOf).reversed().thenComparing(Comparator.<String>naturalOrder());
+    // 반입 순서: 이른 날짜 → 같은 날짜면 사업계획(_plan)이 뉴스(_news)보다 먼저 → 이름순.
+    // 뉴스가 먼저 들어가면 열린 수집 요청을 '뉴스로 대체'로 닫아, 같은 실행의 사업계획 반입이 요청에 반영되지 않는다(qa 107 P2).
     private static final Comparator<String> OLDEST_FIRST =
-            Comparator.comparing(PlanInboxService::dateOf).thenComparing(Comparator.<String>naturalOrder());
+            Comparator.comparing(PlanInboxService::dateOf)
+                    .thenComparing((String n) -> KIND_NEWS.equals(kindOf(n)) ? 1 : 0)
+                    .thenComparing(Comparator.<String>naturalOrder());
 
     private final InstitutionPlanService plans;
+    private final InstitutionNewsService news;
     private final PlanAudit audit;
     private final String location;
     private final Duration scanTime;
@@ -74,19 +84,20 @@ public class PlanInboxService {
     private final AtomicBoolean busy = new AtomicBoolean(false);
 
     @Autowired
-    public PlanInboxService(InstitutionPlanService plans, PlanAudit audit,
+    public PlanInboxService(InstitutionPlanService plans, InstitutionNewsService news, PlanAudit audit,
                             @Value("${ggreport.plan-inbox.location:}") String location) {
-        this(plans, audit, location, SCAN_TIME);
+        this(plans, news, audit, location, SCAN_TIME);
     }
 
     /** 시험용 — 확인 시간 상한을 바꾼다. */
-    PlanInboxService(InstitutionPlanService plans, PlanAudit audit, String location, Duration scanTime) {
-        this(plans, audit, location, scanTime, SCAN_BUDGET);
+    PlanInboxService(InstitutionPlanService plans, InstitutionNewsService news, PlanAudit audit, String location, Duration scanTime) {
+        this(plans, news, audit, location, scanTime, SCAN_BUDGET);
     }
 
     /** 시험용 — 확인 시간 상한과 읽기 바이트 상한을 바꾼다. */
-    PlanInboxService(InstitutionPlanService plans, PlanAudit audit, String location, Duration scanTime, long scanBudget) {
+    PlanInboxService(InstitutionPlanService plans, InstitutionNewsService news, PlanAudit audit, String location, Duration scanTime, long scanBudget) {
         this.plans = plans;
+        this.news = news;
         this.audit = audit;
         this.location = location == null ? "" : location.trim();
         this.scanTime = scanTime;
@@ -125,7 +136,7 @@ public class PlanInboxService {
                         break;
                     }
                     String n = p.getFileName().toString();
-                    if (PlanCsv.FILE_NAME.matcher(n).matches()) names.add(n); else ignored++;
+                    if (kindOf(n) != null) names.add(n); else ignored++;
                 }
             } catch (IOException | DirectoryIteratorException e) {
                 LOG.error("plan-inbox list failed code={}", BAD_CONFIG);
@@ -142,10 +153,13 @@ public class PlanInboxService {
             List<Map<String, Object>> items = new ArrayList<>();
             Map<String, Integer> counts = new TreeMap<>();
             for (final String n : names) {
-                Map<String, Object> it = plans.inspect(n, () -> {
+                final String kind = kindOf(n);
+                Supplier<byte[]> reader = () -> {
                     if (System.nanoTime() - deadline > 0) throw new InstitutionPlanService.FileProblem("NOT_CHECKED");
                     return readSafe(root, n, budget);
-                }, codes);
+                };
+                Map<String, Object> it = KIND_NEWS.equals(kind) ? news.inspect(n, reader) : plans.inspect(n, reader, codes);
+                it.put("kind", kind);   // 기존 키는 그대로, kind 만 더한다
                 items.add(it);
                 counts.merge(String.valueOf(it.get("status_cd")), 1, Integer::sum);
             }
@@ -170,18 +184,18 @@ public class PlanInboxService {
         try {
             names = names(raw);
         } catch (ApiException e) {
-            failed(null, "INVALID", actor, ui);
+            failed(null, InstitutionPlanService.ACTION_IMPORT, "INVALID", actor, ui);   // 종류를 알 수 없는 단계(이름 검사 전)는 IMPORT
             throw e;
         }
         Path root;
         try {
             root = root();
         } catch (ApiException e) {
-            failed(null, "INBOX_OFF", actor, ui);
+            failed(null, InstitutionPlanService.ACTION_IMPORT, "INBOX_OFF", actor, ui);
             throw e;
         }
         if (!busy.compareAndSet(false, true)) {
-            failed(null, "BUSY", actor, ui);
+            failed(null, InstitutionPlanService.ACTION_IMPORT, "BUSY", actor, ui);
             throw busyError();
         }
         try {
@@ -190,21 +204,25 @@ public class PlanInboxService {
             List<Map<String, Object>> rs = new ArrayList<>();
             int ok = 0, already = 0, err = 0;
             for (String n : names) {
+                final boolean isNews = KIND_NEWS.equals(kindOf(n));
+                final String action = isNews ? InstitutionNewsService.ACTION_NEWS_IMPORT : InstitutionPlanService.ACTION_IMPORT;
                 String canon = plans.canonicalOrNull(idOf(n));   // 감사·응답의 기관ID — 정식 표기, 실패면 null(security S9)
                 Map<String, Object> r = new LinkedHashMap<>();
                 r.put("file_name", n);
+                r.put("kind", isNews ? KIND_NEWS : KIND_PLAN);
                 r.put("institution_id", canon);
                 try {
-                    Map<String, Object> out = plans.importFile(n, readSafe(root, n, null), batch, actor, ui);
+                    byte[] bytes = readSafe(root, n, null);
+                    Map<String, Object> out = isNews ? news.importFile(n, bytes, batch, actor, ui) : plans.importFile(n, bytes, batch, actor, ui);
                     r.put("institution_id", out.get("institution_id"));
                     r.put("result_cd", "IMPORTED");
                     r.put("import_id", out.get("import_id"));
                     r.put("item_count", out.get("item_count"));
-                    r.put("warning_count", out.get("warning_count"));
+                    if (!isNews) r.put("warning_count", out.get("warning_count"));
                     ok++;
                 } catch (InstitutionPlanService.FileProblem e) {
                     r.put("result_cd", e.getCode());
-                    failed(canon, e.getCode(), actor, ui);
+                    failed(canon, action, e.getCode(), actor, ui);
                     err++;
                 } catch (ApiException e) {   // importFile 이 감사를 이미 남겼다
                     String code = classify(e);
@@ -237,7 +255,7 @@ public class PlanInboxService {
         }
         LinkedHashSet<String> out = new LinkedHashSet<>();
         for (String s : raw) {
-            if (s == null || !PlanCsv.FILE_NAME.matcher(s).matches()) {
+            if (s == null || kindOf(s) == null) {
                 throw PlanCollectService.err(400, "BAD_FILES", "파일 이름 형식이 올바르지 않습니다.");
             }
             out.add(s);
@@ -301,7 +319,15 @@ public class PlanInboxService {
         }
     }
 
-    /** {id}_{YYYYMMDD}_plan.csv → YYYYMMDD / {id} (FILE_NAME 통과값만). */
+    /** 종류 — 이름 정규식이 어느 쪽에 맞았나로만 정한다(요청 값을 되받지 않는다). 어느 쪽도 아니면 null. */
+    static String kindOf(String n) {
+        if (n == null) return null;
+        if (PlanCsv.FILE_NAME.matcher(n).matches()) return KIND_PLAN;
+        if (NewsCsv.FILE_NAME.matcher(n).matches()) return KIND_NEWS;
+        return null;
+    }
+
+    /** {id}_{YYYYMMDD}_plan.csv 또는 _news.csv → YYYYMMDD / {id}. 두 접미사('_plan.csv'·'_news.csv')가 9자라 같은 위치로 자른다(통과값만). */
     static String dateOf(String n) { return n.substring(n.length() - 17, n.length() - 9); }
     static String idOf(String n) { return n.substring(0, n.length() - 18); }
 
@@ -313,9 +339,9 @@ public class PlanInboxService {
         return PlanCollectService.err(409, "BUSY", "다른 폴더 확인·반입이 진행 중입니다. 잠시 후 다시 눌러 주세요.");
     }
 
-    private void failed(String inst, String outcome, Actor actor, BoardUiIds.Ui ui) {
+    private void failed(String inst, String action, String outcome, Actor actor, BoardUiIds.Ui ui) {
         try {
-            audit.record(inst, null, InstitutionPlanService.ACTION_IMPORT, outcome, null, null, actor, ui);
+            audit.record(inst, null, action, outcome, null, null, actor, ui);
         } catch (RuntimeException ex) {
             LOG.error("plan-inbox audit failed outcome={}", outcome);   // 값·이름 없음
         }

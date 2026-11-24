@@ -155,4 +155,11 @@
            APPLIED_IMPORT_ID = #{importId}
      WHERE OPEN_INST_ID = #{institutionId} AND STATUS_CD IN ('REQUESTED', 'RUNNING')
   </update>
+  <!-- 뉴스 반입(060) — 열린 요청을 반영됨으로 닫되 APPLIED_IMPORT_ID 는 NULL(INST_PLAN_IMPORT 번호가 아니다), 구분은 CLOSE_REASON='NEWS'(서버 고정 코드, 자유 글은 FAILED·EXCLUDED 만). -->
+  <update id="applyOpenNews">
+    UPDATE PLAN_COLLECT_REQ
+       SET STATUS_CD = 'APPLIED', OPEN_INST_ID = NULL, CLOSED_AT = #{at}, CLOSED_BY = #{empNo,jdbcType=VARCHAR},
+           APPLIED_IMPORT_ID = NULL, CLOSE_REASON = 'NEWS'
+     WHERE OPEN_INST_ID = #{institutionId} AND STATUS_CD IN ('REQUESTED', 'RUNNING')
+  </update>
 </mapper>

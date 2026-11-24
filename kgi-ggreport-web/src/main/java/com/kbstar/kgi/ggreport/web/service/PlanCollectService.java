@@ -76,6 +76,8 @@ public class PlanCollectService {
     public static final String ACTION_EXCLUDE = "COLLECT_EXCLUDE";
     public static final String ACTION_FAIL = "COLLECT_FAIL";
     public static final String ACTION_APPLY = "COLLECT_APPLY";
+    /** 뉴스 반입으로 닫을 때의 감사 OUTCOME·CLOSE_REASON 고정 코드(060). */
+    public static final String NEWS = "NEWS";
 
     static final String MODE_AGENT = "AGENT";
     static final String MODE_MANUAL = "MANUAL";
@@ -743,6 +745,22 @@ public class PlanCollectService {
         if (mapper.applyOpen(instId, importId, Times.nowIso(), actor.getEmpNo()) != 1) return;
         audit.record(instId, importId, ACTION_APPLY, "OK", emps.size(), null, actor, ui);
         String text = "[사업계획 수집 반영] " + label(instId) + " 사업계획이 새로 반입되었습니다. 기관 사업계획 화면에서 확인해 주세요.";
+        notifyQuietly(emps, text);
+    }
+
+    /**
+     * 뉴스 반입(INST_NEWS_IMPORT) 직후 — InstitutionNewsService.apply 의 같은 트랜잭션에서 부른다(기관 행은 이미 잠김).
+     * 사업계획은 못 찾고 뉴스로 대체한 것이므로 onImported 를 쓰지 않는다(security 중2): APPLIED_IMPORT_ID 는 NULL, CLOSE_REASON='NEWS',
+     * 감사 COLLECT_APPLY/OUTCOME 'NEWS'(그 행의 IMPORT_ID 는 INST_NEWS_IMPORT 번호 — 060 머리글), 쪽지는 '관련 뉴스로 대체'.
+     * 열린 요청이 없으면 아무것도 하지 않는다. 쪽지만 저장점으로 떼어 실패해도 반입을 막지 않는다.
+     */
+    void onNewsImported(String instId, Long newsImportId, Actor actor, BoardUiIds.Ui ui) {
+        PlanCollectReq open = mapper.selectOpenByInst(instId);
+        if (open == null) return;
+        List<String> emps = mapper.selectActiveRequesterEmpNos(instId, open.getReqSeq());
+        if (mapper.applyOpenNews(instId, Times.nowIso(), actor.getEmpNo()) != 1) return;
+        audit.record(instId, newsImportId, ACTION_APPLY, NEWS, emps.size(), null, actor, ui);
+        String text = "[사업계획 수집 결과] " + label(instId) + " 사업계획은 찾지 못해 관련 뉴스로 대체했습니다. 기관 화면에서 확인해 주세요.";
         notifyQuietly(emps, text);
     }
 

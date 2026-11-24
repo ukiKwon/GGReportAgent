@@ -574,7 +574,7 @@ public class InstitutionPlanService {
         return iso;
     }
 
-    private static String batch(String raw) {
+    static String batch(String raw) {   // InstitutionNewsService 가 같이 쓴다
         if (raw == null || raw.trim().isEmpty()) return null;
         String v = raw.trim();
         if (!BATCH.matcher(v).matches()) throw ApiException.badRequest("배치 id 형식이 올바르지 않습니다.");
@@ -683,7 +683,7 @@ public class InstitutionPlanService {
         return r;
     }
 
-    private static ApiException tooLarge() { return new ApiException(413, "파일이 너무 큽니다(5MB 이하)."); }
+    static ApiException tooLarge() { return new ApiException(413, "파일이 너무 큽니다(5MB 이하)."); }
     private static boolean one(Integer v) { return v != null && v == 1; }
     private static String str(Object o) { return o == null ? null : String.valueOf(o); }
     private static String plain(BigDecimal v) { return v == null ? null : v.stripTrailingZeros().toPlainString(); }

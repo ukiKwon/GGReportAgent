@@ -50,7 +50,8 @@ import java.util.regex.Pattern;
  * kgi-ggreport-web 의 PlanInboxService(설정 ggreport.plan-inbox.location)가 같은 폴더를 읽어 반입한다.
  * web 은 이 폴더를 읽기만 하고, 이름이 {@link #FILE_NAME} 에 안 맞는 파일(.tmp 포함)은 무시한다.
  *
- * <p>⚠️ {@link #FILE_NAME}·{@link #HEADERS}·{@link #REQUIRED} 는 web 의 PlanCsv.java 사본이다.
+ * <p>⚠️ {@link #FILE_NAME}·{@link #HEADERS}·{@link #REQUIRED}(사업계획)와 {@link #NEWS_HEADERS}(뉴스)는 web 의 PlanCsv.java·NewsCsv.java 사본이다.
+ * 종류(plan|news)는 FILE_NAME 의 group(3) 으로만 고르고, 머리행 집합도 그 값으로 고른다. 두 곳을 함께 고친다.
  * 어긋나면 web 쪽이 맞다 — 한쪽을 고치면 다른 쪽도 고친다. 여기 검사는 빠른 거름망이고 최종 판정은 web 이다
  * (수식 시작 문자·서식 문자·칸 규칙은 web PlanCsv 가 칸 단위로 거부한다).
  *
@@ -63,9 +64,9 @@ public class PlanCsvUploadService {
 
     private static final Logger log = LoggerFactory.getLogger(PlanCsvUploadService.class);
 
-    public static final Pattern FILE_NAME = Pattern.compile("([A-Za-z0-9-]{1,64})_(\\d{8})_plan\\.csv");
+    public static final Pattern FILE_NAME = Pattern.compile("([A-Za-z0-9-]{1,64})_(\\d{8})_(plan|news)\\.csv");
     public static final long MAX_BYTES = 5L * 1024 * 1024;   // web CsvLimits.MAX_FILE_BYTES 와 같다
-    public static final int MAX_FILES = 50;                  // SCHEMA ⑪-5
+    public static final int MAX_FILES = 100;                 // SCHEMA ⑪-5 (50기관 × 사업계획·뉴스 2종, web PlanInboxService.MAX_IMPORT 와 같다)
     static final int MAX_ENTRIES = 100000;                   // 중복 이름 확인 때 훑는 상한(넘으면 닫힌 채 거부)
     static final int MAX_HEADER_CHARS = 2000;
     static final String RECEIPT_FILE = "plan-csv-receipts.tsv";
@@ -85,6 +86,10 @@ public class PlanCsvUploadService {
     static final Set<String> REQUIRED = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "기관ID", "문서명", "원천종류", "대상기간시작", "대상기간끝", "출처URL", "확인일", "수집자",
             "사업번호", "사업명", "예산상태")));
+    /** 뉴스 CSV 9열(web NewsCsv.HEADERS 사본, 모두 필수 — 순서는 자유). */
+    static final List<String> NEWS_HEADERS = Collections.unmodifiableList(Arrays.asList(
+            "기관ID", "분야", "제목", "언론사", "보도일", "출처URL", "요약", "확인일", "수집자"));
+    static final Set<String> NEWS_REQUIRED = Collections.unmodifiableSet(new HashSet<String>(NEWS_HEADERS));
 
     /** 화면에 그대로 보여 줄 수 있는 고정 문구만 담는다. */
     public static class PlanCsvException extends RuntimeException {
@@ -138,9 +143,10 @@ public class PlanCsvUploadService {
         String shown = shown(name);
         Matcher m = FILE_NAME.matcher(name);
         if (!m.matches()) {
-            return reject(shown, "NAME", "파일 이름은 {기관ID}_{YYYYMMDD}_plan.csv 형식이어야 합니다.");
+            return reject(shown, "NAME", "파일 이름은 {기관ID}_{YYYYMMDD}_plan.csv 또는 _news.csv 형식이어야 합니다.");
         }
         String inst = m.group(1);
+        String kind = m.group(3);
         LocalDate day;
         try {
             day = LocalDate.parse(m.group(2), DAY);
@@ -159,7 +165,7 @@ public class PlanCsvUploadService {
         if (raw == null) {
             return reject(shown, "SIZE", "파일은 5MB 이하여야 합니다.");
         }
-        String why = checkContent(raw, inst);
+        String why = checkContent(raw, inst, kind);
         if (why != null) return reject(shown, "CONTENT", why);
 
         String sha = sha256(raw);
@@ -253,7 +259,12 @@ public class PlanCsvUploadService {
     }
 
     /** 통과면 null, 아니면 고정 문구. 칸 원문은 문구에 싣지 않는다. */
-    static String checkContent(byte[] raw, String instId) {
+    static String checkContent(byte[] raw, String instId) { return checkContent(raw, instId, "plan"); }
+
+    static String checkContent(byte[] raw, String instId, String kind) {
+        final boolean news = "news".equals(kind);
+        final List<String> allowed = news ? NEWS_HEADERS : HEADERS;
+        final Set<String> required = news ? NEWS_REQUIRED : REQUIRED;
         if (raw.length == 0) return "빈 파일입니다.";
         String text;
         try {
@@ -272,10 +283,10 @@ public class PlanCsvUploadService {
         List<String> cols = splitSimple(head);
         Set<String> seen = new HashSet<String>();
         for (String c : cols) {
-            if (!HEADERS.contains(c)) return "머리줄에 모르는 열 이름이 있습니다.";
+            if (!allowed.contains(c)) return "머리줄에 모르는 열 이름이 있습니다.";
             if (!seen.add(c)) return "머리줄에 같은 열 이름이 겹칩니다.";
         }
-        if (!seen.containsAll(REQUIRED)) return "머리줄에 필수 열이 빠져 있습니다.";
+        if (!seen.containsAll(required)) return "머리줄에 필수 열이 빠져 있습니다.";
         int pos = eol;
         while (pos >= 0 && pos < text.length()) {
             int s = pos;

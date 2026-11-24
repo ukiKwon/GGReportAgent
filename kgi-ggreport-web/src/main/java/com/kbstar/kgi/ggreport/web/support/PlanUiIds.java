@@ -41,4 +41,9 @@ public final class PlanUiIds {
     // 사업계획 서버 폴더 반입(NEXT 56) — 처리 화면
     public static final String BUTTON_INBOX_IMPORT = "plan_inbox_import";
     public static BoardUiIds.Ui inboxImport() { return new BoardUiIds.Ui(SCREEN_COLLECT_ADMIN, BUTTON_INBOX_IMPORT, true); }
+
+    // 기관 뉴스 반입(NEXT 107, 060) — 파일 올리기. 서버 폴더 반입은 inboxImport() 를 그대로 쓴다(종류는 ACTION_CD 가 NEWS_IMPORT 로 가른다).
+    public static final String SCREEN_NEWS_IMPORT = "news_import";
+    public static final String BUTTON_NEWS_UPLOAD = "news_upload";
+    public static BoardUiIds.Ui newsUpload() { return new BoardUiIds.Ui(SCREEN_NEWS_IMPORT, BUTTON_NEWS_UPLOAD, true); }
 }
