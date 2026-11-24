@@ -295,8 +295,13 @@
 ### 113. 영업 추진 준비 개편 — 소제목 '협약준비 업무'(단위 task 메뉴 21개) + 제안 준비 현황 내/팀/부서 조회 + 상세 단계 틀(외관 먼저) (사용자 11-24 오후) [담당: 대시보드 전담 세션 — design-reviewer → frontend-dev → backend-dev(Opus: 조회 범위) → security → qa / nav.js·index.html=0d와 시점 조율, prep.js·PrepService=fa와 동시 수정 확인]
 - **현재**: 사용자 확정 — 목록 이름 **'제안 준비 현황'**, 메뉴 A안(영업 추진 준비 › '현황'[제안 준비 현황]·'협약준비 업무'[표 칸 이름 그대로 약 21개 — 입찰공고확인·제안서 제외, 이사회 자료 작성 고정 id·재무 노출 유지]), 조회 '내·팀·부서'(팀·부서 = 팀장 결재(개설 승인) 끝난 건만, 내 작업 = 확정자∨활성 담당·개설 전 포함, 기본 팀원=내·팀장=팀·부장=부서 — 팀 결정), 상세 열람 지금대로(담당·팀장·부장, 팀원은 목록만). 목록 기관 클릭/메뉴 task→기관 두 경로가 같은 상세(왼쪽 task 목록·오른쪽 칸·이전/다음). **task별 화면 내용은 외관 완성 뒤 사용자와 한 task씩 상의**.
 - **진행(11-24 오전~11:40)**: 메뉴 이름 9248e75e. 표 가운데 정렬 + 조회 범위 [내 작업|팀 작업|부서 작업](서버 scope, 팀=결재선 구조상 팀장, 비활성 팀장이면 나 혼자) 적用·검토 끝 — 커밋 4ec291a1(이름 필터는 뺌, 사용자 11-24 권장안 수락)(handoff/sessions/2026-11-24_0915_dash.md 11:40 절).
-- **다음 한 걸음**: 1단계(메뉴 21개·task별 기관 목록·23단계 틀) 커밋 6c62011a — 사용자 실화면 확인 → task별 화면 내용 인터뷰(2단계). 디자인 판단 남음: qa P3-3·P3-6.
+- **다음 한 걸음**: task 메뉴 21개는 사용자 의견으로 삭제(b11f89cd) — 단위 task는 제안 준비 현황 → 기관 상세 23단계에서만. 사용자 실화면 확인 → 단계별 화면 인터뷰(2단계). 정리 후보: preptask 경로 2 죽은 코드·.ts-* 목록 CSS.
 - **자세히**: planner 2026-11-24 abc4501f(4·5·7절 — 항목 표 4-1), 출처 위와 같음.
+
+### 114. [제안 확정] 결재 여부 + 목표 기관과의 관계 — 사용자 결정 대기 (사용자 11-24 저녁, 다른 PC에서 이어서) [담당: 입찰 현황판 전담 세션(ca) — 답 받으면 planner 권장대로]
+- **현재**: 사용자 "지역별 공고현황이든 [제안 확정] 누를 때 결재 없게 / 제안 확정이 목표 기관에 들어오는 게 문맥상 이상한가". 조사(planner 11-24 acc23bb0): 확정 자체는 네 경로(map_popover·bid_board·bid_notice·상세) 모두 POST /preps(PrepService.confirm) — **이미 결재 없음**. 결재는 다음 단계 [개설 신청](BID_OPEN) 1회(Q-2026-11-24-18 '지금대로'). 확정해도 목표에 자동 등록 안 됨(목표 밖 = '그 밖의 준비 중 기관'). 목표 여부는 '공고 전 확정 = 목표만'(11-19) 예외에만 쓰여, 목표 밖 기관을 공고 전에 시작하려면 목표 등록 결재가 먼저 — 사용자가 느낀 '확정에 결재'는 이것일 수 있음.
+- **다음 한 걸음**: 사용자에게 다시 묻기 — Q1 없앨 결재: ⓐ 지금이 맞음 + 확인 상자에 '결재 없이 확정, 팀장 결재는 [개설 신청] 때 1회' 문구(권장, dashboard.js 1034·1060·1538) ⓑ 개설 신청 결재도 없앰(서버·결재함·102 집계 큼, backend-dev Opus+security) ⓒ 공고 전 확정 목표 제한 풀기(proposeGate). Q2 목표↔확정: ⓐ 지금처럼 따로(권장) ⓑ 확정 시 목표 자동 등록. 참고: 서버 confirm은 공고·목표 게이트를 검사하지 않음(화면만) — security 확인 거리.
+- **자세히**: handoff/agents/planner/ 2026-11-24 acc23bb0 보고, handoff/sessions/2026-11-24_1430_ca.md.
 
 ### 103. 기관 사업계획 화면 → 목표·관심 기관 중심 개편 + 일괄 수집 요청 [담당: 05 세션]
 - **현재**: 11-20 구현·커밋 끝 — 서버 c8d7d4c6(POST /plan-collect/batch, 1~50곳·기관별 결과·쪽지 한 묶음·isOutage), 화면 ace08ab4(기관 목록·[목표·관심 먼저] 정렬·묶음 머리·2줄 행·'2026 목표' 칩·바닥 일괄 요청·공통 dlg 확인 창·20초 제한, design_history c69). security·qa·design 대조 반영. 8080 반영됨(11:47 war + 정적 파일).
@@ -600,7 +605,8 @@
 - **11-19 저녁 main**: 1~3단계 fa0219b, 4~5단계 8f7451f(서비스·API·공개범위·감사, 설계 adea3a9d, security 필수 수정 없음). 로컬 DB 047 적용, 로컬 config/application.properties에 ggreport.minutes.enabled=true·require-verified=false 2줄 필요(사용자 — config/는 main이 못 고침). **운영 켜기 전 필수**: multipart 임시 파일(file-size-threshold 2MB+ 또는 전용 location+기동 시 비움). 권장: 쓰기 트랜잭션 안 재판정, digest에 release 포함.
 - **11-20 main — 화면 1차 끝**: 이사회 자료 상세 '회의록 n' 탭(board-minutes.js — 목록·상세·올리기 3단계·공개범위·고치기·삭제·이력), 17e81b1(공유 인덱스로 0d 커밋에 섞임, 표시 5d06941), design_history 68장. qa a7e4611a 조건부 통과 지적 반영.
 - **11-20~23 main — 고치기 끝**: 서버 6992ee5·ccec435(DB 058), 화면 a8ea786, qa 2차 89002f1c(고친 뒤 가릴 단어 추가·가리지 않기 해제 때 지우지 않은 자리 422, 요청 중 잠금, 요약만 바뀌면 고친 발언 유지, 탭 안 화면 id 통일), design_history 75.
-- **다음 한 걸음**: 사용자 실사용 요청(먼저 로컬 config 2줄 Q-2026-11-19-59) → data-auditor 실물 1건 → 서버 이관 묶음(공개범위 후보 API·rules_ack 감사·LIMIT_SPEAKER 문구·열람 기한 필드·board_review id·detail speakers first_seq, backend Opus 설계) → 2차(제목·회의일 고치기·접근 기록·모아보기·scrub). Playwright 실측(탭 이동·포커스·880px·인쇄)은 브라우저가 비어 있을 때.
+- **11-24 main — 서버 이관 묶음 끝**: 25d73fa9(후보 API 영업부서·임원급·관리자 제외, rules_ack 필수+LOG, 쓰기 안 재판정, preview_digest에 가림 단어·해제, view_until·first_seq·board_review, 꺼짐 필터 404)·02aeb3be(SCOPE_TARGET_NOT_ELIGIBLE, 화면 후보 API)·a978a247(시험 보강)·e184cec4(first_seq 잡음 제외)·b028244d(화면: 기한 날짜·[발언 보기] 누를 때만·screenFor·문구, design_history 95)·65e7d816(qa P2 포커스). 로컬 config 3줄 사용자 추가(Q-2026-11-19-59·Q-2026-11-24-24 done). 서버 2412·node 1904 통과. 미룬 것: 패치 I(multipart 문턱값 — 운영 켜기 전, stg WebLogic 실측 S1·S2·S8), 컨트롤러 경유 S6 시험, qa P3(원문 펼치기 뒤 첫 발언 시각 칸·SCOPE_CAP 30 고정·ApiTest:58 주석).
+- **다음 한 걸음**: 사용자 실사용 5단계(11-24 안내: 올리기 수칙 체크·공개범위 목록·전산팀 사번 거절·기한 날짜·이력 수칙 1판) → design-reviewer 실화면 대조(PUSH-GATE 미실시분) → data-auditor 실물 1건 → 2차(접근 기록·모아보기·scrub). 자세히: backend a0c762f2·security a401d392·design a7f4c4fb·qa a61c817b(handoff/agents/).
 - **자세히**: planner a074a3ac, security a93b23eb(R1~R25, 11-19 보충 S1 중으로), backend-dev a6a8ddcf(설계·DDL 전문), 출처 2026-11-19 summary (main). 관련 NEXT 57·61·66.
 
 ### 100. [우선순위 높음] '제안서 확정' 뒤 사전준비 프로세스로 넘어가는 단계 구체 구현 (사용자 11-17) [담당: planner → backend-dev → design-reviewer → frontend-dev → qa]
@@ -611,3 +617,13 @@
 - **11-23 main — S2 서버 보강·화면 초안**: 7ad7f6d8 '우리 회사 기대효과' 목록 칸(사용자 11-23: 칸 두고 문장만, TPL_VER 2·RENDER_VER 2, 10줄×300자·필수 아님) + security 하 2건. 화면 규격 design 2026-11-23_1257_a78d8d68, 화면 초안 handoff/agents/frontend-dev/2026-11-23_100S2_instsummary_초안.md(instsummary.js) — node 시험 'isn.stripBullet is not a function'(내보내기 이름 불일치)으로 미적용.
 - **다음 한 걸음**: 내보내기 이름 고쳐 node 시험 → 적용 → 연결 줄 요청(0d index.html CSS·script, fa prep.js T1 [양식 열기]) → qa → design 대조·design_history 장 → DESIGN.md --full 대상 추가 ∥ S3(fa PrepService.judgeFact → PrepFormService.isConfirmedIntact) → S4. ⑥ 디자인 검토 받는 사람은 NEXT 108(fa).
 - **자세히**: planner 11-19 a96a42a1·a0da0424·a1f5ef8f(양식 틀), NEXT 70·71·56·72·77·89, 출처 2026-11-19 summary (main).
+
+### 115. [지역별 공고현황] 툴팁 줄 나눔 + 오른쪽 목록 시군구 묶음 (bf 세션 11-24) [담당: bf(지역별 공고현황 전담) — frontend-dev → frontend-dev-write → qa-verifier]
+- **현재**: 카드 1차본 c21c2a5b, 리사이즈·시험 e135b22b(design_history 103, node 1970/1970). 다음 묶음 = 툴팁 줄 나눔 + 오른쪽 목록 시군구 묶음(1년 이상 접기, 면·카드 클릭 시 묶음 강조) — 규격 design-reviewer 11-24 '툴팁 줄 나눔(A)…', 구현안 handoff/agents/frontend-dev/2026-11-24_1854_aa660c7c.md(미적용), 규격 handoff/agents/design-reviewer/2026-11-24_1839_a566a2ee.md. 세션 마지막 커밋 a7c6e4f4.
+- **다음 한 걸음**: (다른 PC에서) 패치 적용 → node 시험 → qa → 사용자 확인 → design_history 105장(다음 빈 번호, 커밋 직전 다시 확인).
+- **자세히**: handoff/sessions/2026-11-24_1600_map.md, 출처 2026-11-24 summary.
+
+### 116. 시연 뒤 발견 — 마감일 기록 없는 공고가 120일(미상 30일)까지 '진행 중'으로 보임, 지도 상세 '개원 확인 필요' 제외 없음, 탭이 다 차면 확정 뒤 이동 안 함, [계정 전환]이 서버 사번을 안 바꿈 [담당: planner → backend-dev(기관 데이터 마감일 칸) → frontend-dev(지도 bf·현황판 ca)]
+- **현재**: 11-24 시연 리허설 관찰(qa a44afea1), 미착수.
+- **다음 한 걸음**: planner 범위 정리(항목별 담당 세션 나누기).
+- **자세히**: 2026-11-24_summary Session 01:15, PM 11-24 1855_a837133e.
