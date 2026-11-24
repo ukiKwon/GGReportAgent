@@ -2558,6 +2558,7 @@
   .hc-ref .hc-err, .hc-ref .hc-ok { font-size:12px; margin:0; }
   .hc-foot [data-hc="docx"] { min-width:7.5em; }   /* '워드 내려받기' ↔ '만드는 중…' 문구가 바뀌어도 폭이 흔들리지 않게 */
   .hc-foot [data-hc="docx"][aria-disabled="true"] { opacity:.55; cursor:progress; }   /* disabled 대신 — 받는 중에도 포커스를 잃지 않게 */
+  .hc-foot [data-hc="docx"][aria-disabled="true"]:focus-visible { opacity:1; }   /* 흐린 채로는 포커스 링 2.66:1 — 켜 두면 6.84:1(qa 07649ad1 P2-1, #pl-bat 선례) */
   /* 기관장 카드 끝 */
   /* 기관 편집 창 시작(NEXT 72) — 묶음 3개(입찰 예정일·운영 상태·기본 정보). 규격: design-reviewer 2026-11-15_1928_a7fbd71e §6 */
   .modal-box.ie-box { max-width:560px; margin:5vh auto; }

@@ -1563,12 +1563,21 @@ test('[6-16] 이름·직위 줄: 이름 → 직위 → 만 n세 → 권한대행
   assert.ok(at('<h4 id="hc-name">') >= 0 && at('<h4 id="hc-name">') < at('class="hc-pos"') && at('class="hc-pos"') < at('class="hc-age"') && at('class="hc-age"') < at('class="hc-badge"'));
 });
 
-test('학력·경력 시작 년-월 필수(사용자 11-20): 입력 칸 안내와 화면 검사', function () {
+test('학력·경력 시작 연도 또는 연-월(사용자 11-24): 입력 칸 안내와 화면 검사', function () {
   const career = hc.valueRowHtml('CAREER', TODAY);
-  assert.ok(career.indexOf('시작(YYYY-MM, 필수)') >= 0 && /name="from"[^>]*required/.test(career) && career.indexOf('placeholder="2018-07"') >= 0);
-  assert.ok(career.indexOf('끝(YYYY-MM, 비우면 현재)') >= 0);
-  ['2018-07', ' 2018-07 ', '1900-01', '2100-12'].forEach(function (v) { assert.strictEqual(hc.startMonthOk(v), true, v); });
-  ['', null, '2018', '2018-7', '2018-13', '2018-00', '1899-12', '18-07', '2018-07-01'].forEach(function (v) { assert.strictEqual(hc.startMonthOk(v), false, String(v)); });
+  assert.ok(career.indexOf('시작(연도 또는 연-월, 필수)') >= 0 && /name="from"[^>]*required/.test(career) && career.indexOf('placeholder="2018 또는 2018-07"') >= 0);
+  assert.ok(career.indexOf('끝(연도 또는 연-월, 비우면 현재)') >= 0);
+  assert.ok(career.indexOf('YYYY-MM') < 0);
+  ['2018', ' 2018 ', '2018-07', ' 2018-07 ', '1900', '2100', '1900-01', '2100-12'].forEach(function (v) { assert.strictEqual(hc.startMonthOk(v), true, v); });
+  ['', null, '2018-7', '2018-13', '2018-00', '1899', '2101', '1899-12', '18', '18-07', '2018-07-01', '2018.07'].forEach(function (v) { assert.strictEqual(hc.startMonthOk(v), false, String(v)); });
+});
+
+test('학력·경력 정렬(사용자 11-24): YYYY와 YYYY-MM이 섞여도 최근 것부터, 연도만 끝값은 그 해 말로 본다', function () {
+  const mk = function (id, value, from, to) { return { item_id: id, head_id: 7, field_cd: 'CAREER', value: value, from: from, to: to, source: SRC, created_by: '1' }; };
+  const html = hc.cardHtml(view({ head: { career: [mk(1, '가경력', '2010', '2017'), mk(2, '나경력', '2018', '2022-06'), mk(3, '다경력', '2018-03', '2022'), mk(4, '라경력', '2023-01', null)] } }), { today: TODAY });
+  const at = function (s) { return html.indexOf(s); };
+  assert.ok(at('라경력') >= 0 && at('가경력') >= 0, html.slice(0, 200));
+  assert.ok(at('라경력') < at('다경력') && at('다경력') < at('나경력') && at('나경력') < at('가경력'));
 });
 
 test('[6-10] 이월 안내: 빈 머리의 이전 칸에 맞춰 문구가 바뀌고 head:null이면 없고 값은 싣지 않는다', function () {

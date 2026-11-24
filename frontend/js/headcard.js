@@ -209,12 +209,15 @@
     const y = t[0] - 18, d = new Date(y, t[1] - 1, t[2]);
     return logic.localDateStr(d.getMonth() === t[1] - 1 ? d : new Date(y, t[1] - 1 + 1, 0));
   };
-  // 학력·경력 시작 년-월(YYYY-MM, 1900~2100, 월 01~12) — 서버 HeadText.requireStartMonth 와 같은 규칙
+  // 학력·경력 시작: 연도(YYYY) 또는 연-월(YYYY-MM), 1900~2100, 월 01~12 (사용자 11-24 — 웹은 둘 다 받고 Word는 연도만). 서버 HeadText 와 같은 규칙. 시작은 필수라 빈 값은 false.
   hc.startMonthOk = function (v) {
-    const m = /^(\d{4})-(\d{2})$/.exec(trim(v));
+    const m = /^(\d{4})(?:-(\d{2}))?$/.exec(trim(v));
     if (!m) return false;
-    const y = Number(m[1]), mo = Number(m[2]);
-    return y >= 1900 && y <= 2100 && mo >= 1 && mo <= 12;
+    const y = Number(m[1]);
+    if (y < 1900 || y > 2100) return false;
+    if (m[2] === undefined) return true;
+    const mo = Number(m[2]);
+    return mo >= 1 && mo <= 12;
   };
   // 제출 전 화면 검사 → 안내 글 | ''(통과). 입력값은 문구에 싣지 않는다.
   hc.birthCheck = function (value, today) {
@@ -237,8 +240,10 @@
     if (it.field_cd === 'BIRTH_DATE') { const a = hc.ageOn(it.value, today); return mono(str(it.value)) + (a == null ? '' : ' (만 ' + a + '세)'); }
     return mono(hc.valueText(it, today));
   };
+  // 'YYYY' 와 'YYYY-MM' 이 섞여도 비교되게 연-월로 맞춘다(연도만이면 끝은 12월·시작은 01월로 본다, 사용자 11-24).
+  function ym(v, endSide) { const s = trim(v); return /^\d{4}$/.test(s) ? s + (endSide ? '-12' : '-01') : s; }
   function sortPeriod(list) {   // 최근 것이 위로(끝 연월이 없으면 현재 진행으로 보아 맨 위)
-    const key = function (it) { return (trim(it.to) || (trim(it.from) ? '9999-99' : '0000-00')) + '|' + trim(it.from); };
+    const key = function (it) { return (ym(it.to, true) || (trim(it.from) ? '9999-99' : '0000-00')) + '|' + ym(it.from, false); };
     return (list || []).slice().sort(function (a, b) { const x = key(a), y = key(b); return x < y ? 1 : (x > y ? -1 : 0); });
   }
 
@@ -370,7 +375,7 @@
   };
 
   // ── 순수: 워드 내려받기(완료·오류 한 줄) ──────────────────────────────
-  // dl = { busy, err, ok } | null. 알릴 말(완료·오류)이 있을 때만 줄을 그린다. 진행 중에는 줄 대신 버튼 문구만 바뀐다.
+  // dl = { busy, err, ok } | null. 알릴 말(완료·오류)이 있을 때만 줄을 그린다. 진행 중에는 버튼 문구가 바뀌고 화면에 안 보이는 낭독 줄(sr-only)만 둔다.
   hc.refHtml = function (dl) {
     if (!dl) return '';
     if (dl.busy) return '<p class="sr-only" role="status" id="hc-ref">' + esc(hc.TEXT.docxBusy) + '</p>';   // 받는 중 — 화면에는 안 보이고 낭독만
@@ -710,8 +715,8 @@
     if (f.kind === 'date') return '<label class="hc-lab">' + esc(f.label) + '<input type="date" name="date" required min="1900-01-01"></label>';
     if (f.kind === 'period') {
       return '<label class="hc-lab wide">' + esc(f.label) + ' 내용(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"></label>' +
-        '<label class="hc-lab">시작(YYYY-MM, 필수)<input type="text" name="from" maxlength="7" required inputmode="numeric" autocomplete="off" placeholder="2018-07"></label>' +
-        '<label class="hc-lab">끝(YYYY-MM, 비우면 현재)<input type="text" name="to" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="2022-06"></label>';
+        '<label class="hc-lab">시작(연도 또는 연-월, 필수)<input type="text" name="from" maxlength="7" required inputmode="numeric" autocomplete="off" placeholder="2018 또는 2018-07"></label>' +
+        '<label class="hc-lab">끝(연도 또는 연-월, 비우면 현재)<input type="text" name="to" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="2022 또는 2022-06"></label>';
     }
     return '<label class="hc-lab wide">' + esc(f.label) + '(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"' +
       (f.cd === 'NAME' ? ' placeholder="숫자는 쓸 수 없습니다"' : '') + '></label>';
@@ -1078,7 +1083,7 @@
     const headId = V.data && V.data.head ? V.data.head.head_id : 0;
     if (kind === 'add-item') {
       if ((v.field_cd === 'EDU' || v.field_cd === 'CAREER') && !hc.startMonthOk(v.from)) {   // 시작 년-월 필수(사용자 11-20) — 서버와 같은 검사
-        setMsg('시작은 YYYY-MM(예: 2018-07) 형식으로 입력하세요.', true);
+        setMsg('시작은 연도(예: 2018) 또는 연-월(예: 2018-07)로 입력하세요.', true);
         focusStatus();
         return;
       }
@@ -1168,10 +1173,13 @@
   }
   function focusPane(sel) { const el = paneQ(sel); if (el && el.focus) el.focus(); return !!el; }
   // 다시 그리면 단추가 새 요소로 바뀌어 포커스가 body로 빠진다 — 그리기 전에 포커스가 그 단추에 있었는지 재 두었다가 있었을 때만 되돌린다.
+  // 관계없는 다시 그리기로 포커스가 body로 빠진 경우(activeElement가 body·없음)도 '단추에 있던 것'으로 본다 — 사용자가 다른 곳으로 옮긴 것과 구분(qa P3-2).
   function paneHasFocus(sel) {
     if (typeof document === 'undefined') return false;
     const el = paneQ(sel);
-    return !!el && document.activeElement === el;
+    if (!el) return false;
+    const a = document.activeElement;
+    return a === el || !a || a === document.body;
   }
   function useEnv(envFn) { const env = (envFn && envFn()) || {}; if (env.repaint) V.repaint = env.repaint; return env; }
   function paintDl() { if (V.repaint) V.repaint(); }
@@ -1219,7 +1227,7 @@
       if (e.status === 409) {
         // 그 사이 기관장이 비었으면 카드를 최신으로 — 단추가 사라질 수 있으니 남은 단추로 포커스를 옮긴다
         const p = hc.refresh(true, hc.BTN.refresh);
-        if (had && p && p.then) p.then(function () { [SEL, '[data-hc="edit"]', '[data-hc="add-head"]'].some(function (s) { return focusPane(s); }); });
+        if (had && p && p.then) p.then(function () { [SEL, '[data-hc="add-head"]', '[data-hc="edit"]', '[data-hc="refresh"]'].some(function (s) { return focusPane(s); }); });
       }
     });
   };
