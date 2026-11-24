@@ -338,7 +338,7 @@
       (sum.trim() ? '<p class="pl-news-sum">' + sum + '</p>' : '') + '</li>';
   };
   // d = GET /institutions/{id}/news 응답(has_news true). months = d.stale_months(없으면 12). 보도일 최신순, 같으면 서버 순서. 입력 배열은 바꾸지 않는다.
-  plans.newsSecHtml = function (d, months) {
+  plans.newsSecHtml = function (d, months, heading) {
     d = d || {};
     const items = (Array.isArray(d.items) ? d.items : []).map(function (x, i) { return { x: x, i: i }; })
       .sort(function (a, b) { const p = ymd(b.x && b.x.published_on), q = ymd(a.x && a.x.published_on); return p < q ? -1 : p > q ? 1 : a.i - b.i; })
@@ -346,7 +346,7 @@
     const mo = Number(months) > 0 ? Math.floor(Number(months)) : 12;
     const meta = '확인 ' + mono(ymd(d.checked_on)) + ' · 보도일 ' + mono(ymd(d.window_from)) + ' ~ ' + mono(ymd(d.window_to)) +
       '(최근 1년) · ' + mono(items.length) + '건';
-    return '<section class="db-sec pl-news" aria-labelledby="pl-news-h"><h3 id="pl-news-h">관련 뉴스</h3>' +
+    return '<section class="db-sec pl-news" aria-labelledby="pl-news-h"><h3 id="pl-news-h">' + esc(heading || '관련 뉴스') + '</h3>' +
       '<p class="db-why pl-news-meta">' + meta + '</p>' +
       (d.stale ? '<p class="pl-warn">확인 ' + mono(ymd(d.checked_on)) + ' 뒤로 ' + mo + '개월 넘게 다시 확인하지 않았습니다. 새 기사가 있을 수 있으니 수집을 다시 요청하세요.</p>' : '') +
       '<ul class="pl-news-list">' + items.map(function (x) { return plans.newsItemHtml(x); }).join('') + '</ul>' +
@@ -404,7 +404,11 @@
     const chips = plans.stateChipsHtml({
       item_count: n, period_ended: docs.every(function (d) { return d.period_ended; }), stale: docs.some(function (d) { return d.stale; }),
     }, openReq, closedReq, rq && rq.applied, ex);
-    return head() + sumSec(chips, impLine + reqLine) + kw + '<div id="pl-docs">' + plans.docsHtml(data, o.kw, o.staleMonths) + '</div>';
+    // T10: 예전 계획이 있어도 서버가 '뉴스가 계획보다 새롭다'(newer_than_plan)고 한 경우만 계획 아래에 뉴스 절. 불러오는 중·오류·없음은 계획 화면을 가리지 않게 아무것도 그리지 않는다.
+    const nv2 = o.news || null, nd2 = nv2 && nv2.status === 'ok' && nv2.data ? nv2.data : null;
+    const newsBelow = nd2 && nd2.has_news === true && nd2.newer_than_plan === true
+      ? plans.newsSecHtml(nd2, nd2.stale_months, '새 사업계획을 찾지 못해 모은 관련 뉴스') : '';
+    return head() + sumSec(chips, impLine + reqLine) + kw + '<div id="pl-docs">' + plans.docsHtml(data, o.kw, o.staleMonths) + '</div>' + newsBelow;
   };
 
   // ── 순수: 목록 ─────────────────────────────────────────────────────
@@ -419,6 +423,15 @@
     const a = data && data.news;
     (Array.isArray(a) ? a : []).forEach(function (r) { if (r && r.institution_id && Number(r.item_count) > 0) ownPut(m, r.institution_id, r); });
     return m;
+  };
+  // T10: 문서가 있는 기관에서 뉴스를 받을지 미리 거르는 값. news = ST.news[id](없으면 null), planImportedAt = 상세 import.imported_at.
+  // 서버가 준 뉴스 반입 시각이 계획 반입 시각보다 늦을 때만 true. Date.parse 로 비교하고, 읽을 수 없으면 true(서버 newer_than_plan 이 최종 판단).
+  plans.wantNewsOverPlan = function (news, planImportedAt) {
+    if (!news || !(Number(news.item_count) > 0)) return false;
+    if (!news.imported_at) return false;           // 옛 서버(필드 없음)는 지금처럼 문서 있으면 뉴스 요청 안 함
+    if (!planImportedAt) return true;
+    const a = Date.parse(news.imported_at), b = Date.parse(planImportedAt);
+    return isNaN(a) || isNaN(b) ? true : a > b;
   };
   // ── 순수: 목록(모든 기관) ─────────────────────────────────────────────
   // 목표·관심 = GET /bid-targets?year= 를 올해·내년 두 번 받은 성공 응답 [{ year, data }]. items = 그해 목표, watch_items = 관심(두 응답에 같은 관심이 오므로 기관 ID 로 합친다).
@@ -1065,13 +1078,14 @@
     renderBanner(); renderList(); renderFoot();
     // 현황(배지)이 들어오면 위쪽 행 높이가 바뀌어 선택 행이 밀린다 — 다른 화면에서 골라 들어온 직후면 한 번 더 맞춘다.
     if (S.revealKey) { revealRow(S.revealKey); S.revealKey = ''; }
+    if (S.selRow) maybeNewsOver(S.selRow.id);   // 현황이 상세보다 늦게 왔으면 여기서 '계획 아래 뉴스'를 다시 판단(qa T10 P2-1)
   }
   function setFlash(msg) { const f = $('pl-flash'); if (f) f.textContent = msg || ''; }
 
   function loadDetail(id) {
     if (!ID_RE.test(id)) return;
     const state = S, c = state.cache[id];
-    if (c && c.status === 'ok') return;
+    if (c && c.status === 'ok') { maybeNewsOver(id); return; }   // 상세는 캐시, 현황이 늦게 들어왔거나 뉴스 오류였으면 여기서 다시 판단
     if (!serverOk()) { state.cache[id] = { status: 'offline' }; return; }
     state.cache[id] = { status: 'loading' };
     fetchJson('/institutions/' + encodeURIComponent(id) + '/plans').then(function (r) {
@@ -1079,9 +1093,20 @@
       state.cache[id] = r.status === 'ok' ? { status: 'ok', data: r.data }
         : { status: r.status === 'denied' ? 'denied' : (r.code === 404 ? 'notfound' : r.status), code: r.code };
       const got = state.cache[id];
-      if (got.status === 'ok' && !(got.data && Array.isArray(got.data.docs) && got.data.docs.length)) loadNews(id);   // 규격 107 6-1: 사업계획 문서가 0일 때만 뉴스를 받는다
+      if (got.status === 'ok') {
+        if (!(got.data && Array.isArray(got.data.docs) && got.data.docs.length)) loadNews(id);   // 규격 107 6-1: 문서가 0이면 항상 뉴스를 받는다
+        else maybeNewsOver(id);                                                                    // T10: 문서가 있으면 뉴스가 더 새로울 가능성이 있을 때만
+      }
       if (host && state.selRow && state.selRow.id === id) renderPane();
     });
+  }
+  // T10: 문서가 있는 기관 — 현황의 뉴스 반입 시각이 계획 반입 시각보다 늦을 때만 뉴스를 받는다(불필요한 요청 방지). 뉴스 오류 상태면 다시 연다.
+  function maybeNewsOver(id) {
+    const c = S && S.cache[id];
+    if (!c || c.status !== 'ok' || !c.data || !Array.isArray(c.data.docs) || !c.data.docs.length) return;
+    if (c.news && c.news.status !== 'error') return;
+    const sn = ST.state === 'ok' ? ownGet(ST.news, id) : null;
+    if (plans.wantNewsOverPlan(sn, c.data.import && c.data.import.imported_at)) loadNews(id, true);
   }
   // 관련 뉴스(NEXT 107). 결과는 S.cache[id].news = { status:'loading'|'ok'|'error', data, code }. 401·403·404 는 조용히 '뉴스 없음'(has_news:false).
   function loadNews(id, force) {
@@ -1096,6 +1121,7 @@
           : r.status === 'denied' || r.code === 404 ? { status: 'ok', data: { has_news: false } } : { status: 'error', code: r.code });
       if (!(host && state.selRow && state.selRow.id === id)) return;
       const a = document.activeElement, aid = a && a.id ? a.id : '', pane = $('pl-pane'), inPane = !!(a && pane && pane.contains(a));
+      if (aid === 'pl-kw') return;   // 검색 칸에 입력 중이면 다시 그리지 않는다(onCollect 와 같은 규칙, qa T10 P2-2) — 다음 그리기 때 뉴스 절이 붙는다
       renderPane();
       if (inPane && !document.body.contains(a)) {   // 다시 그리느라 포커스가 사라졌으면 같은 id → 없으면 제목(pl-name)으로(qa 107 P2-1, onCollect 와 같은 방식)
         const nx = (aid && $(aid)) || $('pl-name');
@@ -1168,7 +1194,7 @@
         a.href = url; a.download = x.name; a.rel = 'noopener';
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-        setFlash('자료 없는 기관 ' + ids.length + '곳의 목록을 내려받았습니다. 엑셀에서 열어 확인하세요.' + (CS.can ? ' 수집이 필요하면 기관을 골라 [수집 요청]을 누르세요.' : ''));   // 요청할 수 없는 사람에게는 없는 버튼을 가리키지 않는다(qa 11-19)
+        setFlash('자료 없는 기관 ' + ids.length + '곳의 목록을 내려받았습니다(관련 뉴스를 반입한 지 3개월이 안 된 기관은 목록에서 빠집니다). 엑셀에서 열어 확인하세요.' + (CS.can ? ' 수집이 필요하면 기관을 골라 [수집 요청]을 누르세요.' : ''));   // 요청할 수 없는 사람에게는 없는 버튼을 가리키지 않는다(qa 11-19)
       })
       .catch(function (e) {
         const s = e && e.status;

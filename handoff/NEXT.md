@@ -325,7 +325,7 @@
 
 ### 107. 사업계획을 못 찾은 기관 — 관련 뉴스 기사 정리로 대신 준비 [담당: f3(옛 05) 세션]
 - **현재**: 서버 5a752aa5(060·뉴스 반입·조회) + 11-24 오후 화면·서버 보강 커밋(상세 '관련 뉴스' 절·'뉴스로 대체'·반입 표 사업계획/뉴스 꼬리표, status에 recent_applied.close_reason·news[], design_history 100장). 로컬 DB 060 사용자 적용 끝. qa·security 조건부 통과(P2 포커스·뉴스만 있는 기관 링크·401 처리 고침). 사용자 U6: 뉴스로 채운 기관 정기 재수집은 3개월 뒤.
-- **다음 한 걸음**: ① T10 '판보다 새 뉴스가 있으면 계획 아래 뉴스 절'(design 문구·배치 → frontend, backend는 계획 반입일·뉴스 반입일 비교 값 확인) ② U6 missing.csv '대체 자료' 열 + 뉴스 반입 3개월 안 기관 정기 수집 제외(backend) ③ 화면 safeHttpUrl '@' 거부(security 하, logic.js 공용 — 다른 세션과 조율) ④ 8080 재기동 뒤 실화면 확인 요청 ⑤ 첫 표본에서 나이 패턴 조정(data-auditor).
+- **다음 한 걸음**: (11-24 끝: T10 계획 아래 뉴스 절·U6 missing.csv 3개월 제외·'현재 대체 자료' 열 — cb802db7 + 화면 커밋, design_history 101) ③ 화면 safeHttpUrl '@' 거부(security 하, logic.js 공용 — 다른 세션과 조율) ④ 8080 재기동 뒤 실화면 확인 요청 ⑤ 첫 표본에서 나이 패턴 조정(data-auditor).
 - **자세히**: 결정 handoff/agents/history/2026-11-24_56_107_결정.md(U1~U6·T1~T11), design 1556_aa36798b, planner(이관 2건), qa·security 11-24 오후 보고, handoff/sessions/2026-11-20_0930_05.md.
 ### 51. 이사회 작성 모드 선택 스포트라이트 후속 — **구현 완료(8c577bb·36415f5), 확인·판단 3건 남음** [담당: qa-verifier ∥ design-reviewer → frontend-dev / 사용자 답]
 - **현재**: 층 구분·그림자, 클릭 가림 보정, 편집 줄 저장/끝내기, 선택 스포트라이트(비집중 글자 가라앉힘·틸 테두리·짝 칩·십자 머리·대조 첫 줄·표 A/B 행 이름 라벨), Esc 해제 문구·resize 보정이 들어갔다(화면 611 통과, 출처 `2026-11-06_summary.md`).

@@ -979,7 +979,7 @@ test('detailHtml(뉴스): docs 0 + has_news 면 뉴스 배치(칩 2~4개·본문
   assert.ok(noReq.indexOf('class="pl-req"') < 0 && noReq.indexOf('db-sec pl-news') > 0, '요청 현황이 없어도 뉴스는 보인다');
 });
 
-test('detailHtml(뉴스): 불러오는 중·오류·뉴스 없음·o.news 없음, docs 가 있으면 뉴스를 그리지 않는다', function () {
+test('detailHtml(뉴스): 불러오는 중·오류·뉴스 없음·o.news 없음, docs 가 있고 newer_than_plan 이 아니면 뉴스를 그리지 않는다', function () {
   const can = { item: null, can: true, busy: '' };
   const ld = plans.detailHtml(NWS_EMPTY, { news: { status: 'loading' }, req: can });
   assert.ok(ld.indexOf('<p class="db-empty" aria-busy="true">관련 뉴스가 있는지 확인하는 중입니다…</p>') >= 0 && ld.indexOf('pop-unk">자료 없음') >= 0 && ld.indexOf('id="pl-req-go"') >= 0);
@@ -1060,9 +1060,10 @@ test('newsMap·newsClosedMap·appliedMap: 서버 값이 없는 옛 응답은 빈
   } finally { plans.resetStatus(); }
 });
 
-test('소스·CSS(107): 뉴스는 docs 0 일 때만 받고, 링크는 safeHttpUrl 한 곳, 7줄 CSS 는 사업계획 블록 안', function () {
+test('소스·CSS(107·T10): 뉴스는 docs 0 이면 항상, 있으면 조건부로 받고, 링크는 safeHttpUrl 한 곳, 7줄 CSS 는 사업계획 블록 안', function () {
   assert.ok(/fetchJson\('\/institutions\/' \+ encodeURIComponent\(id\) \+ '\/news'\)/.test(SRC));
-  assert.ok(/got\.status === 'ok' && !\(got\.data && Array\.isArray\(got\.data\.docs\) && got\.data\.docs\.length\)\) loadNews\(id\)/.test(SRC), 'docs 0 일 때만');
+  assert.ok(/if \(!\(got\.data && Array\.isArray\(got\.data\.docs\) && got\.data\.docs\.length\)\) loadNews\(id\);/.test(SRC), 'docs 0 이면 항상');
+  assert.ok(/else maybeNewsOver\(id\);/.test(SRC) && /plans\.wantNewsOverPlan\(sn,/.test(SRC), 'docs 있으면 조건부(T10)');
   assert.ok(/r\.status === 'denied' \|\| r\.code === 404 \? \{ status: 'ok', data: \{ has_news: false \} \}/.test(SRC), '401·403·404 는 조용히 뉴스 없음');
   assert.ok(/case 'pl-retry-news': if \(S\.selRow\) \{ loadNews\(S\.selRow\.id, true\)/.test(SRC));
   const nws = SRC.slice(SRC.indexOf('plans.newsItemHtml = '), SRC.indexOf('plans.detailHtml = '));
@@ -1089,4 +1090,49 @@ test('sectionInner: 뉴스만 있는 기관은 요청 못 하는 사람도 여�
     assert.ok(h.indexOf('data-pl-open="nw"') >= 0 && h.indexOf('기관 사업계획에서 보기') >= 0, '열람 링크');
     assert.ok(plans.sectionInner('zz', 'db-name').indexOf('data-pl-open') < 0, '뉴스도 요청도 없고 요청 못 하면 링크 없음');
   } finally { plans.resetStatus(); }
+});
+
+test('T10 detailHtml: 문서 있음 + newer_than_plan true 면 계획 아래 뉴스 절(머리 문구), false·없음·오류·로딩은 숨김', function () {
+  const nd = function (over) { return nwsData([nwsItem()], over); };
+  const v = view([doc()]);
+  const on = plans.detailHtml(v, { name: '종로구', news: { status: 'ok', data: nd({ newer_than_plan: true }) } });
+  assert.ok(on.indexOf('<h3 id="pl-news-h">새 사업계획을 찾지 못해 모은 관련 뉴스</h3>') > 0);
+  assert.ok(idx(on, 'id="pl-kw"') > 0 && idx(on, 'id="pl-docs"') < idx(on, 'class="db-sec pl-news"'), '검색칸·문서 목록 뒤에 뉴스 절');
+  assert.ok(on.indexOf('id="pl-news-note"') > 0 && on.indexOf('사업계획 못 찾음') < 0 && on.indexOf('관련 뉴스로 대신합니다') < 0, '대체 문구·칩은 docs 0 전용');
+  const off = [{ newer_than_plan: false }, {}, { newer_than_plan: 'true' }, { has_news: false, newer_than_plan: true }];
+  off.forEach(function (o) { assert.ok(plans.detailHtml(v, { news: { status: 'ok', data: nd(o) } }).indexOf('pl-news') < 0, JSON.stringify(o)); });
+  [{ status: 'loading' }, { status: 'error', code: 500 }, null].forEach(function (nv) {
+    const h = plans.detailHtml(v, { news: nv });
+    assert.ok(h.indexOf('pl-news') < 0 && h.indexOf('pl-retry-news') < 0 && h.indexOf('id="pl-kw"') > 0, '계획 화면을 가리지 않는다');
+  });
+  const evil = plans.detailHtml(v, { news: { status: 'ok', data: nd({ newer_than_plan: true, items: [nwsItem({ title: '<img src=x>' })] }) } });
+  assert.ok(evil.indexOf('<img') < 0);
+});
+
+test('T10 newsSecHtml heading 인자·wantNewsOverPlan', function () {
+  assert.ok(plans.newsSecHtml(nwsData([nwsItem()]), 12, '머리<b>').indexOf('<h3 id="pl-news-h">머리&lt;b&gt;</h3>') > 0, 'esc');
+  assert.ok(plans.newsSecHtml(nwsData([nwsItem()])).indexOf('<h3 id="pl-news-h">관련 뉴스</h3>') > 0, '기본값');
+  const W = plans.wantNewsOverPlan, N = function (a) { return { item_count: 2, imported_at: a }; };
+  assert.strictEqual(W(N('2026-11-20T00:00:00Z'), '2026-11-16T01:02:03+00:00'), true);
+  assert.strictEqual(W(N('2026-11-10T00:00:00Z'), '2026-11-16T01:02:03+00:00'), false);
+  assert.strictEqual(W(N('2026-11-20T00:00:00Z'), null), true, '계획 반입 시각 없음');
+  assert.strictEqual(W(N('이상한값'), '2026-11-16T01:02:03+00:00'), true, '읽을 수 없으면 서버 판단에 맡김');
+  assert.strictEqual(W(null, 'x'), false);
+  assert.strictEqual(W({ item_count: 0, imported_at: '2026-11-20T00:00:00Z' }, 'x'), false);
+  assert.strictEqual(W({ item_count: 2 }, 'x'), false, '옛 서버: imported_at 없음');
+});
+
+test('소스(T10): 문서 있을 때 뉴스는 maybeNewsOver 한 곳, 오류 상태에서만 force 로 다시', function () {
+  assert.ok(/function maybeNewsOver\(id\)/.test(SRC) && /if \(c\.news && c\.news\.status !== 'error'\) return;/.test(SRC));
+  assert.ok(/if \(c && c\.status === 'ok'\) \{ maybeNewsOver\(id\); return; \}/.test(SRC));
+  assert.ok(/loadNews\(id, true\)/.test(SRC));
+});
+
+test('소스(T10 qa): 현황 도착 때 선택 행 뉴스 재판단, 검색 칸 입력 중엔 뉴스 응답으로 다시 그리지 않음, 내려받기 안내에 3개월 제외', function () {
+  const on = SRC.slice(SRC.indexOf('function onStatus('), SRC.indexOf('function setFlash('));
+  assert.ok(on.indexOf('if (S.selRow) maybeNewsOver(S.selRow.id);') > 0);
+  const ln = SRC.slice(SRC.indexOf('function loadNews('), SRC.indexOf('function markSelected('));
+  assert.ok(ln.indexOf("if (aid === 'pl-kw') return;") > 0 && ln.indexOf("if (aid === 'pl-kw') return;") < ln.indexOf('renderPane();'));
+  assert.ok(SRC.indexOf('관련 뉴스를 반입한 지 3개월이 안 된 기관은 목록에서 빠집니다') > 0);
+  assert.ok(!isNaN(Date.parse('2026-11-24T03:00:00.123456+00:00')), '서버 마이크로초 형식도 Date.parse 가능');
 });
