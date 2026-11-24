@@ -21,6 +21,9 @@ public final class TargetUiIds {
     public static final Set<String> CHANGE = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(BTN_CHANGE, BTN_SAVE_VALUES)));
     public static final Set<String> CARRY = Collections.singleton(BTN_CARRY);
     public static final Set<String> TERM = Collections.singleton(BTN_TERM);
+    public static final String BTN_HEART = "toggle_watch_heart";   // 061 지도 ♥
+    public static final Set<String> WATCH_ON = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(BTN_HEART, BTN_ADD_WATCH)));
+    public static final Set<String> WATCH_OFF = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(BTN_HEART, BTN_CANCEL)));
 
     private TargetUiIds() { }
 

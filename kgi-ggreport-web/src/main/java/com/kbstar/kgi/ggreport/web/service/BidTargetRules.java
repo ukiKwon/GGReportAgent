@@ -197,6 +197,9 @@ final class BidTargetRules {
         return v;
     }
 
+    /** 061 — ♥ 구분(선택값) 검사. */
+    static String tag(String raw, BankContractRules.CodeCheck codes) { return code(raw, G_TAG, codes, "태그를 목록에서 골라 주세요."); }
+
     private static String code(String raw, String group, BankContractRules.CodeCheck codes, String msg) {
         String v = raw == null ? null : raw.trim();
         if (v == null || !CODE.matcher(v).matches() || !codes.enabled(group, v)) throw bad(msg);

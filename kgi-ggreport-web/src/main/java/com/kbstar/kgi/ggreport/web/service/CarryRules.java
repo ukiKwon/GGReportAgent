@@ -54,6 +54,12 @@ final class CarryRules {
         return BidTargetService.ACTION_CANCEL.equals(t.getActionCd()) && BidTargetService.CANCEL_CARRY_REVOKED.equals(t.getCancelReasonCd());
     }
 
+    /** 061 — 미달성 이월 관심의 주인: 원천 목표의 주 담당 → 처음 요청자 → 처음 입력자(사용자 11-24 결정). */
+    static String watchOwnerOf(BidTarget source) {
+        if (source.getOwnerEmpNo() != null) return source.getOwnerEmpNo();
+        return source.getFirstRequesterEmpNo() != null ? source.getFirstRequesterEmpNo() : source.getFirstEditorEmpNo();
+    }
+
     /**
      * latest = 그 기관 모든 기록의 최신 행(뺀 것 포함).
      * ① 이 원천에서 넘어온 기록 중 사람 손을 안 탄 것(최신 행이 CARRY)이 지금 판정과 구분이 다르면 거둔다(보류면 전부 거둠).
@@ -71,6 +77,7 @@ final class CarryRules {
         // 원천 목표가 아직 살아 있는 '현재'(목표 연도 >= 올해)면 관심을 만들지 않는다(관심·목표 동시 존재 금지). GOAL 이월만 허용.
         if (BidTargetRules.KIND_WATCH.equals(need) && y >= thisYear) need = null;
         boolean blocked = false;
+        String owner = watchOwnerOf(source);
         for (BidTarget t : latest) {
             if (t.getTargetNo() == source.getTargetNo()) continue;   // 원천 자신(올해 목표면 '현재'라 막지 않게)
             boolean alive = !BidTargetService.ACTION_CANCEL.equals(t.getActionCd());
@@ -79,7 +86,12 @@ final class CarryRules {
                 if (alive && BidTargetService.ACTION_CARRY.equals(t.getActionCd()) && !kind.equals(need)) { d.revoke.add(t); continue; }
                 if (kind.equals(need) && !autoRevoked(t)) blocked = true;
             }
-            if (alive && BidTargetRules.isCurrent(t, thisYear)) blocked = true;
+            if (!alive) continue;
+            if (BidTargetRules.KIND_WATCH.equals(BidTargetRules.kindOf(t))) {   // 061 — 관심은 사람별: 목표 이월은 막지 않고, 같은 주인 관심만 관심 이월을 막는다
+                if (BidTargetRules.KIND_WATCH.equals(need) && owner != null && owner.equals(t.getWatchEmpNo())) blocked = true;
+                continue;
+            }
+            if (BidTargetRules.isCurrent(t, thisYear)) blocked = true;
         }
         if (need != null && !blocked) {
             d.carryKind = need;

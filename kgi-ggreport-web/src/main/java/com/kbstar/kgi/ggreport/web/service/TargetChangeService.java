@@ -61,6 +61,7 @@ public class TargetChangeService {
     public static final class Plan {
         final List<Planned> items = new ArrayList<Planned>();
         String reason, title, payload; SysUser approver;
+        String requesterEmp;   // 061 — TO_WATCH 의 관심 주인·관심 기록 소유 검사(요청자 = 바로 반영이면 본인)
         boolean valueOnly;   // 모든 항목이 valueOnly → 결재 없이 바로
         public boolean isValueOnly() { return valueOnly; }
         public SysUser getApprover() { return approver; }
@@ -123,8 +124,9 @@ public class TargetChangeService {
      * 사유: 들어왔으면 항목보다 먼저 형식·개인정보 검사(이전 순서 유지), 결재 요청인데 비었으면 항목 검사 뒤 400.
      */
     @Transactional
-    public Plan plan(TargetChangeIn in, boolean direct) {
+    public Plan plan(TargetChangeIn in, boolean direct, String requesterEmp) {
         Plan plan = new Plan();
+        plan.requesterEmp = requesterEmp;
         String raw = in.getReason();
         boolean hasReason = raw != null && !raw.trim().isEmpty();
         if (!direct && hasReason) checkReason(plan, raw);
@@ -133,7 +135,7 @@ public class TargetChangeService {
         int no = 0;
         for (TargetChangeIn.Item it : in.getItems()) {
             no++;
-            try { plan.items.add(planItem(no, it, today, codes)); }
+            try { plan.items.add(planItem(no, it, today, codes, requesterEmp)); }
             catch (ApiException e) { throw withItem(e, no, null); }
         }
         boolean all = true;
@@ -148,7 +150,7 @@ public class TargetChangeService {
         new MemoScreen("TARGET_FORBIDDEN", BidTargetRules.FORBIDDEN_MSG).free(plan.reason).throwIfAny();
     }
 
-    private Planned planItem(int no, TargetChangeIn.Item it, LocalDate today, BankContractRules.CodeCheck codes) {
+    private Planned planItem(int no, TargetChangeIn.Item it, LocalDate today, BankContractRules.CodeCheck codes, String requesterEmp) {
         int thisYear = today.getYear();
         Planned p = new Planned();
         p.itemNo = no; p.inst = it.getInstitutionId(); p.op = it.getOpCd();
@@ -156,12 +158,13 @@ public class TargetChangeService {
         if (OP_ADD.equals(p.op)) {
             BidTargetRules.Parsed v = BidTargetRules.parse(asIn(it), thisYear, null, codes);
             fill(p, v, targets.ownerName(v.owner, null));
-            targets.checkOverlap(p.inst, 0, false, p.toYear, thisYear, BidTargetService.GOAL_DUP_MSG);
+            targets.checkGoalOverlap(p.inst, 0, p.toYear);
             if (p.toYear.intValue() == thisYear) p.warnCd = warn(targets.closedCheck(p.inst, today));
             return p;
         }
         BidTarget cur = mapper.selectLatestTarget(p.inst, it.getTargetNo().intValue());
         if (cur == null) throw ApiException.notFound("target not found");
+        BidTargetService.requireWatchOwner(cur, requesterEmp);   // 061 중-1 — 관심 기록이면 op 와 무관하게 먼저(ALREADY_CANCELLED·STALE 의 latest 로 남의 기록이 새지 않게)
         if (BidTargetService.ACTION_CANCEL.equals(cur.getActionCd())) throw BidTargetService.conflict("ALREADY_CANCELLED", "이미 목표에서 뺀 기록입니다.", cur);
         if (it.getBaseRevNo().intValue() != cur.getRevNo()) throw BidTargetService.conflict("STALE", "다른 사람이 먼저 고쳤습니다. 최신 기록을 확인하고 다시 올려 주세요.", cur);
         p.cur = cur;
@@ -177,7 +180,7 @@ public class TargetChangeService {
                 p.valueOnly = cur.getTargetYear() != null && cur.getTargetYear() >= thisYear   // 지난해 목표는 결재(security F1)
                         && p.toYear.equals(cur.getTargetYear()) && Objects.equals(p.owner, cur.getOwnerEmpNo());   // NEXT 114
                 if (!p.toYear.equals(cur.getTargetYear())) {
-                    targets.checkOverlap(p.inst, cur.getTargetNo(), false, p.toYear, thisYear, BidTargetService.GOAL_DUP_MSG);
+                    targets.checkGoalOverlap(p.inst, cur.getTargetNo(), p.toYear);
                     if (p.toYear.intValue() == thisYear) p.warnCd = warn(targets.closedCheck(p.inst, today));
                 }
                 return p;
@@ -190,11 +193,11 @@ public class TargetChangeService {
                 return p;
             }
             case OP_TO_WATCH:
-                targets.checkOverlap(p.inst, cur.getTargetNo(), true, null, thisYear, BidTargetService.GOAL_OTHER_MSG);
+                targets.checkWatchOverlap(p.inst, cur.getTargetNo(), requesterEmp);
                 return p;
             default: {   // TO_GOAL
                 p.toYear = BidTargetRules.moveYear(it.getTargetYear(), false, thisYear);
-                targets.checkOverlap(p.inst, cur.getTargetNo(), false, p.toYear, thisYear, BidTargetService.GOAL_DUP_MSG);
+                targets.checkGoalOverlap(p.inst, cur.getTargetNo(), p.toYear);
                 if (p.toYear.intValue() == thisYear) p.warnCd = warn(targets.closedCheck(p.inst, today));
                 return p;
             }
@@ -248,7 +251,7 @@ public class TargetChangeService {
     @Transactional
     public Map<String, Object> applyDirect(Plan plan, Actor actor, BoardUiIds.Ui ui, String basis) {
         List<Map<String, Object>> done = new ArrayList<Map<String, Object>>();
-        for (Planned p : plan.items) done.add(write(p, actor, ui, null));
+        for (Planned p : plan.items) done.add(write(p, actor, ui, null, plan.requesterEmp));
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("mode", "DIRECT");
         out.put("direct_basis", basis);
@@ -283,19 +286,20 @@ public class TargetChangeService {
         BankContractRules.CodeCheck codes = targets.codeCheck();
         List<Planned> plans = new ArrayList<Planned>();
         for (BidTargetReqItem x : items) {
-            try { plans.add(replan(x, today, codes)); }
+            try { plans.add(replan(x, today, codes, r.getRequesterEmpNo())); }
             catch (ApiException e) { throw withItem(e, x.getItemNo(), x.getInstitutionName()); }
         }
-        for (Planned p : plans) write(p, actor, ui, r.getReqId());
+        for (Planned p : plans) write(p, actor, ui, r.getReqId(), r.getRequesterEmpNo());
         return "목표 기관 변경 반영: " + plans.size() + "건";
     }
 
-    private Planned replan(BidTargetReqItem x, LocalDate today, BankContractRules.CodeCheck codes) {
+    private Planned replan(BidTargetReqItem x, LocalDate today, BankContractRules.CodeCheck codes, String requesterEmp) {
         int thisYear = today.getYear();
         Planned p = new Planned();
         p.itemNo = x.getItemNo(); p.inst = x.getInstitutionId(); p.op = x.getOpCd();
         if (!OP_ADD.equals(p.op)) {
             BidTarget cur = x.getTargetNo() == null ? null : mapper.selectLatestTarget(p.inst, x.getTargetNo().intValue());
+            if (cur != null) BidTargetService.requireWatchOwner(cur, requesterEmp);   // 061 중-1 — ITEM_CHANGED 의 latest 로 남의 관심 기록이 새지 않게 먼저
             if (cur == null || BidTargetService.ACTION_CANCEL.equals(cur.getActionCd()) || x.getBaseRevNo() == null
                     || cur.getRevNo() != x.getBaseRevNo().intValue() || !BidTargetRules.kindOf(cur).equals(x.getBaseKindCd())) {
                 throw BidTargetService.conflict("ITEM_CHANGED", CHANGED_MSG, cur);
@@ -311,7 +315,7 @@ public class TargetChangeService {
                 catch (ApiException e) { throw invalid("주 담당이 더 이상 영업부서 활성 사용자가 아닙니다.", p.cur); }
                 if (p.cur == null || !p.toYear.equals(p.cur.getTargetYear())) {
                     if (p.toYear.intValue() < thisYear) throw BidTargetService.conflict("YEAR_PASSED", YEAR_PASSED_MSG, p.cur);
-                    targets.checkOverlap(p.inst, p.cur == null ? 0 : p.cur.getTargetNo(), false, p.toYear, thisYear, BidTargetService.GOAL_DUP_MSG);
+                    targets.checkGoalOverlap(p.inst, p.cur == null ? 0 : p.cur.getTargetNo(), p.toYear);
                     if (p.toYear.intValue() == thisYear) targets.closedCheck(p.inst, today);
                 }
                 return p;
@@ -321,12 +325,12 @@ public class TargetChangeService {
                 p.cancelCd = x.getCancelReasonCd(); p.cancelEtc = x.getCancelReasonEtc();
                 return p;
             case OP_TO_WATCH:
-                targets.checkOverlap(p.inst, p.cur.getTargetNo(), true, null, thisYear, BidTargetService.GOAL_OTHER_MSG);
+                targets.checkWatchOverlap(p.inst, p.cur.getTargetNo(), requesterEmp);
                 return p;
             default: {   // TO_GOAL
                 p.toYear = x.getToYear();
                 if (p.toYear == null || p.toYear.intValue() < thisYear) throw BidTargetService.conflict("YEAR_PASSED", YEAR_PASSED_MSG, p.cur);
-                targets.checkOverlap(p.inst, p.cur.getTargetNo(), false, p.toYear, thisYear, BidTargetService.GOAL_DUP_MSG);
+                targets.checkGoalOverlap(p.inst, p.cur.getTargetNo(), p.toYear);
                 if (p.toYear.intValue() == thisYear) targets.closedCheck(p.inst, today);
                 return p;
             }
@@ -334,7 +338,7 @@ public class TargetChangeService {
     }
 
     /** 한 항목을 INST_BID_TARGET 한 행으로. 같은 요청에 같은 기관은 한 번이라 MAX+1 이 겹치지 않는다. */
-    private Map<String, Object> write(Planned p, Actor actor, BoardUiIds.Ui ui, Long reqId) {
+    private Map<String, Object> write(Planned p, Actor actor, BoardUiIds.Ui ui, Long reqId, String watchOwner) {
         BidTarget row;
         if (OP_ADD.equals(p.op)) {
             row = new BidTarget();
@@ -352,12 +356,15 @@ public class TargetChangeService {
         if (OP_ADD.equals(p.op) || OP_EDIT.equals(p.op)) {
             row.setActionCd(BidTargetService.ACTION_SAVE); row.setKindCd(BidTargetRules.KIND_GOAL); row.setTargetYear(p.toYear);
             row.setTagCd(p.tag); row.setMemo(p.memo); row.setOwnerEmpNo(p.owner); row.setOwnerName(p.ownerName);
+            row.setWatchEmpNo(null);
         } else if (OP_CANCEL.equals(p.op)) {
             row.setActionCd(BidTargetService.ACTION_CANCEL); row.setCancelReasonCd(p.cancelCd); row.setCancelReasonEtc(p.cancelEtc);
         } else if (OP_TO_WATCH.equals(p.op)) {
             row.setActionCd(BidTargetService.ACTION_MOVE); row.setKindCd(BidTargetRules.KIND_WATCH); row.setTargetYear(null);
+            row.setWatchEmpNo(watchOwner);   // 061 — 요청자의 관심(바로 반영이면 본인)
         } else {
             row.setActionCd(BidTargetService.ACTION_MOVE); row.setKindCd(BidTargetRules.KIND_GOAL); row.setTargetYear(p.toYear);
+            row.setWatchEmpNo(null);   // 관심→목표 = 팀 목표
         }
         return targets.insert(row, actor, ui, reqId);
     }

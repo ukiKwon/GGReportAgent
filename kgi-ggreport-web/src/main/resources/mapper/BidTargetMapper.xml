@@ -46,6 +46,7 @@
     <result property="requestedByName" column="REQUESTED_BY_NAME"/>
     <result property="firstRequesterEmpNo" column="FIRST_REQUESTER_EMP_NO"/>
     <result property="firstRequestedByName" column="FIRST_REQUESTED_BY_NAME"/>
+    <result property="watchEmpNo" column="WATCH_EMP_NO"/>
   </resultMap>
 
   <resultMap id="line" type="BankContract">
@@ -79,7 +80,7 @@
     b.APPROVAL_REQ_ID, f.CARRY_FROM_NO AS FIRST_CARRY_FROM_NO, f.CARRY_BASIS_CD AS FIRST_CARRY_BASIS_CD,
     f.ACTION_CD AS FIRST_ACTION_CD, f.KIND_CD AS FIRST_KIND_CD,
     ri.REQUESTER_EMP_NO AS REQUESTER_EMP_NO, ri.REQUESTER_NAME AS REQUESTED_BY_NAME,
-    fr.REQUESTER_EMP_NO AS FIRST_REQUESTER_EMP_NO, fr.REQUESTER_NAME AS FIRST_REQUESTED_BY_NAME</sql>
+    fr.REQUESTER_EMP_NO AS FIRST_REQUESTER_EMP_NO, fr.REQUESTER_NAME AS FIRST_REQUESTED_BY_NAME, b.WATCH_EMP_NO</sql>
   <sql id="from">FROM INST_BID_TARGET b
     LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = b.INSTITUTION_ID
     LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'TARGET_TAG' AND c.CODE = b.TAG_CD
@@ -108,17 +109,23 @@
   </select>
   <select id="selectHistory" resultMap="row" flushCache="true">
     SELECT <include refid="cols"/> <include refid="from"/>
-     WHERE b.INSTITUTION_ID = #{institutionId} ORDER BY b.SAVED_AT DESC, b.TARGET_NO DESC, b.REV_NO DESC
+     WHERE b.INSTITUTION_ID = #{institutionId}
+       AND (b.KIND_CD &lt;&gt; 'WATCH' OR b.ACTION_CD = 'MOVE' OR b.WATCH_EMP_NO = #{empNo,jdbcType=VARCHAR})
+     ORDER BY b.SAVED_AT DESC, b.TARGET_NO DESC, b.REV_NO DESC
+  </select>
+  <select id="countMoveRows" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID = #{institutionId} AND TARGET_NO = #{targetNo} AND ACTION_CD = 'MOVE'
   </select>
 
   <insert id="insertRow" parameterType="BidTarget">
     INSERT INTO INST_BID_TARGET (INSTITUTION_ID, TARGET_NO, REV_NO, ACTION_CD, KIND_CD, TARGET_YEAR, TAG_CD, MEMO, OWNER_EMP_NO, OWNER_NAME,
         CANCEL_REASON_CD, CANCEL_REASON_ETC, EDITOR_EMP_NO, EDITOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT,
-        APPROVAL_REQ_ID, CARRY_FROM_NO, CARRY_BASIS_CD)
+        APPROVAL_REQ_ID, CARRY_FROM_NO, CARRY_BASIS_CD, WATCH_EMP_NO)
     VALUES (#{institutionId}, #{targetNo}, #{revNo}, #{actionCd}, #{kindCd}, #{targetYear,jdbcType=INTEGER}, #{tagCd}, #{memo,jdbcType=VARCHAR},
         #{ownerEmpNo,jdbcType=VARCHAR}, #{ownerName,jdbcType=VARCHAR}, #{cancelReasonCd,jdbcType=VARCHAR}, #{cancelReasonEtc,jdbcType=VARCHAR},
         #{editorEmpNo}, #{editorName}, #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{savedAt},
-        #{approvalReqId,jdbcType=BIGINT}, #{carryFromNo,jdbcType=INTEGER}, #{carryBasisCd,jdbcType=VARCHAR})
+        #{approvalReqId,jdbcType=BIGINT}, #{carryFromNo,jdbcType=INTEGER}, #{carryBasisCd,jdbcType=VARCHAR},
+        #{watchEmpNo,jdbcType=VARCHAR})
   </insert>
 
   <sql id="lineCols">k.INSTITUTION_ID, k.CONTRACT_NO, k.REV_NO, k.RANK_CD, k.BANK_CD, k.BANK_NAME_ETC, k.TERM_FROM, k.TERM_TO, c.CODE_NAME AS BANK_NAME</sql>
@@ -144,13 +151,23 @@
 
   <select id="selectActiveWatch" resultMap="row" flushCache="true">
     SELECT <include refid="cols"/> <include refid="from"/>
-     WHERE b.KIND_CD = 'WATCH' AND b.ACTION_CD &lt;&gt; 'CANCEL' AND <include refid="latest"/>
+     WHERE b.KIND_CD = 'WATCH' AND b.WATCH_EMP_NO = #{empNo,jdbcType=VARCHAR} AND b.ACTION_CD &lt;&gt; 'CANCEL' AND <include refid="latest"/>
      ORDER BY i.NAME_KO, b.INSTITUTION_ID, b.TARGET_NO
+  </select>
+  <resultMap id="watcher" type="WatcherRow">
+    <result property="institutionId" column="INSTITUTION_ID"/>
+    <result property="name" column="OWNER_NM"/>
+  </resultMap>
+  <select id="selectWatchers" resultMap="watcher" flushCache="true">
+    SELECT b.INSTITUTION_ID, u.NAME AS OWNER_NM
+      FROM INST_BID_TARGET b LEFT JOIN USERS u ON u.EMP_NO = b.WATCH_EMP_NO
+     WHERE b.KIND_CD = 'WATCH' AND b.ACTION_CD &lt;&gt; 'CANCEL' AND <include refid="latest"/>
+     ORDER BY b.INSTITUTION_ID, b.TARGET_NO
   </select>
   <select id="selectContractsForWatch" resultMap="line" flushCache="true">
     SELECT <include refid="lineCols"/> <include refid="lineFrom"/>
        AND k.INSTITUTION_ID IN (SELECT t.INSTITUTION_ID FROM INST_BID_TARGET t
-             WHERE t.KIND_CD = 'WATCH' AND t.ACTION_CD &lt;&gt; 'CANCEL' AND NOT EXISTS (SELECT 1 FROM INST_BID_TARGET m
+             WHERE t.KIND_CD = 'WATCH' AND t.WATCH_EMP_NO = #{empNo,jdbcType=VARCHAR} AND t.ACTION_CD &lt;&gt; 'CANCEL' AND NOT EXISTS (SELECT 1 FROM INST_BID_TARGET m
                WHERE m.INSTITUTION_ID = t.INSTITUTION_ID AND m.TARGET_NO = t.TARGET_NO AND m.REV_NO &gt; t.REV_NO))
      ORDER BY k.INSTITUTION_ID, k.CONTRACT_NO
   </select>
@@ -247,6 +264,9 @@
     LEFT JOIN COMMON_CODE bc ON bc.CODE_GROUP = 'TARGET_TAG' AND bc.CODE = bt.TAG_CD</sql>
   <select id="selectPendingItems" resultType="BidTargetReqItem" flushCache="true">
     SELECT <include refid="itemCols"/> <include refid="itemFrom"/> WHERE r.STATUS = 'PENDING' ORDER BY x.INSTITUTION_ID, x.REQ_ID
+  </select>
+  <select id="selectPendingItemsByInst" resultType="BidTargetReqItem" flushCache="true">
+    SELECT <include refid="itemCols"/> <include refid="itemFrom"/> WHERE r.STATUS = 'PENDING' AND x.INSTITUTION_ID = #{institutionId} ORDER BY x.REQ_ID, x.ITEM_NO
   </select>
   <select id="selectReqItems" resultType="BidTargetReqItem" flushCache="true">
     SELECT <include refid="itemCols"/> <include refid="itemFrom"/> WHERE x.REQ_ID = #{reqId} ORDER BY x.ITEM_NO

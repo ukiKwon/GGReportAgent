@@ -43,10 +43,10 @@ public class BidTargetService {
     public static final String DIRECT_ROLE = "ROLE", DIRECT_VALUE_EDIT = "VALUE_EDIT", DIRECT_WATCH = "WATCH";   // 바로 반영 근거(NEXT 114)
     public static final String APPROVAL_MSG = "목표 기관 정보를 바꾸려면 결재가 필요합니다. 체크한 뒤 [결재 요청]으로 올려 주세요.";
     static final String PENDING_MSG = "이 기관은 목표 변경 결재가 진행 중입니다. 결재가 끝난 뒤 다시 시도해 주세요.";
-    static final String GOAL_DUP_MSG = "이미 목표 기관으로 설정되어 있습니다.";
-    static final String GOAL_OTHER_MSG ="이 기관은 다른 연도 목표에도 들어 있습니다. 그 목표를 먼저 빼야 관심 기관으로 옮길 수 있습니다.";
     private static final String WATCH_DUP_MSG = "이미 관심 기관입니다.";
-    private static final String WATCH_TO_GOAL_MSG = "이미 관심 기관입니다. 목표로 넣으려면 [목표로 옮기기]를 써 주세요.";
+    static final String NOT_OWNER_MSG = "다른 사람의 관심 기관은 바꿀 수 없습니다.";
+    static final String WATCH_USER_MSG = "등록된 사용자만 관심 기관을 쓸 수 있습니다.";
+    public static final String SRC_GIVEN = "GIVEN", SRC_DEFAULT = "DEFAULT";   // 061 ♥ 구분 출처(접근 이력용)
     private static final String KIND_EDIT_MSG = "목표·관심 구분을 바꾸려면 옮기기를 써 주세요.";
     static final String CLOSED_MSG = "이 기관은 올해 입찰이 끝난 것으로 기록되어 있어 올해 목표로 넣을 수 없습니다. 관심 기관이나 다음 해 목표로 넣을 수 있습니다. 정보가 틀리면 '입찰 공고 현황'에서 고쳐 주세요.";
     static final int HISTORY_MAX = 200;
@@ -98,6 +98,16 @@ public class BidTargetService {
         if (!directGoal(users.selectByEmpNo(actor.getEmpNo()))) throw detail(403, "APPROVAL_REQUIRED", APPROVAL_MSG, cur);
     }
 
+    /**
+     * 061 — 관심 기록은 주인만 고치고 옮기고 뺀다. 목표 기록은 보지 않는다. 403 에 latest 를 싣지 않는다(남의 기록 정보 비노출).
+     * 호출 순서: cur == null 확인 바로 다음, ALREADY_CANCELLED·STALE 보다 먼저(security 중-1). ⚠️ 자기신고 사번 위의 업무 규칙.
+     */
+    static void requireWatchOwner(BidTarget cur, String empNo) {
+        if (BidTargetRules.KIND_WATCH.equals(BidTargetRules.kindOf(cur)) && (empNo == null || !empNo.equals(cur.getWatchEmpNo()))) {
+            throw detail(403, "NOT_WATCH_OWNER", NOT_OWNER_MSG, null);
+        }
+    }
+
     /** 컨트롤러 403 과 list() 의 can_edit·can_cancel 이 이 함수 하나를 쓴다. ⚠️ 자기신고 위의 업무 규칙. */
     @Transactional(readOnly = true)
     public boolean canEdit(String empNo) {
@@ -146,9 +156,9 @@ public class BidTargetService {
             putPending(v, pending.get(t.getInstitutionId()), edit);
             items.add(v);
         }
-        Map<String, List<BankContract>> wlines = byInstitution(mapper.selectContractsForWatch());
+        Map<String, List<BankContract>> wlines = byInstitution(mapper.selectContractsForWatch(empNo));
         List<Map<String, Object>> watch = new ArrayList<Map<String, Object>>();
-        for (BidTarget t : mapper.selectActiveWatch()) {
+        for (BidTarget t : mapper.selectActiveWatch(empNo)) {   // 061 — 내 관심만(남의 관심 이름·수는 GET /watchers)
             List<BankContract> l = wlines.get(t.getInstitutionId());
             Map<String, Object> v = view(t, false, edit);
             v.put("edited_by_other", editedByOther(t));
@@ -196,7 +206,8 @@ public class BidTargetService {
     public Map<String, Object> history(String instRaw, String empNo) {
         String inst = requireInstId(instRaw);
         if (mapper.selectInstitution(inst) == null) throw ApiException.notFound("institution not found");
-        List<BidTarget> rows = mapper.selectHistory(inst, new RowBounds(0, HISTORY_MAX + 1));   // 상한+1개를 읽어 정확히 판정(QA P3-2)
+        // 061 — 남의 관심 기록은 SQL 에서 걸러 한도가 목표 이력을 못 밀어내게 한다(security 중-2). 상한+1개를 읽어 정확히 판정(QA P3-2)
+        List<BidTarget> rows = mapper.selectHistory(inst, empNo, new RowBounds(0, HISTORY_MAX + 1));
         boolean truncated = rows.size() > HISTORY_MAX;
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         boolean edit = canEdit(empNo);
@@ -280,6 +291,7 @@ public class BidTargetService {
         if (in.getTargetNo() != null) {
             cur = mapper.selectLatestTarget(inst, in.getTargetNo());
             if (cur == null) throw ApiException.notFound("target not found");
+            requireWatchOwner(cur, actor.getEmpNo());   // 061 — 관심 고치기는 주인만(valueOnly 경로 포함, 구분·메모 고치기도 같다)
             if (ACTION_CANCEL.equals(cur.getActionCd())) {
                 throw conflict("ALREADY_CANCELLED", "이미 목표에서 뺀 기록입니다. 다시 넣으려면 새로 추가하세요.", cur);
             }
@@ -304,7 +316,8 @@ public class BidTargetService {
         }
         Integer year = watch ? null : Integer.valueOf(p.year);
         requireNoPending(inst, cur);
-        checkOverlap(inst, cur == null ? 0 : cur.getTargetNo(), watch, year, thisYear, GOAL_DUP_MSG);
+        if (watch) checkWatchOverlap(inst, cur == null ? 0 : cur.getTargetNo(), actor.getEmpNo());
+        else checkGoalOverlap(inst, cur == null ? 0 : cur.getTargetNo(), year);
         Map<String, Object> warning = null;
         if (!watch && p.year == thisYear && (cur == null || !year.equals(cur.getTargetYear()))) warning = closedCheck(inst, today);
         boolean valueEdit = BidTargetRules.valueOnlyEdit(cur, p, thisYear);
@@ -324,6 +337,7 @@ public class BidTargetService {
         row.setMemo(p.memo);
         row.setOwnerEmpNo(p.owner);
         row.setOwnerName(ownerName);
+        row.setWatchEmpNo(watch ? actor.getEmpNo() : null);   // 고치기면 위 requireWatchOwner 로 주인 = 본인
         Map<String, Object> out = insert(row, actor, ui);
         out.put("mode", "DIRECT");
         out.put("direct_basis", watch ? DIRECT_WATCH : roleDirect ? DIRECT_ROLE : DIRECT_VALUE_EDIT);
@@ -345,6 +359,7 @@ public class BidTargetService {
         if (ref == null) throw ApiException.notFound("institution not found");
         BidTarget cur = mapper.selectLatestTarget(inst, no);
         if (cur == null) throw ApiException.notFound("target not found");
+        requireWatchOwner(cur, actor.getEmpNo());   // 061 — 관심→목표는 주인만
         if (ACTION_CANCEL.equals(cur.getActionCd())) throw conflict("ALREADY_CANCELLED", "이미 목표에서 뺀 기록입니다.", cur);
         if (in.getBaseRevNo() != cur.getRevNo()) throw conflict("STALE", "다른 사람이 먼저 고쳤습니다. 최신 기록을 확인하고 다시 옮겨 주세요.", cur);
         if (to.equals(BidTargetRules.kindOf(cur))) throw ApiException.badRequest("이미 그 구분에 있는 기록입니다.");
@@ -353,7 +368,7 @@ public class BidTargetService {
         int thisYear = today.getYear();
         boolean toWatch = BidTargetRules.KIND_WATCH.equals(to);
         Integer year = BidTargetRules.moveYear(in.getTargetYear(), toWatch, thisYear);
-        checkOverlap(inst, no, toWatch, year, thisYear, GOAL_OTHER_MSG);
+        if (toWatch) checkWatchOverlap(inst, no, actor.getEmpNo()); else checkGoalOverlap(inst, no, year);
         Map<String, Object> warning = !toWatch && year.intValue() == thisYear ? closedCheck(inst, today) : null;
         requireDirect(actor, cur);   // 옮기기는 어느 방향이든 목표가 바뀐다
         if (cur.getRevNo() + 1 > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, cur);
@@ -361,6 +376,7 @@ public class BidTargetService {
         cur.setActionCd(ACTION_MOVE);
         cur.setKindCd(to);
         cur.setTargetYear(year);
+        cur.setWatchEmpNo(toWatch ? actor.getEmpNo() : null);   // 목표→관심 = 옮긴 사람의 관심, 관심→목표 = 팀 목표(그 사람의 ♥는 꺼진다)
         cur.setCancelReasonCd(null);
         cur.setCancelReasonEtc(null);
         Map<String, Object> out = insert(cur, actor, ui);
@@ -369,27 +385,24 @@ public class BidTargetService {
     }
 
     /**
-     * 같은 기관의 '현재' 기록(관심, 또는 올해 이후 목표)이 목표·관심으로 겹치지 않게. 잠금 안에서 부른다. skipNo = 지금 고치거나 옮기는 기록(넣기면 0).
-     * 목표끼리는 같은 해만 막는다(043 DUP_TARGET). 지난해 목표로 남겨 두는 고치기(goalYear < 올해)는 관심과 겹쳐도 막지 않는다.
+     * 목표끼리는 같은 해만 막는다(043 DUP_TARGET). 061 — 관심(사람별)은 목표를 막지 않는다(ALREADY_GOAL·옛 ALREADY_WATCH 목표 쪽 규칙 폐지).
+     * 잠금 안에서 부른다. skipNo = 지금 고치거나 옮기는 기록(넣기면 0).
      */
-    void checkOverlap(String inst, int skipNo, boolean toWatch, Integer goalYear, int thisYear, String goalMsg) {
-        BidTarget sameYear = null, watchRec = null, goalRec = null;
+    void checkGoalOverlap(String inst, int skipNo, Integer goalYear) {
+        if (goalYear == null) return;
+        for (BidTarget o : mapper.selectActiveByInst(inst)) {
+            if (o.getTargetNo() == skipNo || BidTargetRules.KIND_WATCH.equals(BidTargetRules.kindOf(o))) continue;
+            if (goalYear.equals(o.getTargetYear())) throw conflict("DUP_TARGET", "이 기관은 같은 연도 목표에 이미 들어 있습니다.", o);
+        }
+    }
+
+    /** 061 — 관심은 사람마다 기관당 1개. 남의 관심·팀 목표와는 겹쳐도 된다. 잠금 안에서 부른다. 409 의 latest 는 내 기록이다. */
+    void checkWatchOverlap(String inst, int skipNo, String watchEmp) {
+        if (watchEmp == null) throw new IllegalStateException("watch owner required");
         for (BidTarget o : mapper.selectActiveByInst(inst)) {
             if (o.getTargetNo() == skipNo) continue;
-            if (BidTargetRules.KIND_WATCH.equals(BidTargetRules.kindOf(o))) {
-                if (watchRec == null) watchRec = o;
-                continue;
-            }
-            if (goalYear != null && goalYear.equals(o.getTargetYear()) && sameYear == null) sameYear = o;
-            if (BidTargetRules.isCurrent(o, thisYear) && goalRec == null) goalRec = o;
+            if (BidTargetRules.KIND_WATCH.equals(BidTargetRules.kindOf(o)) && watchEmp.equals(o.getWatchEmpNo())) throw conflict("ALREADY_WATCH", WATCH_DUP_MSG, o);
         }
-        if (toWatch) {
-            if (watchRec != null) throw conflict("ALREADY_WATCH", WATCH_DUP_MSG, watchRec);
-            if (goalRec != null) throw conflict("ALREADY_GOAL", goalMsg, goalRec);
-            return;
-        }
-        if (sameYear != null) throw conflict("DUP_TARGET", "이 기관은 같은 연도 목표에 이미 들어 있습니다.", sameYear);
-        if (watchRec != null && goalYear != null && goalYear.intValue() >= thisYear) throw conflict("ALREADY_WATCH", WATCH_TO_GOAL_MSG, watchRec);
     }
 
     /** 올해 목표가 될 때 — 서버 근거가 있으면 409 INST_BID_CLOSED. 그 기관에 진행 중 제안이 있으면 막지 않고 warning 을 돌려준다(planner 3-2). 잠금 안에서 부른다. */
@@ -425,6 +438,7 @@ public class BidTargetService {
         if (ref == null) throw ApiException.notFound("institution not found");
         BidTarget cur = mapper.selectLatestTarget(inst, no);
         if (cur == null) throw ApiException.notFound("target not found");
+        requireWatchOwner(cur, actor.getEmpNo());   // 061
         if (ACTION_CANCEL.equals(cur.getActionCd())) throw conflict("ALREADY_CANCELLED", "이미 목표에서 뺀 기록입니다.", cur);
         if (in.getBaseRevNo() != cur.getRevNo()) throw conflict("STALE", "다른 사람이 먼저 고쳤습니다. 최신 기록을 확인하고 다시 빼 주세요.", cur);
         requireNoPending(inst, cur);   // 결재 중이면 사유 검사보다 먼저 CHANGE_PENDING
@@ -442,9 +456,14 @@ public class BidTargetService {
 
     /** reqId = 결재로 반영할 때 요청 번호(직접·이월은 null). 행 객체를 재사용해도 옛 번호가 따라가지 않게 항상 덮어쓴다. */
     Map<String, Object> insert(BidTarget row, Actor actor, BoardUiIds.Ui ui, Long reqId) {
-        row.setApprovalReqId(reqId);
         SysUser me = users.selectByEmpNo(actor.getEmpNo());
         if (me == null || !HeadRules.isSales(me.getRole())) throw new ApiException(403, DENIED_MSG);   // 컨트롤러가 먼저 막는다(방어)
+        return write(row, me, actor, ui, reqId);
+    }
+
+    /** 한 행 쓰기 + 조회 결과. 자격 검사는 부른 쪽(insert = 영업 계열, ♥ = 등록된 ACTIVE 사용자). reqId 는 항상 덮어쓴다. */
+    private Map<String, Object> write(BidTarget row, SysUser me, Actor actor, BoardUiIds.Ui ui, Long reqId) {
+        row.setApprovalReqId(reqId);
         row.setEditorEmpNo(actor.getEmpNo());
         row.setEditorName(me.getName());
         row.setEmpVerified(actor.isVerified() ? 1 : 0);
@@ -559,6 +578,7 @@ public class BidTargetService {
                 revoked++;
             }
             if (d.carryKind == null) continue;
+            if (BidTargetRules.KIND_WATCH.equals(d.carryKind) && CarryRules.watchOwnerOf(src) == null) continue;   // 061 — 주인을 정할 수 없으면 주인 없는 관심을 만들지 않는다
             int newNo = mapper.selectMaxTargetNo(inst) + 1;
             if (newNo > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, src);
             BidTarget row = new BidTarget();
@@ -566,6 +586,7 @@ public class BidTargetService {
             row.setKindCd(d.carryKind); row.setTargetYear(d.carryYear);   // 목표 = 원천 연도+1, 관심 = NULL
             row.setTagCd(src.getTagCd()); row.setMemo(src.getMemo()); row.setOwnerEmpNo(src.getOwnerEmpNo()); row.setOwnerName(src.getOwnerName());   // 이어받은 값은 다시 검사하지 않는다
             row.setCarryFromNo(src.getTargetNo()); row.setCarryBasisCd(d.verdict);
+            row.setWatchEmpNo(BidTargetRules.KIND_WATCH.equals(d.carryKind) ? CarryRules.watchOwnerOf(src) : null);   // 061 — 이월 관심 주인
             insert(row, actor, ui, null);
             carried++;
         }
@@ -587,6 +608,145 @@ public class BidTargetService {
             x.put(t.getTargetYear(), t.getTermStart());
         }
         return m;
+    }
+
+    // ---- 061 지도 ♥ = 내 관심 기관(사람별) ----
+
+    /**
+     * ♥ 켬(멱등). 이미 켜져 있으면 그대로(구분도 안 바꿈). 내가 전에 끈 '처음부터 관심이던' 기록이 있으면 그 번호에 새 REV(번호 소모 방지, 값은 비우고 시작).
+     * 목표에서 옮겨 왔거나 자동 이월로 생긴 기록은 다시 쓰지 않고 새 번호(security 하-2). 결재·결재 중 잠금과 무관(개인 기록).
+     * 첫 DB 문장 = 기관 잠금. ⚠️ 자기신고 사번 위의 업무 규칙.
+     */
+    @Transactional
+    public Map<String, Object> watchOn(String instRaw, String tagRaw, Actor actor, BoardUiIds.Ui ui) {
+        String inst = requireInstId(instRaw);
+        if (mapper.lockInstitution(inst) == null) throw ApiException.notFound("institution not found");
+        SysUser me = watchUser(actor);
+        BidTarget[] m = mine(inst, actor.getEmpNo());
+        if (m[0] != null) return watchState(inst, m[0], true);
+        for (BidTargetReqItem x : mapper.selectPendingItemsByInst(inst)) {   // 내가 올린 목표→관심 결재가 진행 중이면 ♥로 먼저 켜지 않는다(승인 때 ALREADY_WATCH 로 막힘)
+            if (TargetChangeService.OP_TO_WATCH.equals(x.getOpCd()) && actor.getEmpNo().equals(x.getRequesterEmpNo())) throw pendingConflict(null);
+        }
+        boolean given = tagRaw != null && !tagRaw.trim().isEmpty();
+        String tag = given ? BidTargetRules.tag(tagRaw, codeCheck()) : defaultTag(inst, today());
+        BidTarget row;
+        if (m[1] != null) {
+            row = m[1];
+            if (row.getRevNo() + 1 > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, null);
+            row.setRevNo(row.getRevNo() + 1);
+        } else {
+            int newNo = mapper.selectMaxTargetNo(inst) + 1;
+            if (newNo > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, null);
+            row = new BidTarget();
+            row.setInstitutionId(inst); row.setTargetNo(newNo); row.setRevNo(1);
+        }
+        row.setActionCd(ACTION_SAVE); row.setKindCd(BidTargetRules.KIND_WATCH); row.setTargetYear(null); row.setTagCd(tag);
+        row.setMemo(null); row.setOwnerEmpNo(null); row.setOwnerName(null);   // 다시 켤 때 옛 값을 잇지 않는다
+        row.setCancelReasonCd(null); row.setCancelReasonEtc(null); row.setCarryFromNo(null); row.setCarryBasisCd(null);
+        row.setWatchEmpNo(actor.getEmpNo());
+        Map<String, Object> out = write(row, me, actor, ui, null);
+        out.put("watching", true); out.put("changed", true); out.put("tag_source", given ? SRC_GIVEN : SRC_DEFAULT);
+        return out;
+    }
+
+    /** ♥ 끔(멱등) — 사유 없는 CANCEL 행. 내 관심이 없으면 그대로 200. 그 기록이 결재 중인 항목(TO_GOAL 등)의 대상이면 409 CHANGE_PENDING(security 하-1). */
+    @Transactional
+    public Map<String, Object> watchOff(String instRaw, Actor actor, BoardUiIds.Ui ui) {
+        String inst = requireInstId(instRaw);
+        if (mapper.lockInstitution(inst) == null) throw ApiException.notFound("institution not found");
+        SysUser me = watchUser(actor);
+        BidTarget cur = mine(inst, actor.getEmpNo())[0];
+        if (cur == null) return watchState(inst, null, false);
+        for (BidTargetReqItem x : mapper.selectPendingItemsByInst(inst)) {
+            if (x.getTargetNo() != null && x.getTargetNo().intValue() == cur.getTargetNo()) {
+                throw pendingConflict(null);   // latest 를 싣지 않는다 — 내 기록이지만 일관되게
+            }
+        }
+        if (cur.getRevNo() + 1 > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, null);
+        cur.setRevNo(cur.getRevNo() + 1);
+        cur.setActionCd(ACTION_CANCEL); cur.setCancelReasonCd(null); cur.setCancelReasonEtc(null);
+        Map<String, Object> out = write(cur, me, actor, ui, null);
+        out.put("watching", false); out.put("changed", true);
+        return out;
+    }
+
+    /** 지도 첫 그림용 — 내 관심 기관 목록(가볍게). */
+    @Transactional(readOnly = true)
+    public Map<String, Object> myWatchList(String empNo) {
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        for (BidTarget t : mapper.selectActiveWatch(empNo)) {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("institution_id", t.getInstitutionId()); m.put("institution_name", t.getInstitutionName());
+            m.put("target_no", t.getTargetNo()); m.put("rev_no", t.getRevNo());
+            m.put("tag_cd", t.getTagCd()); m.put("tag_name", t.getTagName());
+            items.add(m);
+        }
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        out.put("items", items); out.put("n", items.size());
+        return out;
+    }
+
+    /** 모두에게 — 기관별 살아 있는 관심 기록의 주인 이름·수. 사번은 내보내지 않는다(사용자 11-24: 관심 기록은 모두가 볼 수 있음, ♥는 내 것만). */
+    @Transactional(readOnly = true)
+    public Map<String, Object> watchers() {
+        Map<String, List<String>> by = new LinkedHashMap<String, List<String>>();
+        for (WatcherRow w : mapper.selectWatchers()) {
+            List<String> l = by.get(w.getInstitutionId());
+            if (l == null) { l = new ArrayList<String>(); by.put(w.getInstitutionId(), l); }
+            l.add(w.getName() == null ? "(알 수 없음)" : w.getName());
+        }
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        for (Map.Entry<String, List<String>> e : by.entrySet()) {
+            List<String> names = e.getValue();
+            Collections.sort(names);   // 가나다순
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("institution_id", e.getKey()); m.put("n", names.size()); m.put("names", names);
+            items.add(m);
+        }
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        out.put("items", items);
+        return out;
+    }
+
+    /** [0] = 내 살아 있는 관심, [1] = 내가 끈 관심 중 다시 써도 되는(처음부터 관심, 자동 이월 아님) 번호가 가장 큰 것. 잠금 안에서. */
+    private BidTarget[] mine(String inst, String empNo) {
+        BidTarget alive = null, dead = null;
+        for (BidTarget o : mapper.selectLatestByInst(inst)) {
+            if (!BidTargetRules.KIND_WATCH.equals(BidTargetRules.kindOf(o)) || !empNo.equals(o.getWatchEmpNo())) continue;
+            if (ACTION_CANCEL.equals(o.getActionCd())) {
+                boolean reusable = BidTargetRules.KIND_WATCH.equals(o.getFirstKindCd()) && !ACTION_CARRY.equals(o.getFirstActionCd())
+                        && mapper.countMoveRows(inst, o.getTargetNo()) == 0;   // 옮김(MOVE)이 한 번이라도 섞인 번호는 목표 이력이 있으니 재사용하지 않는다
+                if (reusable && (dead == null || o.getTargetNo() > dead.getTargetNo())) dead = o;
+            } else if (alive == null) alive = o;
+        }
+        return new BidTarget[]{alive, dead};
+    }
+
+    private SysUser watchUser(Actor actor) {
+        SysUser me = users.selectByEmpNo(actor.getEmpNo());
+        if (me == null || !"ACTIVE".equals(me.getStatus())) throw detail(403, "WATCH_USER_DENIED", WATCH_USER_MSG, null);
+        return me;
+    }
+
+    private static Map<String, Object> watchState(String inst, BidTarget t, boolean watching) {
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        out.put("saved", false); out.put("watching", watching); out.put("changed", false);
+        out.put("institution_id", inst);
+        out.put("target_no", t == null ? null : t.getTargetNo());
+        out.put("rev_no", t == null ? null : t.getRevNo());
+        return out;
+    }
+
+    /** ♥ 기본 구분 — 서버가 아는 근거(039)만: 지금 국민은행 = 재유치, 예전 국민은행(끝 해 < 올해) = 되찾기, 그 밖 = 신규유치. 꺼진 코드면 코드표 첫 값. */
+    String defaultTag(String inst, LocalDate today) {
+        List<BankContract> l = mapper.selectContractsOf(inst);
+        Integer last = BankYears.lastKbYear(l);
+        String t = BankYears.KB.equals(BankYears.nowState(l, today)) ? "RETAIN"
+                : last != null && last.intValue() < today.getYear() ? "REGAIN" : "NEW";
+        if (mapper.countEnabledCode(BidTargetRules.G_TAG, t) > 0) return t;
+        List<BankContractCode> cs = mapper.selectCodes(BidTargetRules.G_TAG);
+        if (cs.isEmpty()) throw conflict("NO_TAG_CODE", "관심 기관 구분 코드가 없어 넣을 수 없습니다. 관리자에게 알려 주세요.", null);
+        return cs.get(0).getCode();
     }
 
     /** RFP 협약 개시일(NEXT 105) — 영업 계열 누구나, 결재 없음(RFP 사실). 첫 DB 문장 = 기관 잠금. 비우면 지움(CANCEL 행). */

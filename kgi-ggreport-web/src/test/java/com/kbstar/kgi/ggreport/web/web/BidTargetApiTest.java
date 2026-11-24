@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /** 올해 목표 기관(043) API. 사람: 영업 3918264 김영업 · 영업팀장 5047192 · 전산 4482971 · 디자이너 7130526. 기관 jongno. */
@@ -361,24 +363,20 @@ public class BidTargetApiTest {
         assertEquals(0, rows());
     }
 
-    @Test public void 관심이_있으면_목표_넣기_409_ALREADY_WATCH() throws Exception {
+    @Test public void 관심이_있어도_목표_넣기_201_061() throws Exception {   // 061 — 관심과 목표는 서로 막지 않는다
         assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));
-        MvcResult r = send(SALES, PATH, ADD, body());
-        assertEquals(409, status(r));
-        assertEquals("ALREADY_WATCH", code(r));
-        assertEquals("WATCH", json(r).path("detail").path("latest").path("kind_cd").asText());
-        assertEquals(1, json(r).path("detail").path("latest").path("target_no").asInt());
-        assertEquals(1, rows());
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+        assertEquals(2, rows());
+        JsonNode l = json(getAs(SALES, "/bid-targets"));
+        assertEquals(1, l.path("items").size());
+        assertEquals(1, l.path("watch_items").size());
     }
 
-    @Test public void 목표가_있으면_관심_넣기_409_ALREADY_GOAL() throws Exception {
+    @Test public void 목표가_있어도_관심_넣기_201_061() throws Exception {
         final int Y = y();
         assertEquals(201, status(send(SALES, PATH, ADD, body("target_year", Y + 1))));
-        MvcResult r = send(SALES, PATH, ADD_WATCH, watchBody());
-        assertEquals(409, status(r));
-        assertEquals("ALREADY_GOAL", code(r));
-        assertEquals(Y + 1, json(r).path("detail").path("latest").path("target_year").asInt());
-        assertEquals(1, rows());
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));
+        assertEquals(2, rows());
     }
 
     @Test public void 관심_두번째_409_ALREADY_WATCH() throws Exception {
@@ -425,15 +423,15 @@ public class BidTargetApiTest {
         assertEquals(1, l.path("watch_items").size());
     }
 
-    @Test public void 다른_해_목표가_남으면_관심으로_옮기기_409_ALREADY_GOAL() throws Exception {
+    @Test public void 다른_해_목표가_남아도_관심으로_옮기기_201_061() throws Exception {
         final int Y = y();
         assertEquals(201, status(send(SALES, PATH, ADD, body())));
         assertEquals(201, status(send(SALES, PATH, ADD, body("target_year", Y + 1))));
-        MvcResult r = send(SALES, PATH + "/1/move", TO_WATCH, moveBody(1, "WATCH", null));
-        assertEquals(409, status(r));
-        assertEquals("ALREADY_GOAL", code(r));
-        assertEquals(2, json(r).path("detail").path("latest").path("target_no").asInt());
-        assertEquals(2, rows());
+        assertEquals(201, status(send(SALES, PATH + "/1/move", TO_WATCH, moveBody(1, "WATCH", null))));
+        assertEquals(3, rows());
+        JsonNode l = json(getAs(SALES, "/bid-targets"));
+        assertEquals(1, l.path("watch_items").size());
+        assertEquals(SALES, jdbc.queryForObject("SELECT WATCH_EMP_NO FROM INST_BID_TARGET WHERE TARGET_NO=1 AND REV_NO=2", String.class));
     }
 
     @Test public void 옮기기_입력_검사() throws Exception {
@@ -573,5 +571,251 @@ public class BidTargetApiTest {
         assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody("memo", "비밀스런메모"))));
         assertEquals(201, status(send(SALES, PATH + "/1/move", TO_GOAL, moveBody(1, "GOAL", y() + 1))));
         assertEquals("bid-target move no=1 rev=2 to=goal other=0", lastDetail());
+    }
+
+    // ---- 061 관심 기관을 사람별로(지도 ♥ = 내 관심) ----
+
+    private static final String HEART = "toggle_watch_heart";
+
+    /** 지도 ♥ — PUT(켬)·DELETE(끔). body 가 null 이면 본문 없음. */
+    private MvcResult heart(boolean on, String emp, String inst, Object content) throws Exception {
+        MockHttpServletRequestBuilder b = on ? put("/institutions/" + inst + "/my-watch") : delete("/institutions/" + inst + "/my-watch");
+        if (content != null) b = b.contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsString(content));
+        if (emp != null) b = b.header(Actor.HEADER, emp);
+        b = b.header("X-Screen-Id", "map_popover").header("X-Button-Id", HEART);
+        return mockMvc.perform(b).andReturn();
+    }
+    private String lastDetail(String method) {
+        List<String> d = jdbc.queryForList("SELECT DETAIL FROM ACCESS_LOG WHERE EVENT_TYPE='API' AND HTTP_METHOD=? ORDER BY LOG_ID DESC", String.class, method);
+        return d.isEmpty() ? null : d.get(0);
+    }
+
+    @Test public void 관심은_사람별_061() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));
+        assertEquals(0, json(getAs(LEAD, "/bid-targets")).path("watch_items").size());
+        MvcResult r = send(LEAD, PATH, ADD_WATCH, watchBody());
+        assertEquals(201, status(r)); assertEquals(2, json(r).path("target_no").asInt());
+        assertEquals(1, json(getAs(SALES, "/bid-targets")).path("watch_items").size());
+        assertEquals(1, json(getAs(LEAD, "/bid-targets")).path("watch_items").size());
+        assertEquals("ALREADY_WATCH", code(send(LEAD, PATH, ADD_WATCH, watchBody())));   // 같은 사람 두 번째만 409
+        assertEquals(SALES, jdbc.queryForObject("SELECT WATCH_EMP_NO FROM INST_BID_TARGET WHERE TARGET_NO=1", String.class));
+        assertEquals(LEAD, jdbc.queryForObject("SELECT WATCH_EMP_NO FROM INST_BID_TARGET WHERE TARGET_NO=2", String.class));
+    }
+
+    @Test public void 남의_관심은_고치기_빼기_옮기기_모두_403_NOT_WATCH_OWNER() throws Exception {
+        final int Y = y();
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));
+        MvcResult e = send(LEAD, PATH, EDIT, watchBody("target_no", 1, "base_rev_no", 1, "memo", "남의 것"));
+        MvcResult c = send(LEAD, PATH + "/1/cancel", CANCEL, cancelBody(1, "WRONG"));
+        MvcResult m = send(LEAD, PATH + "/1/move", TO_GOAL, moveBody(1, "GOAL", Y + 1));
+        MvcResult staleMove = send(LEAD, PATH + "/1/move", TO_GOAL, moveBody(9, "GOAL", Y + 1));   // 틀린 REV 여도 STALE 이 아니라 403
+        for (MvcResult r : new MvcResult[]{e, c, m, staleMove}) {
+            assertEquals(403, status(r));
+            assertEquals("NOT_WATCH_OWNER", code(r));
+            assertTrue(json(r).path("detail").path("latest").isNull());
+            assertFalse(r.getResponse().getContentAsString(StandardCharsets.UTF_8).contains("김영업"));
+        }
+        assertEquals(1, rows());
+        assertTrue(denied(LEAD, PATH) >= 1);
+        assertTrue(denied(LEAD, PATH + "/1/cancel") >= 1);
+        assertTrue(denied(LEAD, PATH + "/1/move") >= 1);
+    }
+
+    @Test public void 남의_관심은_이력에_안_보인다() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD_WATCH, watchBody())));
+        assertEquals(0, json(getAs(LEAD, PATH + "/history")).path("items").size());
+        assertEquals(1, json(getAs(SALES, PATH + "/history")).path("items").size());
+    }
+
+    /** security 중-2 — 남의 ♥ 켬/끔이 한도(200)를 넘게 쌓여도 목표 이력은 보인다(남의 관심은 SQL 에서 걸러 한도 앞에서 빠진다). */
+    @Test public void 남의_하트_반복이_한도를_넘겨도_목표_이력이_보인다() throws Exception {
+        assertEquals(201, status(send(LEAD, PATH, ADD, body())));   // 목표 번호 1
+        for (int rev = 1; rev <= 210; rev++) {
+            jdbc.update("INSERT INTO INST_BID_TARGET (INSTITUTION_ID, TARGET_NO, REV_NO, ACTION_CD, KIND_CD, TARGET_YEAR, TAG_CD, EDITOR_EMP_NO, EDITOR_NAME,"
+                    + " EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT, WATCH_EMP_NO) VALUES ('jongno', 5, ?, ?, 'WATCH', NULL, 'NEW', '3918264', '김영업',"
+                    + " 0, 'map_popover', 'toggle_watch_heart', 1, ?, '3918264')", rev, rev % 2 == 1 ? "SAVE" : "CANCEL",
+                    String.format("2999-01-01T00:%02d:%02d+09:00", rev / 60, rev % 60));
+        }
+        JsonNode lead = json(getAs(LEAD, PATH + "/history"));
+        assertEquals(1, lead.path("items").size());
+        assertEquals("GOAL", lead.path("items").get(0).path("kind_cd").asText());
+        assertFalse(lead.path("truncated").asBoolean());
+        JsonNode mine = json(getAs(SALES, PATH + "/history"));
+        assertTrue(mine.path("truncated").asBoolean());   // 주인 본인은 자기 기록이 한도를 넘는다
+    }
+
+    @Test public void 하트_켬은_멱등_기본_구분_NEW_화면_버튼_기록() throws Exception {
+        MvcResult r = heart(true, SALES, "jongno", null);
+        assertEquals(201, status(r));
+        assertEquals("DEFAULT", json(r).path("tag_source").asText());
+        assertEquals("NEW", json(r).path("item").path("tag_cd").asText());
+        assertTrue(json(r).path("watching").asBoolean());
+        assertEquals(SALES, jdbc.queryForObject("SELECT WATCH_EMP_NO FROM INST_BID_TARGET", String.class));
+        assertEquals("map_popover", jdbc.queryForObject("SELECT SCREEN_ID FROM INST_BID_TARGET", String.class));
+        assertEquals(1, jdbc.queryForObject("SELECT UI_VALID FROM INST_BID_TARGET", Integer.class).intValue());
+        assertEquals("bid-target watch-on no=1 rev=1 tag=default", lastDetail("PUT"));
+        MvcResult again = heart(true, SALES, "jongno", null);
+        assertEquals(200, status(again)); assertFalse(json(again).path("changed").asBoolean());
+        assertEquals(1, rows());
+        assertEquals("bid-target watch-on no-change", lastDetail("PUT"));
+    }
+
+    @Test public void 하트_끔은_멱등_사유_없는_CANCEL_행() throws Exception {
+        assertEquals(200, status(heart(false, SALES, "jongno", null)));   // 켠 적 없음 — 그대로 200
+        assertEquals(0, rows());
+        assertEquals(201, status(heart(true, SALES, "jongno", null)));
+        MvcResult off = heart(false, SALES, "jongno", null);
+        assertEquals(200, status(off)); assertTrue(json(off).path("changed").asBoolean());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE REV_NO=2 AND ACTION_CD='CANCEL' AND CANCEL_REASON_CD IS NULL"
+                + " AND WATCH_EMP_NO='3918264'", Integer.class).intValue());
+        assertEquals("bid-target watch-off no=1 rev=2", lastDetail("DELETE"));
+        MvcResult again = heart(false, SALES, "jongno", null);
+        assertEquals(200, status(again)); assertFalse(json(again).path("changed").asBoolean());
+        assertEquals(2, rows());
+        assertEquals(0, json(getAs(SALES, "/bid-targets")).path("watch_items").size());
+    }
+
+    @Test public void 하트를_다시_켜면_같은_번호_옛_값은_비운다() throws Exception {
+        assertEquals(201, status(heart(true, SALES, "jongno", null)));
+        // 옛 기록에 메모·주 담당이 남아 있던 경우를 만든다(관심 REV 1 에 직접 넣기)
+        assertEquals(1, jdbc.update("UPDATE INST_BID_TARGET SET MEMO='옛메모', OWNER_EMP_NO='3918264', OWNER_NAME='김영업' WHERE REV_NO=1"));
+        assertEquals(200, status(heart(false, SALES, "jongno", null)));
+        assertEquals(201, status(heart(true, SALES, "jongno", null)));
+        assertEquals(1, jdbc.queryForObject("SELECT MAX(TARGET_NO) FROM INST_BID_TARGET", Integer.class).intValue());
+        assertEquals(3, jdbc.queryForObject("SELECT MAX(REV_NO) FROM INST_BID_TARGET", Integer.class).intValue());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE REV_NO=3 AND MEMO IS NULL AND OWNER_EMP_NO IS NULL AND OWNER_NAME IS NULL",
+                Integer.class).intValue());
+    }
+
+    /** security 하-2 — 목표에서 옮겨 온 관심 기록은 ♥ 로 껐다 켜도 그 번호를 다시 쓰지 않고 새 번호. */
+    @Test public void 목표에서_옮겨온_관심은_하트를_다시_켜면_새_번호() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+        assertEquals(201, status(send(SALES, PATH + "/1/move", TO_WATCH, moveBody(1, "WATCH", null))));   // 번호 1 = 처음 목표
+        assertEquals(200, status(heart(false, SALES, "jongno", null)));                                    // REV 3
+        MvcResult on = heart(true, SALES, "jongno", null);
+        assertEquals(201, status(on));
+        assertEquals(2, json(on).path("target_no").asInt());   // 옛 목표 번호를 재사용하지 않음
+        assertEquals(1, json(on).path("rev_no").asInt());
+    }
+
+    @Test public void 하트_구분_선택값은_코드표_검사() throws Exception {
+        Map<String, Object> bad = new LinkedHashMap<String, Object>(); bad.put("tag_cd", "XX");
+        assertEquals(400, status(heart(true, SALES, "jongno", bad)));
+        assertEquals(0, rows());
+        Map<String, Object> good = new LinkedHashMap<String, Object>(); good.put("tag_cd", "RETAIN");
+        MvcResult r = heart(true, SALES, "jongno", good);
+        assertEquals(201, status(r)); assertEquals("GIVEN", json(r).path("tag_source").asText());
+        assertEquals("RETAIN", json(r).path("item").path("tag_cd").asText());
+        assertEquals("bid-target watch-on no=1 rev=1 tag=given", lastDetail("PUT"));
+    }
+
+    @Test public void 하트_기본_구분은_지금_국민은행이면_RETAIN() throws Exception {
+        line(1, "B02", (y() - 1) + "-01-01", (y() + 1) + "-12-31");
+        MvcResult r = heart(true, SALES, "jongno", null);
+        assertEquals(201, status(r));
+        assertEquals("RETAIN", json(r).path("item").path("tag_cd").asText());
+    }
+
+    @Test public void 하트_권한_디자이너도_켜고_사번_없으면_401() throws Exception {
+        assertEquals(201, status(heart(true, DESIGNER, "jongno", null)));
+        assertEquals(DESIGNER, jdbc.queryForObject("SELECT WATCH_EMP_NO FROM INST_BID_TARGET", String.class));
+        assertEquals(401, status(heart(true, null, "jung", null)));
+        assertEquals(404, status(heart(true, SALES, "zzz!", null)));
+        assertEquals(1, rows());
+    }
+
+    @Test public void 하트는_결재_중인_기관에서도_켠다() throws Exception {
+        jdbc.update("INSERT INTO APPROVAL_REQUEST (REQ_TYPE, REQUESTER_EMP_NO, TITLE, PAYLOAD, STATUS, CURRENT_STEP, CREATED_AT)"
+                + " VALUES ('TARGET_CHANGE', '3918264', 't', '{}', 'PENDING', 1, '2026-11-24T00:00:00+09:00')");
+        Long reqId = jdbc.queryForObject("SELECT MAX(REQ_ID) FROM APPROVAL_REQUEST", Long.class);
+        jdbc.update("INSERT INTO INST_BID_TARGET_REQ_ITEM (REQ_ID, INSTITUTION_ID, ITEM_NO, OP_CD, REQUESTER_EMP_NO, REQUESTER_NAME, CREATED_AT)"
+                + " VALUES (?, 'jongno', 1, 'ADD', '3918264', '김영업', '2026-11-24T00:00:00+09:00')", reqId);
+        assertEquals(201, status(heart(true, SALES, "jongno", null)));   // 개인 기록 — 결재 잠금과 무관
+    }
+
+    @Test public void 내_관심_목록과_모두의_관심_이름_수() throws Exception {
+        assertEquals(201, status(heart(true, SALES, "jongno", null)));
+        assertEquals(201, status(heart(true, LEAD, "jongno", null)));
+        assertEquals(201, status(heart(true, SALES, "jung", null)));
+        MvcResult mine = getAs(SALES, "/my-watch");
+        assertEquals(200, status(mine));
+        assertEquals(2, json(mine).path("n").asInt());
+        MvcResult mineLead = getAs(LEAD, "/my-watch");
+        assertEquals(1, json(mineLead).path("n").asInt());
+        assertEquals("jongno", json(mineLead).path("items").get(0).path("institution_id").asText());
+        // 모두에게 보이는 이름·수 — 디자이너(조회만)도, 사번은 내보내지 않는다
+        MvcResult w = getAs(DESIGNER, "/watchers");
+        assertEquals(200, status(w));
+        String raw = w.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        JsonNode jongno = null;
+        for (JsonNode it : json(w).path("items")) if ("jongno".equals(it.path("institution_id").asText())) jongno = it;
+        assertNotNull(jongno);
+        assertEquals(2, jongno.path("n").asInt());
+        assertEquals(2, jongno.path("names").size());
+        java.util.List<String> names = new java.util.ArrayList<String>();
+        for (JsonNode n : jongno.path("names")) names.add(n.asText());
+        java.util.List<String> sorted = new java.util.ArrayList<String>(names); java.util.Collections.sort(sorted);
+        assertEquals(sorted, names);   // 가나다순
+        assertTrue(names.contains("김영업"));
+        assertFalse(raw, raw.contains(SALES)); assertFalse(raw, raw.contains(LEAD));
+        assertEquals("bid-target watchers n=2", lastDetail("GET"));
+        // 끈 관심은 빠진다
+        assertEquals(200, status(heart(false, LEAD, "jongno", null)));
+        for (JsonNode it : json(getAs(SALES, "/watchers")).path("items")) {
+            if ("jongno".equals(it.path("institution_id").asText())) assertEquals(1, it.path("n").asInt());
+        }
+        assertEquals(401, status(getAs(null, "/watchers")));
+    }
+
+    /** NEXT 117 P2 — 목표를 관심으로 옮긴 MOVE 행은 팀원 이력에도 보이고(전환점), 그 뒤 주인의 ♥ 끔/켬 행은 안 보인다. */
+    @Test public void 목표를_관심으로_옮긴_MOVE_행은_팀원_이력에_보인다() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+        assertEquals(201, status(send(SALES, PATH + "/1/move", TO_WATCH, moveBody(1, "WATCH", null))));
+        assertEquals(200, status(heart(false, SALES, "jongno", null)));
+        assertEquals(201, status(heart(true, SALES, "jongno", null)));
+        JsonNode items = json(getAs(LEAD, PATH + "/history")).path("items");
+        assertEquals(2, items.size());   // 목표 저장 + 옮김. ♥ 끔/켬(CANCEL·SAVE 관심 행)은 없다
+        assertEquals("MOVE", items.get(0).path("action_cd").asText());
+        assertEquals("SAVE", items.get(1).path("action_cd").asText());
+    }
+
+    /** NEXT 117 P3-b — 목표 이력(MOVE)이 섞인 관심 번호는 ♥ 끔→켬에서도 재사용하지 않고 새 번호. */
+    @Test public void 옮김이_섞인_번호는_다른_사람이_끄고_켜도_새_번호() throws Exception {
+        assertEquals(201, status(heart(true, SALES, "jongno", null)));                                  // 번호 1 = SALES 관심
+        assertEquals(201, status(send(SALES, PATH + "/1/move", TO_GOAL, moveBody(1, "GOAL", y()))));    // 목표로 옮김(rev 2)
+        assertEquals(201, status(send(LEAD, PATH + "/1/move", TO_WATCH, moveBody(2, "WATCH", null)))); // LEAD 관심으로 옮김(rev 3)
+        assertEquals(200, status(heart(false, LEAD, "jongno", null)));                                  // rev 4
+        MvcResult on = heart(true, LEAD, "jongno", null);
+        assertEquals(201, status(on));
+        assertEquals(2, json(on).path("target_no").asInt());
+        assertEquals(1, json(on).path("rev_no").asInt());
+    }
+
+    /** NEXT 117 P3-a — 내가 올린 TO_WATCH 결재가 진행 중이면 같은 기관 ♥ 켬은 409 CHANGE_PENDING. */
+    @Test public void 내_TO_WATCH_결재_중이면_하트_켬_409() throws Exception {
+        jdbc.update("INSERT INTO APPROVAL_REQUEST (REQ_TYPE, REQUESTER_EMP_NO, TITLE, PAYLOAD, STATUS, CURRENT_STEP, CREATED_AT)"
+                + " VALUES ('TARGET_CHANGE', '3918264', 't', '{}', 'PENDING', 1, '2026-11-24T00:00:00+09:00')");
+        Long reqId = jdbc.queryForObject("SELECT MAX(REQ_ID) FROM APPROVAL_REQUEST", Long.class);
+        jdbc.update("INSERT INTO INST_BID_TARGET_REQ_ITEM (REQ_ID, INSTITUTION_ID, ITEM_NO, OP_CD, TARGET_NO, REQUESTER_EMP_NO, REQUESTER_NAME, CREATED_AT)"
+                + " VALUES (?, 'jongno', 1, 'TO_WATCH', 1, '3918264', '김영업', '2026-11-24T00:00:00+09:00')", reqId);
+        MvcResult r = heart(true, SALES, "jongno", null);
+        assertEquals(409, status(r));
+        assertEquals("CHANGE_PENDING", code(r));
+        assertEquals(0, rows());
+        assertEquals(201, status(heart(true, LEAD, "jongno", null)));   // 남의 결재는 내 ♥ 와 무관
+    }
+
+    /**
+     * NEXT 117 시험 공백 2 — 비활성(LOCKED) 사용자의 ♥ 켬은 403 + 접근 이력 DENIED, 행 수 그대로.
+     * MenuGuard.require 의 canView 가 ACTIVE 를 먼저 요구해 서비스(WATCH_USER_DENIED)까지 가지 않으므로 code 는 없다.
+     * 서비스의 WATCH_USER_DENIED 분기는 HTTP 로 닿는 경로가 없는 방어 코드다(canView 가 미등록·비활성을 모두 거른다).
+     */
+    @Test public void 비활성_사용자의_하트_켬은_가드에서_403_DENIED() throws Exception {
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", LEAD);
+        MvcResult r = heart(true, LEAD, "jongno", null);
+        assertEquals(403, status(r));
+        assertEquals("", code(r));
+        assertEquals(0, rows());
+        assertTrue(denied(LEAD, "/institutions/jongno/my-watch") >= 1);
     }
 }

@@ -248,7 +248,7 @@ public class ApprovalRequestService {
         targetChanges.lockAll(in);
         SysUser me = callers.require(actor);
         boolean direct = targetChanges.direct(me);
-        TargetChangeService.Plan plan = targetChanges.plan(in, direct);
+        TargetChangeService.Plan plan = targetChanges.plan(in, direct, me.getEmpNo());
         if (direct || plan.isValueOnly()) {   // NEXT 114 — 구분·메모만이면 역할과 무관하게 결재 없이(이력은 행 REV)
             return targetChanges.applyDirect(plan, actor, ui,
                     direct ? TargetChangeService.DIRECT_ROLE : TargetChangeService.DIRECT_VALUE_EDIT);

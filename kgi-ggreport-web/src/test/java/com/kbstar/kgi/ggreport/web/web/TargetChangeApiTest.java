@@ -101,9 +101,9 @@ public class TargetChangeApiTest {
 
     private void target(String inst, int no, int rev, String action, String kind, Integer year, String reason) {
         jdbc.update("INSERT INTO INST_BID_TARGET (INSTITUTION_ID, TARGET_NO, REV_NO, ACTION_CD, KIND_CD, TARGET_YEAR, TAG_CD, MEMO, OWNER_EMP_NO, OWNER_NAME,"
-                + " CANCEL_REASON_CD, CANCEL_REASON_ETC, EDITOR_EMP_NO, EDITOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT)"
-                + " VALUES (?,?,?,?,?,?,'NEW',NULL,NULL,NULL,?,NULL,'3918264','김영업',0,'bid_board','seed',1,'2026-11-18T00:00:00+09:00')",
-                inst, no, rev, action, kind, year, reason);
+                + " CANCEL_REASON_CD, CANCEL_REASON_ETC, EDITOR_EMP_NO, EDITOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT, WATCH_EMP_NO)"
+                + " VALUES (?,?,?,?,?,?,'NEW',NULL,NULL,NULL,?,NULL,'3918264','김영업',0,'bid_board','seed',1,'2026-11-18T00:00:00+09:00',?)",
+                inst, no, rev, action, kind, year, reason, "WATCH".equals(kind) ? SALES : null);   // 061 — 관심 행은 주인 필수(시험 관심 = 김영업 것)
     }
     private void line(String inst, int no, String bank, String from) {
         jdbc.update("INSERT INTO INST_BANK_CONTRACT (INSTITUTION_ID, CONTRACT_NO, REV_NO, ACTION_CD, ORIGIN_CD, RANK_CD, BANK_CD, TERM_FROM, TERM_TO,"
@@ -473,7 +473,7 @@ public class TargetChangeApiTest {
         target("mapo", 1, 1, "SAVE", "GOAL", Y - 1, null);
         line("mapo", 1, "B03", Y + "-01-01");
         target("nowon", 1, 1, "SAVE", "GOAL", Y - 1, null);
-        target("nowon", 2, 1, "SAVE", "WATCH", null, null);
+        target("nowon", 2, 1, "SAVE", "GOAL", Y, null);   // 061 — 관심은 사람별이라 이월을 막지 못한다. '현재 목표가 있으면 이월 안 함'은 올해 목표로 시험
         assertEquals(2, json(getAs(SALES, "/bid-targets")).path("carry_due").asInt());
         assertEquals(0, json(getAs(DESIGNER, "/bid-targets")).path("carry_due").asInt());
         MvcResult c = send(SALES, "/bid-targets/carry", "bid_board", "carry_targets", null);
@@ -484,7 +484,7 @@ public class TargetChangeApiTest {
         assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TARGET_NO=2 AND REV_NO=1 AND ACTION_CD='CARRY'"
                 + " AND KIND_CD='GOAL' AND TARGET_YEAR=? AND CARRY_FROM_NO=1 AND CARRY_BASIS_CD='UNREGISTERED' AND BUTTON_ID='carry_targets'", Y));
         assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='mapo' AND TARGET_NO=2 AND KIND_CD='WATCH'"
-                + " AND TARGET_YEAR IS NULL AND ACTION_CD='CARRY' AND CARRY_BASIS_CD='FAIL'"));
+                + " AND TARGET_YEAR IS NULL AND ACTION_CD='CARRY' AND CARRY_BASIS_CD='FAIL' AND WATCH_EMP_NO='3918264'"));   // 061 — 이월 관심 주인 = 원천의 처음 입력자(주 담당·요청자 없음)
         assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID IN ('jung') AND TARGET_NO=2"));
         boolean carried = false;
         for (JsonNode it : json(getAs(SALES, "/bid-targets")).path("items")) {
@@ -575,5 +575,56 @@ public class TargetChangeApiTest {
         MvcResult r = change(SALES, req(sb.toString(), item("jongno", "ADD", "tag_cd", "NEW")));
         assertEquals(413, status(r));
         assertEquals("BODY_TOO_LARGE", json(r).path("detail").path("code").asText());
+    }
+
+    /** 061 security 중-1 — 남의 관심 기록은 REV 가 틀려도 STALE(latest 에 남의 이름)이 아니라 403 이고 latest 가 없다. 승인 쪽(replan)도 같은 검사. */
+    @Test public void 남의_관심에_TO_GOAL은_틀린_REV여도_403_NOT_WATCH_OWNER_latest_없음() throws Exception {
+        baseSeed();   // nowon 관심 = 김영업(SALES) 것
+        final int Y = y();
+        MvcResult bad = change(LEAD, req("남의 관심", item("nowon", "TO_GOAL", "target_no", 1, "base_rev_no", 9, "target_year", Y + 1)));
+        assertEquals(raw(bad), 403, status(bad));
+        assertEquals("NOT_WATCH_OWNER", json(bad).path("detail").path("code").asText());
+        assertTrue(json(bad).path("detail").path("latest").isNull());
+        assertFalse(raw(bad).contains("김영업"));
+        MvcResult ok = change(LEAD, req("남의 관심", item("nowon", "TO_GOAL", "target_no", 1, "base_rev_no", 1, "target_year", Y + 1)));
+        assertEquals(403, status(ok));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM"));
+        assertTrue(count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND EMP_NO=? AND REQ_PATH=?", LEAD, "/bid-targets/changes") >= 1);
+        // 주인은 같은 요청이 통과한다(결재 요청 200)
+        assertEquals(200, status(change(SALES, req("내 관심", item("nowon", "TO_GOAL", "target_no", 1, "base_rev_no", 1, "target_year", Y + 1)))));
+    }
+
+    /** 061 security 하-1 — 결재 중인 항목의 바로 그 관심 기록을 ♥ 로 끄면 409 CHANGE_PENDING(승인 때 ITEM_CHANGED 로 요청이 끼어 남지 않게). */
+    @Test public void 결재_중인_관심을_하트로_끄면_409_CHANGE_PENDING() throws Exception {
+        baseSeed();
+        final int Y = y();
+        assertEquals(200, status(change(SALES, req("관심을 목표로", item("nowon", "TO_GOAL", "target_no", 1, "base_rev_no", 1, "target_year", Y + 1)))));
+        MvcResult off = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/institutions/nowon/my-watch")
+                .header(Actor.HEADER, SALES).header("X-Screen-Id", "map_popover").header("X-Button-Id", "toggle_watch_heart")).andReturn();
+        assertEquals(raw(off), 409, status(off));
+        assertEquals("CHANGE_PENDING", json(off).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='nowon' AND REV_NO=2"));
+    }
+
+    /** NEXT 117 P3-a — 내가 올린 TO_WATCH 결재가 진행 중이면 같은 기관 ♥ 켬은 409 CHANGE_PENDING(승인 때 ALREADY_WATCH 로 막히지 않게). */
+    @Test public void 내_TO_WATCH_결재_중_하트_켬은_409_CHANGE_PENDING() throws Exception {
+        baseSeed();
+        assertEquals(200, status(change(SALES, req("목표를 관심으로", item("mapo", "TO_WATCH", "target_no", 1, "base_rev_no", 1)))));
+        MvcResult on = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/institutions/mapo/my-watch")
+                .header(Actor.HEADER, SALES).header("X-Screen-Id", "map_popover").header("X-Button-Id", "toggle_watch_heart")).andReturn();
+        assertEquals(raw(on), 409, status(on));
+        assertEquals("CHANGE_PENDING", json(on).path("detail").path("code").asText());
+    }
+
+    /** NEXT 117 시험 공백 1 — TO_WATCH 승인 결과의 관심 주인은 요청자(결재자 아님). */
+    @Test public void TO_WATCH_승인_관심_주인은_요청자() throws Exception {
+        baseSeed();
+        MvcResult r = change(SALES, req("목표를 관심으로", item("mapo", "TO_WATCH", "target_no", 1, "base_rev_no", 1)));
+        assertEquals(raw(r), 200, status(r));
+        long id = json(r).path("request").path("req_id").asLong();
+        MvcResult d = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(d), 200, status(d));
+        assertEquals(SALES, jdbc.queryForObject("SELECT WATCH_EMP_NO FROM INST_BID_TARGET WHERE INSTITUTION_ID='mapo' AND TARGET_NO=1 AND REV_NO=2"
+                + " AND ACTION_CD='MOVE' AND KIND_CD='WATCH'", String.class));
     }
 }

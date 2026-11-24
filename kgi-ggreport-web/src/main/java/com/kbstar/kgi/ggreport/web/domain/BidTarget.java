@@ -12,6 +12,7 @@ public class BidTarget {
     private Integer carryFromNo; private String carryBasisCd;     // 056 — 쓰기 전용(자동 이월 REV 1 에만)
     private Integer firstCarryFromNo; private String firstCarryBasisCd, firstActionCd, firstKindCd;   // 056 조회 — REV 1(f) 값
     private String requesterEmpNo, requestedByName, firstRequesterEmpNo, firstRequestedByName;      // 056 조회 — 결재 항목 요청자(사번은 내보내지 않음)
+    private String watchEmpNo;    // 061 — 관심(WATCH) 주인 사번, 목표는 NULL. 화면에 내보내지 않는다
 
     public String getInstitutionId() { return institutionId; } public void setInstitutionId(String v) { institutionId = v; }
     public String getInstitutionName() { return institutionName; } public void setInstitutionName(String v) { institutionName = v; }
@@ -50,4 +51,5 @@ public class BidTarget {
     public String getRequestedByName() { return requestedByName; } public void setRequestedByName(String v) { requestedByName = v; }
     public String getFirstRequesterEmpNo() { return firstRequesterEmpNo; } public void setFirstRequesterEmpNo(String v) { firstRequesterEmpNo = v; }
     public String getFirstRequestedByName() { return firstRequestedByName; } public void setFirstRequestedByName(String v) { firstRequestedByName = v; }
+    public String getWatchEmpNo() { return watchEmpNo; } public void setWatchEmpNo(String v) { watchEmpNo = v; }
 }
