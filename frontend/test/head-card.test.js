@@ -1212,6 +1212,19 @@ test('워드: 받는 사이 포커스를 다른 곳으로 옮겼으면 끝나도
   } finally { cleanup(); }
 });
 
+test('워드: 마우스로 눌러 포커스가 단추에 없던 경우(body)는 끝나도 단추로 끌어오지 않는다(qa a910bf7a P3-2)', async function () {
+  fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: { 'Content-Disposition': DOCX_CD } }));
+  try {
+    await okCard();
+    const st = focusDoc({ startOnBtn: false });
+    try {
+      const start = st.activeElement;
+      await hc.onPaneClick('docx', function () { return env({ repaint: st.rerender }); });
+      assert.strictEqual(st.activeElement, start);
+    } finally { delete global.document; }
+  } finally { cleanup(); }
+});
+
 test('워드: 저장 단계 예외는 연결 실패가 아니라 저장 실패 문구, 상태는 busy 해제', async function () {
   fakeFetch(docxRoutes({ status: 200, blob: new Blob(['d']), headers: { 'Content-Disposition': DOCX_CD } }));
   try {

@@ -1173,13 +1173,14 @@
   }
   function focusPane(sel) { const el = paneQ(sel); if (el && el.focus) el.focus(); return !!el; }
   // 다시 그리면 단추가 새 요소로 바뀌어 포커스가 body로 빠진다 — 그리기 전에 포커스가 그 단추에 있었는지 재 두었다가 있었을 때만 되돌린다.
-  // 관계없는 다시 그리기로 포커스가 body로 빠진 경우(activeElement가 body·없음)도 '단추에 있던 것'으로 본다 — 사용자가 다른 곳으로 옮긴 것과 구분(qa P3-2).
-  function paneHasFocus(sel) {
+  // 포커스가 그 단추에 있는지. lost=true면 다시 그리기로 body·없음으로 빠진 경우도 '있던 것'으로 본다 —
+  // 시작할 때 단추에 포커스가 있었던(키보드) 경우에만 쓴다. 마우스 사용자가 빈 곳을 눌러 body로 간 것을 끌어오지 않게(qa a8cf7372 P3-2, a910bf7a P3-2).
+  function paneHasFocus(sel, lost) {
     if (typeof document === 'undefined') return false;
     const el = paneQ(sel);
     if (!el) return false;
     const a = document.activeElement;
-    return a === el || !a || a === document.body;
+    return a === el || (!!lost && (!a || a === document.body));
   }
   function useEnv(envFn) { const env = (envFn && envFn()) || {}; if (env.repaint) V.repaint = env.repaint; return env; }
   function paintDl() { if (V.repaint) V.repaint(); }
@@ -1213,21 +1214,21 @@
       let saveFailed = false;
       try { hc.saveBlob(res.blob, res.fileName); } catch (x) { saveFailed = true; }   // 기관을 옮겼어도 이미 받은 파일은 저장한다
       if (V !== mine) return;
-      const had = paneHasFocus(SEL);   // 받는 사이 다른 곳으로 옮겼다면 끌어오지 않는다
+      const had = paneHasFocus(SEL, had0);   // 받는 사이 다른 곳으로 옮겼다면 끌어오지 않는다
       dl.busy = false;
       if (saveFailed) dl.err = hc.TEXT.docxSaveFailed; else dl.ok = hc.docxOkText(res.photo, res.trimCareer, res.trimEdu);
       paintDl();
       if (had) focusPane(SEL);
     }).catch(function (e) {
       if (V !== mine) return;
-      const had = paneHasFocus(SEL);
+      const had = paneHasFocus(SEL, had0);
       dl.busy = false; dl.err = hc.docxErrText(e.status, e.detail).text;
       paintDl();
       if (had) focusPane(SEL);
       if (e.status === 409) {
         // 그 사이 기관장이 비었으면 카드를 최신으로 — 단추가 사라질 수 있으니 남은 단추로 포커스를 옮긴다
         const p = hc.refresh(true, hc.BTN.refresh);
-        if (had && p && p.then) p.then(function () { [SEL, '[data-hc="add-head"]', '[data-hc="edit"]', '[data-hc="refresh"]'].some(function (s) { return focusPane(s); }); });
+        if (had && p && p.then) p.then(function () { if (!V || V.instId !== mine.instId) return;   /* 그 사이 다른 기관으로 옮겼으면 끌어오지 않는다(qa a910bf7a P3-2) */ [SEL, '[data-hc="add-head"]', '[data-hc="edit"]', '[data-hc="refresh"]'].some(function (s) { return focusPane(s); }); });
       }
     });
   };

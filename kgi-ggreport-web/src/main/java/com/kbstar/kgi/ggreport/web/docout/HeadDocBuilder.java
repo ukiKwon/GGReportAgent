@@ -468,7 +468,7 @@ public final class HeadDocBuilder {
         String from = yr(str(i.get("from")).trim());
         String to = yr(str(i.get("to")).trim());
         if (!from.isEmpty() && !to.isEmpty()) {
-            return from + " ~ " + to;
+            return from.equals(to) ? from : from + " ~ " + to;   // 같은 해면 '2018' 하나로(qa a910bf7a P3-3)
         }
         if (!from.isEmpty()) {
             return from + " ~ 현재";
@@ -491,7 +491,7 @@ public final class HeadDocBuilder {
         return s.matches("\\d{4}-\\d{2}-\\d{2}") ? s.replace('-', '.') : ym(s);
     }
 
-    /** 최근 것이 위로 — 끝 연월이 없으면 현재 진행으로 보아 맨 위(시작도 없으면 맨 아래). 키·문자열 비교·안정 정렬 모두 headcard.js sortPeriod 와 같다. */
+    /** 최근 것이 위로 — 끝 연월이 없으면 현재 진행으로 보아 맨 위(시작도 없으면 맨 아래). 키(연도만은 ymKey로 맞춤)·문자열 비교·안정 정렬 모두 headcard.js sortPeriod 와 같다. */
     private static List<Map<String, Object>> sortPeriod(List<Map<String, Object>> in) {
         List<Map<String, Object>> out = new ArrayList<Map<String, Object>>(in);
         Collections.sort(out, new Comparator<Map<String, Object>>() {   // Collections.sort 는 안정 정렬
@@ -506,7 +506,12 @@ public final class HeadDocBuilder {
     private static String sortKey(Map<String, Object> it) {
         String from = str(it.get("from")).trim();
         String to = str(it.get("to")).trim();
-        return (!to.isEmpty() ? to : (!from.isEmpty() ? "9999-99" : "0000-00")) + "|" + from;
+        return (!to.isEmpty() ? ymKey(to, true) : (!from.isEmpty() ? "9999-99" : "0000-00")) + "|" + ymKey(from, false);
+    }
+
+    /** 정렬용 — 연도만이면 끝은 YYYY-12, 시작은 YYYY-01 로 맞춘다(headcard.js ym() 과 같은 규칙, 사용자 11-24 연도 허용 · qa a910bf7a P3-1). */
+    private static String ymKey(String s, boolean endSide) {
+        return s.matches("\\d{4}") ? s + (endSide ? "-12" : "-01") : s;
     }
 
     private static List<String> contentsOf(List<Map<String, Object>> items) {
