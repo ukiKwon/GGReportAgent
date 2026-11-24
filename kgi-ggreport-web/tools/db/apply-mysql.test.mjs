@@ -171,6 +171,27 @@ test('SCHEMA_PROBES: 실제 db/mysql 에 있는 번호만, 쿼리는 SELECT 한 
   }
 });
 
+test('SCHEMA_PROBES: 047~060 중 파일이 있는 번호는 모두 검사가 있고, 파일의 CREATE TABLE 표를 전부 포함한다', () => {
+  const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../src/main/resources/db/mysql');
+  const files = readdirSync(dir).filter((n) => /^\d{3}_.*\.sql$/.test(n));
+  for (const f of files) {
+    const v = f.slice(0, 3);
+    if (v < '047') continue;
+    assert.ok(SCHEMA_PROBES[v], `${f}: 검사 없음 — SCHEMA_PROBES 에 추가`);
+    const sql = readFileSync(path.join(dir, f), 'utf8');
+    for (const m of sql.matchAll(/^\s*CREATE TABLE\s+([A-Z0-9_]+)/gim)) {
+      assert.ok(SCHEMA_PROBES[v].includes(`'${m[1].toUpperCase()}'`), `${f}: 표 ${m[1]} 가 검사에 없음`);
+    }
+  }
+});
+
+test('planMark: 047 이후 번호도 검사가 있어 targets 로 잡힌다(052 포함)', () => {
+  const files = ['047', '052', '060'].map((v) => ({ version: v, name: `${v}_x.sql`, sha: 'a'.repeat(64) }));
+  const p = planMark(['047', '052', '060'], files, new Map([['045', {}]]));
+  assert.deepEqual(p.targets.map((f) => f.version), ['047', '052', '060']);
+  assert.deepEqual(p.errors, []);
+});
+
 test('sweepStaleTempDirs: 오래된 apply-mysql-XXXXXX 만 지우고 새것·다른 이름은 둔다', () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'sweep-test-'));
   try {

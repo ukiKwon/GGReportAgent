@@ -69,6 +69,16 @@ export function checksum(buf) {
  * files: [{version,name,sha}], applied: Map(version -> {file_name, checksum})
  * → { pending, done, mismatched, orphans }
  */
+// ---- SCHEMA_PROBES 조립 도우미: 모두 '조건식' 문자열을 돌려주고, probe()가 한 문장 SELECT IF 로 묶는다 ----
+const qlist = (names) => names.map((n) => `'${n}'`).join(',');
+/** 표 N개가 모두 있다 */
+const hasTables = (names) => `(SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND UPPER(TABLE_NAME) IN (${qlist(names)}))=${names.length}`;
+/** 한 표에 칸 N개가 모두 있다 */
+const hasColumns = (table, cols) => `(SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND UPPER(TABLE_NAME)='${table}' AND UPPER(COLUMN_NAME) IN (${qlist(cols)}))=${cols.length}`;
+/** 코드표(COMMON_CODE)에 그 그룹의 코드가 모두 있다(ENABLED 값은 보지 않음 — 관리자가 끌 수 있다) */
+const hasCodes = (group, codes) => `(SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='${group}' AND CODE IN (${qlist(codes)}))=${codes.length}`;
+const probe = (...conds) => `SELECT IF(${conds.join(' AND ')},1,0);`;
+
 /** --mark-applied 가 '정말 적용돼 있나'를 확인하는 번호별 검사(결과 1이면 통과). 검사가 없는 번호는 기록하지 않는다 — 새 파일을 손으로 적용할 일이 있으면 여기에 한 줄 추가. */
 export const SCHEMA_PROBES = {
   '033': "SELECT IF(COUNT(*)>=1,1,0) FROM ROLE_MENUS WHERE ROLE='전산팀장' AND MENU='admin';",   // 데이터 증거(관리자가 끈 뒤에도 행은 남는다)
@@ -79,6 +89,20 @@ export const SCHEMA_PROBES = {
   '041': "SELECT IF(COUNT(*)=1,1,0) FROM COMMON_CODE WHERE CODE_GROUP='BANK_RANK' AND CODE='SINGLE';",   // 코드표 1줄(데이터 증거)
   '045': "SELECT IF((SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND UPPER(TABLE_NAME) IN ('PLAN_COLLECT_REQ','PLAN_COLLECT_REQUESTER'))=2 AND (SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='PLAN_ACTION' AND CODE IN ('COLLECT_REQUEST','COLLECT_CANCEL','COLLECT_EXPORT','COLLECT_RUN','COLLECT_EXCLUDE','COLLECT_FAIL','COLLECT_APPLY'))=7,1,0);",   // 두 표 + 감사 코드 7줄
   '042': "SELECT IF(COUNT(*)=3,1,0) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND UPPER(TABLE_NAME) IN ('EXT_CHECK','EXT_CHECK_FILE','EXT_CHECK_EXCL');",   // 표 3개(반만 적용된 경우도 잡음)
+  // ---- 047 이후 (046·050·053 은 파일 없음). 표는 파일의 CREATE TABLE 전부 — 반만 적용된 경우도 잡는다 ----
+  '047': probe(hasTables(['BOARD_MINUTES', 'BOARD_MINUTES_UTTER', 'BOARD_MINUTES_SEG', 'BOARD_MINUTES_ITEM', 'BOARD_MINUTES_SCOPE', 'BOARD_MINUTES_REV', 'BOARD_MINUTES_LOG', 'BOARD_MINUTES_ACT'])),
+  '048': probe(hasTables(['PREP_NOBID_ACK'])),
+  '049': probe(hasTables(['BID_PREP_FORM', 'BID_PREP_FORM_VER']), hasColumns('BID_PREP_LOG', ['FORM_VER']), hasColumns('BID_PREP_ACT', ['FORM_VER']), hasCodes('PREP_EVENT', ['FORM_CONFIRM', 'FORM_UNCONFIRM'])),
+  '051': probe(hasTables(['DESIGN_ROUND', 'DESIGN_ROUND_RECIP', 'DESIGN_COMMENT', 'DESIGN_ACK'])),
+  // 052 는 UPDATE 만 한다 — 009 시드(최디자이너)가 박디자이너로 바뀐 행이 있으면 적용 증거. 이름을 나중에 또 바꾼 DB 는 검사가 실패해 중단되므로, 사람이 확인해 번호를 빼면 된다.
+  '052': probe("(SELECT COUNT(*) FROM USERS WHERE EMP_NO='7130526' AND NAME='박디자이너')=1"),
+  '054': probe(hasTables(['BID_PREP_CHECK']), hasCodes('DASH_MARK', ['DONE', 'IN_PROGRESS', 'NA', 'NONE'])),
+  '055': probe(hasCodes('HEAD_FIELD', ['BIRTH_DATE'])),
+  '056': probe(hasColumns('INST_BID_TARGET', ['APPROVAL_REQ_ID', 'CARRY_FROM_NO', 'CARRY_BASIS_CD']), hasTables(['INST_BID_TARGET_REQ_ITEM', 'INST_BID_TARGET_REQ_ACT', 'INST_BID_TERM']), hasCodes('TARGET_CANCEL_REASON', ['CARRY_REVOKED'])),
+  '057': probe(hasTables(['DOC_CHECK', 'DOC_CHECK_HIT', 'DOC_CHECK_LOG'])),
+  '058': probe(hasTables(['BOARD_MINUTES_SPEAKER'])),
+  '059': probe(hasCodes('TARGET_TAG', ['REGAIN'])),   // REGAIN 행(INSERT). NEW 의 SORT_NO 는 관리자가 바꿀 수 있어 판정에서 뺌
+  '060': probe(hasTables(['INST_NEWS_IMPORT', 'INST_NEWS_ITEM']), hasCodes('PLAN_ACTION', ['NEWS_IMPORT'])),
 };
 
 /** versions → { targets(파일), skipped(이미 기록), errors }. 파일 없음·검사 없음은 errors. */
