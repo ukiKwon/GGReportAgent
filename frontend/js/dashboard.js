@@ -1805,7 +1805,7 @@
   }
 
   // 팝업의 공고 상태 기록 — 현황판과 같은 함수(recSave·recDone …)에 이 맥락을 넘긴다. 상태 m.rc는 열 때마다 새로, 초안은 st.drafts를 같이 쓴다.
-  // 감사 화면 이름: 서버 NoticeUiIds.SCREENS가 map_popover·bid_board를 허용하면 true로 바꾼다(그 전에는 bid_notice 유지 — 모르는 값은 UNKNOWN으로 남는다).
+  // 감사 화면 이름: 서버 NoticeUiIds.SCREENS가 map_popover·bid_board를 허용하면 true로 바꾼다(그 전에는 bid_notice 유지 — 허용 목록 밖 값은 감사에서 무효 화면으로 기록된다).
   const REC_POPUP_SCREEN = false;
   function dmRc(m) {
     if (m.rcx) return m.rcx;

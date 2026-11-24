@@ -633,8 +633,8 @@
 - **다음 한 걸음**: backend-dev(Opus) 설계 다시 시작 → security → 적용·mvn → prep.js·prepboard.js·dashboard.js(STAGE_OF 4단계) → design 대조·design_history. data-auditor: 진행 중 PREP_APPROVAL·WRITABLE 건수.
 - **자세히**: handoff/agents/planner/ 2026-11-25 a6defa39.
 
-### 119. [지역별 공고현황] 11-25 후속 — ♥ 키보드·실패 문구, 미처리 팝업 2단계, 작은 정리 [담당: bf(지역별 공고현황) — frontend-dev → frontend-dev-write, 2단계는 97(dashboard.js)]
-- **현재**: 115·117 해소(ab4baae4·eb2d32a8·지도 커밋, design_history 108). 남은 것: design PUSH-GATE(2026-11-25_0119_a86b4423) P2-1 목록 ♥가 span이라 키보드·이름 없음(규격 6절: button 24px·aria-pressed·aria-label) / P3 .rk-note keep-all·role=alert·문구('내 관심에 담지/빼지 못했습니다…'), .ov-open transition:none, 미처리 꼬리 '…뺐습니다'·묶음 상태 문구 / security 하 render.js ~1432 지역 카드 code·REGION_NAME esc, oracle·mysql 061 주석 'GET /watchers'(적용된 파일 — 다음 번호에서 정정 또는 그대로) / qa P3 퇴직 주인 관심 고아(운영 061 전 data-auditor) / 기관정보 팝업 열 때 GET /institution-plans/status 500(콘솔, f3 담당 확인) / kind-queue 시험 CRLF(autocrlf=true에서 실패, .gitattributes eol 또는 정규식 ?).
-- **다음 한 걸음**: 사용자 답(Q: 미처리 팝업 안에서 바로 처리 ⓐ/ⓑ) → ⓐ면 97에 frontend-dev 0056_a2619cbf '세션 97 요청 블록' 전달 + design 팝업 규격; ♥ P2-1·P3는 frontend-dev-write로 바로.
-- **자세히**: handoff/sessions/2026-11-25_0130_map.md, 2026-11-25_summary Session 01:30.
+### 119. [지역별 공고현황] 11-25 후속 — ♥ 키보드·실패 문구, 팝업 기록 qa P3, 작은 정리 [담당: bf(지역별 공고현황) — frontend-dev → frontend-dev-write, dashboard.js는 bd 허락 필요]
+- **현재**: 미처리 팝업 2단계 해소 — 팝업 안에서 공고 상태 기록 바로 저장(9cb56b3b, design_history 109, 사용자 Q-2026-11-25-12 ⓐ). 남은 것: design 0119_a86b4423 P2-1 목록 ♥가 span(키보드·이름 없음, 규격: button 24px·aria-pressed·aria-label) / P3 .rk-note keep-all·role=alert·문구, .ov-open transition:none, 미처리 꼬리 '…뺐습니다' / qa a87c0f05 P3-3(조합 중 미룬 전체 렌더가 이력 응답 repaintRc로 사라짐)·P3-4(사번 변경 시 팝업 recGuard가 먼저 소비)·P3-5(안 보이는 초안도 이탈 상자)·P3-6(저장 중 ×·Esc 무반응 안내 없음)·P3-7(화면 이동으로 닫히면 초안 묻지 않고 남김 — 기획) / design a7397b86 P2 팝업·숨은 탭 사이 id 8개 겹침(hc-*·db-bank·bk-edit) / security 하: render.js ~1432 지역 카드 esc, 061 주석 'GET /watchers', REC_POPUP_SCREEN 켤 때 NoticeUiIds 허용 목록 같은 커밋 / 퇴직 주인 관심 고아(운영 061 전) / GET /institution-plans/status 500 / kind-queue CRLF.
+- **다음 한 걸음**: ♥ P2-1·P3 묶음을 frontend-dev → -write로(지도 파일만), 팝업 P3는 bd와 순서 맞춰.
+- **자세히**: handoff/sessions/2026-11-25_0130_map.md, 2026-11-25_summary Session 01:30·03:00.
 
