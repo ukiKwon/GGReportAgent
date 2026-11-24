@@ -43,6 +43,9 @@ public class ConfigEnvsTest {
             "upload.userdata-dir",
             "upload.proposal-json-dir",
             "upload.rfp-md-dir",
+            // NEXT 56 U1: 값은 비어 있어도 되지만 키는 5곳 모두 있어야 한다(빠지면 켜는 날 그 환경만 안 켜진다)
+            "upload.plan-csv-dir",
+            "upload.plan-csv-receipt-dir",
             // 기본값(1MB)이 적용되면 실무 문서가 업로드 단계에서 막힌다
             "spring.servlet.multipart.max-file-size",
             "spring.servlet.multipart.max-request-size");

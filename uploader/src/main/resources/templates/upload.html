@@ -50,6 +50,36 @@
       </div>
     </div>
 
+    <!-- 사업계획 CSV (NEXT 56 U1) -->
+    <div class="card" style="flex:1;min-width:320px">
+      <div class="card-header">사업계획 CSV</div>
+      <div class="card-body">
+        <div th:if="${planCsvEnabled != null and !planCsvEnabled}"
+             style="margin-bottom:10px;color:var(--text-2,#666);font-size:12.5px">
+          사업계획 CSV 폴더가 설정되지 않아 사용할 수 없습니다. 개발부서에 문의해 주세요.
+        </div>
+        <form method="post" th:action="@{/upload/plan-csv}" enctype="multipart/form-data">
+          <div class="form-group">
+            <label class="form-label">올린 사람 (직접 입력한 이름이며 로그인 확인이 아닙니다)</label>
+            <input type="text" name="uploaderName" maxlength="30" required class="form-control"
+                   th:disabled="${planCsvEnabled != null and !planCsvEnabled}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">csv — 기관당 1파일, 한 번에 50개까지</label>
+            <input type="file" name="files" multiple accept=".csv" class="form-control"
+                   th:disabled="${planCsvEnabled != null and !planCsvEnabled}">
+          </div>
+          <div style="color:var(--text-2,#666);font-size:12.5px;margin-top:8px">
+            파일 이름은 <code>{기관ID}_{YYYYMMDD}_plan.csv</code> 이고 5MB 이하입니다.
+            같은 이름은 덮어쓰지 않고 거부합니다(날짜를 바꿔 다시 만드세요).
+            올리면 웹의 '사업계획 폴더 반입'에서 확인·반입합니다.
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:14px"
+                  th:disabled="${planCsvEnabled != null and !planCsvEnabled}">사업계획 CSV 업로드</button>
+        </form>
+      </div>
+    </div>
+
   </div>
 
   <!-- 업로드 결과 -->
@@ -82,6 +112,30 @@
             <span th:class="${'badge ' + (r.classified ? 'badge-done' : 'badge-pending')}"
                   th:text="${r.classified ? '성공' : '실패'}"></span>
           </td>
+          <td style="color:var(--text-2);font-size:12.5px" th:text="${r.message}"></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 사업계획 CSV 결과 -->
+  <div th:if="${planResults != null and !planResults.isEmpty()}">
+    <div class="section-header">
+      <span class="section-title">사업계획 CSV 업로드 결과</span>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead>
+        <tr><th>파일명</th><th>결과</th><th>SHA-256(앞 16자)</th><th>메시지</th></tr>
+        </thead>
+        <tbody>
+        <tr th:each="r : ${planResults}">
+          <td><span class="file-name" th:text="${r.filename}"></span></td>
+          <td><span th:class="${'badge ' + (r.saved ? 'badge-done' : 'badge-pending')}"
+                    th:text="${r.saved ? '저장' : '거부'}"></span></td>
+          <td><code th:if="${r.sha256 != null}" th:title="${r.sha256}" th:text="${r.sha256.substring(0, 16)}"></code>
+              <span th:if="${r.sha256 == null}" style="color:var(--text-3)">-</span></td>
           <td style="color:var(--text-2);font-size:12.5px" th:text="${r.message}"></td>
         </tr>
         </tbody>
