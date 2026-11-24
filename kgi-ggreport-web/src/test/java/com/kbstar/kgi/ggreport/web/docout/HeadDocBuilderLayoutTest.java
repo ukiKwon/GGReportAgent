@@ -393,15 +393,15 @@ public class HeadDocBuilderLayoutTest {
     }
 
     @Test
-    public void 허용_밖_이용_조건도_조용히_사진이_없고_상태는_none이다() throws Exception {
+    public void 이용_조건과_관계없이_사진은_들어가고_상태는_included다() throws Exception {   // 사용자 11-24 "무조건 넣어"
         for (String lic : new String[]{"LOCAL_ONLY", "KOGL2", "PRESS_PERMIT", "XYZ"}) {
             byte[] docx = render(lic, jpeg());
             try (XWPFDocument d = new XWPFDocument(new ByteArrayInputStream(docx))) {
-                assertEquals(lic, 2, d.getTables().size());
-                assertEquals(lic, 0, d.getAllPictures().size());
+                assertEquals(lic, 3, d.getTables().size());   // 사진+정보 표·학력·경력(사진이 들어가면 정보가 표 안으로)
+                assertEquals(lic, 1, d.getAllPictures().size());
             }
-            assertFalse(lic, xml(docx).contains("넣지 않았") || xml(docx).contains("이용 조건"));
-            assertEquals(lic, HeadDocBuilder.PHOTO_NONE, HeadDocBuilder.buildDoc(withLicense(lic), "서울시 가구청", "2026-11-20", jpeg()).photoStatus());
+            assertFalse(lic, xml(docx).contains("넣지 않았") || xml(docx).contains("이용 조건") || xml(docx).contains(lic));
+            assertEquals(lic, HeadDocBuilder.PHOTO_INCLUDED, HeadDocBuilder.buildDoc(withLicense(lic), "서울시 가구청", "2026-11-20", jpeg()).photoStatus());
         }
     }
 

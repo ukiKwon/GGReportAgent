@@ -39,8 +39,18 @@ public final class HeadDocBuilder {
      */
     private static final boolean WORD_PHOTO_KOGL1 = true;
 
-    /** 문서에 사진을 넣어도 되는 이용 조건 코드. 그 밖(KOGL2~4·PRESS_PERMIT·LOCAL_ONLY·모르는 코드)은 넣지 않는다. */
+    /**
+     * 사용자 11-24 "무조건 넣어": 이용 조건(LOCAL_ONLY·KOGL2~4·PRESS_PERMIT·모르는 코드 포함)과 관계없이 사진이 있으면 Word에 넣는다.
+     * 언론·나무위키 등 이용 허락 미확인 사진이 Word 파일로 밖에 나갈 수 있는 위험은 사용자가 수용(결정 기록). 되돌리려면 false — 그때는 PHOTO_LICENSE 만.
+     */
+    private static final boolean WORD_PHOTO_ANY_LICENSE = true;
+
+    /** WORD_PHOTO_ANY_LICENSE=false 일 때 문서에 사진을 넣어도 되는 이용 조건 코드. */
     private static final Set<String> PHOTO_LICENSE = new HashSet<String>();
+
+    private static boolean licenseOk(Object code) {
+        return WORD_PHOTO_ANY_LICENSE || PHOTO_LICENSE.contains(str(code));
+    }
 
     /** 응답 머리 X-Head-Photo 값. none=사진 없음·허용 밖, failed=허용 조건인데 못 읽음. */
     public static final String PHOTO_INCLUDED = "included";
@@ -138,7 +148,7 @@ public final class HeadDocBuilder {
     /** ACTIVE 사진이 있고 이용 조건이 문서에 넣어도 되는 코드일 때만 true — 호출부는 true 일 때만 사진 파일을 읽는다. */
     public static boolean photoWanted(Map<String, Object> detail) {
         Map<String, Object> photo = map(map(detail.get("head")).get("photo"));
-        return !photo.isEmpty() && PHOTO_LICENSE.contains(str(photo.get("license_cd"))) && photoIdOf(detail) != null;
+        return !photo.isEmpty() && licenseOk(photo.get("license_cd")) && photoIdOf(detail) != null;
     }
 
     public static Long photoIdOf(Map<String, Object> detail) {
@@ -367,7 +377,7 @@ public final class HeadDocBuilder {
      */
     private static Photo planPhoto(Map<String, Object> head, byte[] jpeg) {
         Map<String, Object> p = map(head.get("photo"));
-        if (p.isEmpty() || !PHOTO_LICENSE.contains(str(p.get("license_cd")))) {
+        if (p.isEmpty() || !licenseOk(p.get("license_cd"))) {
             return null;
         }
         Photo out = new Photo();

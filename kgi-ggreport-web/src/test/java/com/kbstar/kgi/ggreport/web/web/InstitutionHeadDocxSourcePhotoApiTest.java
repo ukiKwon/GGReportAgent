@@ -176,28 +176,28 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         assertEquals(1, act("HEAD_DOCX", "OK"));
     }
 
-    private void licenseNotAllowed(String lic) throws Exception {
+    private void licenseAnyIncluded(String lic) throws Exception {   // 사용자 11-24 "무조건 넣어" — 이용 조건과 관계없이 사진을 넣는다
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         useLicense(photoOk(INST, L1, head), lic);
         MvcResult r = docx();
         assertEquals(lic + text(r), 200, r.getResponse().getStatus());
         byte[] b = bytes(r);
-        assertEquals(lic, 0, pictures(b));
+        assertEquals(lic, 1, pictures(b));
         String xml = documentXml(b);
         assertFalse(lic, xml.contains("넣지 않았") || xml.contains("이용 조건"));
         assertFalse("코드는 본문에 없다", xml.contains(lic));
-        assertEquals(lic, "none", r.getResponse().getHeader("X-Head-Photo"));
+        assertEquals(lic, "included", r.getResponse().getHeader("X-Head-Photo"));
         assertEquals(lic, 1, act("HEAD_DOCX", "OK"));
     }
 
     @Test
-    public void 이용_조건을_모르면_그림도_글자도_없다() throws Exception {
-        licenseNotAllowed("LOCAL_ONLY");
+    public void 로컬_작업용_사진도_Word에_들어간다() throws Exception {
+        licenseAnyIncluded("LOCAL_ONLY");
     }
 
     @Test
-    public void 이용_조건이_허용_밖이면_그림도_글자도_없다() throws Exception {
-        licenseNotAllowed("KOGL2");
+    public void 공공누리_2유형_사진도_Word에_들어간다() throws Exception {
+        licenseAnyIncluded("KOGL2");
     }
 
     @Test
