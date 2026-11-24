@@ -8,7 +8,6 @@ import com.kbstar.kgi.ggreport.web.domain.BidTerm;
 import com.kbstar.kgi.ggreport.web.domain.BidTargetReqAct;
 import com.kbstar.kgi.ggreport.web.domain.BidTargetReqItem;
 import com.kbstar.kgi.ggreport.web.domain.NoticeRoundView;
-import com.kbstar.kgi.ggreport.web.domain.WatcherRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.session.RowBounds;
@@ -36,8 +35,6 @@ public interface BidTargetMapper {
     List<BidTarget> selectActiveWatch(@Param("empNo") String empNo);
     /** 044·061 — 그 사람 관심 기관들의 039 최신 유효 줄. */
     List<BankContract> selectContractsForWatch(@Param("empNo") String empNo);
-    /** 061 — 모두의 살아 있는 관심 기록(기관·주인 이름 순). 주인 사번은 서비스가 내보내지 않는다. */
-    List<WatcherRow> selectWatchers();
     /** 044 — 그 기관의 마지막 공고 회차 + 최신 판정 + 지금 LAST_BID(정상이면 0~1행). 입찰 종료 판정용, 읽기만. */
     List<NoticeRoundView> selectNoticeLast(@Param("institutionId") String institutionId);
     /** 044 — 그 해 살아 있는 목표 기관마다 위와 같은 한 줄. */

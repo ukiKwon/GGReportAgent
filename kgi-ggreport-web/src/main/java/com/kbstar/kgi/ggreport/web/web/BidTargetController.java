@@ -229,15 +229,6 @@ public class BidTargetController {
         return out;
     }
 
-    /** 061 — 모두의 관심 기관: 기관별 주인 이름·수(사번 없음). 켜고 끄는 것은 내 것만(my-watch). */
-    @GetMapping("/watchers")
-    public Map<String, Object> watchers(HttpServletRequest req) {
-        guard.require(req, VIEW_MENU);
-        Map<String, Object> out = targets.watchers();
-        req.setAttribute(AccessLogInterceptor.DETAIL, "bid-target watchers n=" + ((List<?>) out.get("items")).size());
-        return out;
-    }
-
     private static String itemNo(ApiException e) {
         Object d = e.getDetailObject();
         Object n = d instanceof Map ? ((Map<?, ?>) d).get("item_no") : null;

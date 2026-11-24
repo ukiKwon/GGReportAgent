@@ -743,28 +743,8 @@ public class BidTargetApiTest {
         MvcResult mineLead = getAs(LEAD, "/my-watch");
         assertEquals(1, json(mineLead).path("n").asInt());
         assertEquals("jongno", json(mineLead).path("items").get(0).path("institution_id").asText());
-        // 모두에게 보이는 이름·수 — 디자이너(조회만)도, 사번은 내보내지 않는다
-        MvcResult w = getAs(DESIGNER, "/watchers");
-        assertEquals(200, status(w));
-        String raw = w.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        JsonNode jongno = null;
-        for (JsonNode it : json(w).path("items")) if ("jongno".equals(it.path("institution_id").asText())) jongno = it;
-        assertNotNull(jongno);
-        assertEquals(2, jongno.path("n").asInt());
-        assertEquals(2, jongno.path("names").size());
-        java.util.List<String> names = new java.util.ArrayList<String>();
-        for (JsonNode n : jongno.path("names")) names.add(n.asText());
-        java.util.List<String> sorted = new java.util.ArrayList<String>(names); java.util.Collections.sort(sorted);
-        assertEquals(sorted, names);   // 가나다순
-        assertTrue(names.contains("김영업"));
-        assertFalse(raw, raw.contains(SALES)); assertFalse(raw, raw.contains(LEAD));
-        assertEquals("bid-target watchers n=2", lastDetail("GET"));
-        // 끈 관심은 빠진다
-        assertEquals(200, status(heart(false, LEAD, "jongno", null)));
-        for (JsonNode it : json(getAs(SALES, "/watchers")).path("items")) {
-            if ("jongno".equals(it.path("institution_id").asText())) assertEquals(1, it.path("n").asInt());
-        }
-        assertEquals(401, status(getAs(null, "/watchers")));
+        // 남의 관심 이름·수를 내주던 GET /watchers 는 없앴다(사용자 11-25)
+        assertEquals(404, status(getAs(DESIGNER, "/watchers")));
     }
 
     /** NEXT 117 P2 — 목표를 관심으로 옮긴 MOVE 행은 팀원 이력에도 보이고(전환점), 그 뒤 주인의 ♥ 끔/켬 행은 안 보인다. */

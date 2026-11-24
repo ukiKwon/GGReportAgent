@@ -154,16 +154,6 @@
      WHERE b.KIND_CD = 'WATCH' AND b.WATCH_EMP_NO = #{empNo,jdbcType=VARCHAR} AND b.ACTION_CD &lt;&gt; 'CANCEL' AND <include refid="latest"/>
      ORDER BY i.NAME_KO, b.INSTITUTION_ID, b.TARGET_NO
   </select>
-  <resultMap id="watcher" type="WatcherRow">
-    <result property="institutionId" column="INSTITUTION_ID"/>
-    <result property="name" column="OWNER_NM"/>
-  </resultMap>
-  <select id="selectWatchers" resultMap="watcher" flushCache="true">
-    SELECT b.INSTITUTION_ID, u.NAME AS OWNER_NM
-      FROM INST_BID_TARGET b LEFT JOIN USERS u ON u.EMP_NO = b.WATCH_EMP_NO
-     WHERE b.KIND_CD = 'WATCH' AND b.ACTION_CD &lt;&gt; 'CANCEL' AND <include refid="latest"/>
-     ORDER BY b.INSTITUTION_ID, b.TARGET_NO
-  </select>
   <select id="selectContractsForWatch" resultMap="line" flushCache="true">
     SELECT <include refid="lineCols"/> <include refid="lineFrom"/>
        AND k.INSTITUTION_ID IN (SELECT t.INSTITUTION_ID FROM INST_BID_TARGET t

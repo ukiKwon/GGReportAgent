@@ -159,7 +159,7 @@ public class BidTargetService {
         }
         Map<String, List<BankContract>> wlines = byInstitution(mapper.selectContractsForWatch(empNo));
         List<Map<String, Object>> watch = new ArrayList<Map<String, Object>>();
-        for (BidTarget t : mapper.selectActiveWatch(empNo)) {   // 061 — 내 관심만(남의 관심 이름·수는 GET /watchers)
+        for (BidTarget t : mapper.selectActiveWatch(empNo)) {   // 061 — 내 관심만
             List<BankContract> l = wlines.get(t.getInstitutionId());
             Map<String, Object> v = view(t, false, edit);
             v.put("edited_by_other", editedByOther(t));
@@ -706,28 +706,6 @@ public class BidTargetService {
         }
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("items", items); out.put("n", items.size());
-        return out;
-    }
-
-    /** 모두에게 — 기관별 살아 있는 관심 기록의 주인 이름·수. 사번은 내보내지 않는다(사용자 11-24: 관심 기록은 모두가 볼 수 있음, ♥는 내 것만). */
-    @Transactional(readOnly = true)
-    public Map<String, Object> watchers() {
-        Map<String, List<String>> by = new LinkedHashMap<String, List<String>>();
-        for (WatcherRow w : mapper.selectWatchers()) {
-            List<String> l = by.get(w.getInstitutionId());
-            if (l == null) { l = new ArrayList<String>(); by.put(w.getInstitutionId(), l); }
-            l.add(w.getName() == null ? "(알 수 없음)" : w.getName());
-        }
-        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
-        for (Map.Entry<String, List<String>> e : by.entrySet()) {
-            List<String> names = e.getValue();
-            Collections.sort(names);   // 가나다순
-            Map<String, Object> m = new LinkedHashMap<String, Object>();
-            m.put("institution_id", e.getKey()); m.put("n", names.size()); m.put("names", names);
-            items.add(m);
-        }
-        Map<String, Object> out = new LinkedHashMap<String, Object>();
-        out.put("items", items);
         return out;
     }
 
