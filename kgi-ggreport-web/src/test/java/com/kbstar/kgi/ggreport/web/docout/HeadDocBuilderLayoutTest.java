@@ -32,7 +32,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 기관장 Word 프로필 양식(사용자 참고 양식 11-20·11-23): 쪽 테두리·밑줄 제목·테두리 없는 사진+정보 표(사진 4단계 상자 78~88mm, 1장 맞춤)·학력·경력 같은 2열 표·YYYY.MM 기간·글자 22/14/16/12pt·출처·멘트 없음(웹 화면에서만). 가상 값만 쓴다.
+ * 기관장 Word 프로필 양식(사용자 참고 양식 11-20·11-23): 쪽 테두리·밑줄 제목·테두리 없는 사진+정보 표(사진 4단계 상자 78~88mm, 1장 맞춤)·학력·경력 같은 2열 표·연도만 기간(사용자 11-24)·글자 22/14/16/12pt·출처·멘트 없음(웹 화면에서만). 가상 값만 쓴다.
  * 견본 파일을 target/head-profile-sample.docx(사진 S3)·head-profile-sample-many.docx(경력 많음) 로 남긴다(사용자 확인용, 커밋 대상 아님).
  */
 public class HeadDocBuilderLayoutTest {
@@ -197,7 +197,7 @@ public class HeadDocBuilderLayoutTest {
         assertEquals("정보 줄 14pt", "28", runSizeBefore(xml, "성 명 : 홍길동"));
         assertEquals("절 제목 16pt", "32", runSizeBefore(xml, "[ 학 력 ]"));
         assertEquals("표 내용 12pt", "24", runSizeBefore(xml, "행정학석사"));
-        assertEquals("표 기간 12pt", "24", runSizeBefore(xml, "1990.03 ~ 1994.02"));
+        assertEquals("표 기간 12pt", "24", runSizeBefore(xml, "1990 ~ 1994"));
     }
 
     @Test
@@ -254,13 +254,13 @@ public class HeadDocBuilderLayoutTest {
     @Test
     public void 기간은_YYYY_MM이고_연도만_값은_그대로며_날짜_생년_표기는_없다() throws Exception {
         String xml = xml(render(true));
-        assertTrue("경력 진행", xml.contains("2018.07 ~ 현재"));
-        assertTrue("경력 끝 있음", xml.contains("2001.01 ~ 2005.12"));
-        assertTrue("연도만", xml.contains("2018 ~ 현재"));
-        assertTrue("학력도 A ~ B", xml.contains("1990.03 ~ 1994.02") && xml.contains("행정학석사"));
+        assertTrue("경력 진행", xml.contains("2018 ~ 현재"));   // 사용자 11-24: Word 기간은 연도만
+        assertTrue("경력 끝 있음", xml.contains("2001 ~ 2005"));
+        assertFalse("기간에 월 없음(첫 취임일 2018.07.01은 그대로)", xml.contains("2018.07 ~") || xml.contains("2018-07"));
+        assertTrue("학력도 A ~ B", xml.contains("1990 ~ 1994") && xml.contains("행정학석사"));
         assertTrue("학력 연도만", xml.contains("1986 ~ 1990") && xml.contains("대학교졸업"));
-        assertFalse("옛 A~B 표기 폐지", xml.contains("1990.03~1994.02") || xml.contains("(1986~1990)"));
-        assertTrue("기간이 내용 앞(학력)", xml.indexOf("1990.03 ~ 1994.02") < xml.indexOf("행정학석사"));
+        assertFalse("월 표기 폐지", xml.contains("1990.03") || xml.contains("2001.01 ~") || xml.contains("1990.03~1994.02") || xml.contains("(1986~1990)"));
+        assertTrue("기간이 내용 앞(학력)", xml.indexOf("1990 ~ 1994") < xml.indexOf("행정학석사"));
         assertTrue("임기", xml.contains("(2023.12") && xml.contains(" ~ 2027.12"));
         assertTrue("첫 취임일", xml.contains("첫 취임일 : 2018.07.01"));
         assertFalse("저장 형식 없음", xml.contains("2018-07") || xml.contains("2023-12") || xml.contains("2027-12"));

@@ -231,13 +231,28 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         assertTrue("현재 진행이 맨 위", xml.indexOf("경력진행중B") < xml.indexOf("경력최근C"));
         assertTrue(xml.indexOf("경력최근C") < xml.indexOf("경력옛날A"));
         assertTrue(xml.indexOf("학력나중F") < xml.indexOf("학력먼저E"));
-        assertTrue("진행 중은 ~ 현재", xml.contains("2019.07 ~ 현재"));
-        assertTrue("기간 YYYY.MM", xml.contains("2010.03 ~ 2018.12"));
-        assertTrue("학력도 A ~ B 기간 표", xml.contains("1990.03 ~ 1994.02"));
-        assertTrue("기간이 값 앞(학력)", xml.indexOf("1990.03 ~ 1994.02") < xml.indexOf("학력먼저E"));
-        assertFalse("옛 A~B 표기 폐지", xml.contains("1990.03~1994.02"));
-        assertTrue("기간이 값 앞(경력)", xml.indexOf("2010.03 ~ 2018.12") < xml.indexOf("경력최근C"));
+        assertTrue("진행 중은 ~ 현재", xml.contains("2019 ~ 현재"));   // 사용자 11-24: Word 기간은 연도만
+        assertTrue("기간은 연도만", xml.contains("2010 ~ 2018"));
+        assertTrue("학력도 A ~ B 기간 표", xml.contains("1990 ~ 1994"));
+        assertTrue("기간이 값 앞(학력)", xml.indexOf("1990 ~ 1994") < xml.indexOf("학력먼저E"));
+        assertFalse("월 표기 없음", xml.contains("1990.03") || xml.contains("2010.03") || xml.contains("2019.07"));
+        assertTrue("기간이 값 앞(경력)", xml.indexOf("2010 ~ 2018") < xml.indexOf("경력최근C"));
         assertFalse("저장 형식 없음", xml.contains("2019-07") || xml.contains("2010-03"));
+    }
+
+    @Test
+    public void 경력_연도만_시작과_연월_끝은_받고_Word에는_연도만_나온다() throws Exception {   // 사용자 11-24
+        long head = addHeadOk(INST, L1, "홍길동", "구청장");
+        addItemOk(INST, L1, periodItem(head, "CAREER", "경력연도만P", "2018", "2020-06"), 201);
+        addItemOk(INST, L1, periodItem(head, "CAREER", "경력같은해Q", "2018-07", "2018"), 201);   // 시작 2018-07, 끝 2018 허용
+        MvcResult bad = postJson(headPath(INST) + "/items", L1, periodItem(head, "CAREER", "경력역순R", "2019", "2018-12"));
+        assertEquals(400, bad.getResponse().getStatus());
+        assertEquals("INVALID_DATE", code(json(bad)));
+        MvcResult r = docx();
+        assertEquals(text(r), 200, r.getResponse().getStatus());
+        String xml = documentXml(bytes(r));
+        assertTrue(xml.contains("2018 ~ 2020"));
+        assertFalse(xml.contains("2020-06") || xml.contains("2020.06"));
     }
 
     @Test

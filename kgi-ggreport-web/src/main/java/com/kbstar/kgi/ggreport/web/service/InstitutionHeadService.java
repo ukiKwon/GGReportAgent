@@ -355,12 +355,12 @@ public class InstitutionHeadService {
             i.setValText(HeadText.noAge(HeadText.requireLine("position", in.getValue(), 40, false)));
         } else if ("EDU".equals(f)) {
             i.setValText(HeadText.noAge(HeadText.requireLine("edu", in.getValue(), 60, false)));
-            i.setValFrom(HeadText.requireStartMonth(in.getFrom()));   // 시작 년-월 필수(사용자 11-20). 이미 저장된 연도만 값은 그대로 둔다
+            i.setValFrom(HeadText.requireStart(in.getFrom()));   // 시작 필수, YYYY 또는 YYYY-MM(사용자 11-20 필수·11-24 연도만 허용)
             i.setValTo(HeadText.requirePeriod("to", in.getTo()));
             requireOrder(i);
         } else if ("CAREER".equals(f)) {
             i.setValText(HeadText.noAge(HeadText.requireLine("career", in.getValue(), 60, false)));
-            i.setValFrom(HeadText.requireStartMonth(in.getFrom()));   // 시작 년-월 필수(사용자 11-20). 이미 저장된 연도만 값은 그대로 둔다
+            i.setValFrom(HeadText.requireStart(in.getFrom()));   // 시작 필수, YYYY 또는 YYYY-MM(사용자 11-20 필수·11-24 연도만 허용)
             i.setValTo(HeadText.requirePeriod("to", in.getTo()));
             requireOrder(i);
         } else if ("ACTING".equals(f)) {
@@ -378,7 +378,7 @@ public class InstitutionHeadService {
     }
 
     private static void requireOrder(InstHeadItem i) {
-        if (i.getValFrom() != null && i.getValTo() != null && i.getValFrom().compareTo(i.getValTo()) > 0) {
+        if (!HeadText.periodInOrder(i.getValFrom(), i.getValTo())) {   // 연도·연월이 섞여도 연도 단위로 비교(사용자 11-24)
             throw coded(400, "INVALID_DATE", "시작이 끝보다 늦을 수 없습니다.");
         }
     }

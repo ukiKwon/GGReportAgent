@@ -181,16 +181,28 @@ public class HeadTextTest {
     }
 
     @Test
-    public void 학력_경력_시작은_년월_필수() {
-        assertEquals("2018-07", HeadText.requireStartMonth("2018-07"));
-        for (String bad : new String[]{null, "", "2018", "2018-7", "2018-13", "1899-12", "18-07"}) {
+    public void 학력_경력_시작은_연도_또는_년월_필수() {   // 사용자 11-20 시작 필수, 11-24 연도만 허용
+        assertEquals("2018-07", HeadText.requireStart("2018-07"));
+        assertEquals("2018", HeadText.requireStart("2018"));
+        for (String bad : new String[]{null, "", "2018-7", "2018-13", "1899-12", "18-07", "2101"}) {
             try {
-                HeadText.requireStartMonth(bad);
+                HeadText.requireStart(bad);
                 fail(String.valueOf(bad));
             } catch (ApiException e) {
                 assertEquals(400, e.getStatus());
             }
         }
+    }
+
+    @Test
+    public void 기간_순서는_연도_단위로_비교한다() {
+        assertTrue(HeadText.periodInOrder("2018-07", "2018"));
+        assertTrue(HeadText.periodInOrder("2018", "2018-03"));
+        assertTrue(HeadText.periodInOrder("2018-03", "2018-03"));
+        assertTrue(HeadText.periodInOrder("2018", null));
+        assertTrue(!HeadText.periodInOrder("2018-07", "2018-06"));
+        assertTrue(!HeadText.periodInOrder("2019", "2018-12"));
+        assertTrue(!HeadText.periodInOrder("2019-01", "2018"));
     }
 
     @Test

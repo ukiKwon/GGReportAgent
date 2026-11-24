@@ -463,10 +463,10 @@ public final class HeadDocBuilder {
         return new DocModel.Table(2, new double[]{28, 72}, rows, 0, true).withoutBorders();
     }
 
-    /** 기간 'A ~ B'. 시작만이면 'A ~ 현재', 끝만이면 '~ B', 둘 다 없으면 "". 저장값 'YYYY-MM' 을 'YYYY.MM' 으로, 연도만 값은 그대로. */
+    /** 기간 'A ~ B'(연도만). 시작만이면 'A ~ 현재', 끝만이면 '~ B', 둘 다 없으면 "". 저장값 'YYYY-MM' 의 월은 Word 에 쓰지 않는다(사용자 11-24). */
     private static String periodOf(Map<String, Object> i) {
-        String from = ym(str(i.get("from")).trim());
-        String to = ym(str(i.get("to")).trim());
+        String from = yr(str(i.get("from")).trim());
+        String to = yr(str(i.get("to")).trim());
         if (!from.isEmpty() && !to.isEmpty()) {
             return from + " ~ " + to;
         }
@@ -474,6 +474,11 @@ public final class HeadDocBuilder {
             return from + " ~ 현재";
         }
         return to.isEmpty() ? "" : "~ " + to;
+    }
+
+    /** 'YYYY'·'YYYY-MM'·'YYYY-MM-DD' → 'YYYY'. 그 밖은 그대로. 학력·경력 기간 칸 전용(임기·취임일은 ym/ymd 유지). */
+    private static String yr(String s) {
+        return s.matches("\\d{4}(-\\d{2}(-\\d{2})?)?") ? s.substring(0, 4) : s;
     }
 
     /** 'YYYY-MM' 또는 'YYYY-MM-DD' → 'YYYY.MM'. 그 밖(연도만 등)은 그대로. 표시할 때만 바꾼다. */

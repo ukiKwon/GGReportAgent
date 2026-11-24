@@ -51,14 +51,15 @@ public class InstitutionHeadAgeHintApiTest extends HeadApiTestBase {
     }
 
     @Test
-    public void 경력_시작이_연도만이면_400이고_년월이면_201() throws Exception {   // 사용자 11-20 '년-월 정도는 있어야'
+    public void 경력_시작이_연도만이어도_201이고_없으면_400() throws Exception {   // 사용자 11-20 시작 필수, 11-24 연도만 허용
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         String yearOnly = itemText(head, "CAREER", "가람시 기획관").replace("2018-03", "2018");
         MvcResult r = postJson(items(), L1, yearOnly);
-        assertEquals(text(r), 400, r.getResponse().getStatus());
-        assertEquals("INVALID_DATE", code(json(r)));
+        assertEquals(text(r), 201, r.getResponse().getStatus());
         String none = itemText(head, "CAREER", "가람시 기획관").replace(",\"from\":\"2018-03\"", "");
-        assertEquals(400, postJson(items(), L1, none).getResponse().getStatus());
+        MvcResult rn = postJson(items(), L1, none);
+        assertEquals(400, rn.getResponse().getStatus());
+        assertEquals("INVALID_DATE", code(json(rn)));
         assertEquals(201, postJson(items(), L1, itemText(head, "CAREER", "가람시 기획관")).getResponse().getStatus());
     }
 

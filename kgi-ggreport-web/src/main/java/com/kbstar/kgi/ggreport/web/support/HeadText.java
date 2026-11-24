@@ -22,7 +22,6 @@ public final class HeadText {
     private static final Pattern PERIOD = Pattern.compile("([0-9]{4})(?:-([0-9]{2}))?");
     private static final LocalDate MIN_CHECKED = LocalDate.of(2000, 1, 1);
     private static final LocalDate MIN_BIRTH = LocalDate.of(1920, 1, 1);
-    private static final Pattern START_MONTH = Pattern.compile("[0-9]{4}-[0-9]{2}");
     /** 나이·생년 표기 — NFKC 뒤 find. '출생'·일반 날짜는 넣지 않는다('저출생대응과', '2022.07.01 취임' 통과). security 11-20 ③ */
     private static final Pattern AGE_HINT = Pattern.compile("(?:19|20)\\d{2}\\s*년\\s*생(?![가-힣])|생년월일|만\\s*\\d{2}\\s*세");   // '생' 뒤에 한글이 이어지면(생산·생활·생명·생태) 낱말로 보고 통과(qa 11-20 P2-2)
 
@@ -158,12 +157,24 @@ public final class HeadText {
         return v;
     }
 
-    /** 학력·경력 시작 — YYYY-MM 필수(1900~2100, 월 01~12). 연도만이면 400 INVALID_DATE(사용자 11-20: '년-월' 정도는 있어야). */
-    public static String requireStartMonth(String v) {
-        if (v == null || !START_MONTH.matcher(v).matches()) {
-            throw coded(400, "INVALID_DATE", "시작은 YYYY-MM(예: 2018-07) 형식으로 입력하세요.");
+    /** 학력·경력 시작 — YYYY 또는 YYYY-MM 필수(1900~2100, 월 01~12). 빈 값은 400 INVALID_DATE(사용자 11-20 시작 필수, 11-24 웹은 연도·연월 모두 허용·Word는 연도만 표기). */
+    public static String requireStart(String v) {
+        if (v == null || v.isEmpty()) {
+            throw coded(400, "INVALID_DATE", "시작은 연도(예: 2018) 또는 연-월(예: 2018-07)로 입력하세요.");
         }
         return requirePeriod("from", v);
+    }
+
+    /** 기간 시작·끝 순서 — 연도 단위로 비교하고, 연도가 같을 때만 둘 다 월이 있으면 월까지 본다(시작 2018-07, 끝 2018 → 허용). 어느 쪽이든 null 이면 true. 입력은 requirePeriod 통과값(길이 4 또는 7). */
+    public static boolean periodInOrder(String from, String to) {
+        if (from == null || to == null) {
+            return true;
+        }
+        int c = from.substring(0, 4).compareTo(to.substring(0, 4));
+        if (c != 0) {
+            return c < 0;
+        }
+        return from.length() < 7 || to.length() < 7 || from.compareTo(to) <= 0;
     }
 
     /** 확인일 — 실재 날짜, 2000-01-01 이상, 서울 오늘 이하. */
