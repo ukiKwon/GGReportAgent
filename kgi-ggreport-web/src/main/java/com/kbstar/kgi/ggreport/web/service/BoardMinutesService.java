@@ -413,13 +413,18 @@ public class BoardMinutesService {
     /** 화자 목록 [{speaker_no, speaker, label, utter_cnt, first_seq}] — 번호순. first_seq = 그 화자의 첫 발언 번호. */
     private static List<Map<String, Object>> speakers(List<BoardMinutesUtter> utters, Map<Integer, String> labels) {
         Map<Integer, Integer> cnt = new TreeMap<Integer, Integer>();
-        Map<Integer, Integer> first = new HashMap<Integer, Integer>();
+        Map<Integer, Integer> first = new HashMap<Integer, Integer>();      // 잡음이 아닌 첫 발언(화면 firstOf 와 같은 기준)
+        Map<Integer, Integer> firstAny = new HashMap<Integer, Integer>();   // 모두 잡음일 때의 첫 발언
         for (BoardMinutesUtter u : utters) {
             Integer k = Integer.valueOf(u.getSpeakerNo());
             Integer c = cnt.get(k);
             cnt.put(k, Integer.valueOf(c == null ? 1 : c.intValue() + 1));
-            if (!first.containsKey(k)) {
-                first.put(k, Integer.valueOf(u.getSeqNo()));   // utters 는 SEQ_NO 순(selectUtterIndex ORDER BY SEQ_NO, 미리보기는 파싱 순)
+            // utters 는 SEQ_NO 순(selectUtterIndex ORDER BY SEQ_NO, 미리보기는 파싱 순)
+            if (!firstAny.containsKey(k)) {
+                firstAny.put(k, Integer.valueOf(u.getSeqNo()));
+            }
+            if (u.getNoiseYn() != 1 && !first.containsKey(k)) {
+                first.put(k, Integer.valueOf(u.getSeqNo()));
             }
         }
         List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
@@ -429,7 +434,7 @@ public class BoardMinutesService {
             m.put("speaker", "참석자 " + e.getKey());
             m.put("label", labels.get(e.getKey()));
             m.put("utter_cnt", e.getValue());
-            m.put("first_seq", first.get(e.getKey()));
+            m.put("first_seq", first.containsKey(e.getKey()) ? first.get(e.getKey()) : firstAny.get(e.getKey()));
             out.add(m);
         }
         return out;

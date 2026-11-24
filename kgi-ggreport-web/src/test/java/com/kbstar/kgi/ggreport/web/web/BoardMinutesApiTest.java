@@ -1346,4 +1346,19 @@ public class BoardMinutesApiTest {
         assertEquals(kst(-1), des.path("grant_until").asText());
         assertFalse(byEmp(items, MEMBER).path("expired").asBoolean());
     }
+
+    @Test
+    public void first_seq는_잡음이_아닌_첫_발언이고_모두_잡음이면_첫_발언이다() throws Exception {
+        String[] fx = fixture();
+        String t = "참석자 1 / 00:05\n네\n\n참석자 1 / 00:10\n안녕하세요 회의를 시작합니다 fsq\n\n참석자 2 / 00:20\n음";
+        MvcResult pv = preview(fx[1], MEMBER, t, opts(null, null));
+        assertEquals(text(pv), 200, status(pv));
+        String digest = json(pv).path("preview_digest").asText();
+        MvcResult up = upload(fx[1], MEMBER, t, opts("가상 회의록 fsq", digest));
+        assertEquals(text(up), 201, status(up));
+        long id = json(up).path("minutes_id").asLong();
+        JsonNode sp = json(view(id, HEAD)).path("speakers");
+        assertEquals(2, sp.get(0).path("first_seq").asInt());   // 참석자 1: 1번("네")은 잡음 → 2번
+        assertEquals(3, sp.get(1).path("first_seq").asInt());   // 참석자 2: 모두 잡음 → 첫 발언(3번)
+    }
 }
