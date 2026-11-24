@@ -338,7 +338,7 @@
 - **자세히**: 커밋 `2f55615`·`4b632b4`·`c571eee`·`250ff6e`·`8c577bb`·`36415f5`, `handoff/agents/design-reviewer/`·`qa-verifier/` 2026-11-06 자동 보존본.
 
 ### 52. impeccable 감지기 엔진을 이 PC에서 받을 수 없음 — **막힘(회사 인증서)** [담당: 메인]
-- **현재**: 엔진 다운로드가 회사 인증서 검사에 막혀, 2026-11-06에는 감지기 없이 design-reviewer 판단만으로 부분 실행했다.
+- **현재**: 엔진 다운로드가 회사 인증서 검사에 막혀, 2026-11-06에는 감지기 없이 design-reviewer 판단만으로 부분 실행했다. **11-24 새 PC 확인: impeccable 4.9.1 `scripts/impeccable detect frontend/index.html`이 이 PC에서 동작(결과 나옴) — 해소 후보, 다음 디자인 점검 때 한 번 더 쓰고 done으로.**
 - **다음 한 걸음**: 외부망 PC에서 엔진을 받아 반입할지, 인증서 설정으로 풀지 결정한다(방법은 메인이 조사). 그 전까지 NEXT 28 재진단은 design-reviewer 수동 대조로 대신한다.
 - **자세히**: `2026-11-06_summary.md`.
 
