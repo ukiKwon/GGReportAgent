@@ -923,7 +923,7 @@
     login: '로그인이 필요합니다. 다시 로그인하세요.',
     ro: '협약이 1년 안에 끝나는 기관은 아래 \'협약 중인 기관\'에서 봅니다.',   // 제목 줄이 '영업부서가 넣고 뺍니다'를 이미 말하므로 여기서는 다음 행동(design 11-17 P3-2)
     roTop: '보기 전용 — 목표 기관은 영업부서가 넣고 뺍니다.',
-    noCand: '협약이 1년 안에 끝나는 기관이 없습니다. [목표 기관 추가]에서 기관을 찾아 넣으세요.' };
+    emptyHint: '기관 이름으로 찾거나 [추천받기]로 공고 중·공고 예정 기관을 골라 넣습니다.' };   // 목록 빈 상태(design 11-24 2번) — 추천은 [목표 기관 추가] 창 한 곳에만
   kbb.goalErrHtml = function (code) {
     return '목표 기관을 불러오지 못했습니다(' + (code ? '오류 ' + Number(code) : '서버에 연결되지 않음') + '). <button type="button" id="hb-gretry">다시 시도</button>';
   };
@@ -931,63 +931,8 @@
     const y = esc(v.year);
     let h = '<h3 class="hb-eh">' + y + ' 목표 기관이 아직 없습니다</h3>';
     if (!v.canEdit) return h + '<p>' + esc(kbb.GOAL_MSG.ro) + '</p>';
-    const groups = v.groups || kbb.candsToGroups(v.cands);
-    if (!groups.length) return h + '<p>' + esc(kbb.GOAL_MSG.noCand) + '</p>';
-    // 묶음 라디오 + 고른 묶음의 한 목록(design 11-24 A안). 비는 묶음은 뺀다. v.recTab = 고른 묶음 key(없거나 사라졌으면 첫 묶음), v.recAll = 펼침.
-    const picked = groups.filter(function (g) { return g.key === v.recTab; })[0], cur = picked || groups[0];
-    const recAll = picked || !v.recTab ? !!v.recAll : false;   // 고른 묶음이 사라져 첫 묶음으로 대체됐으면 펼침도 무시(qa 11-24 P3-2). 고른 적 없으면(기본 첫 묶음) 그대로
-    const sub = kbb.REC_SUB[cur.key] || {};
-    const lead = groups.length > 1 ? esc(sub.long || '') : esc(cur.label) + ' <b>' + cur.items.length + '</b>곳 · ' + esc(sub.short || '');
-    const tabs = groups.length > 1
-      ? '<fieldset class="db-per hb-rec-tabs"><legend class="sr-only">추천 묶음</legend>' + groups.map(function (g) {
-        return '<label><input type="radio" name="hb-rec" id="hb-rec-' + esc(g.key) + '" value="' + esc(g.key) + '"' + (g === cur ? ' checked' : '') + ' aria-controls="hb-rec-list"><span>' + esc(g.label) + ' <b>' + g.items.length + '</b></span></label>';
-      }).join('') + '</fieldset>'
-      : '';
-    const shown = recAll ? cur.items : cur.items.slice(0, kbb.CAND_MAX), rest = cur.items.length - shown.length;
-    h += '<p>입찰이 가까운 기관부터 추천합니다. [목표에 넣기]를 누르면 기관을 채운 추가 창이 열립니다.</p><div class="hb-erec">' + tabs +
-      '<p class="hb-rec-sub" id="hb-rec-sub">' + lead + '</p>' +
-      '<ul class="hb-cand3" id="hb-rec-list" aria-labelledby="hb-rec-sub">' + shown.map(function (x) {
-        return '<li><span class="hb-rec-w">' + esc(x.when || '') + '</span>' +
-          '<button type="button" class="hb-nm" data-key="' + esc(x.key) + '" data-inst="' + esc(x.id) + '" aria-haspopup="dialog"><span class="rg">' + esc(dash.regionName(x.region)) + '</span>' + esc(x.name) + '</button>' +
-          '<button type="button" class="hb-tag add" data-act="cand" data-inst="' + esc(x.id) + '" data-key="' + esc(x.key) + '" aria-label="' + esc(x.name) + ' 목표에 넣기">목표에 넣기</button></li>';
-      }).join('') + '</ul>' +
-      '<div class="hb-rec-foot">' + (rest > 0 ? '<button type="button" id="hb-rec-more" data-group="' + esc(cur.key) + '">' + rest + '곳 더 보기</button>' : '') +
-      '<span>찾는 기관이 없으면 위 [목표 기관 추가]에서 찾습니다.</span></div></div>';
-    return h;
-  };
-  // 묶음 아래 설명 줄. long = 묶음이 여럿일 때(정렬 사실 포함 — candGroups가 실제로 그 순서로 정렬한다), short = 묶음이 하나뿐일 때.
-  kbb.REC_SUB = {
-    notice: { long: '지금 공고가 나 있는 기관 · 접수 마감이 가까운 순', short: '지금 공고가 나 있는 기관' },
-    plan: { long: '1년 안에 공고 날짜가 정해진 기관 · 날짜 순', short: '1년 안에 공고 날짜가 정해진 기관' },
-    est: { long: '공고 시기를 짐작한 기관(확정 아님) · 시기 순', short: '공고 시기를 짐작한 기관(확정 아님)' },
-    end: { long: '협약이 1년 안에 끝나는 기관 · 종료일 순', short: '협약이 1년 안에 끝나는 기관' } };
-  // 빈 상태 후보 묶음(규격 6-8). m = dash.model 결과, taken = { institutionId: true }(목표·관심), g = kbb.groups 결과.
-  // 공고 중 → 확정 공고 예정(1년 안) → 추정 공고 예정(1년 안, 지난 추정은 model이 뺀다) → 협약 1년 안 종료.
-  kbb.CAND_MAX = 5;   // 처음 보이는 줄 수(design 11-24 A안, 한 줄 목록이라 묶음당 3줄에서 늘림)
-  kbb.candGroups = function (m, taken, g, verified) {
-    const idOk = function (it) { const id = String(it.rec && it.rec.institutionId || ''); return !!id && !(taken && taken[id]); };
-    const mk = function (it, when) { return { id: String(it.rec.institutionId), key: it.key, rec: it.rec, name: it.name, region: it.region, when: when }; };
-    const byName = function (a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); };
-    // 공고 중: dash.model의 원래 순서(마감 전 → 마감일 미확인 → …)가 기준. 마감까지 일수가 둘 다 숫자일 때만 비교하고 아니면 원래 순서를 유지한다.
-    const g1 = ((m && m.notice) || []).filter(function (it) { return idOk(it) && it.phase !== 'awaiting'; }).map(function (it, i) { return { it: it, i: i }; }).sort(function (a, b) {
-      const x = a.it.deadlineDays, y = b.it.deadlineDays;
-      return (typeof x === 'number' && typeof y === 'number' && x !== y) ? x - y : a.i - b.i;
-    }).map(function (w) { return w.it; }).map(function (it) { return mk(it, it.phase === 'receiving' && typeof it.deadlineDays === 'number' ? '접수 마감 ' + dText(it.deadlineDays) : '공고 중'); });
-    const up = ((m && m.upcoming) || []).filter(idOk);
-    const byDate = function (a, b) { return (a.days - b.days || 0) || byName(a, b); };   // 날짜 순(남은 일수), 같으면 이름 순
-    const g2 = up.filter(function (it) { return it.confidence === '확정'; }).sort(byDate).map(function (it) { return mk(it, '공고 예정 ' + String(it.date).slice(0, 10)); });
-    const g3 = up.filter(function (it) { return it.confidence !== '확정'; }).sort(byDate).map(function (it) { return mk(it, '추정 ' + String(it.date).slice(0, 7)); });
-    const g4 = kbb.emptyCandidates(g, taken, verified).sort(function (a, b) {
-      const x = a.endDate || '9999', y = b.endDate || '9999';   // 종료일 순(없으면 맨 뒤), 같으면 이름 순
-      return x < y ? -1 : (x > y ? 1 : byName(a, b));
-    }).map(function (x) { return { id: x.id, key: x.key, rec: x.rec, name: x.name, region: x.region, when: x.endDate ? '협약 종료 ' + x.endDate : '' }; });
-    return [{ key: 'notice', label: '공고 중', items: g1 }, { key: 'plan', label: '확정 공고 예정', items: g2 }, { key: 'est', label: '추정 공고 예정', items: g3 }, { key: 'end', label: '협약 종료 1년 안', items: g4 }]
-      .filter(function (x) { return x.items.length; });
-  };
-  // 예전 호출(cands 한 줄 목록)을 묶음 하나로.
-  kbb.candsToGroups = function (c) {
-    c = c || [];
-    return c.length ? [{ key: 'end', label: '협약 종료 1년 안', items: c.map(function (x) { return { id: x.id, key: x.key, rec: x.rec, name: x.name, region: x.region, when: x.endDate ? '협약 종료 ' + x.endDate : '' }; }) }] : [];
+    // 목록의 빈 상태에는 추천을 두지 않는다 — 추천은 [목표 기관 추가] 창의 [추천받기] 한 곳(design 11-24 2번). #hb-eadd는 #hb-add와 같은 창을 연다.
+    return h + '<p>' + esc(kbb.GOAL_MSG.emptyHint) + ' <button type="button" id="hb-eadd" class="hb-eadd" aria-haspopup="dialog">목표 기관 추가</button></p>';
   };
   // 제안 진행 자료(/preps·/workflow/overview)를 못 받았을 때 '그 밖의 제안서 준비 중인 기관' 묶음 자리에 놓는 안내 + [다시 시도](qa 11-17 P2-1). code 0 = 서버에 연결되지 않음.
   kbb.prepErrHtml = function (code) {
@@ -1175,22 +1120,30 @@
       '<p class="go">정보가 틀리면 \'입찰 공고 현황\'에서 고쳐 주세요. <button type="button" class="hb-tag" id="hb-w-notice">입찰 공고 현황 열기</button></p></div>';
   };
   // ── 순수: [목표 기관 추가] '추천받기' 1단계(design-reviewer 11-19 4~6절, 메인 확정). 서버 요청 없이 화면 자료만으로 계산한다. ──
-  // 풀 = 공고 중(awaiting은 입찰 종료 근거가 있을 때만) + 확정 공고 예정(추정 제외). ① 국민은행이 금고인(재유치)·금고였던(되찾기) 기관 + '다음 회차 준비' → ② 같은 종류·금고 구성 → ③ 접수 마감 D-n.
-  // 한 기관은 처음 맞는 단계에 한 번만. 제외: 이미 목표·관심·올해 입찰 종료. 점수 없음, 새 판정 없음(defaultTag·bankInfo·dText 재사용).
+  // 6묶음(design 11-24 2번, 사용자 11-24): ① 국민은행이 금고인(재유치)·금고였던(되찾기) 기관 + '다음 회차 준비' → ② 같은 종류·금고 구성(①② 풀 = 공고 중(awaiting은 입찰 종료 근거가 있을 때만) + 확정 공고 예정)
+  // → ③ 공고 중(마감 순, 마감 미정은 뒤) → ④ 확정 공고 예정 → ⑤ 추정 공고 예정 → ⑥ 협약 종료 1년 안.
+  // 한 기관은 처음 맞는 묶음에 한 번만. 제외: 이미 목표·관심·올해 입찰 종료. 점수 없음, 새 판정 없음(defaultTag·bankInfo·dText 재사용).
   kbb.REC_MAX = 5;
-  kbb.REC_STAGES = [{ key: 'KB', no: 1, label: '국민은행이 금고인·금고였던 기관' }, { key: 'SIM', no: 2, label: '비슷한 기관' }, { key: 'DUE', no: 3, label: '접수 마감이 가까운 기관' }];
+  kbb.REC_STAGES = [{ key: 'KB', no: 1, label: '국민은행이 금고인·금고였던 기관' }, { key: 'SIM', no: 2, label: '비슷한 기관' }, { key: 'NOTICE', no: 3, label: '공고 중' },
+    { key: 'PLAN', no: 4, label: '확정 공고 예정' }, { key: 'EST', no: 5, label: '추정 공고 예정' }, { key: 'END', no: 6, label: '협약 종료 1년 안' }];
+  // ③~⑥ 묶음 아래 설명 줄(묶음 안 정렬 사실 포함 — recommend가 실제로 그 순서로 정렬한다).
+  kbb.REC_SUB = {
+    NOTICE: '지금 공고가 나 있는 기관 · 접수 마감이 가까운 순(마감 미정은 뒤)',
+    PLAN: '1년 안에 공고 날짜가 정해진 기관 · 날짜 순',
+    EST: '공고 시기를 짐작한 기관(확정 아님) · 시기 순',
+    END: '협약이 1년 안에 끝나는 기관 · 종료일 순' };
   kbb.REC_MSG = {
-    head: '공고 중이거나 1년 안에 공고가 확정된 기관 중 ',
+    head: '공고 중·공고 예정이거나 협약이 1년 안에 끝나는 기관 중 ',
+    tail: '곳을 추천합니다. 국민은행과 관련된 기관부터 보입니다.',
     next: '다음 회차 준비 — 올해 결과가 정해진 곳',
     simSub: '국민은행이 금고인 기관과 종류·금고 구성이 같은 곳',
     emptyKbSkip: '예전 국민은행 금고 기록이 아직 반입되지 않아 이 단계를 건너뜁니다.',
     emptyKbNone: '국민은행이 금고인·금고였던 기관 중 공고 중이거나 공고가 확정된 곳이 없습니다.',
     kbFormerMissing: '예전 국민은행 금고 기록이 아직 반입되지 않아 \'되찾기\' 기관은 빠졌습니다.',
     emptySim: '종류·금고 구성이 같은 기관 중 공고 중이거나 공고가 확정된 곳이 없습니다.',
-    emptyDue: '접수 마감이 정해진 공고가 없습니다.',
     allEmpty: '추천할 기관이 없습니다. 위 칸에 기관 이름을 2자 이상 적어 찾으세요.',
     noClosedData: '입찰 공고 현황을 받지 못해 올해 입찰이 끝난 기관을 가리지 못했습니다. 고른 뒤 주의 상자를 확인하세요.',
-    source: '추천 근거: 입찰 공고 현황 · 금고 약정 · 행안부 금고지정 현황' };
+    source: '추천 근거: 입찰 공고 현황 · 금고 약정 · 행안부 금고지정 현황. 추정은 지난 금고 선정일+약정 주기 또는 약정 만료 6개월 전.' };
   const VAULT_TEXT = { SINGLE: '단수 금고', MULTI: '1·2금고' };
   // 금고 성격만 본다(단수 / 1·2금고). 현재 줄(039 요약 → 없으면 만료 안 된 행안부 줄)에서 못 정하면 ''(비교 불가).
   function vaultShape(rec, sum, o) {
@@ -1242,26 +1195,43 @@
     };
     ((m && m.notice) || []).forEach(function (it) {
       const dl = it.phase === 'receiving' && typeof it.deadlineDays === 'number' ? it.deadlineDays : null, to = String(it.receiveTo || '').slice(0, 10);
-      add(it, { needClosed: it.phase === 'awaiting', tier: dl !== null ? 0 : 1, no: dl !== null ? dl : 0, dl: dl, year: y0,
-        when: dl !== null ? '접수 마감 ' + dText(dl) : '공고 중', dueLong: dl !== null ? '접수 마감 ' + dText(dl) + (isDay(to) ? ' (' + to + ')' : '') : '' });
+      add(it, { src: 'N', needClosed: it.phase === 'awaiting', tier: dl !== null ? 0 : 1, no: dl !== null ? dl : 0, dl: dl, year: y0,
+        when: dl !== null ? '접수 마감 ' + dText(dl) : '공고 중', dueLong: dl !== null ? '접수 마감 ' + dText(dl) + (isDay(to) ? ' (' + to + ')' : '') : '공고 중 · 접수 마감일 미정' });
     });
     ((m && m.upcoming) || []).forEach(function (it) {
-      if (it.confidence !== '확정') return;
-      add(it, { needClosed: false, tier: 2, no: typeof it.days === 'number' ? it.days : 1e9, dl: null, year: Number(String(it.date).slice(0, 4)) || y0, when: '공고 예정 ' + String(it.date).slice(0, 10), dueLong: '' });
+      const conf = it.confidence === '확정', ds = String(it.date);
+      add(it, { src: conf ? 'P' : 'E', needClosed: false, tier: conf ? 2 : 3, no: typeof it.days === 'number' ? it.days : 1e9, dl: null, year: Number(ds.slice(0, 4)) || y0,
+        when: conf ? '공고 예정 ' + ds.slice(0, 10) : '추정 ' + ds.slice(0, 7), dueLong: '' });
     });
     const ex = { goal: 0, watch: 0, closed: 0, other: 0 };
-    const kb = [], nx = [], sim = [], due = [], byId = {};
+    const kb = [], nx = [], sim = [], due = [], plan = [], est = [], end = [], byId = {};
     const pickYear = function (pref) { return years.indexOf(pref) >= 0 ? { kind: 'GOAL', year: pref } : (o.noWatch ? null : { kind: 'WATCH', year: 0 }); };
+    // ⑤⑥ 연도(팀 결정 11-24): 고를 수 있는 연도에 없으면 가장 가까운 연도(같은 거리면 앞 연도). 연도를 모르면(0) pickYear 규칙.
+    const nearYear = function (pref) {
+      if (!pref || !years.length || years.indexOf(pref) >= 0) return pickYear(pref);
+      let best = years[0];
+      years.forEach(function (y) { if (Math.abs(y - pref) < Math.abs(best - pref)) best = y; });
+      return { kind: 'GOAL', year: best };
+    };
+    // 이미 목표: 줄의 추천 연도와 같은 해 목표일 때만 뺀다(P2-3). 연도를 모르는 항목은 모두 뺀다.
+    const dropG = function (tk, sel) {
+      if (!tk) return false;
+      if (sel && sel.kind === 'GOAL' && Number(tk.year) > 0 && Number(tk.year) !== sel.year) return false;
+      ex.goal += 1; return true;
+    };
     pool.forEach(function (p) {
       const it = p.it, id = p.id, rec0 = it.rec, sum = sumById[id] || null, tk = taken[id];
       if (tk && tk.kind === 'WATCH') { ex.watch += 1; return; }
-      // 이미 목표: 줄의 추천 연도와 같은 해 목표일 때만 뺀다(P2-3). 연도를 모르는 항목은 모두 뺀다.
-      const dropGoal = function (sel) {
-        if (!tk) return false;
-        if (sel && sel.kind === 'GOAL' && Number(tk.year) > 0 && Number(tk.year) !== sel.year) return false;
-        ex.goal += 1; return true;
-      };
+      const dropGoal = function (sel) { return dropG(tk, sel); };
       const base = { id: id, key: it.key, name: it.name, region: it.region, tier: p.tier, no: p.no };
+      if (p.src === 'E') {   // ⑤ 추정 공고 예정 — ①②를 거치지 않는다(풀은 공고 중+확정 유지). 올해 입찰 종료는 뺀다
+        if (closed[id]) { if (!dropGoal(null)) ex.closed += 1; return; }
+        const sel = nearYear(p.year);
+        if (dropGoal(sel)) return;
+        if (!sel) { ex.other += 1; return; }
+        est.push(Object.assign(base, sel, { chip: '', cls: 'est', why: p.when + ' (확정 아님)' }));
+        return;
+      }
       if (closed[id]) {   // 올해 입찰 종료 — 국민은행과 관련된 기관 중 다음 약정이 국민은행이 아닌 곳만 '다음 회차 준비'(기본 내년), 나머지는 제외
         const e = dash.kbEntry(rec0, o.verified), nb = nextOther(sum, rec0);
         const rel = (sum && (sum.kb_now === 'KB' || Number(sum.last_kb_year) > 0)) || !!(e && e.leaves);
@@ -1285,23 +1255,38 @@
         st = 'KB'; extra = { chip: '되찾기', cls: 'regain', lastKb: last, bank: bank, why: last + '년까지 국민은행 금고, 지금 ' + bank + ' · ' + p.when };
       } else if (kind && sh && refs[kind + '|' + sh]) {
         st = 'SIM'; extra = { chip: '', cls: 'sim', why: kind + ' · ' + VAULT_TEXT[sh] + ' — 국민은행이 금고인 ' + kind + (jongOf(kind) > 0 ? '과' : '와') + ' 같은 구성 · ' + p.when };
-      } else if (p.dl !== null) {
-        st = 'DUE'; extra = { chip: '', cls: 'due', why: p.dueLong };
+      } else if (p.src === 'N') {
+        st = 'NOTICE'; extra = { chip: '', cls: 'due', why: p.dueLong };
+      } else if (p.src === 'P') {
+        st = 'PLAN'; extra = { chip: '', cls: 'plan', why: p.when };
       } else return;
       const sel = pickYear(p.year);
       if (!sel) { ex.other += 1; return; }
-      (st === 'KB' ? kb : (st === 'SIM' ? sim : due)).push(Object.assign(base, sel, extra));
+      ({ KB: kb, SIM: sim, NOTICE: due, PLAN: plan })[st].push(Object.assign(base, sel, extra));
     });
-    kb.sort(cmp); nx.sort(byName); sim.sort(cmp); due.sort(cmp);
+    // ⑥ 협약 종료 1년 안(협약 중인 기관 구획의 '1년 안 종료', 국민은행 확정은 뺌) — 위 풀에 이미 든 기관은 다시 넣지 않는다. 목표 연도 = (종료일 − 6개월)의 해
+    kbb.emptyCandidates(o.groups, {}, o.verified).forEach(function (c) {
+      const id = c.id, tk = taken[id];
+      if (seen[id]) return;
+      if (tk && tk.kind === 'WATCH') { ex.watch += 1; return; }
+      if (closed[id]) { if (!dropG(tk, null)) ex.closed += 1; return; }
+      const ed = String(c.endDate || ''), ey = Number(ed.slice(0, 4)), em = Number(ed.slice(5, 7));
+      const sel = nearYear(ey && em ? (em > 6 ? ey : ey - 1) : 0);
+      if (dropG(tk, sel)) return;
+      if (!sel) { ex.other += 1; return; }
+      end.push(Object.assign({ id: id, key: c.key, name: c.name, region: c.region, tier: 0, no: 0, chip: '', cls: 'end', why: ed ? '협약 종료 ' + ed : '협약 종료 1년 안', endDate: ed }, sel));
+    });
+    kb.sort(cmp); nx.sort(byName); sim.sort(cmp); due.sort(cmp); plan.sort(cmp); est.sort(cmp);
+    end.sort(function (a, b) { const x = a.endDate || '9999', y = b.endDate || '9999'; return x < y ? -1 : (x > y ? 1 : byName(a, b)); });
     const stageOf = function (s, items, next) {
       const n = items.length + next.length;
       let empty = '';
-      if (!n) empty = s.key === 'KB' ? (noFormer && kbN === 0 ? 'emptyKbSkip' : 'emptyKbNone') : (s.key === 'SIM' ? 'emptySim' : 'emptyDue');
+      if (!n) empty = s.key === 'KB' ? (noFormer && kbN === 0 ? 'emptyKbSkip' : 'emptyKbNone') : (s.key === 'SIM' ? 'emptySim' : '');   // ③~⑥은 0곳이면 그리지 않는다
       return { key: s.key, no: s.no, label: s.label, items: items, next: next, n: n, empty: empty, formerMissing: s.key === 'KB' && noFormer && empty !== 'emptyKbSkip' };
     };
-    const S = kbb.REC_STAGES, stages = [stageOf(S[0], kb, nx), stageOf(S[1], sim, []), stageOf(S[2], due, [])];
+    const S = kbb.REC_STAGES, stages = [stageOf(S[0], kb, nx), stageOf(S[1], sim, []), stageOf(S[2], due, []), stageOf(S[3], plan, []), stageOf(S[4], est, []), stageOf(S[5], end, [])];
     stages.forEach(function (s) { s.items.concat(s.next).forEach(function (x) { byId[x.id] = x; }); });
-    const n = stages[0].n + stages[1].n + stages[2].n;
+    const n = stages.reduce(function (a, s) { return a + s.n; }, 0);
     return { n: n, allEmpty: n === 0, excl: ex, closedUnknown: !!o.closedUnknown, byId: byId, stages: stages };
   };
   kbb.recBtnText = function (it) { return it.kind === 'WATCH' ? '관심으로 고르기' : it.year + ' 목표로 고르기'; };
@@ -1313,11 +1298,12 @@
     if (it.cls === 'next') return '다음 회차 준비 추천 — 올해 입찰 결과가 정해졌습니다(' + it.bank + (it.start ? ', 금고 약정 ' + it.start + ' 시작' : '') + ').';
     return '';
   };
-  // 패널 안쪽 마크업. v = { more: { KB:true, … } }(단계별 '나머지 보기'를 눌렀는가). 이유 안 날짜·D-n·연도는 고정폭 span.d.
+  // 패널 안쪽 마크업. v = { more: { KB:true, … }, exp: { KB:true|false, … } }(묶음별 '나머지 보기'를 눌렀는가 · 아코디언 펼침 — exp에 없으면 수가 1 이상인 첫 묶음만 펼침). 이유 안 날짜·D-n·연도는 고정폭 span.d.
+  const REC_CHEV = '<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 4.5 6 8l4-3.5"/></svg>';
   kbb.recHtml = function (r, v) {
     v = v || {};
     const M = kbb.REC_MSG, more = v.more || {}, X = kbb.REC_MAX, x = r.excl || {};
-    const dm = function (s) { return esc(s).replace(/\d{4}-\d{2}-\d{2}|D-day|D-\d+|\d{4}(?=년)/g, '<span class="d">$&</span>'); };
+    const dm = function (s) { return esc(s).replace(/\d{4}-\d{2}-\d{2}|\d{4}-\d{2}(?![\d-])|D-day|D-\d+|\d{4}(?=년)/g, '<span class="d">$&</span>'); };
     let i = 0;
     const row = function (it, sk) {
       const rg = dash.regionName(it.region), bt = kbb.recBtnText(it), wid = 'hb-r' + (i++) + 'w';
@@ -1326,7 +1312,8 @@
         '<button type="button" class="hb-tag" data-rec="' + esc(it.id) + '" data-stage="' + sk + '" aria-label="' + esc(rg + ' ' + it.name + ' ' + bt) + '" aria-describedby="' + wid + '">' + esc(bt) + '</button></li>';
     };
     const ul = function (items, sk) { return items.length ? '<ul>' + items.map(function (it) { return row(it, sk); }).join('') + '</ul>' : ''; };
-    let h = '<p id="hb-a-rech" class="tm-note" role="status">' + (r.allEmpty ? esc(M.allEmpty) : esc(M.head) + '<b>' + r.n + '</b>곳을 추천합니다.') + '</p>';
+    const exp = v.exp || {}, firstKey = (r.stages.filter(function (s) { return s.n > 0; })[0] || {}).key;
+    let h = '<p id="hb-a-rech" class="tm-note" role="status">' + (r.allEmpty ? esc(M.allEmpty) : esc(M.head) + '<b>' + r.n + '</b>' + esc(M.tail)) + '</p>';
     const parts = [];
     if (x.goal) parts.push('목표 ' + x.goal + '곳');
     if (x.watch) parts.push('관심 ' + x.watch + '곳');
@@ -1335,15 +1322,27 @@
     if (x.other) h += '<p class="tm-note">관심으로만 고를 수 있는 ' + x.other + '곳은 이 화면에서 관심 기능을 쓸 수 없어 뺐습니다.</p>';
     if (r.closedUnknown) h += '<p class="tm-note">' + esc(M.noClosedData) + '</p>';
     if (!r.allEmpty) r.stages.forEach(function (s) {
-      const open = !!more[s.key], mv = open ? s.items : s.items.slice(0, X), nv = open ? s.next : s.next.slice(0, X);
-      const rest = (s.items.length - mv.length) + (s.next.length - nv.length);
-      h += '<h4><span class="no">' + s.no + '</span>' + esc(s.label) + ' <b>' + s.n + '</b>곳</h4>';
-      if (s.key === 'SIM' && s.n) h += '<p class="tm-note">' + esc(M.simSub) + '</p>';
-      h += ul(mv, s.key);
-      if (nv.length) h += '<h5>' + esc(M.next) + ' <b>' + s.next.length + '</b>곳</h5>' + ul(nv, s.key);
-      if (rest > 0) h += '<button type="button" class="hb-tag more" data-more="' + s.key + '" aria-label="' + esc(s.label) + ' 나머지 ' + rest + '곳 보기">나머지 ' + rest + '곳 보기</button>';
-      if (s.empty) h += '<p class="tm-note">' + esc(M[s.empty]) + '</p>';
-      if (s.formerMissing) h += '<p class="tm-note">' + esc(M.kbFormerMissing) + '</p>';
+      if (!s.n && !s.empty) return;   // ③~⑥은 0곳이면 그리지 않는다
+      if (!s.n) {   // ①②는 0곳이어도 이유 문장이 정보라 단추 없이 글자 머리 + 문장
+        h += '<h4><span class="no">' + s.no + '</span>' + esc(s.label) + ' <b>0</b>곳</h4><p class="tm-note">' + esc(M[s.empty]) + '</p>';
+        if (s.formerMissing) h += '<p class="tm-note">' + esc(M.kbFormerMissing) + '</p>';
+        return;
+      }
+      const open = exp[s.key] !== undefined ? !!exp[s.key] : s.key === firstKey, all = !!more[s.key];
+      h += '<h4><button type="button" class="hb-rec-h" id="hb-rec-h' + s.key + '" data-acc="' + s.key + '" aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="hb-rec-s' + s.key + '">' +
+        '<span class="no" aria-hidden="true">' + s.no + '</span>' + esc(s.label) + ' <b>' + s.n + '</b>곳' + REC_CHEV + '</button></h4>';
+      h += '<div id="hb-rec-s' + s.key + '"' + (open ? '' : ' hidden') + '>';
+      if (open) {
+        const mv = all ? s.items : s.items.slice(0, X), nv = all ? s.next : s.next.slice(0, X);
+        const rest = (s.items.length - mv.length) + (s.next.length - nv.length);
+        if (s.key === 'SIM') h += '<p class="tm-note">' + esc(M.simSub) + '</p>';
+        else if (kbb.REC_SUB[s.key]) h += '<p class="tm-note">' + esc(kbb.REC_SUB[s.key]) + '</p>';
+        h += ul(mv, s.key);
+        if (nv.length) h += '<h5>' + esc(M.next) + ' <b>' + s.next.length + '</b>곳</h5>' + ul(nv, s.key);
+        if (rest > 0) h += '<button type="button" class="hb-tag more" data-more="' + s.key + '" aria-label="' + esc(s.label) + ' 나머지 ' + rest + '곳 보기">나머지 ' + rest + '곳 보기</button>';
+        if (s.formerMissing) h += '<p class="tm-note">' + esc(M.kbFormerMissing) + '</p>';
+      }
+      h += '</div>';
     });
     return h + '<p class="tm-note">' + esc(M.source) + '</p>';
   };
@@ -1494,7 +1493,7 @@
   // 올해 목표 기관 상태: st = 'offline'|'loading'|'ok'|'denied'|'error', data = GET /bid-targets 응답, sum = { institutionId: 039 요약 항목 }, direct = endOpts().direct
   // tab = 'goal'|'watch', f = 화면 거르기(저장하지 않는다), sort = 탭마다 { key, dir }, wrows = 관심 줄(보이는 것), tbSig = 도구 줄을 다시 그려야 하는지 가르는 서명
   const gs = { year: 0, st: 'offline', code: 0, data: null, seq: 0, sumSt: 'idle', sum: {}, direct: {}, rows: [], wrows: [], busy: false, focusNext: null, retryFocus: '', optSig: '',
-    tab: 'goal', f: { q: '', tag: '', status: '', kind: '', stage: -1 }, sort: { goal: { key: 'due', dir: 'asc' }, watch: { key: 'next', dir: 'asc' } }, tbSig: '', just: null, seeInst: '', recTab: '', recAll: false };   // recTab·recAll = 빈 상태 추천의 고른 묶음·펼침(화면 상태로만)
+    tab: 'goal', f: { q: '', tag: '', status: '', kind: '', stage: -1 }, sort: { goal: { key: 'due', dir: 'asc' }, watch: { key: 'next', dir: 'asc' } }, tbSig: '', just: null, seeInst: '' };
   let host = null, ac = null, LIST = [], ALL = null, OURS = [], G = null, BYID = {}, seq = 0, offNr = null, menu = null, dlg = null, pop = null, popInert = [], qTimer = null;
   gs.sel = tc.newSel(); gs.selMsg = ''; gs.carryTried = false; gs.carryTok = 0; gs.justIds = null;   // NEXT 105: 고른 줄·알림·자동 이월 한 번만·일괄 반영 강조
   let chd = null, trm = null, pnd = null;   // 일괄 요청 창·협약 개시일 창·결재 진행 중 창(공통 .dlg, dlg.js)
@@ -1788,13 +1787,12 @@
     const win = kbb.laneWindow(U.todayDate(), goalYear());
     const ok = gs.st === 'ok' && !!gs.data, ctx = goalCtx(), ps = panelState(), prepCode = ps.code || st.prepCode || st.ovCode || 0;
     // 전체 줄 모델(거르기 전): 목표 줄·목표 밖 준비 줄·관심 줄. 띠·단계 수는 전체 모델로 세고, 표는 거른 뒤 정렬한다.
-    let rows = [], out = [], wrows = [], groups = [];
+    let rows = [], out = [], wrows = [];
     if (ok) {
       rows = kbb.goalRows(gs.data.items, ctx);
       wrows = kbb.goalRows(gs.data.watch_items, ctx);
       const ids = takenIds();
       if (ctx.prepOk) out = kbb.outRows(kbb.prepRows(st.preps, st.overview, LIST, U.todayDate()), ids, ctx);
-      groups = kbb.candGroups(ALL, ids, G, KB());
     }
     const noWatch = noWatchNow();
     if (noWatch && gs.tab === 'watch') gs.tab = 'goal';   // 옛 서버에는 관심 탭이 없다
@@ -1810,7 +1808,7 @@
     const counts = kbb.stageCounts(rows.concat(out));
     ts.setAttribute('role', 'tabpanel');
     if (ok) ts.setAttribute('aria-labelledby', 'hb-tab-' + gs.tab); else ts.removeAttribute('aria-labelledby');   // 도구 줄(탭)이 있을 때만 — 없는 id를 가리키지 않는다(qa 11-17 P3-4)
-    ts.innerHTML = kbb.goalTableHtml({ st: gs.st, code: gs.code, year: goalYear(), win: win, tab: gs.tab, rows: dRows, out: dOut, canEdit: canEdit, groups: groups, recTab: gs.recTab, recAll: gs.recAll, prep: ps.state, prepCode: prepCode,
+    ts.innerHTML = kbb.goalTableHtml({ st: gs.st, code: gs.code, year: goalYear(), win: win, tab: gs.tab, rows: dRows, out: dOut, canEdit: canEdit, prep: ps.state, prepCode: prepCode,
       sort: sorted, total: total, filtered: total > 0 && kbb.filterOn(fx), noWatch: noWatch, nGoal: rows.length, nOut: out.length, selCol: !!mode, picked: tc.pickedMap(gs.sel) });
     paintToolbar({ tab: gs.tab, nGoal: rows.length, nWatch: wrows.length, f: f, stageName: f.stage >= 0 ? (dash.STAGES[f.stage] || {}).label : '', shown: dRows.length + dOut.length, total: total, canEdit: canEdit, loaded: ok, noWatch: noWatch });
     const band = $('hb-band');
@@ -2051,6 +2049,7 @@
     if (d.el.parentNode) d.el.parentNode.removeChild(d.el);
     if (focusEl === 'none') return;
     let o = focusEl || d.opener;
+    if (o && o.id && !document.body.contains(o)) { const re = $(o.id); if (re) o = re; }   // 창이 열린 사이 표가 다시 그려져도 같은 id 단추(예: 빈 상태 #hb-eadd)로 돌아온다
     if (!(o && o.focus && document.body.contains(o))) { const a = $('hb-add'); o = a && !a.hidden ? a : null; }
     if (o && o.focus) o.focus();
   }
@@ -2106,7 +2105,7 @@
   function recInput(years) {
     const snap = root.noticerec && root.noticerec.snap ? root.noticerec.snap() : null;
     return { taken: takenFor(0, 'WATCH'), closed: closedMapNow(), closedUnknown: !snap, sumById: gs.sum, lofin: root.LOFIN_2026, verified: KB(), direct: gs.direct,
-      today: U.todayDate(), list: LIST, years: years, noWatch: noWatchNow() };
+      today: U.todayDate(), list: LIST, years: years, noWatch: noWatchNow(), groups: G };   // groups = 협약 구획 묶음(⑥ 협약 종료 1년 안의 출처)
   }
   // 고른 기관의 주의 상자(규격 6-9): 올해 목표로 넣으려 할 때만. 서버 근거(막음, 제안 진행 중이면 막지 않음) → 화면만 아는 근거(주의만).
   function computeWarn(m) {
@@ -2191,7 +2190,7 @@
     closeMenu(false);
     const years = yearList();
     const m = { q: '', inst: null, year: years.indexOf(goalYear()) >= 0 ? goalYear() : years[0], tag: '', tagTouched: false, memo: '', results: [], active: -1, busy: false, note: '', pickText: '',
-      kind: pre && pre.kind === 'WATCH' && !noWatchNow() ? 'WATCH' : 'GOAL', warn: null, closedBlock: false, dup: null, boxYear: 0, rec: { open: false, data: null, more: {} } };
+      kind: pre && pre.kind === 'WATCH' && !noWatchNow() ? 'WATCH' : 'GOAL', warn: null, closedBlock: false, dup: null, boxYear: 0, rec: { open: false, data: null, more: {}, exp: {} } };
     if (pre && pre.id && BYID[pre.id]) { pickInst(m, BYID[pre.id], pre.tag || ''); computeWarn(m); }
     const d = showDlg(kbb.addDialogHtml(m, { years: years, tags: tagList(), noWatch: noWatchNow(), rec: true }), 'add', (pre && pre.opener) || document.activeElement);
     d.m = m;
@@ -2263,6 +2262,11 @@
       else if (b.id === 'hb-w-notice') { const key = m.inst ? m.inst.key : ''; closeDlg('none'); openNotice(key); }
       else if (b.id === 'hb-a-recbtn') { if (!m.rec.data) m.rec.data = kbb.recommend(ALL, recInput(years)); m.rec.open = !m.rec.open; paintAdd(); }   // 포커스는 버튼에 그대로(펼침 표준)
       else if (b.hasAttribute('data-rec')) pickRec(b.getAttribute('data-rec'));
+      else if (b.hasAttribute('data-acc')) {   // 묶음 머리(아코디언): 그 묶음만 펼침/접힘, 여러 개 동시에 펼칠 수 있다. 다시 그린 뒤 포커스는 같은 머리 단추로
+        const ak = b.getAttribute('data-acc');
+        m.rec.exp[ak] = b.getAttribute('aria-expanded') !== 'true'; paintAdd();
+        const hh = dq('hb-rec-h' + ak); if (hh && hh.focus) hh.focus();
+      }
       else if (b.hasAttribute('data-more')) {   // 단계의 나머지를 편다 — 포커스는 새로 드러난 첫 줄 버튼으로
         const sk = b.getAttribute('data-more'), sel = '#hb-a-rec button[data-rec][data-stage="' + sk + '"]';
         const prev = Array.prototype.map.call(d.el.querySelectorAll(sel), function (x) { return x.getAttribute('data-rec'); });
@@ -2986,7 +2990,7 @@
     if (btn.classList.contains('hb-tag')) {
       const act = btn.getAttribute('data-act'), inst = btn.getAttribute('data-inst') || '';
       if (act === 'tag') { if (menu && menu.btn === btn) closeMenu(true); else openMenu(btn); }
-      else if (act === 'add' || act === 'cand') openAdd({ id: inst, tag: '' });
+      else if (act === 'add') openAdd({ id: inst, tag: '' });
       else if (act === 'oadd') { closePop(false); openAdd({ id: inst, tag: 'RETAIN', kind: 'GOAL', opener: $('hb-ours-btn') }); }   // 협약 중인 기관 팝업의 줄: 목표·재유치 도전으로 채운 추가 창
       else if (act === 'owatch') { closePop(false); openAdd({ id: inst, kind: 'WATCH', opener: $('hb-ours-btn') }); }   // 국민은행 확정 줄: 관심으로 채운 추가 창(결과는 기존 관심 추가 흐름 — 관심 탭·알림)
       else if (act === 'addwatch') openAdd({ id: '', kind: 'WATCH' });
@@ -3012,12 +3016,7 @@
       case 'hb-sclr': gs.f.stage = -1; renderGoals(); break;
       case 'hb-fclear': case 'hb-fclear2': clearFilters(); break;
       case 'hb-gretry': gs.retryFocus = 'hb-gretry'; loadGoals(); break;      // 다시 그린 뒤 포커스를 되돌린다(applyRetryFocus)
-      case 'hb-rec-more': {   // 고른 묶음 전체 펼침 — 단추가 사라지므로 포커스는 새로 나타난 첫 줄(6번째)의 이름 단추로
-        gs.recTab = btn.getAttribute('data-group') || gs.recTab; gs.recAll = true; renderGoals();   // 지금 보이는 묶음으로 고정(사라져 대체된 묶음이면 그 묶음이 새로 고른 것이 된다)
-        const nms = $('hb-ts') ? $('hb-ts').querySelectorAll('#hb-rec-list .hb-nm') : [], nx = nms[kbb.CAND_MAX] || nms[nms.length - 1];
-        if (nx && nx.focus) nx.focus();
-        break;
-      }
+      case 'hb-eadd': openAdd({ id: '', opener: btn }); break;   // 목록 빈 상태의 [목표 기관 추가] — #hb-add와 같은 창, 닫으면 이 단추로 포커스 복귀(closeDlg)
       case 'hb-pretry': gs.retryFocus = 'hb-pretry'; loadProgress(); break;   // 제안 진행 자료 오류 안내의 [다시 시도]
       case 'hb-to-notice': openNotice(''); break;
       case 'hb-reload':
@@ -3044,12 +3043,7 @@
     const t = e.target;
     if (!t) return;
     if (t.id === 'hb-pickall' || (t.getAttribute && t.getAttribute('data-pick') !== null)) { onPick(t); return; }
-    if (t.name === 'hb-rec') {   // 빈 상태 추천 묶음 고르기: 다시 5줄로 접고, 포커스는 고른 라디오에 남긴다
-      gs.recTab = t.value; gs.recAll = false; renderGoals();
-      const rc = $('hb-ts') ? $('hb-ts').querySelector('input[name="hb-rec"]:checked') : null; if (rc && rc.focus) rc.focus();
-      return;
-    }
-    if (t.id === 'hb-year') { const y = Number(t.value); if (y) { gs.year = y; gs.optSig = ''; gs.recTab = ''; gs.recAll = false; loadGoals(); } return; }
+    if (t.id === 'hb-year') { const y = Number(t.value); if (y) { gs.year = y; gs.optSig = ''; loadGoals(); } return; }
     if (t.id === 'hb-f-tag') { gs.f.tag = t.value; renderGoals(); const e1 = $('hb-f-tag'); if (e1) e1.focus(); }
     else if (t.id === 'hb-f-status') { gs.f.status = t.value; renderGoals(); const e2 = $('hb-f-status'); if (e2) e2.focus(); }
     else if (t.id === 'hb-f-kind') { gs.f.kind = t.value; renderGoals(); const e3 = $('hb-f-kind'); if (e3) e3.focus(); }
@@ -3072,7 +3066,6 @@
     host.addEventListener('keydown', onKeydown, opt);
     st.err = '';
     gs.st = (!U.serverMode() || !U.hasEmp()) ? 'offline' : 'loading';
-    gs.recTab = ''; gs.recAll = false;
     gs.tab = 'goal'; gs.f = { q: '', tag: '', status: '', kind: '', stage: -1 }; gs.tbSig = '';   // 거르기는 화면 상태로만(저장하지 않는다)
     refreshData();   // 서버가 없어도 [협약 중인 기관] 버튼은 내장 자료로 열린다
     loadProgress();
@@ -3087,7 +3080,7 @@
     seq += 1; gs.seq += 1;
     st.preps = st.overview = null; st.prepSt = st.ovSt = 'offline';
     gs.st = 'offline'; gs.data = null; gs.sumSt = 'idle'; gs.sum = {}; gs.direct = {}; gs.rows = []; gs.wrows = []; gs.focusNext = null; gs.retryFocus = '';
-    gs.just = null; gs.seeInst = ''; gs.recTab = ''; gs.recAll = false;   // 앞 계정의 강조·[관심 탭에서 보기] 대상을 버린다(qa 11-19 P3-2)
+    gs.just = null; gs.seeInst = '';   // 앞 계정의 강조·[관심 탭에서 보기] 대상을 버린다(qa 11-19 P3-2)
     if (dash.clearGoals) dash.clearGoals();
     closeChangeDlgs(); gs.sel = tc.newSel(); gs.selMsg = ''; gs.carryTried = false; gs.carryTok += 1; gs.justIds = null;   // 앞 계정의 고른 줄·창·진행 중인 이월을 버린다
     prepDenied403 = false;   // 다른 계정은 제안 진행을 볼 수 있을 수 있다 — 403 기억을 푼다

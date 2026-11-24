@@ -2083,7 +2083,10 @@
   .db-top .sub { font-size:12px; color:var(--muted); }
   .hb-top .meta, .db-top .meta { margin-left:auto; font-size:12px; color:var(--muted); }
   .hb-top .meta b, .db-top .meta b { font-family:var(--mono); font-weight:400; color:var(--fg); }
-  #hb-add { font-size:12px; padding:4px 12px; }
+  /* [목표 기관 추가]는 화면의 주 동작 — 채운 주버튼 4번째 예외(사용자 11-24, design-reviewer 11-24 1819 3번 B안). 흰 글자 대비 6.84:1 */
+  #hb-add { height:32px; padding:0 14px; font-size:12px; font-weight:700; color:var(--panel); background:var(--accent-color); border:1px solid var(--accent-color); }
+  #hb-add:hover { background:color-mix(in srgb, var(--accent-color) 86%, black); border-color:color-mix(in srgb, var(--accent-color) 86%, black); }
+  #hb-add:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
   /* 11-17 c51 목표 기관 중심 — 요약 띠(.hb-band) + 목표 표(.hb-tp, 12개월 일정이 마지막 열) + 접힌 협약 구획(#hb-ours). design-reviewer 11-17 acfdd5da 6-B */
   .hb-band { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)) minmax(0,1.5fr); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
   .hb-k { min-width:0; min-height:84px; padding:12px 16px; border-left:1px solid var(--line); display:flex; flex-direction:column; gap:4px; }
@@ -2191,6 +2194,7 @@
   .hb-dlg .hb-etc { margin-top:8px; }
   .hb-dlg .tm-why { margin:0 auto 0 0; align-self:center; }
   .hb-dlg #hb-a-q, .hb-dlg #hb-a-memo, .hb-dlg #hb-c-etc { display:block; width:100%; margin-top:4px; box-sizing:border-box; }   /* 이름표는 위 한 줄(.tm-reason-row), 칸은 대화창 폭 전체 — 제안팀 구성 창 #tm-reason과 같게 */
+  .hb-dlg #hb-a-year, .hb-dlg #hb-m-year { display:block; width:100%; margin-top:4px; box-sizing:border-box; }   /* 연도 칸도 위 칸들과 같은 왼쪽·오른쪽 끝(사용자 11-24 1번) */
   .hb-dlg:focus { outline:none; }   /* 저장 중에 포커스를 잠시 두는 상자(tabindex -1)라 링을 그리지 않는다 */
   .hb-tp:focus { outline:none; }    /* [다시 시도] 뒤 포커스를 돌려받는 표 영역(tabindex -1) */
   .hb-res { list-style:none; margin:4px 0 0; padding:0; max-height:208px; overflow:auto; border:1px solid var(--line-strong); border-radius:var(--r); }
@@ -2316,18 +2320,7 @@
   .hb-tt tr.has-acts > td.mut > [aria-hidden="true"] { visibility:hidden; }   /* 단추가 덮는 설명회 칸 '—'은 숨김(sr 문장은 그대로) */
   .hb-nx { font:700 13px var(--mono); color:var(--fg); }
   .hb-tt col.c-next { width:170px; } .hb-tt col.c-memo { width:auto; } .hb-tt col.c-act { width:150px; } .hb-tt col.c-wnm { width:200px; }
-  .hb-erec { margin-top:12px; max-width:720px; }
-  .hb-rec-tabs { margin:0; }
-  .hb-rec-tabs span { color:var(--fg); }   /* 고르지 않은 칸도 잉크 — 숫자가 읽혀야 함 */
-  .hb-rec-tabs span b { margin-left:4px; font:700 13px var(--mono); }
-  .hb-rec-tabs input:not(:checked) + span:hover { background:color-mix(in srgb, var(--accent-color) 6%, var(--panel)); }
-  .hb-rec-sub { margin:8px 0 4px; font-size:12px; color:var(--muted); }
-  .hb-cand3 { list-style:none; margin:0; padding:0; border-top:1px solid var(--line); }
-  .hb-cand3 li { display:grid; grid-template-columns:132px minmax(0,1fr) auto; column-gap:12px; align-items:center; min-height:36px; border-bottom:1px solid var(--line); }
-  .hb-rec-w { font:400 12px var(--mono); color:var(--fg); white-space:nowrap; }
-  .hb-cand3 .hb-nm { justify-self:start; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .hb-rec-foot { display:flex; align-items:center; gap:12px; margin-top:8px; font-size:12px; color:var(--muted); }
-  .hb-rec-foot button { height:28px; padding:0 10px; font-size:12px; }
+  .hb-eadd { height:32px; padding:0 14px; font-weight:700; border-color:var(--accent-color); }   /* 목록 빈 상태의 [목표 기관 추가] — 채우지 않은 강조 테두리(화면에 채운 단추가 둘이 되지 않게) */
   .hb-warn { margin-top:8px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--orange); border-radius:var(--r); background:color-mix(in srgb, var(--orange) 8%, transparent); font-size:12px; color:var(--fg); }
   .hb-warn p { margin:0; }
   .hb-warn .t { display:flex; align-items:center; gap:6px; font-weight:700; color:color-mix(in srgb, var(--orange) 72%, var(--fg)); }
@@ -2353,6 +2346,12 @@
   .hb-rec .why .d { font-family:var(--mono); color:var(--fg); }
   .hb-rec li > .hb-tag { grid-column:2; grid-row:1 / span 2; align-self:center; }
   .hb-rec .more { margin-top:4px; }
+  .hb-rec-h { display:flex; width:100%; align-items:center; gap:6px; min-height:32px; padding:0; border:0; background:none; font-family:inherit; font-size:13px; font-weight:700; color:var(--fg); text-align:left; }   /* 묶음 머리 = 아코디언 단추(design 11-24 2번) */
+  .hb-rec-h:hover { background:var(--panel2); }
+  .hb-rec-h .no { margin-right:0; }
+  .hb-rec-h svg { width:12px; height:12px; margin-left:auto; fill:none; stroke:currentColor; stroke-width:1.5; transition:transform .2s; }
+  .hb-rec-h[aria-expanded="true"] svg { transform:rotate(180deg); }
+  @media (prefers-reduced-motion:reduce) { .hb-rec-h svg { transition:none; } }
   @media (max-width:880px) { .hb-rec li { grid-template-columns:1fr; } .hb-rec li > .hb-tag { grid-column:1; grid-row:3; justify-self:end; } }
   /* 1279px 이하: 12개월 일정 열·범례를 숨긴다(날짜는 '마감까지' 열이 맡는다). 880px 이하: 요약 띠 2×2, 표는 안에서 가로 스크롤 */
   @media (max-width:1279px) { .hb-tt .ln, .hb-tf .lg { display:none; } .hb-tt col.c-nm { width:auto; } }   /* 일정 열을 숨기면 남는 폭을 기관 열이 받는다(표가 끝까지 찬다) */
@@ -2390,15 +2389,19 @@
   .hb-pend svg { width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:1.3; }
   button.hb-pend { cursor:pointer; }
   button.hb-pend:hover { background:color-mix(in srgb, var(--blue) 18%, transparent); border-color:var(--blue); text-decoration:underline; }   /* 공통 button:hover(회색)에 지지 않게 */
-  .hb-selbar { flex:none; display:flex; align-items:center; gap:8px; min-height:44px; padding:0 12px; font-size:12px; background:var(--panel2); border-top:1px solid var(--line-strong); }
+  /* 고른 기관 띠만 위쪽 그림자 1개·등장 200ms 예외(사용자 11-24, design-reviewer 11-24 1819 4번). 감소 설정이면 움직임 끔 */
+  .hb-selbar { position:relative; z-index:1; flex:none; display:flex; align-items:center; gap:8px; min-height:48px; padding:0 12px; font-size:12px; background:color-mix(in srgb, var(--accent-color) 12%, var(--panel)); border-top:2px solid var(--accent-color); box-shadow:0 -6px 16px -6px rgba(19,20,22,.28); }
   .hb-selbar[hidden] { display:none; }
-  .hb-selbar .n { display:inline-flex; align-items:center; gap:10px; }
+  .hb-selbar:not([hidden]) { animation:hbSelIn .2s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes hbSelIn { from { transform:translateY(12px); } to { transform:none; } }   /* opacity 없이 올라오기만(현황판 CSS 블록 opacity 금지 규칙) */
+  @media (prefers-reduced-motion:reduce) { .hb-selbar:not([hidden]) { animation:none; } }
+  .hb-selbar .n { display:inline-flex; align-items:center; gap:10px; color:var(--fg); font-weight:700; }
   .hb-selbar .n b { font:700 12px var(--mono); }
   .hb-selbar .lim { color:var(--orange); }
   .hb-selbar .sp { flex:1 1 auto; }
   .hb-selbar .who { color:var(--muted); }
   .hb-selbar button { height:32px; padding:0 14px; }
-  .hb-selbar .go { border-color:var(--accent-color); font-weight:700; }
+  .hb-selbar .go { border-color:var(--accent-color); font-weight:700; background:var(--panel); }   /* 틴트 위에서 흰 단추가 떠 보이게 */
   #tc-dlg .dlg-ferr:empty, #tt-dlg .dlg-ferr:empty { display:none; }
   .tc-sub { display:flex; justify-content:space-between; margin:4px 0 0; font-size:12px; color:var(--muted); }
   .tc-all { display:flex; align-items:center; gap:8px; margin:0 0 12px; font-size:12px; }
@@ -3028,6 +3031,7 @@
   .dlg-danger { color:var(--red); border-color:var(--red); background:var(--panel2); }
   .dlg-f { margin:0 0 12px; }
   .dlg-f label { display:block; margin:0 0 4px; font-size:12px; }
+  .dlg-f textarea { display:block; width:100%; box-sizing:border-box; min-height:64px; resize:vertical; }   /* 결재 요청 창 사유 칸을 창 폭 전체로(사용자 11-24 1번). date·짧은 칸은 그대로 */
   .dlg-req { margin-left:2px; color:var(--red); font-weight:700; }
   .dlg input[aria-invalid="true"], .dlg select[aria-invalid="true"], .dlg textarea[aria-invalid="true"] { border-color:var(--red); box-shadow:inset 0 0 0 1px var(--red); }
   .dlg-ferr { margin:4px 0 0; font-size:12px; line-height:1.5; color:var(--red); }

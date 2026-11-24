@@ -563,6 +563,9 @@ test('index.html: tchange.js는 logic·errtext 뒤 approvals·kbboard 앞, 새 C
   assert.ok(/\.ap-tc col\.tc-c1 \{ width:22%; \}/.test(css));
   assert.deepStrictEqual(css.match(/#[0-9a-fA-F]{3,8}\b/g) || [], []);
   assert.deepStrictEqual(css.match(/(^|[\s;{])--[\w-]+\s*:/g) || [], []);
-  assert.ok(css.indexOf('box-shadow') < 0 && !/opacity:\s*(0|\.)/.test(css) && !/border-left:\s*3px/.test(css));
+  // 고른 기관 띠(.hb-selbar) 하나만 위쪽 그림자·등장 움직임 예외(사용자 11-24, design-reviewer 11-24 1819 4번) — 그 두 규칙을 빼고 나머지에는 그림자·투명도 움직임이 없다
+  const plain = css.replace(/\.hb-selbar \{[^}]*\}/, '').replace(/@keyframes hbSelIn \{ from \{[^}]*\} to \{[^}]*\} \}/, '');
+  assert.ok(css.indexOf('.hb-selbar {') >= 0 && plain.indexOf('.hb-selbar {') < 0 && plain.indexOf('hbSelIn {') < 0);
+  assert.ok(plain.indexOf('box-shadow') < 0 && !/opacity:\s*(0|\.)/.test(plain) && !/border-left:\s*3px/.test(plain));
   (css.match(/font-size:\s*(\d+)px/g) || []).forEach(function (m) { assert.ok(Number(m.match(/(\d+)/)[1]) >= 12, m); });
 });

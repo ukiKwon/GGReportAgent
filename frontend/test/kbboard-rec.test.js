@@ -30,14 +30,16 @@ function scenario1() {
     sumById: { IA: sKB, IB: sOth('SINGLE', 2022), IC: sOth('SINGLE', 0), ID: sOth('FIRST', 0), IF: sOth('SINGLE', 2021) } }));
 }
 
-test('추천: ① 국민은행 금고 기관(재유치·되찾기) → ② 비슷한 기관 → ③ 접수 마감 가까운 기관, 단계 안 정렬은 접수 마감 → 공고 예정일 → 이름', function () {
+test('추천: ① 국민은행 금고 기관(재유치·되찾기) → ② 비슷한 기관 → ③ 공고 중(마감 미정은 뒤) → ⑤ 추정 공고 예정, 묶음 안 정렬은 접수 마감 → 공고 예정일 → 이름', function () {
   const r = scenario1();
   const ids = function (s) { return s.items.map(function (x) { return x.id; }); };
-  assert.deepStrictEqual(r.stages.map(function (s) { return s.key; }), ['KB', 'SIM', 'DUE']);
+  assert.deepStrictEqual(r.stages.map(function (s) { return s.key; }), ['KB', 'SIM', 'NOTICE', 'PLAN', 'EST', 'END']);
   assert.deepStrictEqual(ids(r.stages[0]), ['IB', 'IA', 'IF']);   // D-3, D-12, 그다음 공고 예정(확정) 기관
   assert.deepStrictEqual(ids(r.stages[1]), ['IC']);               // 단수 금고 지자체 = 국민은행이 금고인 가와 같은 구성
-  assert.deepStrictEqual(ids(r.stages[2]), ['ID']);               // 1·2금고라 비교 불가 → ③
-  assert.strictEqual(r.n, 5);
+  assert.deepStrictEqual(ids(r.stages[2]), ['ID', 'IE']);         // 1·2금고라 비교 불가 → ③, 마감 미정(IE)은 뒤
+  assert.deepStrictEqual(ids(r.stages[3]), []);
+  assert.deepStrictEqual(ids(r.stages[4]), ['IG']);               // 추정 공고 예정은 ⑤(①②를 거치지 않는다)
+  assert.strictEqual(r.n, 7);
   assert.strictEqual(r.allEmpty, false);
   const a = r.byId.IA, b = r.byId.IB, f = r.byId.IF, c = r.byId.IC, d = r.byId.ID;
   assert.strictEqual(a.chip, '재유치'); assert.strictEqual(a.why, '지금 국민은행 단수 금고 · 접수 마감 D-12');
@@ -45,7 +47,98 @@ test('추천: ① 국민은행 금고 기관(재유치·되찾기) → ② 비�
   assert.strictEqual(f.chip, '되찾기'); assert.strictEqual(f.why, '2021년까지 국민은행 금고, 지금 우리은행 · 공고 예정 ' + p(100));
   assert.strictEqual(c.chip, ''); assert.strictEqual(c.why, '지자체 · 단수 금고 — 국민은행이 금고인 지자체와 같은 구성 · 접수 마감 D-7');
   assert.strictEqual(d.why, '접수 마감 D-5 (' + p(5) + ')');
-  assert.ok(!r.byId.IE && !r.byId.IG);   // 마감 미상 공고·추정 예정은 추천하지 않는다
+  assert.strictEqual(r.byId.IE.why, '공고 중 · 접수 마감일 미정');   // 마감 미정 공고도 ③에 든다
+  assert.strictEqual(r.byId.IG.why, '추정 ' + p(40).slice(0, 7) + ' (확정 아님)');
+  assert.deepStrictEqual([r.byId.IG.kind, r.byId.IG.year, r.byId.IG.chip], ['GOAL', 2026, '']);
+});
+
+function mkSix() {
+  const mk = function (id, name) { return rec(id, name); };
+  const N1 = mk('IN1', '공고미정'), N2 = mk('IN2', '공고셋'), N3 = mk('IN3', '공고열'), P1 = mk('IP1', '확정예정'), E1 = mk('IE1', '추정일'), E2 = mk('IE2', '추정이'), E3 = mk('IE3', '추정삼');
+  const S = function (id, name, end) { return { key: '11|' + name, name: name, region: '11', endDate: end, rec: mk(id, name) }; };
+  const S1 = S('IS1', '끝일', '2027-03-31'), S2 = S('IS2', '끝이', '2027-09-30'), S3 = S('IS3', '끝삼', '2027-06-30'), S4 = S('IS4', '끝사', '2030-12-31'), S5 = S('IN2', '공고셋', '2027-01-31');
+  const m = { notice: [nIt(A, 12), nIt(N1, null), nIt(N3, 10), nIt(N2, 3)], upcoming: [uIt(P1, 100), uIt(E3, 800, '추정'), uIt(E2, 200, '추정'), uIt(E1, 40, '추정')] };
+  return kbb.recommend(m, base({ list: [A, N1, N2, N3, P1, E1, E2, E3], sumById: { IA: sKB }, verified: [], groups: { soon: [S4, S2, S1, S3, S5], next: [] }, taken: { IS3: { kind: 'GOAL', year: 2026 } } }));
+}
+
+test('추천 6묶음: 순서·한 기관 한 번·③ 마감 미정은 뒤·⑤ 추정은 추정일의 해·⑥ 협약 종료는 (종료일−6개월)의 해(고를 수 있는 연도 밖이면 가장 가까운 연도)', function () {
+  const r = mkSix();
+  const ids = function (k) { return r.stages.filter(function (s) { return s.key === k; })[0].items.map(function (x) { return x.id; }); };
+  assert.deepStrictEqual(r.stages.map(function (s) { return s.key + ':' + s.no; }), ['KB:1', 'SIM:2', 'NOTICE:3', 'PLAN:4', 'EST:5', 'END:6']);
+  assert.deepStrictEqual(r.stages.map(function (s) { return s.label; }), ['국민은행이 금고인·금고였던 기관', '비슷한 기관', '공고 중', '확정 공고 예정', '추정 공고 예정', '협약 종료 1년 안']);
+  assert.deepStrictEqual(ids('KB'), ['IA']);
+  assert.deepStrictEqual(ids('NOTICE'), ['IN2', 'IN3', 'IN1']);   // D-3, D-10, 마감 미정은 맨 뒤
+  assert.deepStrictEqual(ids('PLAN'), ['IP1']);
+  assert.deepStrictEqual(ids('EST'), ['IE1', 'IE2', 'IE3']);     // 추정 시기 순
+  assert.deepStrictEqual(ids('END'), ['IS1', 'IS2', 'IS4']);     // 종료일 순. IS3는 같은 해 목표가 이미 있어 빠짐, IN2(공고 중)는 ③에서 이미 나와 다시 나오지 않는다
+  const all = [];
+  r.stages.forEach(function (s) { s.items.concat(s.next).forEach(function (x) { all.push(x.id); }); });
+  assert.strictEqual(new Set(all).size, all.length);
+  assert.strictEqual(r.n, all.length); assert.strictEqual(r.n, 11);
+  assert.strictEqual(r.excl.goal, 1);
+  const yr = function (id) { return [r.byId[id].kind, r.byId[id].year]; };
+  assert.deepStrictEqual(yr('IE1'), ['GOAL', 2026]);   // 추정일 2026-12-29의 해
+  assert.deepStrictEqual(yr('IE2'), ['GOAL', 2027]);   // 2027-06
+  assert.deepStrictEqual(yr('IE3'), ['GOAL', 2027]);   // 2029 — 고를 수 있는 연도(2026·2027) 밖이라 가장 가까운 2027
+  assert.deepStrictEqual(yr('IS1'), ['GOAL', 2026]);   // 종료 2027-03-31 − 6개월 = 2026-09 → 2026
+  assert.deepStrictEqual(yr('IS2'), ['GOAL', 2027]);   // 종료 2027-09-30 − 6개월 = 2027-03 → 2027
+  assert.deepStrictEqual(yr('IS4'), ['GOAL', 2027]);   // 종료 2030-12 → 2030 밖 → 가장 가까운 2027
+  assert.strictEqual(r.byId.IS1.why, '협약 종료 2027-03-31');
+  assert.strictEqual(kbb.recBtnText(r.byId.IS1), '2026 목표로 고르기'); assert.strictEqual(kbb.recBtnText(r.byId.IE3), '2027 목표로 고르기');
+  // 종료일이 6월 30일이면 6개월 전은 전해 12월 — 2027-06-30 → 2026
+  const rr = kbb.recommend({ notice: [], upcoming: [] }, base({ groups: { soon: [{ key: 'k', name: '끝삼', region: '11', endDate: '2027-06-30', rec: rec('IS3', '끝삼') }], next: [] }, verified: [] }));
+  assert.deepStrictEqual([rr.byId.IS3.kind, rr.byId.IS3.year], ['GOAL', 2026]);
+  // 관심만 가능한 연도 규칙: 연도 목록이 비면(옛 서버) 관심으로, 관심도 못 쓰면 뺀다
+  const rw = kbb.recommend({ notice: [], upcoming: [] }, base({ years: [], groups: { soon: [{ key: 'k', name: '끝삼', region: '11', endDate: '2027-06-30', rec: rec('IS3', '끝삼') }], next: [] }, verified: [] }));
+  assert.deepStrictEqual([rw.byId.IS3.kind, rw.byId.IS3.year], ['WATCH', 0]);
+  assert.strictEqual(kbb.recommend({ notice: [], upcoming: [] }, base({ years: [], noWatch: true, groups: { soon: [{ key: 'k', name: '끝삼', region: '11', endDate: '2027-06-30', rec: rec('IS3', '끝삼') }], next: [] }, verified: [] })).excl.other, 1);
+  assert.strictEqual(kbb.recommend({ notice: [], upcoming: [] }, base({ groups: { soon: [], next: [] } })).stages[5].n, 0);
+});
+
+test('추천 마크업(아코디언): 묶음 머리는 단추(aria-expanded·aria-controls), 수 1 이상인 첫 묶음만 펼침, 여러 개 동시 펼침, 접힌 묶음은 hidden, ③~⑥ 0곳은 안 그림, ①② 0곳은 글자 머리 + 이유 문장', function () {
+  const r = mkSix();
+  const h = kbb.recHtml(r, {});
+  assert.ok(h.indexOf('공고 중·공고 예정이거나 협약이 1년 안에 끝나는 기관 중 <b>11</b>곳을 추천합니다. 국민은행과 관련된 기관부터 보입니다.') > 0);
+  assert.strictEqual((h.match(/<button type="button" class="hb-rec-h"/g) || []).length, 5);            // KB·NOTICE·PLAN·EST·END(②는 0곳이라 글자 머리)
+  assert.ok(h.indexOf('<h4><button type="button" class="hb-rec-h" id="hb-rec-hKB" data-acc="KB" aria-expanded="true" aria-controls="hb-rec-sKB"><span class="no" aria-hidden="true">1</span>국민은행이 금고인·금고였던 기관 <b>1</b>곳<svg') > 0);
+  assert.strictEqual((h.match(/aria-expanded="true"/g) || []).length, 1);                              // 첫 묶음만 펼침
+  assert.strictEqual((h.match(/aria-expanded="false"/g) || []).length, 4);
+  assert.ok(h.indexOf('<div id="hb-rec-sKB">') > 0 && h.indexOf('<div id="hb-rec-sNOTICE" hidden></div>') > 0 && h.indexOf('<div id="hb-rec-sEND" hidden></div>') > 0);
+  assert.strictEqual((h.match(/data-rec="/g) || []).length, 1);                                         // 펼친 묶음의 줄만
+  assert.ok(h.indexOf('<h4><span class="no">2</span>비슷한 기관 <b>0</b>곳</h4><p class="tm-note">종류·금고 구성이 같은 기관 중 공고 중이거나 공고가 확정된 곳이 없습니다.</p>') > 0);
+  assert.ok(h.indexOf('추정은 지난 금고 선정일+약정 주기 또는 약정 만료 6개월 전.') > 0);
+  // 여러 개 동시에 펼침, 펼친 ③ 설명 줄·마감 미정 문구·⑤ 근거 줄·⑥ 종료일
+  const two = kbb.recHtml(r, { exp: { NOTICE: true, EST: true, END: true } });
+  assert.strictEqual((two.match(/aria-expanded="true"/g) || []).length, 4);
+  assert.ok(two.indexOf('<p class="tm-note">지금 공고가 나 있는 기관 · 접수 마감이 가까운 순(마감 미정은 뒤)</p>') > 0 && two.indexOf('공고 중 · 접수 마감일 미정') > 0);
+  assert.ok(two.indexOf('<span class="d">2026-12</span> (확정 아님)') > 0 && two.indexOf('협약 종료 <span class="d">2027-03-31</span>') > 0);
+  assert.ok(two.indexOf('>2026 목표로 고르기</button>') > 0 && /aria-label="[^"]*끝일 2026 목표로 고르기"/.test(two));
+  // 펼침을 사용자가 접으면(exp 값이 false) 자동 첫 묶음 펼침도 하지 않는다
+  assert.strictEqual((kbb.recHtml(r, { exp: { KB: false } }).match(/aria-expanded="true"/g) || []).length, 0);
+  // ③~⑥ 0곳은 그리지 않는다
+  const only = kbb.recHtml(kbb.recommend({ notice: [nIt(B, 3)], upcoming: [] }, base({ list: [B], sumById: {} })), {});
+  assert.ok(only.indexOf('hb-rec-hPLAN') < 0 && only.indexOf('hb-rec-hEST') < 0 && only.indexOf('hb-rec-hEND') < 0 && only.indexOf('hb-rec-hNOTICE') > 0);
+  assert.ok(only.indexOf('id="hb-rec-hNOTICE" data-acc="NOTICE" aria-expanded="true"') > 0);          // ①②가 0곳이면 첫 번째로 수 1 이상인 ③이 펼침
+  // 나머지 n곳 보기는 펼친 묶음 안에서
+  const many = dueMany(7).r, mh = kbb.recHtml(many, {});
+  assert.ok(mh.indexOf('<div id="hb-rec-sNOTICE">') > 0 && mh.indexOf('data-more="NOTICE"') > mh.indexOf('<div id="hb-rec-sNOTICE">'));
+  const js = src('js/kbboard.js');
+  assert.ok(js.indexOf("b.hasAttribute('data-acc')") > 0 && js.indexOf('m.rec.exp[ak] = b.getAttribute(\'aria-expanded\') !== \'true\'') > 0 && js.indexOf("hb-rec-h' + ak") > 0);   // 펼침 상태는 m.rec.exp, 다시 그린 뒤 포커스는 같은 머리 단추
+  assert.ok(js.indexOf('more: {}, exp: {} }') > 0 && js.indexOf('groups: G };') > 0);
+});
+
+test('CSS(사용자 1차 수정 11-24): 사유·연도 칸 폭, [목표 기관 추가] 채움, 고른 기관 띠 틴트·그림자·등장·감소 설정, 묶음 머리 단추', function () {
+  const html = src('index.html');
+  assert.ok(/\.dlg-f textarea \{[^}]*display:block[^}]*width:100%[^}]*box-sizing:border-box[^}]*min-height:64px[^}]*resize:vertical/.test(html));
+  assert.ok(/\.hb-dlg #hb-a-year, \.hb-dlg #hb-m-year \{[^}]*display:block[^}]*width:100%[^}]*box-sizing:border-box/.test(html));
+  assert.ok(/#hb-add \{[^}]*height:32px[^}]*font-weight:700[^}]*background:var\(--accent-color\)[^}]*border:1px solid var\(--accent-color\)/.test(html));
+  assert.ok(/#hb-add:hover \{[^}]*color-mix\(in srgb, var\(--accent-color\) 86%, black\)/.test(html) && /#hb-add:focus-visible \{[^}]*outline:2px solid var\(--accent-color\)[^}]*outline-offset:2px/.test(html));
+  assert.ok(/\.hb-selbar \{[^}]*min-height:48px[^}]*color-mix\(in srgb, var\(--accent-color\) 12%, var\(--panel\)\)[^}]*border-top:2px solid var\(--accent-color\)[^}]*box-shadow:0 -6px 16px -6px rgba\(19,20,22,\.28\)/.test(html));
+  assert.ok(/\.hb-selbar:not\(\[hidden\]\) \{ animation:hbSelIn \.2s cubic-bezier\(\.2,\.8,\.2,1\) both; \}/.test(html) && /@keyframes hbSelIn \{ from \{ transform:translateY\(12px\); \} to \{ transform:none; \} \}/.test(html));   // opacity 없음(현황판 블록 opacity 금지)
+  assert.ok(/@media \(prefers-reduced-motion:reduce\) \{ \.hb-selbar:not\(\[hidden\]\) \{ animation:none; \} \}/.test(html));
+  assert.ok(/\.hb-selbar \.n \{[^}]*color:var\(--fg\)[^}]*font-weight:700/.test(html) && /\.hb-selbar \.go \{[^}]*background:var\(--panel\)/.test(html) && /\.hb-selbar\[hidden\] \{ display:none; \}/.test(html));
+  assert.ok(/\.hb-rec-h \{[^}]*display:flex[^}]*width:100%[^}]*min-height:32px/.test(html) && /\.hb-rec-h:hover \{ background:var\(--panel2\); \}/.test(html));
+  assert.ok(/\.hb-rec-h svg \{[^}]*transition:transform \.2s/.test(html) && /@media \(prefers-reduced-motion:reduce\) \{ \.hb-rec-h svg \{ transition:none; \} \}/.test(html) && /\.hb-rec-h\[aria-expanded="true"\] svg \{ transform:rotate\(180deg\); \}/.test(html));
 });
 
 test('추천: 기본 연도 — 공고 중은 올해, 확정 예정은 공고 예정일의 연도, 고를 수 있는 연도 밖이면 관심', function () {
@@ -175,7 +268,9 @@ test('추천: 한 기관은 한 번만— 공고 중·예정에 함께 있어도
 test('추천: 빈 단계 사유 — 예전 자료 없음·지금도 없음 / 지금은 있음 / 자료 있으나 0곳, 되찾기 누락 안내', function () {
   const none = kbb.recommend({ notice: [], upcoming: [] }, base());
   assert.strictEqual(none.stages[0].empty, 'emptyKbSkip'); assert.strictEqual(none.stages[0].formerMissing, false);
-  assert.strictEqual(none.stages[1].empty, 'emptySim'); assert.strictEqual(none.stages[2].empty, 'emptyDue');
+  assert.strictEqual(none.stages[1].empty, 'emptySim');
+  assert.deepStrictEqual(none.stages.slice(2).map(function (s) { return s.empty; }), ['', '', '', '']);   // ③~⑥은 0곳이면 문장 없이 그리지 않는다(emptyDue 삭제)
+  assert.strictEqual(kbb.REC_MSG.emptyDue, undefined);
   assert.strictEqual(none.allEmpty, true);
   const now = kbb.recommend({ notice: [], upcoming: [] }, base({ list: [A], sumById: { IA: sKB } }));   // 지금 KB 기관은 있으나 풀에 없음
   assert.strictEqual(now.stages[0].empty, 'emptyKbNone'); assert.strictEqual(now.stages[0].formerMissing, true);
@@ -196,14 +291,14 @@ test('추천 마크업: 단계당 5줄 + [나머지 n곳 보기], 펼치면 전�
   const d = dueMany(7);
   const h = kbb.recHtml(d.r, {});
   assert.strictEqual((h.match(/data-rec="/g) || []).length, 5);
-  assert.ok(h.indexOf('<button type="button" class="hb-tag more" data-more="DUE" aria-label="접수 마감이 가까운 기관 나머지 2곳 보기">나머지 2곳 보기</button>') > 0);
-  assert.ok(h.indexOf('<h4><span class="no">3</span>접수 마감이 가까운 기관 <b>7</b>곳</h4>') > 0);
-  assert.ok(h.indexOf('공고 중이거나 1년 안에 공고가 확정된 기관 중 <b>7</b>곳을 추천합니다.') > 0);
+  assert.ok(h.indexOf('<button type="button" class="hb-tag more" data-more="NOTICE" aria-label="공고 중 나머지 2곳 보기">나머지 2곳 보기</button>') > 0);
+  assert.ok(h.indexOf('<span class="no" aria-hidden="true">3</span>공고 중 <b>7</b>곳<svg') > 0 && h.indexOf('aria-expanded="true" aria-controls="hb-rec-sNOTICE"') > 0);   // ①② 0곳이라 수 1 이상인 첫 묶음 = ③
+  assert.ok(h.indexOf('공고 중·공고 예정이거나 협약이 1년 안에 끝나는 기관 중 <b>7</b>곳을 추천합니다. 국민은행과 관련된 기관부터 보입니다.') > 0);
   assert.ok(/aria-label="서울? ?기관1 2026 목표로 고르기"|aria-label="[^"]*기관1 2026 목표로 고르기"/.test(h));
   assert.ok(h.indexOf('>2026 목표로 고르기</button>') > 0);
   const m = /aria-describedby="(hb-r\d+w)"/.exec(h); assert.ok(m && h.indexOf('id="' + m[1] + '"') > 0);
   const ids = h.match(/id="hb-r\d+w"/g); assert.strictEqual(new Set(ids).size, ids.length);
-  const all = kbb.recHtml(d.r, { more: { DUE: true } });
+  const all = kbb.recHtml(d.r, { more: { NOTICE: true } });
   assert.strictEqual((all.match(/data-rec="/g) || []).length, 7); assert.ok(all.indexOf('data-more=') < 0);
   assert.ok(h.indexOf('<span class="d">D-1</span>') > 0);   // 날짜·D-n은 고정폭 span
   assert.ok(h.indexOf('추천 근거: 입찰 공고 현황 · 금고 약정 · 행안부 금고지정 현황') > 0);

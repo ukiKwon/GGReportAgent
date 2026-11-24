@@ -353,7 +353,7 @@
           er.fromServer = true; throw er;
         });
       }
-      return load().then(function () { if (root.notify && root.notify.refreshAppr) root.notify.refreshAppr(); });
+      return load().then(function () { paintRequests(); if (root.notify && root.notify.refreshAppr) root.notify.refreshAppr(); });   // 작업함 승인 뒤 '받은 결재' 탭 배지(inbox+작업함)도 다시 센다(사용자 11-24)
     }).catch(function (e) {
       root.dlg.line(el('ap-msg'), (e && e.fromServer)
         ? (e.message || '결재를 처리하지 못했습니다. 서버가 받지 않았습니다. 목록을 새로 고친 뒤 다시 시도하세요.')
@@ -693,7 +693,9 @@
     }).then(function () { return loadRequests().then(function () { refocusAfterLoad(screen === AP_UI.INBOX ? 'inbox' : 'mine'); }); })
       .catch(function (e) {
         card.querySelectorAll('button').forEach(function (x) { x.disabled = false; });
-        card.querySelector('.ap-err').textContent = e.message || '서버 연결 실패 — 처리되지 않았습니다.';
+        const er = card.querySelector('.ap-err');
+        er.textContent = e.message || '서버 연결 실패 — 처리되지 않았습니다.';
+        if (er.scrollIntoView) er.scrollIntoView({ block: 'nearest' });   // 승인이 거절(409 등)되면 문구가 화면 밖에 묻히지 않게 — '승인했는데 1이 안 줄어든다'(사용자 11-24)
         if (e.status === 409 && card.getAttribute('data-tc')) { const c = card.querySelector('.ap-comment'); if (c && c.focus) c.focus(); }   // 서버 문장이 "반려하고 다시 요청해 주세요"로 끝난다(5-4)
       });
   }

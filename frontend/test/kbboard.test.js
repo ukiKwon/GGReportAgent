@@ -462,7 +462,8 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   assert.ok(/#hb-ours:focus:not\(:focus-visible\) \{ outline:none; \}/.test(css) && !/#hb-ours:focus \{/.test(css));   // 키보드 포커스 링은 살린다(design P3-a)
   // 채운 버튼 금지 — 와플 범례 색 견본(.lg i.k)·국민은행 막대 채움(.bar.k)·진행 막대 채움(.hb-pg i)·마감 눈금(::after)은 버튼이 아니라 값을 알려 주는 표지라 뺀다
   assert.ok(!/background:var\(--(accent-color|red|fg)\)\s*;/.test(css.replace(/\.hb-waf \.lg i\.k \{[^}]*\}/, '').replace(/\.hb-bk \.bar\.k \{[^}]*\}/, '')
-    .replace(/\.hb-pg i \{[^}]*\}/, '').replace(/\.hb-lane \.w:not\(\.est\)::after \{[^}]*\}/, '')));
+    .replace(/\.hb-pg i \{[^}]*\}/, '').replace(/\.hb-lane \.w:not\(\.est\)::after \{[^}]*\}/, '')
+    .replace(/#hb-add \{[^}]*\}/, '')));   // 채운 주버튼 예외 4곳째 = [목표 기관 추가](DESIGN.md, 사용자 11-24 강조 요청) — 그 밖에는 여전히 없음
   // 마크업 순서(design 6-C): 제목 줄 → 요약 띠 → 알림·오류 → 목표 표 → 접힌 협약 구획. 3열·2번 구획·3번 구획은 없다
   const k0 = src('js/kbboard.js');
   const at2 = function (s) { return k0.indexOf(s); };

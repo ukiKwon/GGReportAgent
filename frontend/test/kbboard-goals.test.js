@@ -416,14 +416,11 @@ test('goalTableHtml: 표 구조(caption·colgroup·머리 7열·월 머리), 상
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, prep: 'denied', prepCode: 403 })).indexOf('hb-pretry') < 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'error', code: 500, prep: 'error' })).indexOf('hb-pretry') < 0);   // 목표 기관 자체가 오류면 그 안내([다시 시도] hb-gretry)만
   assert.strictEqual(M.offline, '목표 기관은 서버에 저장됩니다. 서버에 연결되면 보입니다.');
-  // 빈 상태: 후보가 있으면 목록 + [목표에 넣기](영업부서), 후보가 없으면 안내, 읽기 전용은 안내만
-  const cands = [{ id: 'I1', key: '11|가', name: '가', region: '11', endDate: '2026-12-31' }, { id: 'I2', key: '11|나', name: '나', region: '11', endDate: '' }];
-  const em = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', cands: cands }));
+  // 빈 상태(design 11-24 2번): 영업부서에는 한 줄 안내 + [목표 기관 추가](#hb-eadd), 추천 목록은 두지 않는다. 읽기 전용은 안내만
+  const em = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok' }));
   assert.ok(em.indexOf('<h3 class="hb-eh">2026 목표 기관이 아직 없습니다</h3>') > 0);
-  assert.ok(em.indexOf('<p class="hb-rec-sub" id="hb-rec-sub">협약 종료 1년 안 <b>2</b>곳 · 협약이 1년 안에 끝나는 기관</p><ul class="hb-cand3" id="hb-rec-list"') > 0 && em.indexOf('입찰이 가까운 기관부터 추천합니다.') > 0 && em.indexOf('type="radio"') < 0);   // 묶음 하나뿐이면 라디오 없이 설명 줄에(design 11-24 A안)
-  assert.ok(em.indexOf('<button type="button" class="hb-tag add" data-act="cand" data-inst="I1" data-key="11|가" aria-label="가 목표에 넣기">목표에 넣기</button>') > 0);
-  assert.ok(em.indexOf('협약 종료 2026-12-31') > 0 && em.indexOf('찾는 기관이 없으면 위 [목표 기관 추가]에서 찾습니다.') > 0);
-  assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok' })).indexOf('협약이 1년 안에 끝나는 기관이 없습니다. [목표 기관 추가]에서 기관을 찾아 넣으세요.') > 0);
+  assert.ok(em.indexOf('기관 이름으로 찾거나 [추천받기]로 공고 중·공고 예정 기관을 골라 넣습니다.') > 0 && em.indexOf('id="hb-eadd"') > 0);
+  assert.ok(em.indexOf('hb-cand3') < 0 && em.indexOf('data-act="cand"') < 0 && em.indexOf('type="radio"') < 0 && em.indexOf('입찰이 가까운 기관부터 추천합니다.') < 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', year: 2027 })).indexOf('2027 목표 기관이 아직 없습니다') > 0);
   assert.strictEqual(kbb.oursHeadHtml(27, 8, 4), ' <b>27</b>곳 · 협약 종료 1년 안 <b>8</b>곳 · 그중 목표 <b>4</b>곳');
   assert.strictEqual(kbb.oursHeadHtml(27, 8, null), ' <b>27</b>곳 · 협약 종료 1년 안 <b>8</b>곳');
