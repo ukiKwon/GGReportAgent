@@ -649,3 +649,13 @@
 - **다음 한 걸음**: a794d548 전문 받아 -write 적용 → 시험 → qa → design 대조 ∥ backend(제출 칸·결과 값·현황판용 단계 요약·STATE_NAMES 문구) → db prepboard·prep.js → ca 2차 → data-auditor 협약식↔039.
 - **자세히**: handoff/agents/planner/ 2026-11-25 ac4d2ab9 보고 2건. NEXT 114 '11-25 오후' 남은 일 ①을 이 항목으로 옮김.
 
+### 121. 결재 없는 담당자 변경·평가표·일정 — security 11-25 후속 [담당: db — backend-dev(Opus: 권한·감사) → security 재검토 / 화면 머리글은 db]
+- **현재**: security 1753_aca953dc(1573e8a0·e0cfb657) F1~F6 → db가 a233240f에서 반영(F1 임시 좁힘 = 지금 담당자 또는 확정자·담당자의 같은 팀 팀장만, 담당 아닌 팀장 자기 추가 403 / F2·F6 같은 트랜잭션 감사+forAssigneeChange / F3 최근 5개·30MB·15초·캐시·트랜잭션 없음 / F4 머리글 prep_detail/meeting_save / F5 상태 제한). 푸시 범위 security(11-25 18시대): 막을 것 없음, 새 하 N1(2단계 [다음] 확인 감사가 prep_dashboard/dash_check로 남음)·N2(4단계 수익성표 자동 초안 감사가 board_list/create·board_write/save_version으로 남음).
+- **다음 한 걸음**: 사용자 F1 범위·팀장 자기 추가 답(START ⓐ) 확정 → N1·N2 전용 버튼 id(PrepUiIds·BoardUiIds 허용 + prep.js·board-material.js·board-write.js 머리글) → F4ⓐ 확정 전 자료 일정 감사·SUBMITTED 중 일정 변경 기획 판정 → 옛 결재 경로 /assignee-change 유지 여부 → security 재검토.
+- **자세히**: handoff/agents/security/2026-11-25_1753_aca953dc.md, 같은 폴더 11-25 18시대 푸시 범위 보고서, handoff/sessions/2026-11-25_1030_dash.md.
+
+### 122. 지역별 공고현황 → '예상 공고현황' 전환 (사용자 11-25) [담당: bf — frontend-dev → frontend-dev-write → qa → design]
+- **현재**: Q-2026-11-25-34~39 answered(관심 = ♥만, 지도 = 공고 전 기관 예상 시기만, 경과·TOP5·공고 중은 입찰 공고 현황으로, 남은 기간 색 구분). 커밋 4fc724f4(node 2045/2045, design_history 116)·611fa9c8(qa 조건부). 이관 완료: ca aa3e2b53(♥ 표 공고 칸), main 70d0e5ad(portal.js 문구). 남은 이관: 0d nav.js 메뉴 이름, db prep*/preptask 문구(NEXT 113 ③), ca dashboard.js 문구.
+- **다음 한 걸음**: qa P2-1 지도 머리 줄 [입찰 공고 현황] 링크가 로그인·권한 변경 뒤 다시 판정 안 됨, P2-2 드릴인 마커 색이 새 범례 구간과 어긋남 → 고친 뒤 8080 실화면·캡처 2장 → 사용자 확인(Q-2026-11-25-53).
+- **자세히**: handoff/sessions/2026-11-25_1755_map.md, planner 2026-11-25_1555·1616_a73a0de2, design-reviewer 2026-11-25_1701_ace7d9b3.
+
