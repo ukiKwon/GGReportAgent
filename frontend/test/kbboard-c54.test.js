@@ -166,8 +166,8 @@ test('관심 기관 줄: 다음 협약 종료 출처 순서(약정 → 행안부
   // 표: 관심 탭 열(기관·구분·다음 협약 종료·현 금고 은행·메모·동작), 정렬 머리 aria-sort, 비면 안내
   const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: kbb.laneWindow(TODAY, 2026), rows: [w], out: [], canEdit: true, sort: { key: 'next', dir: 'asc' }, total: 1 });
   assert.ok(t.indexOf('<col class="c-wnm"><col class="c-tag"><col class="c-next"><col class="c-bank"><col class="c-memo"><col class="c-act">') > 0);
-  assert.ok(t.indexOf('<th scope="col" aria-sort="ascending"><button type="button" class="hb-sort" data-sort="next">다음 협약 종료') > 0 && (t.match(/aria-sort=/g) || []).length === 1);
-  assert.ok(t.indexOf('<caption class="sr-only">내 관심 기관 1곳 중 1곳 보임, 다음 협약 종료 오름차순</caption>') > 0);
+  assert.ok(t.indexOf('<th scope="col" aria-sort="ascending"><button type="button" class="hb-sort" data-sort="next">공고·다음 협약 종료') > 0 && (t.match(/aria-sort=/g) || []).length === 1);
+  assert.ok(t.indexOf('<caption class="sr-only">내 관심 기관 1곳 중 1곳 보임, 공고·다음 협약 종료 오름차순</caption>') > 0);
   const em = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: kbb.laneWindow(TODAY, 2026), rows: [], out: [], canEdit: true, total: 0 });
   assert.ok(em.indexOf('관심 기관이 없습니다') > 0 && em.indexOf('id="hb-watch-add2"') > 0);
   assert.ok(em.indexOf('(') < 0 && em.indexOf('넣어 두면, 다음 협약 종료가 2년 안으로 들어올 때 [목표로 옮기기…]가 뜹니다. 내 관심은 나만 넣고 뺄 수 있습니다.</p>') > 0);   // 괄호 없이 두 문장(P3-1)

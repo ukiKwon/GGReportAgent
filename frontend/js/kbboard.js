@@ -503,7 +503,17 @@
   // 열 머리 정렬(규격 6-5). key = nm(기관)·tag(구분)·due(마감까지)·bank(현 금고 은행)·stage(준비 단계)·next(다음 협약 종료, 관심 탭), dir = 'asc'|'desc'.
   // 같은 값이면 이름 가나다 순(방향과 무관). 값을 모르는 줄(은행 확인 안 됨·단계 없음·일정 모름)은 방향과 상관없이 맨 아래. 묶음(목표 / 목표 밖 준비)은 호출 쪽이 따로 넘긴다.
   kbb.SORTABLE = { goal: ['nm', 'tag', 'due', 'bank', 'stage'], watch: ['nm', 'tag', 'next', 'bank'] };
-  kbb.SORT_LABEL = { nm: '기관', tag: '구분', due: '마감까지', bank: '현 금고 은행', stage: '준비 단계', next: '다음 협약 종료' };
+  kbb.SORT_LABEL = { nm: '기관', tag: '구분', due: '마감까지', bank: '현 금고 은행', stage: '준비 단계', next: '공고·다음 협약 종료' };
+  // 관심 줄 '공고·다음 협약 종료' 칸의 순위(design 11-25 6-1): 0 공고 중(마감일 확정) 1 공고 중(마감 미상) 2 마감 지남 3 확인 필요 4 공고 지연 5 다음 협약 종료 6 기록 종료 7 일정 모름.
+  // wst가 없는 줄(공고 자료를 받기 전의 옛 모양)은 날짜 유무로만 5·7.
+  function wRank(r) { return r.wst ? r.wst.rank : (r.nextDate ? 5 : 7); }
+  // 같은 순위 안: 0 = D 작은 순, 3·4 = 오래 지난 순, 5 = 협약 종료 빠른 순, 그 밖은 이름순(호출 쪽 byName)
+  function wTie(a, b, rank) {
+    if (rank === 0) return (Number(a.wst.days) || 0) - (Number(b.wst.days) || 0);
+    if (rank === 3 || rank === 4) return (Number(b.wst.days) || 0) - (Number(a.wst.days) || 0);
+    if (rank === 5) return a.nextDate < b.nextDate ? -1 : (a.nextDate > b.nextDate ? 1 : 0);
+    return 0;
+  }
   kbb.sortBy = function (rows, key, dir) {
     const sign = dir === 'desc' ? -1 : 1;
     const byName = function (a, b) { return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0); };
@@ -521,6 +531,12 @@
         if (ba) return (rankOf(a) - rankOf(b)) || byName(a, b);
         return (sign * ((rankOf(a) - rankOf(b)) || (dueSigned(a.due) - dueSigned(b.due)))) || byName(a, b);
       }
+      if (key === 'next') {   // 순위 0~7. 일정 모름(7)은 방향과 상관없이 맨 아래(목표 표 dueBottom과 같은 원칙). val.next는 더는 쓰이지 않는다
+        const ra = wRank(a), rb = wRank(b);
+        if ((ra === 7) !== (rb === 7)) return ra === 7 ? 1 : -1;
+        if (ra === 7) return byName(a, b);
+        return (sign * ((ra - rb) || wTie(a, b, ra))) || byName(a, b);
+      }
       const f = val[key];
       if (!f) return byName(a, b);
       const x = f(a), y = f(b);
@@ -533,11 +549,12 @@
   // 표 거르기(규격 6-4). f = { q 기관명·지역, tag 'RETAIN'|'NEW', status, kind 'goal'|'out'(목표 탭만), stage 0~4(-1이면 끔) }.
   kbb.STATUS = {
     goal: [['', '상태 전체'], ['notice', '공고 중'], ['soon', '마감 ' + kbb.DEADLINE_SOON + '일 안'], ['late', '준비 지연'], ['hold', '판정 보류'], ['closed', '입찰 종료'], ['unk', '일정 모름'], ['pending', '결재 중'], ['carried', '자동 이월']],
-    watch: [['', '상태 전체'], ['movable', '목표로 옮길 수 있음'], ['unk', '일정 모름'], ['carried', '자동 이월']] };
-  kbb.STATUS_ONLY = { goal: ['notice', 'soon', 'late', 'hold', 'closed', 'unk', 'pending', 'carried'], watch: ['movable', 'unk', 'carried'] };
+    watch: [['', '상태 전체'], ['notice', '공고 중'], ['check', '확인 필요'], ['movable', '목표로 옮길 수 있음'], ['unk', '일정 모름'], ['carried', '자동 이월']] };
+  kbb.STATUS_ONLY = { goal: ['notice', 'soon', 'late', 'hold', 'closed', 'unk', 'pending', 'carried'], watch: ['notice', 'check', 'movable', 'unk', 'carried'] };
   function statusOk(r, s) {
     switch (s) {
-      case 'notice': return !r.closed && (r.due.kind === 'fixed' || r.due.kind === 'open');
+      case 'notice': return r.kind === 'WATCH' ? !!r.wst && r.wst.rank <= 1 : !r.closed && (r.due.kind === 'fixed' || r.due.kind === 'open');   // 관심 줄: 공고 중 = 순위 0·1(목표 표와 같은 뜻)
+      case 'check': return !!r.wst && r.wst.rank === 3;   // 관심 줄: 예정일이 지났는데 기록이 없는 줄
       case 'soon': return !r.closed && r.due.kind === 'fixed' && r.due.days <= kbb.DEADLINE_SOON;
       case 'late': return r.late === true;
       case 'hold': return r.hold === true;
@@ -545,7 +562,7 @@
       case 'pending': return r.pend === true;
       case 'carried': return r.carried === true;
       case 'movable': return r.movable > 0;
-      case 'unk': return r.kind === 'WATCH' ? !r.nextDate : (!r.closed && r.due.kind === 'unk');
+      case 'unk': return r.kind === 'WATCH' ? (r.wst ? r.wst.rank === 7 : !r.nextDate) : (!r.closed && r.due.kind === 'unk');   // 관심 줄: 칸에 '일정 모름'이 보이는 줄(공고·경과·기록 종료도 없고 협약 종료 날짜도 없음)
       default: return true;
     }
   }
@@ -562,6 +579,25 @@
     });
   };
   kbb.filterOn = function (f) { f = f || {}; return !!(String(f.q || '').trim() || f.tag || f.status || f.kind || (typeof f.stage === 'number' && f.stage >= 0)); };
+  // 관심 탭 요약(design 11-25 6-3·6-4): 거르기 전 줄 전체에서 공고 중·확인 필요를 센다. judged = 공고 자료를 받았는가(ctx.snap) — 못 받았으면 0·판정 안 함.
+  kbb.watchSummary = function (rows, judged) {
+    const w = { judged: !!judged, total: (rows || []).length, notice: 0, check: 0 };
+    if (w.judged) (rows || []).forEach(function (r) { if (statusOk(r, 'notice')) w.notice += 1; if (statusOk(r, 'check')) w.check += 1; });   // 공고 자료를 못 받았으면 세지 않는다(규격 6-5)
+    return w;
+  };
+  // 탭 이름 옆 칩: 공고 자료가 있고 1곳 이상일 때만. 칩은 글자(단추 아님) — 탭 안에 단추를 두지 않는다(DESIGN). 읽기: "내 관심 기관 12곳, 그중 공고 중 2곳"
+  kbb.watchChipHtml = function (w) {
+    return w && w.judged && w.notice > 0
+      ? '<span class="sr-only">곳, 그중</span><span class="hb-tflag"><span>공고 중</span> <b>' + Number(w.notice) + '</b><span class="sr-only">곳</span></span>' : '';
+  };
+  // 관심 탭 표 바닥 한 줄(#hb-tf 안). 문장은 늘, [공고 예정일 경과 보기]는 확인 필요 1곳 이상일 때만. 공고 자료가 없으면 판정하지 않았다는 문장만. '공고 없음' 말은 쓰지 않는다.
+  kbb.watchFootHtml = function (w) {
+    if (!w || !w.total) return '';
+    if (!w.judged) return '<p class="hb-wfoot">공고 자료를 받지 못해 공고 상태를 판정하지 않았습니다.</p>';
+    const n = Number(w.check) || 0;
+    return '<p class="hb-wfoot">\'공고 중\'은 입찰 공고 현황에 공고가 들어온 기관만 셉니다. 예정일이 지났는데 아직 아무도 확인하지 않은 곳은 \'확인 필요\'로 보입니다(<b>' + n + '</b>곳).' +
+      (n > 0 ? ' <button type="button" id="hb-to-over">공고 예정일 경과 보기</button>' : '') + '</p>';
+  };
   // 제안 진행 단계별 줄 수(규격 6-3): 표 줄 모델(목표 줄 + 목표 밖 준비 줄)의 r.stage로 센다 — 버튼의 수 = 그 단계로 거르면 표에 남는 줄 수.
   kbb.stageCounts = function (rows) {
     const c = [0, 0, 0, 0, 0];
@@ -646,6 +682,64 @@
       case 'est': return '<b class="hb-dd est">' + dText(n) + '</b><span class="hb-q">추정</span>';
       default: return '<b class="hb-dd est tx">미상</b>';
     }
+  };
+  // 관심 줄 '공고·다음 협약 종료' 칸의 상태(design 11-25 6-1 순위 0~7). r.due는 goalRow가 이미 계산(dueOf). snap = noticerec.snap()(null이면 공고 자료를 못 받은 것 → 판정 안 함, 6-5).
+  // → { rank, kind, judged, … }. 기록 종료(6)는 올해 처리한 CLOSED·NO_BID만(closedBasis) — 공고 중보다 먼저.
+  kbb.watchState = function (r, snap, today) {
+    const nd = r.nextDate || '', plain = { rank: nd ? 5 : 7, kind: nd ? 'next' : 'unk', judged: !!snap };
+    if (!snap) return plain;
+    const d = r.due || { kind: 'unk' }, end = r.id ? kbb.closedBasis(r.id, snap, today, null) : null;
+    if (end) return { rank: 6, kind: 'end', judged: true, cd: end.cd, date: end.date };
+    if (d.kind === 'fixed') return { rank: 0, kind: 'fixed', judged: true, days: d.days, from: d.from || '', to: d.to || '' };
+    if (d.kind === 'open') return { rank: 1, kind: 'open', judged: true, from: d.from || '' };
+    if (d.kind === 'closed') return { rank: 2, kind: 'closed', judged: true, from: d.from || '', to: d.to || '' };
+    if (d.kind === 'over') {
+      const rv = r.rec ? logic.recordView(r.rec, snap, isoOf(today)) : { view: 'pending', item: null }, base = { judged: true, days: d.days, est: !!d.est, date: d.date || '' };
+      if (rv.view === 'delayed') return Object.assign({ rank: 4, kind: 'delayed', nextCheck: rv.item && isDay(String(rv.item.next_check_date || '')) ? String(rv.item.next_check_date) : '' }, base);
+      if (rv.item && rv.item.status_cd === 'IN_PROGRESS') return { rank: 1, kind: 'open', judged: true, from: '', rec: true };   // 사람이 '공고 진행 중'으로 기록한 경과 줄
+      return Object.assign({ rank: 3, kind: 'check' }, base);
+    }
+    return plain;
+  };
+  // 관심 줄 칸 한 개 → { html, attr(title 속성, 없으면 '') }. wst가 없거나 판정 안 한 줄·순위 7은 예전 모양 그대로(5는 공고 자료를 받았을 때만 sr 문장 하나 더).
+  // 보이는 값은 aria-hidden으로 감싸고 같은 뜻의 sr-only 문장 하나만 읽힌다. 협약 종료 날짜는 공고 중 줄(0~2)에서 '· 2027-12'로 함께 보이고, 3·4·6은 sr·title에만(팀 결정 11-25).
+  const UNK_NEXT = '다음 일정 모름 — 기관 정보에 새 협약 기간을 넣어 주세요';
+  kbb.watchDueCell = function (r) {
+    const nd = r.nextDate || '', ym = esc(nd.slice(0, 7)), src = nd && r.next ? (kbb.NEXT_SRC[r.next.src] || '') : '';
+    const legacy = nd
+      ? '<b class="hb-nx">' + ym + '</b><span class="hb-q">' + esc(src) + '</span>' + (r.movable ? '<span class="hb-q">2년 안</span>' : '')
+      : '<span class="mut" title="' + esc(UNK_NEXT) + '">일정 모름</span><span class="sr-only">' + esc(UNK_NEXT) + '</span>';
+    const w = r.wst;
+    if (!w || !w.judged || w.rank === 7) return { html: legacy, attr: '' };
+    if (w.rank === 5) return { html: legacy + '<span class="sr-only">입찰 공고 현황에 이 기관의 공고는 아직 없음</span>', attr: '' };
+    const day = function (s) { return esc(String(s || '').slice(0, 10)); }, raw = function (s) { return String(s || '').slice(0, 10); };
+    const n = Number(w.days) || 0;
+    let big = '', sub = '', vis = nd ? '<span class="hb-q">· ' + ym + '</span>' : '', sr = '', tip = '';
+    if (w.kind === 'fixed') {
+      big = '<b class="hb-dd tx">공고 중</b>'; sub = '<span class="hb-q' + (n <= kbb.DEADLINE_SOON ? ' hot' : '') + '">마감 ' + dText(n) + '</span>';
+      sr = '공고 중, ' + (w.to ? '접수 마감 ' + day(w.to) + '(' + (n === 0 ? '오늘 마감' : n + '일 남음') + ')' : '접수 마감까지 ' + n + '일');
+      tip = [w.from ? '공고 ' + raw(w.from) : '', w.to ? '접수 마감 ' + raw(w.to) : ''].filter(Boolean).join(' · ');
+    } else if (w.kind === 'open') {
+      big = '<b class="hb-dd tx">공고 중</b>'; sub = '<span class="hb-q">마감 미상</span>';
+      sr = w.rec ? '공고 중(공고 진행 중으로 기록됨), 접수 마감일 미확인' : '공고 중, 접수 마감일 미확인';
+      tip = w.rec ? '공고 진행 중으로 기록됨' : (w.from ? '공고 ' + raw(w.from) : '');
+    } else if (w.kind === 'closed') {
+      big = '<b class="hb-dd tx">마감 지남</b>'; sub = '<span class="hb-q">결과 대기</span>';
+      sr = '공고 접수 마감 지남, 선정 결과 대기'; tip = w.to ? '접수 마감 ' + raw(w.to) : '';
+    } else if (w.kind === 'check') {
+      vis = ''; big = '<b class="hb-dd est">D+' + n + '</b>'; sub = '<span class="hb-q chk">확인 필요</span>';
+      sr = (w.est ? '추정 공고 예정 ' + esc(String(w.date).slice(0, 7)) : '공고 예정일 ' + day(w.date)) + '에서 ' + n + '일이 지났지만 공고가 났는지 아직 기록되지 않음';
+      tip = '예정일이 지났지만 공고가 났는지 아직 아무도 기록하지 않았습니다. 입찰 공고 현황 [공고 예정일 경과]에서 확인해 기록합니다.';
+    } else if (w.kind === 'delayed') {
+      vis = ''; big = '<b class="hb-dd est">D+' + n + '</b>'; sub = '<span class="hb-q">공고 지연</span>';
+      sr = '공고 예정일이 ' + n + '일 지났고 공고 지연으로 기록됨'; tip = '공고 지연으로 기록됨' + (w.nextCheck ? ' · 다음 확인일 ' + w.nextCheck : '');
+    } else {   // end
+      vis = ''; big = '<b class="hb-dd tx end">' + (w.cd === 'NOTICE_NO_BID' ? '입찰 없음' : '공고 끝남') + '</b>';
+      sr = '입찰 공고 현황에 ' + (w.cd === 'NOTICE_NO_BID' ? '입찰 없음' : '공고 끝남') + '으로 기록됨'; tip = kbb.basisText({ cd: w.cd, date: w.date });
+    }
+    const nxSr = nd ? '. 다음 협약 종료 ' + ym + (src ? '(' + esc(src) + ')' : '') : '';
+    const title = [tip, nd ? '다음 협약 종료 ' + nd.slice(0, 7) + (src ? ' ' + src : '') : ''].filter(Boolean).join(' · ');
+    return { html: '<span aria-hidden="true">' + big + sub + vis + '</span><span class="sr-only">' + sr + nxSr + '</span>', attr: title ? ' title="' + esc(title) + '"' : '' };
   };
   // 12개월 레인 칸(그림은 aria-hidden, 같은 칸에 읽기용 문장). win = kbb.laneWindow 결과.
   kbb.laneCellHtml = function (d, win) {
@@ -732,6 +826,7 @@
       r.next = kbb.nextEnd(rec, t.next_term_to, { lofin: ctx.lofin, today: ctx.today });
       r.nextDate = r.next.date;
       r.movable = kbb.moveYear(r.nextDate, ctx.years);
+      r.wst = kbb.watchState(r, ctx.snap, ctx.today);   // 공고·다음 협약 종료 칸의 상태(design 11-25). ctx.snap이 없으면 judged:false
     } else if (!out && !r.closed && due.kind === 'over') r.note = kbb.screenNote(rec, { lofin: ctx.lofin, today: ctx.today });   // 화면만 아는 근거 — 줄 title에만
     if (ctx.prepOk) {
       // 지연 = 확정 마감이 기준일 안인데 제안서 작성 전. 추정일만 있으면 판정 보류(규격 6-A).
@@ -920,10 +1015,7 @@
     const nm = r.rec
       ? '<button type="button" class="hb-nm" data-key="' + esc(r.key) + '" data-inst="' + esc(r.id) + '" aria-haspopup="dialog">' + rg + esc(r.name) + '</button>'
       : '<span class="hb-nm">' + rg + esc(r.name) + '</span>';
-    const UNK = '다음 일정 모름 — 기관 정보에 새 협약 기간을 넣어 주세요';
-    const nx = r.nextDate
-      ? '<b class="hb-nx">' + esc(r.nextDate.slice(0, 7)) + '</b><span class="hb-q">' + esc(kbb.NEXT_SRC[r.next.src] || '') + '</span>' + (r.movable ? '<span class="hb-q">2년 안</span>' : '')
-      : '<span class="mut" title="' + esc(UNK) + '">일정 모름</span><span class="sr-only">' + esc(UNK) + '</span>';
+    const nx = kbb.watchDueCell(r);   // 공고·다음 협약 종료 칸(design 11-25 6-1). wst가 없는 줄은 예전 모양 그대로
     let act = '', pre = '', memoBtn = '';   // memoBtn = [메모 고치기…] — 메모 칸 안 메모 글 뒤에 붙인다(design 11-25 P2-1 안 A)
     if (r.movable) {
       if (o.canEdit && !r.pend) act = '<button type="button" class="hb-tag" data-act="togoal" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="dialog" aria-label="' + esc(r.name) + ' 목표로 옮기기">목표로 옮기기…</button>';
@@ -937,7 +1029,7 @@
     const memoTx = r.memo ? '<span class="hb-memotx" title="' + esc(r.memo) + '">' + esc(r.memo) + '</span>' : '<span class="hb-memotx"><span aria-hidden="true">—</span><span class="sr-only">메모 없음</span></span>';
     const memo = memoBtn ? '<td class="mut"><div class="hb-memocell">' + memoTx + memoBtn + '</div></td>'
       : (r.memo ? '<td class="mut" title="' + esc(r.memo) + '">' + esc(r.memo) + '</td>' : '<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">메모 없음</span></td>');
-    return '<tr' + tc.rowClass(r, o) + '>' + (o.selCol ? tc.ckCellHtml(r, o) : '') + '<th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + '<td>' + nx + '</td>' + kbb.bankCellHtml(r.bank) + memo + '<td>' + act + '</td></tr>';
+    return '<tr' + tc.rowClass(r, o) + '>' + (o.selCol ? tc.ckCellHtml(r, o) : '') + '<th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + '<td' + nx.attr + '>' + nx.html + '</td>' + kbb.bankCellHtml(r.bank) + memo + '<td>' + act + '</td></tr>';
   };
 
   kbb.GOAL_MSG = {
@@ -980,7 +1072,7 @@
       ? '<colgroup>' + (sel ? '<col class="c-ck">' : '') + '<col class="c-wnm"><col class="c-tag"><col class="c-next"><col class="c-bank"><col class="c-memo"><col class="c-act"></colgroup>'
       : '<colgroup>' + (sel ? '<col class="c-ck">' : '') + '<col class="c-nm"><col class="c-tag"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf"><col class="ln"></colgroup>';
     const head = watch
-      ? '<thead><tr>' + (sel ? tc.ckHeadHtml(true) : '') + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('다음 협약 종료', 'next', v) + thHtml('현 금고 은행', 'bank', v) + '<th scope="col">메모</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>'
+      ? '<thead><tr>' + (sel ? tc.ckHeadHtml(true) : '') + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('공고·다음 협약 종료', 'next', v) + thHtml('현 금고 은행', 'bank', v) + '<th scope="col">메모</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>'
       : '<thead><tr>' + (sel ? tc.ckHeadHtml() : '') + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('마감까지', 'due', v) + thHtml('현 금고 은행', 'bank', v) + thHtml('준비 단계', 'stage', v) + '<th scope="col">설명회</th>' +
         '<th scope="col" class="ln"><span class="sr-only">12개월 일정 </span><span class="yr">' + esc(win.label) + '</span><span class="mh" aria-hidden="true">' +
         win.months.map(function (m) { return '<span>' + m.m + '</span>'; }).join('') + '</span></th></tr></thead>';
@@ -1062,13 +1154,13 @@
         return '<option value="' + esc(x[0]) + '"' + (x[0] === (val || '') ? ' selected' : '') + '>' + esc(x[1]) + '</option>';
       }).join('') + '</select>';
     };
-    const tab = function (k, name, n) {
+    const tab = function (k, name, n, extra) {
       const on = v.tab === k;
-      return '<button type="button" role="tab" id="hb-tab-' + k + '" data-tab="' + k + '" class="' + (on ? 'on' : '') + '" aria-selected="' + (on ? 'true' : 'false') + '" aria-controls="hb-ts" tabindex="' + (on ? '0' : '-1') + '">' + name + ' <b>' + Number(n) + '</b></button>';
+      return '<button type="button" role="tab" id="hb-tab-' + k + '" data-tab="' + k + '" class="' + (on ? 'on' : '') + '" aria-selected="' + (on ? 'true' : 'false') + '" aria-controls="hb-ts" tabindex="' + (on ? '0' : '-1') + '">' + name + ' <b>' + Number(n) + '</b>' + (extra || '') + '</button>';
     };
     const q = String(f.q || '');
     // v.noWatch = 옛 서버(관심 기관 응답 없음): 관심 탭·[관심 기관 추가]를 숨긴다(qa 11-17 P3-2)
-    return '<div class="ap-tabs" role="tablist" aria-label="목록 종류">' + tab('goal', '목표', v.nGoal) + (v.noWatch ? '' : tab('watch', '내 관심 기관', v.nWatch)) + '</div>' +
+    return '<div class="ap-tabs" role="tablist" aria-label="목록 종류">' + tab('goal', '목표', v.nGoal) + (v.noWatch ? '' : tab('watch', '내 관심 기관', v.nWatch, kbb.watchChipHtml(v.wsum))) + '</div>' +
       '<input type="search" id="hb-q" placeholder="기관명·지역" aria-label="기관명이나 지역으로 찾기" maxlength="40" autocomplete="off"' + (q ? ' class="on"' : '') + ' value="' + esc(q) + '">' +
       sel('hb-f-tag', '구분 거르기', [['', '구분 전체'], ['RETAIN', kbb.TAG.RETAIN], ['REGAIN', kbb.TAG.REGAIN], ['NEW', kbb.TAG.NEW]], f.tag) +
       sel('hb-f-status', '상태 거르기', kbb.STATUS[watch ? 'watch' : 'goal'], f.status) +
@@ -1811,7 +1903,7 @@
   function paintToolbar(v) {
     const tb = $('hb-tb');
     if (!tb) return;
-    const f = v.f, sig = [v.tab, v.nGoal, v.nWatch, f.tag, f.status, f.kind, f.stage, v.canEdit, v.loaded, v.noWatch].join('|');
+    const f = v.f, sig = [v.tab, v.nGoal, v.nWatch, f.tag, f.status, f.kind, f.stage, v.canEdit, v.loaded, v.noWatch, v.wsum && v.wsum.judged ? v.wsum.notice : -1].join('|');
     const setCnt = function (c) { const h = kbb.cntHtml(v.shown, v.total); if (c && c.hbH !== h) { c.innerHTML = h; c.hbH = h; } };   // 같으면 다시 쓰지 않는다(같은 말을 또 읽지 않게)
     if (sig === gs.tbSig && tb.firstChild) {
       setCnt($('hb-cnt'));
@@ -1846,6 +1938,7 @@
       if (ctx.prepOk) out = kbb.outRows(kbb.prepRows(st.preps, st.overview, LIST, U.todayDate()), ids, ctx);
     }
     const noWatch = noWatchNow();
+    const wsum = kbb.watchSummary(wrows, !!ctx.snap);   // 관심 탭 칩·바닥 줄의 수(거르기 전 줄 전체, design 11-25 6-3·6-4)
     if (noWatch && gs.tab === 'watch') gs.tab = 'goal';   // 옛 서버에는 관심 탭이 없다
     const mode = ok ? tc.modeOf(gs.data) : null;   // NEXT 105: DIRECT·APPROVAL이면 고르기 열 + 바닥 띠. 옛 서버·보기 전용은 null
     if (ok) tc.reconcile(gs.sel, rows, wrows, Number(gs.data.year));   // 잠겼거나 사라진 줄은 고른 것에서 빼고 남은 줄의 기록 번호는 제자리 갱신
@@ -1862,7 +1955,7 @@
     if (ok) ts.setAttribute('aria-labelledby', 'hb-tab-' + gs.tab); else ts.removeAttribute('aria-labelledby');   // 도구 줄(탭)이 있을 때만 — 없는 id를 가리키지 않는다(qa 11-17 P3-4)
     ts.innerHTML = kbb.goalTableHtml({ st: gs.st, code: gs.code, year: goalYear(), win: win, tab: gs.tab, rows: dRows, out: dOut, canEdit: canEdit, prep: ps.state, prepCode: prepCode,
       sort: sorted, total: total, filtered: total > 0 && kbb.filterOn(fx), noWatch: noWatch, nGoal: rows.length, nOut: out.length, selCol: !!mode, picked: tc.pickedMap(gs.sel), drafts: gs.draft, canTag: canValueEdit });
-    paintToolbar({ tab: gs.tab, nGoal: rows.length, nWatch: wrows.length, f: f, stageName: f.stage >= 0 ? (dash.STAGES[f.stage] || {}).label : '', shown: dRows.length + dOut.length, total: total, canEdit: canEdit, loaded: ok, noWatch: noWatch });
+    paintToolbar({ tab: gs.tab, nGoal: rows.length, nWatch: wrows.length, f: f, stageName: f.stage >= 0 ? (dash.STAGES[f.stage] || {}).label : '', shown: dRows.length + dOut.length, total: total, canEdit: canEdit, loaded: ok, noWatch: noWatch, wsum: wsum });
     const band = $('hb-band');
     if (band) {
       band.innerHTML = kbb.bandHtml(kbb.bandModel(rows, { prepOk: ctx.prepOk, delayDays: ctx.delayDays }), { year: goalYear(), loaded: ok, prep: ps.state, prepCode: prepCode }) +
@@ -1870,7 +1963,7 @@
       band.setAttribute('aria-busy', gs.st === 'loading' ? 'true' : 'false');
       band.setAttribute('aria-label', goalYear() + ' 목표 요약');
     }
-    const ft = $('hb-tf'); if (ft && ALL) ft.innerHTML = kbb.goalFootHtml(ALL.notice.length);
+    const ft = $('hb-tf'); if (ft && ALL) ft.innerHTML = watch && ok && !noWatch ? kbb.watchFootHtml(wsum) : kbb.goalFootHtml(ALL.notice.length);   // 관심 탭은 12개월 범례 대신 공고 판정 기준 한 줄
     const box = $('hb-goals'); if (box) box.setAttribute('aria-busy', gs.st === 'loading' ? 'true' : 'false');
     paintSel();   // 머리 체크박스 상태·바닥 띠(restoreFocus·applyFocusNext 앞 — 시험이 이 둘의 연속을 지킨다)
     renderTop();
@@ -1995,6 +2088,12 @@
   // 입찰 공고 현황으로 간다. 못 열면(둘러보기·파일 모드·탭이 가득 참 등) 안내를 띄운다.
   function openNotice(key) {
     if (goNotice(key)) { flash(''); return true; }
+    flash('입찰 공고 현황을 열 수 없습니다. 왼쪽 메뉴의 [입찰 공고 현황]에서 여세요.');
+    return false;
+  }
+  // 관심 탭 바닥의 [공고 예정일 경과 보기]: 입찰 공고 현황을 열고 [공고 예정일 경과] 탭(미처리 보기)으로. dashboard.showPast가 이미 공개돼 있어 dashboard.js는 고치지 않는다(overdue.js goNotice와 같은 길).
+  function openOverdue() {
+    if (goNotice('')) { const D = root.dashboard; if (D && D.showPast) D.showPast(); flash(''); return true; }
     flash('입찰 공고 현황을 열 수 없습니다. 왼쪽 메뉴의 [입찰 공고 현황]에서 여세요.');
     return false;
   }
@@ -3361,6 +3460,7 @@
       case 'hb-eadd': openAdd({ id: '', opener: btn }); break;   // 목록 빈 상태의 [목표 기관 추가] — #hb-add와 같은 창, 닫으면 이 단추로 포커스 복귀(closeDlg)
       case 'hb-pretry': gs.retryFocus = 'hb-pretry'; loadProgress(); break;   // 제안 진행 자료 오류 안내의 [다시 시도]
       case 'hb-to-notice': openNotice(''); break;
+      case 'hb-to-over': openOverdue(); break;
       case 'hb-reload':
         if (root.app && root.app.bootstrapServer) root.app.bootstrapServer().then(function () { refreshData(); loadProgress(); });
         break;

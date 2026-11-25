@@ -66,7 +66,7 @@ test('B. 표 caption: 목표 수와 그 밖의 준비 수를 나눠 말하고 \'
   assert.strictEqual(t({ rows: g, out: [], total: 4, nGoal: 3, nOut: 1 }), '2026 목표 기관 3곳과 그 밖의 제안서 준비 중인 기관 1곳, 4곳 중 1곳 보임, 마감까지 오름차순');   // 거른 뒤에도 거르기 전 수
   assert.strictEqual(t({ rows: g, out: o, sort: null }), '2026 목표 기관 1곳과 그 밖의 제안서 준비 중인 기관 1곳, 마감 가까운 순');
   assert.strictEqual(t({ rows: g, out: [], sort: null }), '2026 목표 기관 1곳, 마감 가까운 순');
-  assert.strictEqual(t({ tab: 'watch', rows: g, out: [], total: 1, nGoal: 1, nOut: 1, sort: { key: 'next', dir: 'asc' } }), '내 관심 기관 1곳 중 1곳 보임, 다음 협약 종료 오름차순');   // 관심 탭은 목표 밖 말 없음
+  assert.strictEqual(t({ tab: 'watch', rows: g, out: [], total: 1, nGoal: 1, nOut: 1, sort: { key: 'next', dir: 'asc' } }), '내 관심 기관 1곳 중 1곳 보임, 공고·다음 협약 종료 오름차순');   // 관심 탭은 목표 밖 말 없음
   assert.ok(kbb.cntHtml(2, 2).indexOf('<b>2</b> / <b>2</b>곳') > 0);                                                       // 보이는 건수는 그대로
 });
 
