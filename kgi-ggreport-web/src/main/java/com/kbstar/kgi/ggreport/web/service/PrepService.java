@@ -614,6 +614,16 @@ public class PrepService {
         if (lead != null) {
             to.add(lead.getEmpNo());
         }
+        if (isLead(me)) {   // 영업팀장이 바꾼 경우 그 위 결재자(영업부장)에게도 알린다(사용자 결정 2026-11-25, security 하-1). 못 찾으면 조용히 건너뛴다.
+            try {
+                SysUser head = assignments.resolveApprover(me, true);
+                if (head != null && head.getEmpNo() != null) {
+                    to.add(head.getEmpNo());
+                }
+            } catch (ApiException e) {
+                // 영업부장을 정하지 못하면 그 몫만 건너뛴다(변경 자체는 성공)
+            }
+        }
         to.remove(me.getEmpNo());
         String inst = mapper.selectInstitutionNameByBid(bidCaseId);
         String body = "[담당자 변경] " + me.getName() + "님이 '" + (inst == null ? "" : inst) + "' 담당자를 바꿨습니다(추가 "

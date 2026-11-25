@@ -490,6 +490,7 @@ public class PrepAttachApiTest {
         assertEquals(o.path("notified_count").asInt(), count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림'") - notesBefore);
         assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", MEMBER));
         assertEquals(0, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", MEMBER2));
+        assertEquals(0, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", HEAD));   // 담당자(팀원)가 바꾼 경우 영업부장에게는 가지 않는다
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ASSIGNEE_CHANGE' AND OUTCOME='OK'", bid));
         // 이어서 새 담당자가 옛 담당자를 뺀다 — 한 명 남음
         MvcResult rm = postJson(path, MEMBER, "{\"remove_emp_nos\":" + arr(MEMBER2) + ",\"reason\":\"업무 조정\"}");
@@ -508,6 +509,7 @@ public class PrepAttachApiTest {
         assertEquals(1, json(ok).path("added_count").asInt());
         assertEquals(2, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", bid));
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ASSIGNEE_CHANGE' AND OUTCOME='OK'", bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", HEAD));   // 팀장이 바꾸면 영업부장에게도
     }
 
     /** security 재검토(cb705c6e) 권고: 담당 아닌 팀장이 자기 추가 + 기존 담당 전원 해제를 한 요청으로 해도 기록·쪽지가 남는다. */
@@ -527,6 +529,7 @@ public class PrepAttachApiTest {
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ASSIGNEE_CHANGE' AND OUTCOME='OK'", bid));
         assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", MEMBER2));   // 빠진 사람
         assertEquals(0, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", LEAD));       // 바꾼 본인
+        assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", HEAD));       // 팀장이 바꿨으니 영업부장에게도
     }
 
     /** security 재검토(cb705c6e) 권고: 다른 팀 영업팀장(안재원 5640327, 이 건 담당자의 결재선 밖)의 자기 추가는 403이고 담당은 그대로. */
