@@ -638,6 +638,7 @@
 ### 119. [지역별 공고현황] 11-25 후속 — ♥ 키보드·실패 문구, 팝업 기록 qa P3, 작은 정리 [담당: bf(지역별 공고현황) — frontend-dev → frontend-dev-write, dashboard.js는 bd 허락 필요]
 - **현재**: 미처리 팝업 2단계 해소 — 팝업 안에서 공고 상태 기록 바로 저장(9cb56b3b, design_history 109, 사용자 Q-2026-11-25-12 ⓐ). 남은 것: design 0119_a86b4423 P2-1 목록 ♥가 span(키보드·이름 없음, 규격: button 24px·aria-pressed·aria-label) / P3 .rk-note keep-all·role=alert·문구, .ov-open transition:none, 미처리 꼬리 '…뺐습니다' / qa a87c0f05 P3-3(조합 중 미룬 전체 렌더가 이력 응답 repaintRc로 사라짐)·P3-4(사번 변경 시 팝업 recGuard가 먼저 소비)·P3-5(안 보이는 초안도 이탈 상자)·P3-6(저장 중 ×·Esc 무반응 안내 없음)·P3-7(화면 이동으로 닫히면 초안 묻지 않고 남김 — 기획) / design a7397b86 P2 팝업·숨은 탭 사이 id 8개 겹침(hc-*·db-bank·bk-edit) / security 하: render.js ~1432 지역 카드 esc, 061 주석 'GET /watchers', REC_POPUP_SCREEN 켤 때 NoticeUiIds 허용 목록 같은 커밋 / 퇴직 주인 관심 고아(운영 061 전) / GET /institution-plans/status 500 / kind-queue CRLF.
 - **다음 한 걸음**: ♥ P2-1·P3 묶음을 frontend-dev → -write로(지도 파일만), 팝업 P3는 bd와 순서 맞춰.
+- **0d 몫(11-25 bf 요청·사용자 "다음 할 일로")**: 메뉴 이름 '지역별 공고현황' → '예상 공고현황'(nav.js 102행 부근 + nav.test.js 113·227·485·546·549행) — bf가 index.html #tab-btn-map 글자·지도 패치를 커밋했다고 알린 뒤 frontend-dev-write로. 근거 design-reviewer 11-25 '예상 공고현황 화면 규격' §5-1.
 - **자세히**: handoff/sessions/2026-11-25_0130_map.md, 2026-11-25_summary Session 01:30·03:00.
 
 ### 120. 입찰 현황판 '제안 진행' 띠 재정의 — {제안 준비 전·제안 준비·제안 제출 및 대기·협약 예정·협약 완료} + 끝난 건 (사용자 11-25) [담당: ca(kbboard·dashboard) / db(prepboard·prep.js) / backend-dev+security]
