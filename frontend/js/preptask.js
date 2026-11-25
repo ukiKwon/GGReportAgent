@@ -145,6 +145,10 @@
     fileNone: '없음 — 아래에서 올려 주세요.',
     fileNoneView: '없음 — 이 기관의 담당 영업이 올립니다.',
     fileUnknown: '담당자 지정 뒤에 올릴 수 있습니다.',
+    chkBank: '금고 은행',
+    chkTerm: '약정 기간',
+    chkChief: '기관장',
+    instUnknown: '미확인',   // 기관 정보 팝업의 '미확인' 칩(dashboard chip())과 같은 말
     progReceiving: function (to, dd) { return '접수 중' + (to ? ' · 마감 ' + to : '') + (dd ? ' (' + dd + ')' : ''); },
     progUnknown: function (since) { return '공고 진행 중 · 접수 마감일 미확인(공고 후 ' + since + '일)'; },
     progPast: function (to) { return '마감 — 접수 마감이 지났습니다' + (to ? '(마감 ' + to + ')' : '') + '.'; },
@@ -278,7 +282,8 @@
   // 2단계 '확인 항목' 줄(사용자 11-25): 공고 진행과 공고 원본 파일. 마감·입찰 없음처럼 꼭 알아야 하는 사실과 원본 파일 없음은 bad(붉은 글씨).
   //   ns = logic.noticeState 결과(없으면 null), recCd = 담당자가 적은 공고 상태 기록 코드, files = { known, n }, o = { canUpload }
   // → [{ label, text, bad }]. bad는 '확인 필요'(gaps)와 다르다 — 넘어가는 것을 막지 않고 사실만 알린다.
-  pt.noticeChecks = function (ns, recCd, files, o) {
+  //   inst = { bank, term, chief } — 기관 정보의 값이 있으면 true, '미확인'이면 false, 아직 못 불러왔으면 undefined(셈에서 뺀다). false인 것만 붉은 줄을 더한다(값이 있으면 줄 없음).
+  pt.noticeChecks = function (ns, recCd, files, o, inst) {
     const x = o || {}, fl = files || {};
     const out = [];
     const rec = T.progRec[str(recCd)];
@@ -293,6 +298,10 @@
     if (!fl.known) out.push({ label: T.chkFile, text: T.fileUnknown, bad: false });
     else if (Number(fl.n) > 0) out.push({ label: T.chkFile, text: T.fileHas(Number(fl.n)), bad: false });
     else out.push({ label: T.chkFile, text: x.canUpload ? T.fileNone : T.fileNoneView, bad: true });
+    const ii = inst || {};
+    if (ii.bank === false) out.push({ label: T.chkBank, text: T.instUnknown, bad: true });
+    if (ii.term === false) out.push({ label: T.chkTerm, text: T.instUnknown, bad: true });
+    if (ii.chief === false) out.push({ label: T.chkChief, text: T.instUnknown, bad: true });
     return out;
   };
   // 체크 모양(네모 안의 ✓) — 글자색을 따른다.

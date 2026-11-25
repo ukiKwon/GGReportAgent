@@ -596,6 +596,32 @@ test('2단계 확인 항목: 공고 진행(마감·입찰 없음은 붉은 줄)�
   assert.ok(pt.bodyHtml(model(view('IN_PROGRESS'), 1)).indexOf(pt.T.filesLater) > 0, '첨부 목록을 못 받았으면 안내만');
 });
 
+// ── 11-25 밤: 기관 정보 미확인(금고 은행·약정 기간·기관장)은 붉게 알리기만 하고 막지 않는다 ──
+test('2단계 확인 항목: 금고 은행·약정 기간·기관장 미확인은 붉은 줄(막지 않음), 값이 있거나 못 불러왔으면 줄 없음', function () {
+  const files = { known: true, n: 1 };
+  const base = pt.noticeChecks({ phase: 'receiving', receiveTo: '2026-12-10', deadlineDays: 15 }, '', files, { canUpload: true });
+  const all = pt.noticeChecks({ phase: 'receiving', receiveTo: '2026-12-10', deadlineDays: 15 }, '', files, { canUpload: true }, { bank: false, term: false, chief: false });
+  assert.strictEqual(all.length, base.length + 3);
+  assert.deepStrictEqual(all.slice(base.length).map(function (c) { return [c.label, c.text, c.bad]; }),
+    [['금고 은행', '미확인', true], ['약정 기간', '미확인', true], ['기관장', '미확인', true]]);
+  // 값이 있으면 줄을 더하지 않는다(초록 줄도 없다) / 못 불러왔으면(undefined) 세지 않는다
+  assert.strictEqual(pt.noticeChecks(null, '', files, {}, { bank: true, term: true, chief: true }).length, base.length);
+  assert.strictEqual(pt.noticeChecks(null, '', files, {}, { bank: undefined, term: undefined, chief: undefined }).length, base.length);
+  assert.strictEqual(pt.noticeChecks(null, '', files, {}).length, base.length, 'inst를 안 넘기면 예전과 같다');
+  assert.deepStrictEqual(pt.noticeChecks(null, '', files, {}, { bank: false }).slice(base.length).map(function (c) { return c.label; }), ['금고 은행']);
+  // 붉은 줄 수 B가 그만큼 늘고 중립 줄 숫자도 늘며, 목록은 sr-only '(확인하세요)'
+  const sub = base.filter(function (c) { return c.bad; }).length;
+  assert.strictEqual(all.filter(function (c) { return c.bad; }).length, sub + 3);
+  assert.ok(pt.noticeChecksHtml(all).split('(확인하세요)').length - 1 >= 3);
+  const b = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', gaps: [], html: '', checks: all }, row: row({ cells: { NOTICE_CHECK: { notice_status_name: '공고 확인', notice_ok: true } } }) }));
+  assert.ok(b.indexOf(pt.T.noticeNote(sub + 3)) > 0 || b.indexOf('위에 붉게 표시한 ' + (sub + 3) + '건') > 0);
+  // [다음] 확인 가능 여부는 그대로 — noticeGaps·noticeConfirmDue는 inst를 모른다
+  const v = view('IN_PROGRESS');
+  const todo = row({ can_check: true, cells: { NOTICE_CHECK: { notice_ok: true } } });
+  assert.strictEqual(pt.noticeConfirmDue(1, v, todo, 'none', { state: 'ok', gaps: [] }), true);
+  assert.ok(/\bunknown: \(?inst|ni\.inst/.test(PREP_SRC) && PREP_SRC.indexOf('function instFacts(') > 0, 'prep.js가 기관 정보 판정을 넘긴다');
+});
+
 test('3단계: 과제 이름은 화면에서 바꿔 보이고, 한 번도 저장하지 않았으면 [작성 시작]', function () {
   assert.strictEqual(prep.T1_NAME, '기관 선정 입찰참여 관련 요약');
   assert.ok(/if \(t && t\.task_cd === 'T1'\) t\.name = prep\.T1_NAME;/.test(PREP_SRC));

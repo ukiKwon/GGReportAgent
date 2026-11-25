@@ -1253,7 +1253,12 @@
         const nFiles = Array.isArray(d.attach) ? d.attach.filter(function (r) { return r && r.valid && r.task_cd === 'NOTICE'; }).length : 0;
         const cell = model.row && model.row.cells && model.row.cells.NOTICE_CHECK ? model.row.cells.NOTICE_CHECK : {};
         model.notice = { state: ni.state, gaps: ni.gaps, html: ni.build ? ni.build() : '',
-          checks: pt.noticeChecks ? pt.noticeChecks(ni.ns || null, str(cell.notice_status_cd), { known: Array.isArray(d.attach), n: nFiles }, { canUpload: !!vwr.can_upload }) : [] };
+          checks: pt.noticeChecks ? pt.noticeChecks(ni.ns || null, str(cell.notice_status_cd), { known: Array.isArray(d.attach), n: nFiles }, { canUpload: !!vwr.can_upload }, ni.inst) : [] };
+        // 기관장 '미확인' 판정에 headcard의 조회 결과가 필요하다 — 3단계와 같은 한 기관 조회를 2단계에서도 한 번 시작한다(같은 기관이면 다시 읽지 않는다)
+        try {
+          const hcm = root.headcard, hid = str(d.view && d.view.institution_id);
+          if (hcm && hcm.gate && hcm.ensure && hid && !hcm.gate({ institutionId: hid }, hcEnv())) hcm.ensure(hid, repaintKeep, myEmp());
+        } catch (e) { /* 기관장 조회 실패는 판정에서 '모름'으로 둔다 */ }
         model.noticeFiles = filesOf('NOTICE', { title: '', hint: pt.T.noticeFilesHint, empty: pt.T.noticeFilesEmpty });
       }
       if (curStep.id === 'INST_ANALYSIS') { model.docs = stepDocs(d.view); model.foldOpen = S.foldOpen; model.scoring = stepScoring(d); }
@@ -1317,6 +1322,27 @@
   }
   // 2단계 입찰공고확인(사용자 11-25): 기관정보 팝업과 같은 내용을 읽기 전용으로 보이고, 누락·미확인이 없으면 완료로 본다.
   // 판정은 표의 그 줄 NOTICE_CHECK 칸에 notice_ok로 적는다(preptask.stepState가 읽는다). 기관 자료를 못 찾으면 판정하지 않는다.
+  // 기관 정보의 금고 은행·약정 기간·기관장이 팝업에서 '미확인'으로 보이는가 → { bank, term, chief } 각각 true(값 있음)·false(미확인)·undefined(아직 모름).
+  // 기준은 dashboard.paneParts의 빈 값 판정과 같다: 은행 = KB 수집·KB_NEXT 현재 은행·행안부 현황·레코드 bank 중 하나라도 있으면 값 있음,
+  // 약정 기간 = dash.termLine의 한 줄에 '미확인' 칩이 있으면 미확인, 기관장 = headcard가 이 기관을 불러와 확정 기관장이 없다고 답했을 때만 미확인(불러오기 전·실패는 모름).
+  function instFacts(rec, D, today, instId) {
+    const f = { bank: undefined, term: undefined, chief: undefined };
+    try {
+      const kb = D.kbEntry ? D.kbEntry(rec, root.KB_VERIFIED) : null, nx = D.kbEntry ? D.kbEntry(rec, root.KB_NEXT) : null;
+      const lofin = !kb && !nx && D.lofinLines ? D.lofinLines(rec, root.LOFIN_2026, today) : [];
+      f.bank = !!(kb || (nx && nx.now) || lofin.length || str(rec.bank).trim());
+      if (D.termLine) {
+        const live = lofin.filter(function (l) { return !l.expired; });
+        const tl = D.termLine(live.map(function (l) { return { from: l.start || '', to: l.end || '' }; }), rec.term, rec.contractExpiry);
+        f.term = !(tl.same && tl.html.indexOf('pop-unk') >= 0);
+      }
+    } catch (e) { f.bank = undefined; f.term = undefined; }
+    try {
+      const hv = root.headcard && root.headcard.view ? root.headcard.view() : null;
+      if (hv && str(hv.instId) === instId) f.chief = hv.status === 'ok' ? true : hv.status === 'none' ? false : undefined;
+    } catch (e) { f.chief = undefined; }
+    return f;
+  }
   function noticeInfo(v, row) {
     const D = root.dashboard, pt = root.preptask;
     let out = { state: 'none', gaps: [], build: null };
@@ -1332,7 +1358,7 @@
         const snap = nr && nr.snap ? nr.snap() : null;
         let ns = null;
         try { ns = root.logic && root.logic.noticeState ? root.logic.noticeState(rec, today) : null; } catch (e) { ns = null; }
-        out = { state: 'ok', ns: ns,
+        out = { state: 'ok', ns: ns, inst: instFacts(rec, D, today, id),
           gaps: pt.noticeGaps(it, { hasLink: !!(D.noticeLink && D.noticeLink(rec)), unhandled: !!(snap && D.isUnhandled && D.isUnhandled(it, snap)) }),
           build: function () {
             try {
