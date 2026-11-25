@@ -16,7 +16,7 @@
   function str(v) { return v == null ? '' : String(v); }
 
   // ── 구간·단계 정본 ───────────────────────────────────────────────
-  // 구간 이름은 사용자 11-25 "입찰 자료확인 · 제안 준비 · 협약 이행 준비"(담당자 지정~수익성분석 / 가결위~결과발표 / 우선협상~협약식). 단계 순서는 엑셀 칸 순서 그대로(협약식이 맨 끝 — 사용자 11-25 확정).
+  // 구간 이름은 사용자 11-25 "입찰 자료확인 · 제안 준비 · 협약 이행 준비"(담당자 지정~이사회 / 제안서~PT / 결과발표~협약식 — 제안서를 쓰려면 앞 단계가 모두 끝나야 하고, 결과 발표가 나야 협약 이행을 준비한다). 단계 순서는 엑셀 칸 순서 그대로(협약식이 맨 끝 — 사용자 11-25 확정).
   // 어느 단계가 어느 구간인지는 아래 ph 값으로 바꾼다.
   pt.PHASES = [
     { key: 'bid', label: '입찰 자료확인' },
@@ -34,17 +34,17 @@
     step('NOTICE_CHECK', '입찰공고확인', 'notice', 'bid'),
     step('INST_ANALYSIS', '기관 정보 분석', 'auto', 'bid', { tasks: ['T1', 'T2'] }),
     step('PROFIT', '수익성분석', 'auto', 'bid', { tasks: ['T3'] }),
-    step('FIN_COMMITTEE', '가결위(재무)', 'manual', 'prep'),
-    step('BIZ_COMMITTEE', '출심위(사업부)', 'manual', 'prep'),
-    step('', '이사회 자료 작성', 'board', 'prep', { id: 'BOARD_DOC', tasks: ['T5'] }),
-    step('', '이사회 발표 대본', 'script', 'prep', { id: 'BOARD_SCRIPT', tasks: ['T6'] }),
-    step('BOARD', '이사회', 'group', 'prep', { subs: [sub('BOARD_SECRETARIAT', '사무국'), sub('BOARD_AUDIT', '감사·감시'), sub('BOARD_COMPLIANCE', '준법')] }),
+    step('FIN_COMMITTEE', '가결위(재무)', 'manual', 'bid'),
+    step('BIZ_COMMITTEE', '출심위(사업부)', 'manual', 'bid'),
+    step('', '이사회 자료 작성', 'board', 'bid', { id: 'BOARD_DOC', tasks: ['T5'] }),
+    step('', '이사회 발표 대본', 'script', 'bid', { id: 'BOARD_SCRIPT', tasks: ['T6'] }),
+    step('BOARD', '이사회', 'group', 'bid', { subs: [sub('BOARD_SECRETARIAT', '사무국'), sub('BOARD_AUDIT', '감사·감시'), sub('BOARD_COMPLIANCE', '준법')] }),
     step('PROPOSAL', '제안서', 'proposal', 'prep'),
     step('PRESENT_DOC', '발표자료', 'manual', 'prep'),
     step('SUBMIT_DOCS', '제출서류', 'manual', 'prep', { tasks: ['T4'] }),
     step('SUBMIT_APPR', '제안서제출품의', 'group', 'prep', { subs: [sub('SUBMIT_MONITOR', '감시'), sub('SUBMIT_PROPERTY', '재산상이익')] }),
     step('PT', 'PT', 'manual', 'prep'),
-    step('RESULT', '결과발표', 'manual', 'prep'),
+    step('RESULT', '결과발표', 'manual', 'agree'),
     step('PRIORITY_NEGO', '우선협상', 'manual', 'agree'),
     step('AGREE_LEGAL', '협약서(법률)', 'manual', 'agree'),
     step('CONTRACT_APPR', '협약체결품의', 'group', 'agree', { subs: [sub('CONTRACT_AUDIT', '감사·감시'), sub('CONTRACT_STRATEGY', '전략'), sub('CONTRACT_PROPERTY', '재산상이익'), sub('CONTRACT_BRANCH', '영업점안내')] }),

@@ -66,10 +66,11 @@ test('PHASES·STEPS: 구간 3개, 24단계(담당자 지정 + 현업 23단계), 
     assert.ok(k >= last, s.label + ' 구간이 앞으로 돌아가지 않는다');
     last = k;
   });
-  assert.deepStrictEqual(pt.phaseIdxs('bid').map(function (i) { return pt.STEPS[i].label; }), ['담당자 지정', '입찰공고확인', '기관 정보 분석', '수익성분석']);
-  assert.deepStrictEqual(pt.phaseIdxs('agree').map(function (i) { return pt.STEPS[i].label; }), ['우선협상', '협약서(법률)', '협약체결품의', 'ATM', 'KB카드', '전산구축', 'VIP 지정', '금리승인', '협약식']);
+  assert.deepStrictEqual(pt.phaseIdxs('bid').map(function (i) { return pt.STEPS[i].label; }), ['담당자 지정', '입찰공고확인', '기관 정보 분석', '수익성분석', '가결위(재무)', '출심위(사업부)', '이사회 자료 작성', '이사회 발표 대본', '이사회']);
+  assert.deepStrictEqual(pt.phaseIdxs('agree').map(function (i) { return pt.STEPS[i].label; }), ['결과발표', '우선협상', '협약서(법률)', '협약체결품의', 'ATM', 'KB카드', '전산구축', 'VIP 지정', '금리승인', '협약식']);
   assert.strictEqual(pt.STEPS[pt.STEPS.length - 1].label, '협약식', '엑셀 칸 순서 그대로 협약식이 마지막');
-  assert.strictEqual(pt.phaseIdxs('prep').length, 11);
+  assert.strictEqual(pt.phaseIdxs('prep').length, 5);
+  assert.deepStrictEqual(pt.phaseIdxs('prep').map(function (i) { return pt.STEPS[i].label; }), ['제안서', '발표자료', '제출서류', '제안서제출품의', 'PT']);
 });
 
 test('STEPS ↔ 서버 PrepBoardColumns: 칸 코드 27개가 빠짐없이 한 번씩, 이름도 같다', function () {
@@ -147,23 +148,23 @@ test('phaseModel·phaseEntryIdx: 구간 숫자와 구간 단추가 데려갈 단
   const v = view('IN_PROGRESS');
   const pm = pt.phaseModel(v, row(), MARKS, idxOf('FIN_COMMITTEE'));
   assert.deepStrictEqual(pm.map(function (p) { return [p.key, p.no, p.done, p.total, p.current]; }),
-    [['bid', 1, 1, 3, false], ['prep', 2, 0, 11, true], ['agree', 3, 0, 9, false]]);   // bid: 4단계 중 입찰공고확인 제외 3, 끝난 것 = 담당자 지정
-  assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('agree', v, row(), MARKS)].id, 'PRIORITY_NEGO');
+    [['bid', 1, 1, 8, true], ['prep', 2, 0, 5, false], ['agree', 3, 0, 10, false]]);   // bid: 9단계 중 입찰공고확인 제외 8, 끝난 것 = 담당자 지정
+  assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('agree', v, row(), MARKS)].id, 'RESULT');
   assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('bid', v, row(), MARKS)].id, 'INST_ANALYSIS');
-  assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('prep', v, row(), MARKS)].id, 'FIN_COMMITTEE');
-  const r = row({ cells: { PRIORITY_NEGO: { mark_cd: 'DONE' } } });
-  assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('agree', v, r, MARKS)].id, 'AGREE_LEGAL');
+  assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('prep', v, row(), MARKS)].id, 'PROPOSAL');
+  const r = row({ cells: { RESULT: { mark_cd: 'DONE' } } });
+  assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('agree', v, r, MARKS)].id, 'PRIORITY_NEGO');
   const h = pt.phasesHtml(pm);
   assert.ok(/role="group" aria-label="진행 구간"/.test(h));
   assert.strictEqual((h.match(/data-act="ts-phase"/g) || []).length, 3);
-  assert.ok(/data-ph="prep" aria-pressed="true"/.test(h) && /data-ph="agree" aria-pressed="false"/.test(h));
+  assert.ok(/data-ph="bid" aria-pressed="true"/.test(h) && /data-ph="prep" aria-pressed="false"/.test(h));
 });
 
 test('stepsModel·stepsHtml: 지금 구간의 단계만, 번호는 전체 순번, 탭 정지는 지금 단계 하나', function () {
   const v = view('IN_PROGRESS');
   const m = pt.stepsModel(v, row(), MARKS, idxOf('AGREE_LEGAL'));
-  assert.deepStrictEqual(m.map(function (x) { return x.label; }), ['우선협상', '협약서(법률)', '협약체결품의', 'ATM', 'KB카드', '전산구축', 'VIP 지정', '금리승인', '협약식']);
-  assert.deepStrictEqual(m.map(function (x) { return x.no; }), [16, 17, 18, 19, 20, 21, 22, 23, 24]);
+  assert.deepStrictEqual(m.map(function (x) { return x.label; }), ['결과발표', '우선협상', '협약서(법률)', '협약체결품의', 'ATM', 'KB카드', '전산구축', 'VIP 지정', '금리승인', '협약식']);
+  assert.deepStrictEqual(m.map(function (x) { return x.no; }), [15, 16, 17, 18, 19, 20, 21, 22, 23, 24]);
   const h = pt.stepsHtml(m);
   assert.strictEqual((h.match(/tabindex="0"/g) || []).length, 1);
   assert.strictEqual((h.match(/aria-current="step"/g) || []).length, 1);
@@ -183,7 +184,7 @@ test('stepKey: 같은 구간 안에서만 움직인다', function () {
 });
 
 test('liveText: 기관, 구간 n단계 이름, 상태', function () {
-  assert.strictEqual(pt.liveText(view('IN_PROGRESS'), row(), MARKS, idxOf('FIN_COMMITTEE')), '청주시, 제안 준비 5단계 가결위(재무), 진행');
+  assert.strictEqual(pt.liveText(view('IN_PROGRESS'), row(), MARKS, idxOf('FIN_COMMITTEE')), '청주시, 입찰 자료확인 5단계 가결위(재무), 진행');
 });
 
 // ── 체크 권한 ──
@@ -201,7 +202,7 @@ test('markGate: 줄 없음·끝난 건·개설 전·담당 아님은 보기만',
 // ── 본문 ──
 test('bodyHtml 손 칸: 상태 단추 4개(눌린 값 하나)·마지막 체크·이전/다음', function () {
   const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('FIN_COMMITTEE')));
-  assert.ok(/제안 준비 · 5 \/ 24/.test(h));
+  assert.ok(/입찰 자료확인 · 5 \/ 24/.test(h));
   assert.ok(/<h3 class="ts-step-title" id="ts-step-title" tabindex="-1">가결위\(재무\)<\/h3>/.test(h));
   assert.strictEqual((h.match(/data-act="mark" data-col="FIN_COMMITTEE"/g) || []).length, 4);
   assert.strictEqual((h.match(/aria-pressed="true"/g) || []).length, 1);
