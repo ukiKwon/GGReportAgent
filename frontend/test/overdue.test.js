@@ -238,25 +238,7 @@ test('패널 열림 저장값: 없음 null, 저장하면 불리언', function ()
 });
 
 // ── 배치 규칙 ───────────────────────────────────────────────────────────────
-test('modeFor: 1366 이상 도킹, 881~1365 덮개, 880 이하 쌓기, 드릴인이면 도킹하지 않는다', function () {
-  assert.strictEqual(ov.modeFor(1440, false), 'dock');
-  assert.strictEqual(ov.modeFor(1366, false), 'dock');
-  assert.strictEqual(ov.modeFor(1365, false), 'drawer');
-  assert.strictEqual(ov.modeFor(929, false), 'drawer');
-  assert.strictEqual(ov.modeFor(881, false), 'drawer');
-  assert.strictEqual(ov.modeFor(880, false), 'stack');
-  assert.strictEqual(ov.modeFor(1440, true), 'drawer');
-  assert.strictEqual(ov.modeFor(700, true), 'stack');
-});
-
-test('defaultOpen: 도킹은 기본 펼침(저장된 선택 우선), 나머지는 접힘', function () {
-  assert.strictEqual(ov.defaultOpen('dock', null), true);
-  assert.strictEqual(ov.defaultOpen('dock', false), false);
-  assert.strictEqual(ov.defaultOpen('dock', true), true);
-  assert.strictEqual(ov.defaultOpen('drawer', true), false);
-  assert.strictEqual(ov.defaultOpen('stack', null), false);
-});
-
+// modeFor·defaultOpen(경과 패널 배치 규칙)은 지도의 경과 패널이 없어지며 함께 삭제했다(2026-11-25 예상 공고현황).
 test('shouldRedraw: 폭이 바뀌면 같은 배치 안에서도 다시 그리고, 드릴인·같은 폭·첫 호출은 그리지 않는다', function () {
   assert.strictEqual(ov.shouldRedraw(1440, 1366, false), true);   // 도킹끼리
   assert.strictEqual(ov.shouldRedraw(1365, 929, false), true);    // 서랍끼리
@@ -379,7 +361,7 @@ test('popupParts: 총 건수, 시·도별 건수, 상위 5건, 외 N건, 관심 
   assert.ok(p.sum.includes('기준일 2026-11-09.'));
   assert.ok(p.sidoHtml.includes('<b>7</b>') && p.sidoHtml.includes('<b>1</b>'));
   assert.strictEqual((p.listHtml.match(/<li class="ov-item"/g) || []).length, 5);
-  assert.strictEqual(p.more, '외 3건은 경과 패널에서 볼 수 있습니다.');
+  assert.strictEqual(p.more, '외 3건이 더 있습니다.');
   assert.strictEqual(ov.popupParts(s, [], '2026-11-09', 'notice').more, '외 3건은 입찰 공고 현황의 [공고 예정일 경과]에서 볼 수 있습니다.');
   assert.ok(p.hint.includes('관심 지역이 없어'));
   const w = ov.popupParts(s, ['41'], '2026-11-09');
@@ -400,50 +382,17 @@ test('화면 글자는 추정, 내부 값은 추측 유지', function () {
   assert.strictEqual(logic.formatBidDateLabel({}), '미상');
 });
 
-// ── 티커: 경과 건 제외, 기준일 포맷 ─────────────────────────────────────────
-test('drawTicker: 경과(D<0) 건은 임박 TOP5에서 빠지고, ▲는 임박(D>=0)에만, 기준일은 로컬 날짜', function () {
-  const el = { innerHTML: '', querySelectorAll: function () { return []; } };
-  const prevDoc = global.document;
-  const prevToday = render.state.today;
-  global.document = { getElementById: function (id) { return id === 'ticker' ? el : null; } };
-  render.state.today = TODAY;
-  store.setServerData([
-    rec('지난기관', '11', '2026-08-01'),
-    rec('임박기관', '11', '2026-12-01'),
-    { name: '미상기관', region: '11', type: '지자체' },
-  ]);
-  try {
-    render.drawTicker();
-    assert.ok(!el.innerHTML.includes('지난기관'));
-    assert.ok(!el.innerHTML.includes('D+'));
-    assert.ok(el.innerHTML.includes('임박기관'));
-    assert.ok(el.innerHTML.includes('class="gph up"'));
-    assert.ok(el.innerHTML.includes('기준 2026-11-09'));
-  } finally {
-    store.clearServerData();
-    render.state.today = prevToday;
-    if (prevDoc === undefined) delete global.document; else global.document = prevDoc;
-  }
-});
-
+// 티커(임박 TOP5) 시험은 머리 줄로 바뀌며 map_expected.test.js '머리 줄'로 옮겼다(2026-11-25).
 test('경과 도장·확인 중 아이콘은 render.ICONS에 있다(문자 아이콘 아님)', function () {
   assert.ok(render.ICONS.overdue.startsWith('<svg'));
   assert.ok(render.ICONS.check.startsWith('<svg'));
 });
 
-test('팝업 전체 보기 버튼: 입찰 공고 현황 메뉴가 있으면 "입찰 공고 현황에서 보기", 없으면 기존 문구, "처리" 없음(design 11-16 6-B)', function () {
-  assert.strictEqual(ov.popAllLabel('notice'), '입찰 공고 현황에서 보기');
-  assert.strictEqual(ov.popAllLabel('map'), '경과 패널에서 전체 보기');
-  assert.strictEqual(ov.popAllLabel(), ov.POP_ALL_MAP);
-  assert.strictEqual(ov.POP_ALL_DASH, undefined);
-  assert.ok(ov.popAllLabel('notice').indexOf('처리') < 0 && ov.popAllLabel('map').indexOf('처리') < 0);
-});
-
-test('팝업 전체 보기 클릭 분기: 공고 현황 메뉴가 있으면 dashboard.showPast(goNotice), 없으면 openPanel(지도 이동)', function () {
+test('팝업 전체 보기 클릭 분기: 공고 현황 메뉴가 있으면 dashboard.showPast(goNotice), 없으면 단추 숨김·그냥 닫기', function () {
   const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'overdue.js'), 'utf8');
   const dsrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'dashboard.js'), 'utf8');
   assert.ok(/function popDest\(\)/.test(src) && /function goNotice\(\)/.test(src));
-  assert.ok(/if \(!toNotice\) \{ ov\.openPanel\(true\)/.test(src));
+  assert.ok(/if \(!toNotice\) \{ ov\.closePopup\(true\); return; \}/.test(src));
   assert.ok(src.indexOf('dest: dest') > 0);
   assert.ok(/dash\.isMounted = /.test(dsrc) && /dash\.showPast = /.test(dsrc) && /dash\.selectKey = /.test(dsrc));
 });

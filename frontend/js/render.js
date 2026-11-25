@@ -107,12 +107,15 @@
 
   // 범례를 실제 테마 색으로 그린다. 이전엔 🔴🟠🟡 이모지가 하드코딩돼 있어
   // 색을 바꿔도 범례만 옛 색으로 남는 문제가 있었다.
-  // 용어 통일(design-reviewer 2026-11-24_1839 P2-2): 시군구 카드·툴팁과 같은 6개월 미만 / 1년 미만 / 2년 미만 / 2년 이상. 회색은 글리프와 짝이라 '날짜 미상' 그대로.
+  // 예상 공고현황(2026-11-25, 메인 확정 D1): 색 = 면의 '가장 이른 예상' 기관이 든 구간(전국·드릴인 같은 말). 테마 키·색 값은 그대로, 이름만 바꾼다.
+  // 'none'(공고 전 기관 0곳)은 테마 키가 아니라 고정색이다 — 바탕과 거의 같은 옅은 색이라 '비어 있음'으로 물러나 보이고, 경계선이 면을 구분한다.
+  render.NONE_FILL = '#eef1f5';
+  render.LEGEND_TITLE = '예상 공고 시기 — 지역 색은 가장 이른 예상 기관';
   render.LEGEND_ITEMS = [
-    ['r3','6개월 미만 위주'], ['r2','1년 미만 위주'], ['p','섞임 (급한 곳·여유 있는 곳 반반)'],
-    ['b2','2년 미만 위주'], ['b3','2년 이상 위주'], ['gray','날짜 미상'],
+    ['r3','3개월 안'], ['r2','3~6개월'], ['p','6개월~1년'], ['b2','1~2년'], ['b3','2년 뒤'],
+    ['gray','예상 근거 없음'], ['none','공고 전 기관 없음'],
   ];
-  render.MIX_NAME = { r3:'진빨강', r2:'빨강', p:'보라', b2:'파랑', b3:'진파랑', gray:'날짜 미상', none:'기관 없음' };
+  render.MIX_NAME = { r3:'3개월 안', r2:'3~6개월', p:'6개월~1년', b2:'1~2년', b3:'2년 뒤', gray:'예상 근거 없음', none:'공고 전 기관 없음' };
   // 색은 localStorage(테마)에서 오므로 style 속성에 그대로 끼우지 않고 hex만 통과시킨다.
   render._safeColor = function (c, fallback) {
     return /^#[0-9a-fA-F]{3,8}$/.test(String(c)) ? String(c) : fallback;
@@ -143,21 +146,23 @@
     const el = document.getElementById('legend'); if (!el) return;
     // mode: 'drill'(시군구 드릴인) | 'national'. 생략하면 지금 보는 지도(state.currentRegion)를 따른다.
     const drill = mode ? mode === 'drill' : !!render.state.currentRegion;
-    // 라벨 글자도 해당 등락색으로 — 범례 스스로 색 의미론을 말한다(마감 리뷰 반영).
-    // 밝은 바탕에서는 파스텔 면색 그대로가 작은 글자에 옅어서, 글자용으로만 본문색(--fg)을 50% 섞어 어둡게 한다.
+    // 라벨 글자도 해당 구간색으로 — 범례 스스로 색 의미론을 말한다(마감 리뷰 반영).
+    // 밝은 바탕에서는 파스텔 면색 그대로가 작은 글자에 옅어서, 글자용으로만 본문색(--fg)을 절반 섞어 어둡게 한다. 'none'은 너무 옅어 글자는 본문색 그대로.
     const rows = render.LEGEND_ITEMS.map(function (it) {
-      const c = render._safeColor(render.MAP_COLORS[it[0]], render.DEFAULT_THEME[it[0]]);
+      const none = it[0] === 'none';
+      const c = none ? render.NONE_FILL : render._safeColor(render.MAP_COLORS[it[0]], render.DEFAULT_THEME[it[0]]);
       const warn = it[0] === 'gray' ? ' ' + render.ICONS.warn : '';
-      return '<span class="lg-item" style="color:color-mix(in srgb, ' + c + ' 50%, var(--fg))">' +
+      const tc = none ? 'var(--fg)' : 'color-mix(in srgb, ' + c + ' 50%, var(--fg))';
+      return '<span class="lg-item" style="color:' + tc + '">' +
         '<i class="lg-sw" style="background:' + c + '"></i>' + logic.esc(it[1]) + warn + '</span>';
     });
     rows.push('<span class="lg-item"><i class="lg-sw lg-hatch" style="background:' +
-      render._safeColor(render.INACTIVE_FILL, '#c3cad9') + '"></i>준비중</span>');
+      render._safeColor(render.INACTIVE_FILL, '#c3cad9') + '"></i>조사 전</span>');
     if (drill) {
-      // 드릴인에만 카드 줄이 있다. 전국 범례에는 이 줄이 없다(공고 n·▲n 모두 지도에서 뺌, 사용자 11-25)
-      rows.push('<span class="lg-item lg-tri-row"><i class="lg-card" aria-hidden="true"></i>카드: 시군구별 입찰 시기 건수 — 1개월 미만·6개월 미만·1년 미만·알 수 없음(켠 종류 모두)</span>');
+      // 드릴인에만 카드 줄이 있다. 전국 범례에는 이 줄이 없다.
+      rows.push('<span class="lg-item lg-tri-row"><i class="lg-card" aria-hidden="true"></i>카드: 시군구별 예상 시기 건수 — 3개월 안·3~6개월·6개월~1년·근거 없음(켠 종류 모두)</span>');
     }
-    el.innerHTML = '<div class="lg-title">입찰 임박도 · 지역 색 섞기</div>' + rows.join('');
+    el.innerHTML = '<div class="lg-title">' + logic.esc(render.LEGEND_TITLE) + '</div>' + rows.join('');
   };
   // 지도를 그리기 전에 범례를 먼저 바꾼다(범례 높이가 지도 높이를 정한다). 바꾼 높이는 감시자에게 알려 지도를 또 그리지 않게 한다.
   render._legendFor = function (mode) {
@@ -197,9 +202,10 @@
   render.regionMixInfo = function (code) {
     return render.mixInfo(render.institutionsByRegion(code).filter(function (r) { return render._rankTypeVisible(r); }));
   };
-  // 섞기 결과 → 면 색. 기관 0곳('none')과 날짜 미상('gray')은 둘 다 회색(규격 §4 P2는 보류).
+  // 지도 정보 → 면 색. 공고 전 기관 0곳('none')은 고정색(NONE_FILL), 예상 근거 없음('gray')은 테마 회색.
   render.mixColor = function (info) {
-    const k = (info && render.MAP_COLORS[info.band] !== undefined && info.band !== 'none') ? info.band : 'gray';
+    if (info && info.band === 'none') return render.NONE_FILL;
+    const k = (info && render.MAP_COLORS[info.band] !== undefined) ? info.band : 'gray';
     return render._safeColor(render.MAP_COLORS[k], render.DEFAULT_THEME[k]);
   };
   render.regionUrgencyColor = function (code) {
@@ -250,10 +256,8 @@
 
   render.drawNational = function () {
     var rp = document.getElementById('rank-panel'); if (rp) rp.style.display='none';
-    // 경과 패널 배치(도킹/덮개/위 쌓기)를 폭을 재기 전에 확정한다 — 패널이 나중에 나타나거나
-    // 사라지면 지도가 옛 폭으로 그려져 잘리거나 한쪽으로 쏠린다.
-    if (root.overdue && root.overdue.syncLayout) root.overdue.syncLayout();
     render._legendFor('national');   // 드릴인에서 돌아오면 전국 범례로 되돌린다(폭·높이를 재기 전에)
+    render.paintMapHead();           // 켠 종류를 바꿔 다시 그릴 때 머리 줄 안내(공고 전 기관 0곳)도 맞춘다
     const svg = d3.select('#map-svg');
     svg.selectAll('*').remove();
     render._ensureDefs(svg);   // 준비중 지역 빗금(#hatch)용 — 이전엔 지역 뷰에서만 호출됐다
@@ -287,7 +291,7 @@
       })
       .attr('aria-label', function (d) {
         const m = mix[d.properties.code];
-        return m ? render.mixAriaLabel(d.properties.name, m) : d.properties.name + ', 준비중';
+        return m ? render.mixAriaLabel(d.properties.name, m) : d.properties.name + ', 조사 전';
       })
       .attr('stroke', '#6d7882').attr('stroke-width', 1)
       // 커서·클릭은 activeRegions가 아니라 hasSubGeo로 판단한다(위 주석 참조).
@@ -331,7 +335,7 @@
         .attr('transform', 'translate(' + p[0] + ',' + p[1] + ')');
       const active = render.state.activeRegions.has(d.properties.code);
       t.append('tspan').attr('x', 0).attr('dy', render.labelDy(active)).text(d.properties.name);
-      if (!active) t.append('tspan').attr('class', 'sub').attr('x', 0).attr('dy', '1.15em').text('준비중');
+      if (!active) t.append('tspan').attr('class', 'sub').attr('x', 0).attr('dy', '1.15em').text('조사 전');
     });
     render._separateLabels(labels);
 
@@ -416,19 +420,24 @@
     return logic.regionMix(render.recordsForFeature(feature), render.state.today);
   };
 
-  // 섞기 기준의 '가장 임박' 기관 — 툴팁·▲가 가리키는 기관(logic.mostImminent). 날짜가 전부 없으면 null.
+  // '가장 이른 예상' 기관 — 면 색·툴팁 첫 블록이 가리키는 기관(logic.earliestExpected). 근거 있는 기관이 없으면 null.
   render.imminentForFeature = function (feature) {
-    return render.featureMixInfo(feature).imminent;   // 경과 기관은 빼고 고른다
+    return render.featureMixInfo(feature).imminent;   // 공고 중·경과 기관은 빼고 고른다
   };
 
-  // **클릭으로 잡히는 기관**은 섞기와 별개다(팀 결정 2026-11-11, 사용자 확정 ⓐ안): 그 구의 지자체가
-  // 먼저, 지자체가 없으면 섞기 기준 가장 임박 기관. 날짜가 전부 없으면 첫 기관 — 눌러서 고를 수는 있다.
+  // **클릭으로 잡히는 기관**은 섞기와 별개다(팀 결정 2026-11-11): 그 구의 지자체가 먼저, 지자체가 없으면 가장 이른 예상 기관.
+  // 지도에 없는 기관(공고 중·경과)은 고르지 않는다 — 면이 그 기관 때문에 눌리면 색·목록과 어긋난다. 근거 있는 기관이 없으면 첫 기관(눌러서 고를 수는 있다).
   render.recordForFeature = function (feature) {
-    const muni = logic.dedupeByInstitution(render.municipalityForFeature(feature));
-    if (muni.length) return logic.mostImminent(muni, render.state.today) || muni[0];
-    const hit = render.recordsForFeature(feature);
-    if (!hit.length) return null;
-    return logic.mostImminent(hit, render.state.today) || hit[0];
+    const today = render.state.today;
+    const open = function (list) { return list.filter(function (r) { return logic.isPreNotice(r, today); }); };
+    const pick = function (list) {
+      const e = logic.earliestExpected(list, today, 1)[0];
+      return e ? e.rec : list[0];
+    };
+    const muni = open(logic.dedupeByInstitution(render.municipalityForFeature(feature)));
+    if (muni.length) return pick(muni);
+    const hit = open(render.recordsForFeature(feature));
+    return hit.length ? pick(hit) : null;
   };
 
   render.subUrgencyColor = function (feature) {
@@ -437,85 +446,48 @@
 
   // 라벨 첫 줄 dy: 활성 지역은 한 줄이라 0.35em(세로 가운데), 준비중은 둘째 줄이 붙으므로 0em으로 올려 두 줄 묶음을 가운데에 둔다.
   render.labelDy = function (active) { return active ? '0.35em' : '0em'; };
-  function mdText(s) { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? m[1] + '.' + m[2] : ''; }
-  // 진행 중 기관 한 곳의 '언제' 글: 마감 전 = 접수 MM.DD~MM.DD(접수 창을 알면) 또는 마감 D-n, 마감일 미확인 = 공고일·경과·미확인,
-  // 마감 지남 = 공고 후 n일.
-  render.noticeWhen = function (n) {
-    if (n.phase === 'receiving') {
-      if (n.receiveFrom && n.receiveTo) return '접수 ' + mdText(n.receiveFrom) + '~' + mdText(n.receiveTo);
-      return '마감 ' + (n.deadlineDays === 0 ? 'D-day' : 'D-' + n.deadlineDays);
-    }
-    // 상태 이름('접수 기간 원문 확인'·'선정 결과 대기')은 위 줄 머리가 말한다 — 여기는 날짜 칸이라 짧게(한 줄 2열, 가운뎃점 없음).
-    return '공고 후 ' + n.since + '일';
-  };
-
-  // 스크린리더용 이름: "서울, 빨강, 공고 진행 중 5건(마감 전 2건), 6개월 안 공고 예정 0건, 합계 30건" — 단위는 카드·툴팁과 같은 '건'(design 11-24 P2-1)
+  // 스크린리더용 이름(색 이름 대신 구간 뜻). 예: "경상남도, 가장 이른 예상 3개월 안 창원시청 2026-12-14 약정주기 계산, 공고 전 기관 23건"
   render.mixAriaLabel = function (name, info) {
-    const parts = [name, render.MIX_NAME[info.band] || render.MIX_NAME.none];
-    if (info.notice > 0) parts.push('공고 진행 중 ' + info.notice + '건(마감 전 ' + (info.receiving || 0) + '건)');
-    if (info.urgent > 0 || info.notice > 0) parts.push('6개월 안 공고 예정 ' + info.urgent + '건' + (info.urgentAllEst ? '(모두 추정)' : ''));
-    parts.push('합계 ' + info.total + '건');
+    const parts = [name], e = info.earliest && info.earliest[0];
+    if (e) parts.push('가장 이른 예상 ' + render.MIX_NAME[info.band] + ' ' + e.rec.name + ' ' + e.date + ' ' + e.basis);
+    else parts.push(render.MIX_NAME[info.band] || render.MIX_NAME.none);
+    if (info.total > 0) parts.push('공고 전 기관 ' + info.total + '건');
     return parts.join(', ');
   };
   // 시군구 드릴인 면의 이름 — 카드와 같은 분류·순서(logic.subCardLines). 전국 면은 위 mixAriaLabel 그대로.
-  // 예: "강남구, 빨강, 1개월 미만 1건, 6개월 미만 2건, 1년 미만 1건, 알 수 없음 3건, 합계 7건"
+  // 예: "창원시 의창구, 가장 이른 예상 3개월 안, 3개월 안 1건, 6개월~1년 2건, 공고 전 기관 3건"
   render.mixAriaLabelCard = function (name, info) {
-    const parts = [name, render.MIX_NAME[info.band] || render.MIX_NAME.none];
-    logic.subCardLines(info).forEach(function (ln) { parts.push(ln.label + ' ' + ln.n + '건'); });
-    parts.push('합계 ' + info.total + '건');
+    const e = info.earliest && info.earliest[0];
+    const parts = [name, e ? '가장 이른 예상 ' + render.MIX_NAME[info.band] : (render.MIX_NAME[info.band] || render.MIX_NAME.none)];
+    logic.subCardLines(info).forEach(function (ln) { parts.push(ln.full + ' ' + ln.n + '건'); });
+    if (info.total > 0) parts.push('공고 전 기관 ' + info.total + '건');
     return parts.join(', ');
   };
 
-  // 지역 툴팁 문안(마우스 올림·포커스). 클릭 동작과는 무관하다.
-  // 규격 design-reviewer 2026-11-24_1839 6-A: 한 줄에 항목 하나, 이름 왼쪽·수/날짜 오른쪽(mono), 블록 사이 1px 선, 단위 '건',
-  // 분류 이름은 시군구 카드와 같다(logic.tipBuckets). 가운뎃점 연결·옛 '곳' 단위 없음. 0건 줄·블록은 통째로 숨긴다.
-  render.tipHtml = function (name, info, today) {
+  // 지역 툴팁 문안(마우스 올림·포커스). 클릭 동작과는 무관하다. mode: 'drill'이면 시군구 드릴인(예상 시기 줄에서 1년 넘게를 합친다).
+  // 규격 design-reviewer 2026-11-25 §5-3: 가장 이른 예상 최대 2곳(이름 + 날짜, 아래 줄에 근거 글) → 예상 시기 구간 → 공고 전 기관 수. 0건 줄은 숨긴다.
+  render.tipHtml = function (name, info, today, mode) {
     const c = render.mixColor(info);
     let h = '<div class="rt-head"><b>' + esc(name) + '</b><i class="rt-sw" style="background:' + c + '"></i></div>';
-    if (!info.total) return h + '<div class="rt-mu">켠 종류의 기관이 없습니다</div>';
-    // kv: 이름 + 수 한 줄(n이 null이면 제목만). it: 기관 이름 줄(when이 비면 날짜 칸 없음). nameHtml은 호출자가 이스케이프한 것.
+    if (!info.listed) return h + '<div class="rt-mu">켠 종류의 기관이 없습니다</div>';
+    if (!info.total) return h + '<div class="rt-mu">아직 공고 전인 기관이 없습니다</div>';
     function kv(label, n, cls) {
       return '<div class="rt-kv' + (cls ? ' ' + cls : '') + '"><span>' + esc(label) + '</span>' +
         (n === null ? '' : '<span class="rt-n">' + n + '건</span>') + '</div>';
     }
-    function it(nameHtml, when, cls, dcls) {
-      return '<div class="rt-it' + (cls ? ' ' + cls : '') + '"><span class="rt-nm">' + nameHtml + '</span>' +
-        (when ? '<span class="rt-d' + (dcls ? ' ' + dcls : '') + '">' + esc(when) + '</span>' : '') + '</div>';
-    }
-    function more(list) { return list.length > 1 ? ' 외 ' + (list.length - 1) + '건' : ''; }
-    // 첫 블록: 공고 진행 중. 마감 전은 마감 가까운 순 최대 2곳 + '외 n건', 접수 기간 원문 확인(공고 후 30일 이내)·선정 결과 대기는 각 1곳 + '외 n건'.
-    if (info.notice > 0) {
-      const list = info.notices || [];
-      const rcv = list.filter(function (n) { return n.phase === 'receiving'; });
-      const unk = list.filter(function (n) { return n.phase === 'unknown' && !n.late; });
-      const rest = list.filter(function (n) { return n.phase !== 'receiving' && n.check; });
-      h += '<div class="rt-notice">' + kv('공고 진행 중', info.notice, 'rt-t');
-      if (rcv.length) {
-        h += kv('마감 전', rcv.length, 'rt-sub');
-        rcv.slice(0, 2).forEach(function (n) { h += it(esc(n.name), render.noticeWhen(n)); });
-        if (rcv.length > 2) h += it('외 ' + (rcv.length - 2) + '건', '', 'rt-w');
-      }
-      if (unk.length) {
-        h += kv(logic.NOTICE_WORDS.unknownChip, unk.length, 'rt-sub') + it(esc(unk[0].name) + more(unk), render.noticeWhen(unk[0]), '', 'rt-q');
-      }
-      if (rest.length) {
-        h += kv('선정 결과 대기', rest.length, 'rt-sub') + it(esc(rest[0].name) + more(rest), render.noticeWhen(rest[0]), 'rt-w');
-      }
+    if (info.earliest.length) {
+      h += '<div class="rt-first">' + kv('가장 이른 예상', null, 'rt-t');
+      info.earliest.forEach(function (e) {
+        h += '<div class="rt-it"><span class="rt-nm">' + esc(e.rec.name) + '</span><span class="rt-d">' + esc(e.date) + '</span></div>' +
+          '<div class="rt-b">' + esc(e.basis) + '</div>';
+      });
       h += '</div>';
     }
-    // 입찰 예정 시기: 겹치지 않는 구간(0건 숨김). '가장 임박' 줄은 뺐다(사용자 11-24) — ▲·면 클릭용 info.imminent는 그대로.
-    const buckets = logic.tipBuckets(info);
-    if (buckets.length) {
-      h += '<div class="rt-sec">' + kv('입찰 예정 시기', null, 'rt-t');
-      buckets.forEach(function (b) { h += kv(b.label, b.n); });
-      h += '</div>';
-    }
-    // 꼬리: 예정일 경과·합계 + 지도 색을 정한 건수(info.dated = 색 계산에 들어간 건수). 전부 들어갔으면 안내 줄 없음.
-    const dated = info.dated || 0;
-    const note = dated === 0 ? '지도 색을 정할 건이 없어 회색입니다'
-      : (dated < info.total ? '지도 색은 ' + info.total + '건 중 ' + dated + '건으로 정했습니다' : '');
-    h += '<div class="rt-sec rt-foot">' + (info.overdue ? kv('예정일 경과', info.overdue) : '') + kv('합계', info.total) +
-      (note ? '<div class="rt-mu">' + note + '</div>' : '') + '</div>';
+    h += '<div class="rt-sec">' + kv('예상 시기', null, 'rt-t');
+    logic.tipBuckets(info, mode).forEach(function (b) { h += kv(b.label, b.n); });
+    h += '</div>';
+    h += '<div class="rt-sec rt-foot">' + kv('공고 전 기관', info.total) +
+      (info.earliest.length ? '' : '<div class="rt-mu">지도 색을 정할 근거가 없어 회색입니다</div>') + '</div>';
     return h;
   };
   render.showRegionTip = function (html, x, y) {
@@ -586,8 +558,6 @@
     // 패널이 나중에 열리며 SVG가 줄어들어 지도가 확대·좌측 쏠림으로 그려진다.
     var rp0 = document.getElementById('rank-panel'); if (rp0) rp0.style.display = 'block';
     if (fresh && rp0) rp0.scrollTop = 0;   // 목록은 맨 위부터
-    // 드릴인 중에는 도킹된 경과 패널을 접어(덮개 서랍으로) 랭킹 패널과 3열이 되지 않게 한다.
-    if (root.overdue && root.overdue.syncLayout) root.overdue.syncLayout();
     render._legendFor('drill');   // 범례 높이가 지도 높이를 정하므로 폭·높이를 재기 전에 드릴인용으로 바꾼다
     const svg = d3.select('#map-svg'); svg.selectAll('*').remove();
     // 드릴인에는 줌·팬이 없다 — 전국 지도의 d3.zoom이 남으면 휠·드래그가 지워진 전국 g의 숨은 상태만 바꾼다(design 11-24 이관 1).
@@ -626,7 +596,7 @@
       })
       .on('click', function (ev, d) { render.onSubregionClick(d, ev); });
     render.bindRegionTip(subPaths.filter(function (d) { return subMix[d.properties.code].total > 0; }),
-      function (d) { return render.tipHtml(d.properties.name, subMix[d.properties.code], render.state.today); },
+      function (d) { return render.tipHtml(d.properties.name, subMix[d.properties.code], render.state.today, 'drill'); },
       function (ev, d) { render.onSubregionClick(d, ev); });
     // 선택·포커스 덮개 층 — 면 위, 글리프·마커 아래.
     g.append('g').attr('class', 'sel-ring-layer').attr('pointer-events', 'none');
@@ -674,7 +644,7 @@
       if (!logic.subCardEligible(info)) return;
       const p = path.centroid(d);
       items.push({ code: d.properties.code, ax: p[0], ay: p[1], lines: logic.subCardLines(info).length,
-        pri: [info.within1, info.within6 - info.within1, info.to12, info.unknown] });
+        pri: [info.buckets.r3, info.buckets.r2, info.buckets.p, info.buckets.unknown] });
     });
     const lay = logic.layoutSubCards(items, w, h);
     const layer = svg.append('g').attr('class', 'sub-card-layer').attr('opacity', render.muniDimOpacity());
@@ -791,7 +761,9 @@
     const svg = d3.select('#map-svg'); render._ensureDefs(svg);
     const proj = render._regionProjection; if (!proj) return;
     const list = render.institutionsByRegion(code);
+    // 지도에는 공고 전 기관만 올린다(공고 중·예정일 경과는 입찰 공고 현황이 맡는다 — 2026-11-25 예상 공고현황, 면 색·목록과 같은 판정 logic.isPreNotice).
     const markers = logic.visibleMarkers(list, render.state.enabledTypes)
+      .filter(function (r){ return logic.isPreNotice(r, render.state.today); })
       .filter(function (r){ return typeof r.lng === 'number' && !isNaN(r.lng) && typeof r.lat === 'number' && !isNaN(r.lat); });
 
     let layer = svg.select('g.marker-layer');
@@ -843,58 +815,45 @@
     });
   };
 
-  render.drawTicker = function () {
-    const all = render.allInstitutions().filter(function (r){ return render.state.activeRegions.has(r.region); });
-    // 시-단위 중복제거 — 일반구 폴리곤 레코드(수원 4구 등)가 TOP5를 채우지 않게.
-    // 이미 예정일이 지난(D<0) 건은 '임박'이 아니라 경과라 뺀다 — 경과는 경과 패널이 맡는다.
-    // 날짜 미상(Infinity)은 예전처럼 맨 뒤에 남는다.
-    // 진행 중 공고(noticeState — 공고일이 오늘인 확정 공고도 D-day로 잡힌다)는 '공고 중 n' 칩이 맡으므로 TOP5에서 뺀다(이중 집계 방지).
-    const upcoming = all.filter(function (r) {
-      return !logic.noticeState(r, render.state.today) &&
-        logic.daysUntil(logic.effectiveBid(r).date, render.state.today) >= 0;
+  // 화면 머리 줄(#ticker-strip) — 제목·안내 기본 글은 index.html 마크업이고, 여기서는 기준일·안내 문구·이동 단추만 맞춘다.
+  // 임박 TOP5·'공고 중 n' 칩·굴림 연출·경과 토글은 없어졌다(2026-11-25 예상 공고현황). 이름과 호출 형태는 그대로 —
+  // app.js·workflow.js가 데이터가 바뀔 때마다 이 함수를 부른다(수정 금지 파일이라 호출 자리를 옮기지 않는다).
+  render.MAP_LEDE = '아직 공고 전인 기관의 예상 시기입니다. 지난 입찰일·약정 만료일로 계산했고 실제 공고일과 다를 수 있습니다.';
+  render.MAP_LEDE_EMPTY = '켠 종류에 아직 공고 전인 기관이 없습니다. 기관 분류선택에서 종류를 켜 보세요.';
+  // 입찰 공고 현황 메뉴가 지금 사용자에게 보이는가(영업 계열 밖에는 없다) — 없으면 이동 단추를 숨긴다.
+  render.noticeMenuOn = function () {
+    const A = root.app, N = root.nav;
+    return !!(A && A.findNavItem && N && N.NOTICE_ID && A.findNavItem(N.NOTICE_ID));
+  };
+  render.openNoticePage = function () {
+    const A = root.app, N = root.nav;
+    if (A && A.openNavItem && N && N.NOTICE_ID) A.openNavItem(N.NOTICE_ID);   // 기본 탭 '다가오는 입찰'
+  };
+  // 지도에 오르는 기관 수(켠 종류·활성 지역·공고 전, 기관 단위).
+  render.mapPoolCount = function () {
+    const list = render.allInstitutions().filter(function (r) {
+      return render.state.activeRegions.has(r.region) && render._rankTypeVisible(r) && logic.isPreNotice(r, render.state.today);
     });
-    const top = logic.dedupeByInstitution(logic.sortByUrgency(upcoming, render.state.today)).slice(0, 5);
-    const el = document.getElementById('ticker'); if (!el) return;
-    // 항목마다 임박도 색을 입힌다 — 티커 자체가 등락을 말해야 한다(마감 리뷰 반영).
-    // ▲는 6개월 이내(상승 = 임박, D>=0)에만 붙는 시세 표기. 색은 hex 화이트리스트 통과분만.
-    // 캡션 뒤 '공고 중 n' 칩(테두리만) — 공고가 나서 진행 중인 기관 수. TOP5는 그대로(예정 기관만).
-    const noticeN = logic.noticeSummary(all, render.state.today).items.length;
-    const noticeChip = noticeN > 0
-      ? '<span class="tk-n" title="공고가 나서 진행 중인 기관 수(공고일부터 ' + logic.NOTICE_ACTIVE_DAYS + '일)">공고 중 ' + noticeN + '</span>' : '';
-    el.innerHTML = '<span class="tk-cap">임박 TOP5</span>' + noticeChip + top.map(function (r) {
-      const band = logic.urgencyOf(r, render.state.today);
-      const c = render._safeColor(render.URGENCY_COLORS[band], render.LEGACY_DEFAULTS[band]);
-      const mark = band === 'red' ? render.ICONS.up + ' ' : '';
-      return '<span style="color:color-mix(in srgb, ' + c + ' 50%, var(--fg))">' + mark +
-        logic.esc(r.name) + ' ' + logic.esc(logic.formatDDay(r, render.state.today)) + '</span>';
-    }).join('<span class="tk-sep">·</span>') +
-      '<span class="tk-sync" title="기준일 시점의 값입니다">기준 ' + logic.localDateStr(render.state.today) + '</span>';
-    render._rollTicker();
-    // 경과 건수는 같은 데이터에서 나오므로 티커를 다시 그릴 때(데이터가 바뀔 때마다) 함께 갱신한다.
+    return logic.dedupeByInstitution(list).length;
+  };
+  render.paintMapHead = function () {
+    if (typeof document === 'undefined') return;
+    const asof = document.getElementById('map-asof');
+    if (asof) asof.textContent = '기준 ' + logic.localDateStr(render.state.today);
+    const lede = document.getElementById('map-lede');
+    if (lede) lede.textContent = render.mapPoolCount() ? render.MAP_LEDE : render.MAP_LEDE_EMPTY;
+    const out = document.getElementById('map-out');
+    if (out) out.hidden = !render.noticeMenuOn();
+    const btn = document.getElementById('map-to-notice');
+    if (btn && !btn._wired) { btn._wired = true; btn.addEventListener('click', render.openNoticePage); }
+  };
+  render.drawTicker = function () {
+    render.paintMapHead();
+    // 경과 건수·사이드바 미처리 배지·로그인 팝업 건수는 같은 데이터에서 나오므로 데이터가 바뀔 때마다 함께 갱신한다(overdue.js).
     if (root.overdue && root.overdue.refresh) root.overdue.refresh();
   };
-
-  // "최신화되는 듯한" 표현 — 값을 새로 가져오는 것이 아니라 **기준일 고정값을 다시 그리는 연출**이다
-  // (그래서 '기준 YYYY-MM-DD' 라벨을 남긴다). 시계 분·초가 넘어가듯, 맨 왼쪽 항목부터 차례로
-  // 아래로 굴러 내려가 사라지고 위에서 새 값이 내려와 앉는다. 모션 줄이기 설정이면 하지 않는다.
-  render.TICKER_ROLL_MS = 10000;
-  let tickerTimer = null;
-
-  render._rollTicker = function () {
-    const el = document.getElementById('ticker'); if (!el) return;
-    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    el.querySelectorAll(':scope > span:not(.tk-cap):not(.tk-sep):not(.tk-sync):not(.tk-n)').forEach(function (item, i) {
-      item.classList.remove('tk-roll');
-      void item.offsetWidth;                       // 같은 클래스를 다시 걸어도 애니메이션이 재시작되게
-      item.style.animationDelay = (i * 0.16) + 's';
-      item.classList.add('tk-roll');
-    });
-  };
-
-  render.startTickerSync = function () {
-    if (tickerTimer || typeof setInterval !== 'function') return;
-    tickerTimer = setInterval(render._rollTicker, render.TICKER_ROLL_MS);
-  };
+  // app.js:1216이 부른다 — 굴림 연출이 없어져 할 일이 없다(빈 함수로 남김. app.js 담당 세션이 호출을 지우면 이 줄도 지운다).
+  render.startTickerSync = function () {};
 
   render.highlightMarker = function (name, on) {
     d3.select('#map-svg').selectAll('g.marker').classed('hi', function () {
@@ -967,15 +926,21 @@
     p.textContent = msg;   // 비어 있는 role=status에 글을 넣어야 읽어 준다
   };
 
+  // 공고 전 기관만 — 지도와 같은 범위(공고 중·경과는 입찰 공고 현황). 빠진 수는 rankOutCount.
   render.rankedList = function (code) {
     const list = render.institutionsByRegion(code)
-      .filter(function (r) { return render._rankTypeVisible(r); });
+      .filter(function (r) { return render._rankTypeVisible(r) && logic.isPreNotice(r, render.state.today); });
     const sorted = render.state.rankSort === 'interest'
       ? logic.sortByInterest(list, render.state.today, function (r){ return render.hearted(r); })
       : logic.sortByUrgency(list, render.state.today);
     // 기관 단위 중복제거 — 일반구 복제 레코드(수원 4구 등)가 카드 4장을 차지하지 않게.
     // 티커(drawTicker)와 같은 규칙. 폴리곤 강조는 _blinkMunicipality가 전 폴리곤을 잡는다.
     return logic.dedupeByInstitution(sorted);
+  };
+  // 목록에서 빠진 기관(공고 중·예정일 경과) 수 — 같은 지역·켠 종류·기관 단위. 목록 끝 안내용.
+  render.rankOutCount = function (code) {
+    const all = logic.dedupeByInstitution(render.institutionsByRegion(code).filter(function (r) { return render._rankTypeVisible(r); }));
+    return all.filter(function (r) { return !logic.isPreNotice(r, render.state.today); }).length;
   };
   // 랭킹·섞기 유형 필터: 지자체는 항상 포함(끄면 면을 흐리게만), 종류를 모르는 유형은 항상 표시, 그 외는 켠 종류(enabledTypes=종류 6종)만.
   render._rankTypeVisible = function (r) {
@@ -984,10 +949,14 @@
     return render.state.enabledTypes.has(kind);
   };
 
-  // 순위표 둘째 줄 글: 공고 진행 중이면 '공고 날짜 · 접수 기간'(경과·예정으로 보이지 않게), 아니면 입찰 예정일(신뢰도).
+  // 목록 둘째 줄 글: '지자체 · 2027-03-02 예상 · 약정주기 계산' / '지자체 · 예상 근거 없음'. 공고 중 기관은 이 목록에 오지 않지만
+  // prep.test.js:718이 공고 줄을 못 박고 있어 그 갈래는 남긴다(prep 담당 세션이 정리하면 함께 지운다).
   render.rankLineText = function (r, today) {
+    const head = (r.type == null ? '' : r.type) + ' · ';
     const nb = logic.noticeBrief(r, today);
-    return (r.type == null ? '' : r.type) + ' · ' + (nb ? nb.line : logic.formatBidDateLabel(r));
+    if (nb) return head + nb.line;
+    const e = logic.effectiveBid(r);
+    return head + (e.date ? e.date + ' 예상 · ' + logic.basisText(e) : logic.basisText(e));
   };
   render.drawRankingPanel = function (code) {
     const panel = document.getElementById('rank-panel'); if (!panel) return;
@@ -995,7 +964,7 @@
     // 헤더(정렬 토글) + 목록 컨테이너
     panel.innerHTML =
       '<div class="rank-head"><b>시군구별 기관</b>' +
-      '<select id="rank-sort"><option value="urgency">임박순</option><option value="interest">관심도순</option></select>' +
+      '<select id="rank-sort"><option value="urgency">이른 예상순</option><option value="interest">관심 먼저</option></select>' +
       '</div><p id="rank-status" class="sr-only" role="status"></p><div id="rank-list"></div>' +
       '<div style="margin-top:8px;"><button id="rank-more">더 보기 — 전체 입찰건</button></div>';
     document.getElementById('rank-sort').value = render.state.rankSort;
@@ -1048,6 +1017,19 @@
     render._faceGroup = {};
     render._groups.forEach(function (g) { g.faceCodes.forEach(function (fc) { render._faceGroup[fc] = g.code; }); });
     render._groups.forEach(function (g) { listEl.appendChild(render._rkBuildGroup(g, buildCard)); });
+    if (!render._groups.length) {   // 공고 전 기관이 없는 지역 — 빈 화면 대신 다음 걸음을 준다
+      const em = document.createElement('div'); em.className = 'rk-empty';
+      em.innerHTML = '<p>이 지역에는 아직 공고 전인 기관이 없습니다.</p>' +
+        (render.noticeMenuOn() ? '<button type="button" class="link-btn" id="rk-to-notice">입찰 공고 현황</button>' : '');
+      listEl.appendChild(em);
+      const go = em.querySelector('#rk-to-notice'); if (go) go.addEventListener('click', render.openNoticePage);
+    }
+    const out = render.rankOutCount(code);
+    if (out > 0) {
+      const p = document.createElement('p'); p.className = 'rk-out';
+      p.textContent = '공고가 났거나 예정일이 지난 ' + out + '곳은 입찰 공고 현황에서 봅니다.';
+      listEl.appendChild(p);
+    }
     const hd = panel.querySelector('.rank-head');
     if (hd) panel.style.setProperty('--rank-head-h', hd.offsetHeight + 'px');   // 묶음 머리가 .rank-head 바로 아래에 붙게
     // 목록을 새로 그리면 .hi가 사라지므로 현재 선택을 복원한다 —
@@ -1086,7 +1068,7 @@
     const key = g.code || 'none';
     const sec = document.createElement('section');
     sec.className = 'rk-grp'; sec.dataset.code = g.code; sec.setAttribute('aria-labelledby', 'rkg-' + key);
-    const sum = g.summary.map(function (s) { return '<span>' + esc(s.label) + ' <b>' + s.n + '</b>건</span>'; }).join('') || '<span>1년 안 입찰 없음</span>';
+    const sum = g.summary.map(function (s) { return '<span>' + esc(s.label) + ' <b>' + s.n + '</b>건</span>'; }).join('') || '<span>1년 안 예상 없음</span>';
     const inner = '<span class="rk-gn">' + esc(g.name) + '</span><span class="rk-gt">' + g.total + '건</span><span class="rk-gs">' + sum + '</span>';
     sec.innerHTML = '<h3 class="rk-gh">' + (g.code
       ? '<button type="button" class="rk-gbtn" id="rkg-' + esc(key) + '" aria-pressed="false">' + inner + '</button>'

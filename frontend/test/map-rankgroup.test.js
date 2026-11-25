@@ -14,35 +14,8 @@ function rec(days, name, extra) {
   return Object.assign({ name: name, region: '41', type: '지자체', contractEnd: dateAfter(days), confirmed: true }, extra || {});
 }
 function nodate(name) { return { name: name, region: '41', type: '지자체' }; }
-// 공고 중 1 · 경과 1 · 1개월 미만 2 · 6개월 미만 1 · 1년 미만 1 · 2년 미만 1 · 2년 이상 1 · 알 수 없음 1 = 9건
-const MIXED = [rec(-5, '공고a'), rec(-150, '경과a'), rec(10, '가1'), rec(29, '가2'), rec(60, '나'), rec(250, '다'), rec(500, '라'), rec(800, '마'), nodate('미상')];
-
 // ── 순수 로직 ─────────────────────────────────────────────────────────
-test('tipBuckets: 6구간(1개월 미만·6개월 미만·1년 미만·2년 미만·2년 이상·알 수 없음), 겹치지 않고 0건은 숨김', () => {
-  const info = logic.regionMix(MIXED, TODAY);
-  const b = logic.tipBuckets(info);
-  assert.deepStrictEqual(b.map(x => [x.label, x.n]), [['1개월 미만', 2], ['6개월 미만', 1], ['1년 미만', 1], ['2년 미만', 1], ['2년 이상', 1], ['알 수 없음', 1]]);
-  // 구간 합 + 공고 중 + 경과 = 합계(겹침·누락 없음)
-  assert.strictEqual(b.reduce((s, x) => s + x.n, 0) + info.notice + info.overdue, info.total);
-  assert.deepStrictEqual(logic.tipBuckets(logic.regionMix([rec(10, 'a')], TODAY)).map(x => x.label), ['1개월 미만']);
-  assert.deepStrictEqual(logic.tipBuckets(logic.regionMix([], TODAY)), []);
-  assert.deepStrictEqual(logic.tipBuckets(null), []);
-});
-
-test('recordBucket: 공고 중·경과·1개월 미만·6개월 미만·1년 미만·2년 미만·2년 이상·알 수 없음', () => {
-  const k = r => logic.recordBucket(r, TODAY);
-  assert.deepStrictEqual(
-    [rec(-5, 'a'), rec(-150, 'b'), rec(10, 'c'), rec(60, 'd'), rec(250, 'e'), rec(500, 'f'), rec(800, 'g'), nodate('h')].map(k),
-    ['notice', 'overdue', 'within1', 'within6', 'to12', 'to24', 'over24', 'unknown']);
-});
-
-test('groupSummary: 공고 중·경과·1개월 미만·6개월 미만·1년 미만·알 수 없음만(2년 미만·이상은 요약에 없음), 0건 숨김', () => {
-  const s = logic.groupSummary(logic.regionMix(MIXED, TODAY));
-  assert.deepStrictEqual(s.map(x => [x.label, x.n]), [['공고 중', 1], ['경과', 1], ['1개월 미만', 2], ['6개월 미만', 1], ['1년 미만', 1], ['알 수 없음', 1]]);
-  assert.deepStrictEqual(logic.groupSummary(logic.regionMix([rec(500, 'a'), rec(800, 'b')], TODAY)), []);
-  assert.deepStrictEqual(logic.groupSummary(null), []);
-});
-
+// tipBuckets·recordBucket·groupSummary 시험은 예상 공고현황 기준으로 map_expected.test.js에 있다(2026-11-25).
 test('faceGroups: 같은 지자체 레코드를 공유하는 면은 한 묶음(수원 4구), 이어져도 한 묶음, 나머지는 면 하나', () => {
   const su = { key: '41|수원시청', name: '수원시청' }, sn = { key: '41|성남시청', name: '성남시청' };
   const g = logic.faceGroups([
@@ -71,7 +44,7 @@ test('rankGroups: 처음 나온 순서로 묶고, 어느 면에도 없으면 시
   const g1 = out[0], none = out[1], g2 = out[2];
   assert.deepStrictEqual(g1.recs.map(r => r.name), ['가구청', '가공단']);
   assert.strictEqual(g1.total, 2); assert.strictEqual(g1.shown.length, 2); assert.strictEqual(g1.rest.length, 0);
-  assert.deepStrictEqual(g1.summary.map(s => [s.label, s.n]), [['1개월 미만', 1], ['6개월 미만', 1]]);
+  assert.deepStrictEqual(g1.summary.map(s => [s.label, s.n]), [['3개월 안', 2]]);
   assert.strictEqual(none.name, '시·군·구 미확인'); assert.deepStrictEqual(none.faceCodes, []);
   assert.deepStrictEqual(none.recs.map(r => r.name), ['무소속']);
   assert.strictEqual(g2.shown.length, 0); assert.deepStrictEqual(g2.rest.map(r => r.name), ['나구청', '나공단']);
@@ -80,55 +53,21 @@ test('rankGroups: 처음 나온 순서로 묶고, 어느 면에도 없으면 시
 });
 
 test('restLabel·groupScrollDelta·groupStatusText', () => {
-  assert.strictEqual(logic.restLabel(3, false), '1년 이상 남은 3건 보기');
-  assert.strictEqual(logic.restLabel(3, true), '1년 이상 남은 3건 접기');
+  assert.strictEqual(logic.restLabel(3, false), '1년 넘게 남은 3건 보기');
+  assert.strictEqual(logic.restLabel(3, true), '1년 넘게 남은 3건 접기');
   // 머리가 보이는 영역 위쪽 1/3 안이면 안 움직이고, 아니면 머리를 맨 위로 맞춘다
   assert.strictEqual(logic.groupScrollDelta(10, 300), 0);
   assert.strictEqual(logic.groupScrollDelta(100, 300), 0);
   assert.strictEqual(logic.groupScrollDelta(101, 300), 101);
   assert.strictEqual(logic.groupScrollDelta(-20, 300), -20);
   assert.strictEqual(logic.groupScrollDelta(500, 300), 500);
-  assert.strictEqual(logic.groupStatusText({ name: '강남구', shown: [1, 2, 3, 4], rest: [1, 2, 3] }), '강남구 묶음을 목록에서 표시했습니다. 입찰 가까운 4건, 1년 이상 3건.');
-  assert.strictEqual(logic.groupStatusText({ name: '강남구', shown: [1], rest: [] }), '강남구 묶음을 목록에서 표시했습니다. 입찰 가까운 1건.');
-  assert.strictEqual(logic.groupStatusText({ name: '강남구', shown: [], rest: [1, 2] }), '강남구 묶음을 목록에서 표시했습니다. 1년 이상 2건.');
+  assert.strictEqual(logic.groupStatusText({ name: '강남구', shown: [1, 2, 3, 4], rest: [1, 2, 3] }), '강남구 묶음을 목록에서 표시했습니다. 1년 안 예상 4건, 1년 넘게 남은 3건.');
+  assert.strictEqual(logic.groupStatusText({ name: '강남구', shown: [1], rest: [] }), '강남구 묶음을 목록에서 표시했습니다. 1년 안 예상 1건.');
+  assert.strictEqual(logic.groupStatusText({ name: '강남구', shown: [], rest: [1, 2] }), '강남구 묶음을 목록에서 표시했습니다. 1년 넘게 남은 2건.');
 });
 
 // ── 툴팁(6-A) ─────────────────────────────────────────────────────────
-test('tipHtml: 한 줄에 항목 하나(이름 왼쪽·수 오른쪽), 공고 → 입찰 예정 시기 → 꼬리 순, 단위 건, 가운뎃점 연결 없음', () => {
-  const h = render.tipHtml('강남구', logic.regionMix(MIXED, TODAY), TODAY);
-  assert.ok(h.includes('<div class="rt-kv rt-t"><span>공고 진행 중</span><span class="rt-n">1건</span></div>'), h);
-  assert.ok(h.includes('<span>접수 기간 원문 확인</span><span class="rt-n">1건</span>'), h);
-  assert.ok(h.includes('<span class="rt-nm">공고a</span><span class="rt-d rt-q">공고 후 5일</span>'), h);
-  assert.ok(h.includes('<div class="rt-kv rt-t"><span>입찰 예정 시기</span></div>'), h);
-  assert.ok(!h.includes('가장 임박') && !h.includes('rt-l') && !h.includes('가1'), h);   // '가장 임박' 줄 없음(design 11-24 P2-2)
-  ['1개월 미만:2', '6개월 미만:1', '1년 미만:1', '2년 미만:1', '2년 이상:1', '알 수 없음:1'].forEach(s => {
-    const p = s.split(':'); assert.ok(h.includes('<span>' + p[0] + '</span><span class="rt-n">' + p[1] + '건</span>'), p[0]);
-  });
-  assert.ok(h.includes('<span>예정일 경과</span><span class="rt-n">1건</span>') && h.includes('<span>합계</span><span class="rt-n">9건</span>'), h);
-  assert.ok(h.includes('<div class="rt-mu">지도 색은 9건 중 7건으로 정했습니다</div>') && !h.includes('뺌'), h);
-  assert.ok(h.indexOf('공고 진행 중') < h.indexOf('입찰 예정 시기') && h.indexOf('입찰 예정 시기') < h.indexOf('합계'));
-  assert.ok(!/곳|날짜 미상|6개월 안|rt-row| · /.test(h), h);   // 옛 용어·단위·가운뎃점 없음
-});
-
-test('tipHtml: 0건 줄·블록은 통째로 숨김, 꼬리는 색을 정한 건수(전부 정했으면 줄 없음), 이름은 이스케이프', () => {
-  const one = render.tipHtml('x', logic.regionMix([rec(10, '<b>가</b>')], TODAY), TODAY);
-  assert.ok(one.includes('1개월 미만') && !one.includes('6개월 미만') && !one.includes('2년 이상') && !one.includes('rt-notice') && !one.includes('예정일 경과'));
-  assert.ok(!one.includes('<b>가</b>') && !one.includes('rt-mu">경과'));
-  // '가장 임박' 줄이 없어져 이름은 공고 진행 중 블록에만 나온다 → 거기서 이스케이프를 검증
-  const esc = render.tipHtml('x', logic.regionMix([rec(-5, '<b>가</b>')], TODAY), TODAY);
-  assert.ok(esc.includes('&lt;b&gt;가&lt;/b&gt;') && !esc.includes('<b>가</b>'), esc);
-  const unk = render.tipHtml('x', logic.regionMix([nodate('a'), nodate('b')], TODAY), TODAY);
-  assert.ok(unk.includes('<span>알 수 없음</span><span class="rt-n">2건</span>') && unk.includes('지도 색을 정할 건이 없어 회색입니다') && !unk.includes('가장 임박') && !unk.includes('뺌'));
-  const part = render.tipHtml('x', logic.regionMix([rec(10, 'a'), nodate('b')], TODAY), TODAY);
-  assert.ok(part.includes('지도 색은 2건 중 1건으로 정했습니다') && !part.includes('뺌'));
-  assert.ok(!one.includes('rt-mu'));   // 한 건 전부 색에 들어갔으면 안내 줄 없음
-  assert.ok(render.tipHtml('빈곳', logic.regionMix([], TODAY), TODAY).includes('켠 종류의 기관이 없습니다'));
-});
-
-test('LEGEND_ITEMS: 색 이름이 카드 용어(6개월 미만·1년 미만·2년 미만·2년 이상 위주)', () => {
-  assert.deepStrictEqual(render.LEGEND_ITEMS.map(i => i[1]),
-    ['6개월 미만 위주', '1년 미만 위주', '섞임 (급한 곳·여유 있는 곳 반반)', '2년 미만 위주', '2년 이상 위주', '날짜 미상']);
-});
+// 툴팁(tipHtml)·범례 이름 시험은 예상 공고현황 기준으로 map_expected.test.js에 있다(2026-11-25).
 
 // ── 묶음 정의·클릭·선택 ───────────────────────────────────────────────
 test('rankGroupDefs: 면마다 recordsForFeature로 묶고, 지자체를 공유하는 면은 한 묶음(키는 합집합)', () => {
@@ -231,12 +170,6 @@ test('묶음 머리 단추 aria-pressed: 기본 false, 선택·해제·복원 �
   assert.ok(/classList\.remove\('on'\); render\._rkPressed\(s, false\)/.test(r));   // clearSelection
   assert.ok(/sec\.classList\.add\('on'\); render\._rkPressed\(sec, true\)/.test(r));   // selectGroup
   assert.ok(/on\.classList\.add\('on'\); render\._rkPressed\(on, true\)/.test(r));   // 복원
-});
-
-test('mixAriaLabel 전국: 6개월 안 공고 예정(범례와 같은 말), 옛 6개월 안 n건 없음', () => {
-  const info = logic.regionMix([rec(10, 'a')], TODAY);
-  const t = render.mixAriaLabel('경남', info);
-  assert.ok(t.includes('6개월 안 공고 예정 1건') && !/6개월 안 \d/.test(t), t);
 });
 
 test('render.js·app.js: 새로 그릴 때 선택 이름을 비워 묶음 자동 펼침을 막고, 묶음 선택 복원은 스크롤하지 않는다', () => {

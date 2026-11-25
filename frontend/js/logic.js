@@ -502,106 +502,72 @@
     '대학':'대학', '대학교':'대학', '법원':'법원', '병원':'병원', '대학병원':'병원' };
   logic.kindOf = function (type) { return logic.KIND_OF_TYPE[type] || null; };
 
-  // ── 지도 지역 색 섞기(NEXT 78, C안 '바닥 섞기 + ▲개수') ──────────────────────────
-  // 규격: handoff/agents/design-reviewer/2026-11-11_1616_a821ad3f.md §3.
-  // 기관 점수: 6개월 안 +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2. 날짜 미상과 예정일이 지난(경과) 기관은
-  // 계산에서 뺀다(null) — 경과는 '공고 예정일 경과' 목록에서 따로 다룬다(사용자 2026-11-12).
-  // 진행 중 공고(noticeState)는 경과가 아니다(isOverdue=false). 점수는 마감 전·마감일 미확인이 +2(진행 중은 가장 급함,
-  // 마감일을 모르는 곳은 공고 후 30일 이내만 +2), 마감 지난·마감일 미확인 30일 초과(결과 확인) 곳은 색에서 뺀다(null — 빨강은 진짜 급한 것만).
+  // ── 예상 공고현황 지도(2026-11-25, 사용자 결정 안 A · design-reviewer 2026-11-25_1701 · 메인 확정 D1) ─────────
+  // 지도는 '아직 공고 전인 기관이 언제 뜰지'만 그린다. 공고 진행 중(noticeState)과 예정일이 지난 기관(일수 < 0)은 지도 집계에서 아예 뺀다 —
+  // 입찰 공고 현황·입찰 현황판이 맡는다. 면 색 = 그 면의 '가장 이른 예상' 기관이 든 구간(전국·시군구 같은 방식, 점수·평균 섞기 없음).
+  // 구간 경계(일수): 0~91 r3 / 92~182 r2 / 183~365 p / 366~730 b2 / 731~ b3 — 입찰 공고 현황 기간 창(dash.WINDOWS 91·182·365)과 같다.
+  logic.MAP_LIMITS = [['r3', 91], ['r2', 182], ['p', 365], ['b2', 730]];
+  logic.MAP_LABELS = { r3: '3개월 안', r2: '3~6개월', p: '6개월~1년', b2: '1~2년', b3: '2년 뒤', unknown: '예상 근거 없음' };
+  logic.mapBandOfDays = function (d) {
+    for (let i = 0; i < logic.MAP_LIMITS.length; i++) if (d <= logic.MAP_LIMITS[i][1]) return logic.MAP_LIMITS[i][0];
+    return 'b3';
+  };
+  // 경과 = 공고 진행 중이 아니면서 예정일이 지난 기관. 날짜 미상은 경과가 아니다(unknown).
   logic.isOverdue = function (rec, today) {
     if (logic.noticeState(rec, today)) return false;
     const d = logic.daysUntil(logic.effectiveBid(rec).date, today);
     return d !== Infinity && d < 0;
   };
-  logic.instScore = function (rec, today) {
-    const ns = logic.noticeState(rec, today);
-    if (ns) return ns.check ? null : 2;
-    const d = logic.daysUntil(logic.effectiveBid(rec).date, today);
-    if (d === Infinity || d < 0) return null;
-    if (d <= 182) return 2;
-    if (d <= 365) return 1;
-    if (d <= 730) return -1;
-    return -2;
+  // 기관 하나의 지도 위치: { key:'notice'|'overdue'|'unknown'|'r3'|'r2'|'p'|'b2'|'b3', days, bid }
+  logic.mapEntry = function (rec, today) {
+    if (logic.noticeState(rec, today)) return { key: 'notice', days: null, bid: null };
+    const bid = logic.effectiveBid(rec), d = logic.daysUntil(bid.date, today);
+    if (d === Infinity) return { key: 'unknown', days: null, bid: bid };
+    if (d < 0) return { key: 'overdue', days: d, bid: bid };
+    return { key: logic.mapBandOfDays(d), days: d, bid: bid };
+  };
+  logic.mapBucket = function (rec, today) { return logic.mapEntry(rec, today).key; };
+  logic.isPreNotice = function (rec, today) { const k = logic.mapBucket(rec, today); return k !== 'notice' && k !== 'overdue'; };
+  // 날짜 옆 근거 글(툴팁·목록·aria). 규격 §5-2.
+  logic.basisText = function (bid) {
+    if (!bid || !bid.date) return '예상 근거 없음';
+    if (bid.basis === 'cycle') return '약정주기 계산';
+    if (bid.basis === 'expiry') return '약정 만료일 기준';
+    return bid.confidence === '확정' ? '공고 예정일 확인' : '공고일 기록(미확인)';
   };
 
-  // 평균 m → 5단: r3 진빨강 · r2 빨강 · p 보라 · b2 파랑 · b3 진파랑.
-  logic.mixBandOf = function (m) {
-    if (m >= 1.5) return 'r3';
-    if (m >= 0.5) return 'r2';
-    if (m > -0.5) return 'p';
-    if (m > -1.5) return 'b2';
-    return 'b3';
-  };
-
-  // 가장 임박한 기관 = 날짜가 있는 기관 중 남은 일수가 가장 작은 것(경과는 가장 앞). 같은 날이면
-  // 확정이 먼저, 그래도 같으면 입력 순서. ▲를 정한 기관과 면 클릭으로 잡히는 기관이 같아야 한다.
-  // 접수 마감 전인 진행 중 공고(receiving)가 있으면 마감이 가장 가까운 그곳이 맨 앞이다.
-  logic.mostImminent = function (list, today) {
-    let rbest = null, rd = Infinity;
+  // 가장 이른 예상: 공고 전이고 날짜가 있는 기관을 남은 일수 순으로, 같은 날이면 확정이 먼저, 그래도 같으면 입력 순서(안정 정렬).
+  // → [{ rec, days, band, date, basis(근거 글), fixed }] 최대 n곳(생략하면 전부).
+  logic.earliestExpected = function (list, today, n) {
+    const out = [];
     (list || []).forEach(function (r) {
-      const ns = logic.noticeState(r, today);
-      if (ns && ns.phase === 'receiving' && ns.deadlineDays < rd) { rbest = r; rd = ns.deadlineDays; }
+      const e = logic.mapEntry(r, today);
+      if (e.days === null || e.key === 'notice' || e.key === 'overdue' || e.key === 'unknown') return;
+      out.push({ rec: r, days: e.days, band: e.key, date: e.bid.date, basis: logic.basisText(e.bid), fixed: e.bid.confidence === '확정' });
     });
-    if (rbest) return rbest;
-    let best = null, bestD = Infinity, bestFixed = false;
-    (list || []).forEach(function (r) {
-      const e = logic.effectiveBid(r);
-      const d = logic.daysUntil(e.date, today);
-      if (d === Infinity) return;
-      const fixed = e.confidence === '확정';
-      if (best === null || d < bestD || (d === bestD && fixed && !bestFixed)) {
-        best = r; bestD = d; bestFixed = fixed;
-      }
-    });
-    return best;
+    out.sort(function (a, b) { return a.days - b.days || (b.fixed ? 1 : 0) - (a.fixed ? 1 : 0); });
+    return n === undefined ? out : out.slice(0, n);
   };
 
-  // 지역(또는 면) 하나의 섞기 결과. list는 호출자가 켠 종류·기관 단위 중복 제거를 마친 목록.
-  // band: 'none'(기관 0곳) | 'gray'(경과 아닌 날짜 있는 기관 0곳) | r3·r2·p·b2·b3.
-  // 색은 평균 점수만으로 정한다(사용자 2026-11-12 — '최소 보라' 바닥 규칙 뺌). 경과 기관은 overdue로만 센다.
-  // urgent = 6개월 안 기관 수(aria·툴팁용), urgentAllEst = 그 기관이 전부 추정이면 true.
-  // 공고 진행 중(noticeState): notice = 진행 중 전체, noticeOpen = 마감 전+마감일 미확인 30일 이내(점수 +2), receiving = 마감 전,
-  // awaiting = 마감 지남, late = 마감일 미확인 30일 초과(둘 다 결과 확인, 색에서 뺌), notices = 이름·상태 목록(툴팁용). 진행 중은 urgent(▲)에 세지 않는다(B안).
+  // 지역(또는 면) 하나의 지도 정보. list는 호출자가 켠 종류·기관 단위 중복 제거를 마친 목록.
+  // listed = 입력 수, total = 공고 전 기관 수(공고 중·경과 제외), buckets = 구간별 건수(unknown = 예상 근거 없음),
+  // earliest = 가장 이른 예상 최대 2곳, band = 면 색(earliest[0]의 구간 · 근거 있는 기관이 없으면 gray · 공고 전 기관 0곳이면 none),
+  // urgent = 6개월 안(r3+r2) 건수 — kbboard.test.js '지도 ▲ 합 = 공고 현황 6개월 수'가 이 값을 쓴다.
   logic.regionMix = function (list, today) {
     const items = list || [];
-    const info = { total: items.length, dated: 0, unknown: 0, mean: null, band: 'none',
-      overdue: 0, within1: 0, within6: 0, to12: 0, to24: 0, over24: 0, urgent: 0, urgentAllEst: false, imminent: null,
-      notice: 0, noticeOpen: 0, receiving: 0, awaiting: 0, late: 0, notices: [] };
-    let sum = 0, allEst = true;
+    const info = { listed: items.length, total: 0, band: 'none', urgent: 0, notice: 0, overdue: 0,
+      buckets: { r3: 0, r2: 0, p: 0, b2: 0, b3: 0, unknown: 0 }, earliest: [], imminent: null };
+    const pre = [];
     items.forEach(function (r) {
-      const ns = logic.noticeState(r, today);
-      if (ns) {
-        info.notice += 1;
-        if (ns.check) { if (ns.late) info.late += 1; else info.awaiting += 1; return; }
-        info.noticeOpen += 1;
-        if (ns.phase === 'receiving') info.receiving += 1;
-        info.dated += 1; sum += 2;
-        return;
-      }
-      if (logic.isOverdue(r, today)) { info.overdue += 1; return; }
-      const s = logic.instScore(r, today);
-      if (s === null) { info.unknown += 1; return; }
-      info.dated += 1; sum += s;
-      if (s === 2) {
-        info.within6 += 1;
-        if (logic.daysUntil(logic.effectiveBid(r).date, today) < 30) info.within1 += 1;   // 1개월 미만(within6 안의 부분집합 — 시군구 카드용, 사용자 11-24)
-        if (logic.effectiveBid(r).confidence === '확정') allEst = false;
-      } else if (s === 1) info.to12 += 1;
-      else if (s === -1) info.to24 += 1;
-      else info.over24 += 1;
+      const k = logic.mapBucket(r, today);
+      if (k === 'notice') { info.notice += 1; return; }
+      if (k === 'overdue') { info.overdue += 1; return; }
+      info.total += 1; info.buckets[k] += 1; pre.push(r);
     });
-    info.urgent = info.within6;
-    info.urgentAllEst = info.urgent > 0 && allEst;
-    if (info.dated === 0) info.band = items.length ? 'gray' : 'none';
-    else {
-      info.mean = sum / info.dated;
-      info.band = logic.mixBandOf(info.mean);
-    }
-    // '가장 임박'은 공고 전 예정 기관 중에서 고른다 — 진행 중 공고는 notices가 따로 말한다.
-    info.imminent = logic.mostImminent(items.filter(function (r) {
-      return !logic.isOverdue(r, today) && !logic.noticeState(r, today);
-    }), today);
-    if (info.notice) info.notices = logic.noticeSummary(items, today).items;
+    info.urgent = info.buckets.r3 + info.buckets.r2;
+    info.earliest = logic.earliestExpected(pre, today, 2);
+    info.imminent = info.earliest.length ? info.earliest[0].rec : null;
+    info.band = info.earliest.length ? info.earliest[0].band : (info.total ? 'gray' : 'none');
     return info;
   };
 
@@ -611,16 +577,16 @@
   // 넘침 안내 3줄(12px, 줄 높이 15) 높이 NOTE_H.
   logic.SUBCARD = { W: 120, G: 148, EDGE: 8, GAP: 4, ROW: 15, PADV: 4, ELBOW: 12, TOP_L: 48, TOP_R: 12, BOT: 12, NOTE_H: 45 };
 
-  // 카드 분류 줄(사용자 11-24 경남 확인 뒤: "1개월 미만/6개월 미만/1년 미만/알 수 없음 건수만").
-  // 겹치지 않게 센다 — 1개월 미만 = 30일 안, 6개월 미만 = 30일~6개월, 1년 미만 = 6개월~1년, 알 수 없음 = 공고 날짜 미상.
-  // 공고 중·경과·1년 넘는 기관은 카드에 쓰지 않는다(면 색·툴팁이 말한다). 0건 줄은 숨김.
+  // 카드 분류 줄(예상 공고현황, 2026-11-25): 3개월 안 / 3~6개월 / 6개월~1년 / 근거 없음. 1년 넘게(b2·b3)·공고 중·경과는 카드에 쓰지 않는다. 0건 줄은 숨김.
+  // full = 범례·툴팁·aria의 이름('예상 근거 없음') — 카드 폭 120px에는 '근거 없음'만 들어간다(design-reviewer 2026-11-25 D3).
   logic.subCardLines = function (info) {
-    if (!info) return [];
+    if (!info || !info.buckets) return [];
+    const b = info.buckets;
     const rows = [
-      { key: 'within1', label: '1개월 미만', n: info.within1 || 0, strong: true },
-      { key: 'within6', label: '6개월 미만', n: (info.within6 || 0) - (info.within1 || 0) },
-      { key: 'to12', label: '1년 미만', n: info.to12 || 0 },
-      { key: 'unknown', label: '알 수 없음', n: info.unknown || 0, muted: true },
+      { key: 'r3', label: '3개월 안', full: '3개월 안', n: b.r3, strong: true },
+      { key: 'r2', label: '3~6개월', full: '3~6개월', n: b.r2 },
+      { key: 'p', label: '6개월~1년', full: '6개월~1년', n: b.p },
+      { key: 'unknown', label: '근거 없음', full: '예상 근거 없음', n: b.unknown, muted: true },
     ];
     return rows.filter(function (r) { return r.n > 0; });
   };
@@ -701,48 +667,29 @@
     return out;
   };
 
-  // ── 지역별 공고현황 툴팁·오른쪽 목록 시군구 묶음(design-reviewer 2026-11-24_1839 6-A·6-B, 팀 결정 11-24) ──
-  // 분류 이름·순서는 시군구 카드(subCardLines)와 같다. 겹치지 않는 구간이며 0건은 뺀다.
-  // 1개월 미만 = within1, 6개월 미만 = within6 − within1(30일~6개월), 1년 미만 = to12, 2년 미만 = to24, 2년 이상 = over24, 알 수 없음 = unknown.
-  logic.tipBuckets = function (info) {
-    if (!info) return [];
-    const rows = [
-      { key: 'within1', label: '1개월 미만', n: info.within1 || 0 },
-      { key: 'within6', label: '6개월 미만', n: Math.max(0, (info.within6 || 0) - (info.within1 || 0)) },
-      { key: 'to12', label: '1년 미만', n: info.to12 || 0 },
-      { key: 'to24', label: '2년 미만', n: info.to24 || 0 },
-      { key: 'over24', label: '2년 이상', n: info.over24 || 0 },
-      { key: 'unknown', label: '알 수 없음', n: info.unknown || 0 },
-    ];
+  // ── 예상 공고현황 툴팁·오른쪽 목록 시군구 묶음(design-reviewer 2026-11-25) ──
+  // 툴팁 '예상 시기' 줄. 전국: 3개월 안·3~6개월·6개월~1년·1~2년·2년 뒤·예상 근거 없음. 드릴인(mode 'drill'): 1~2년+2년 뒤를 '1년 넘게' 한 줄로. 0건은 뺀다.
+  logic.tipBuckets = function (info, mode) {
+    if (!info || !info.buckets) return [];
+    const b = info.buckets, L = logic.MAP_LABELS;
+    const rows = mode === 'drill'
+      ? [{ key: 'r3', label: L.r3, n: b.r3 }, { key: 'r2', label: L.r2, n: b.r2 }, { key: 'p', label: L.p, n: b.p },
+         { key: 'over1y', label: '1년 넘게', n: b.b2 + b.b3 }, { key: 'unknown', label: L.unknown, n: b.unknown }]
+      : ['r3', 'r2', 'p', 'b2', 'b3', 'unknown'].map(function (k) { return { key: k, label: L[k], n: b[k] }; });
     return rows.filter(function (r) { return r.n > 0; });
   };
-  // 기관 하나가 어느 구간인가 — regionMix([r])와 같은 판정이라 면 색·카드·툴팁과 어긋나지 않는다.
-  // 'notice'(공고 중) | 'overdue'(경과) | within1 | within6 | to12 | to24 | over24 | unknown
-  logic.recordBucket = function (r, today) {
-    const i = logic.regionMix([r], today);
-    if (i.notice) return 'notice';
-    if (i.overdue) return 'overdue';
-    if (i.unknown) return 'unknown';
-    if (i.within1) return 'within1';
-    if (i.within6) return 'within6';
-    if (i.to12) return 'to12';
-    if (i.to24) return 'to24';
-    return i.over24 ? 'over24' : 'unknown';
-  };
-  // 목록에서 기본으로 접는 구간 = 1년 이상 남은 기관(팀 결정 11-24).
-  logic.RANK_REST = { to24: true, over24: true };
-  // 묶음 머리 요약(0건 줄 숨김). 2년 미만·2년 이상은 접힌 행이라 요약에 쓰지 않는다.
+  // 기관 하나가 어느 구간인가 — 'notice' | 'overdue' | r3 | r2 | p | b2 | b3 | unknown (logic.mapBucket과 같다)
+  logic.recordBucket = function (r, today) { return logic.mapBucket(r, today); };
+  // 목록에서 기본으로 접는 구간 = 1년 넘게 남은 기관(b2·b3).
+  logic.RANK_REST = { b2: true, b3: true };
+  // 묶음 머리 요약(0건 줄 숨김). 1~2년·2년 뒤는 접힌 행이라 요약에 쓰지 않는다.
   logic.groupSummary = function (info) {
-    if (!info) return [];
-    const rows = [
-      { key: 'notice', label: '공고 중', n: info.notice || 0 },
-      { key: 'overdue', label: '경과', n: info.overdue || 0 },
-      { key: 'within1', label: '1개월 미만', n: info.within1 || 0 },
-      { key: 'within6', label: '6개월 미만', n: Math.max(0, (info.within6 || 0) - (info.within1 || 0)) },
-      { key: 'to12', label: '1년 미만', n: info.to12 || 0 },
-      { key: 'unknown', label: '알 수 없음', n: info.unknown || 0 },
-    ];
-    return rows.filter(function (r) { return r.n > 0; });
+    if (!info || !info.buckets) return [];
+    const b = info.buckets;
+    return [
+      { key: 'r3', label: '3개월 안', n: b.r3 }, { key: 'r2', label: '3~6개월', n: b.r2 },
+      { key: 'p', label: '6개월~1년', n: b.p }, { key: 'unknown', label: '근거 없음', n: b.unknown },
+    ].filter(function (r) { return r.n > 0; });
   };
   // 면 → 묶음. faces = [{code, name, muni:[{key(instKey), name}]}]. 같은 지자체 레코드를 공유하는 면(수원 4구 등)은 한 묶음으로 합친다
   // (union-find, 대표 = 앞쪽 면). 합쳐진 묶음 이름 = 공유한 지자체 이름에서 '청'을 뗀 것('수원시청' → '수원시'), 면 하나면 그 면 이름.
@@ -803,7 +750,7 @@
     });
     return out;
   };
-  logic.restLabel = function (n, open) { return '1년 이상 남은 ' + n + '건 ' + (open ? '접기' : '보기'); };
+  logic.restLabel = function (n, open) { return '1년 넘게 남은 ' + n + '건 ' + (open ? '접기' : '보기'); };
   // 묶음 머리를 맞출 스크롤 양. top = 묶음 위쪽 − 고정 머리 아래 기준선(px), viewH = 보이는 높이.
   // 이미 보이는 영역의 위쪽 1/3 안이면 0(보던 목록을 튀기지 않는다), 아니면 머리를 맨 위에 맞추는 양.
   logic.groupScrollDelta = function (top, viewH) {
@@ -812,8 +759,8 @@
   // 묶음 선택 뒤 스크린리더(role=status) 알림.
   logic.groupStatusText = function (g) {
     const near = (g.shown || []).length, far = (g.rest || []).length, parts = [];
-    if (near) parts.push('입찰 가까운 ' + near + '건');
-    if (far) parts.push('1년 이상 ' + far + '건');
+    if (near) parts.push('1년 안 예상 ' + near + '건');
+    if (far) parts.push('1년 넘게 남은 ' + far + '건');
     return g.name + ' 묶음을 목록에서 표시했습니다.' + (parts.length ? ' ' + parts.join(', ') + '.' : '');
   };
 

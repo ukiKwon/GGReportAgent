@@ -366,7 +366,7 @@ test('ov.waiting·ov.count: 서버 연결 중 첫 목록을 받는 동안은 대
   ov.state.summary = { items: [{}, {}, {}, {}, {}] };
   assert.strictEqual(ov.count(), 3);                                // 경과 전체(5)가 아니라 미처리(3)
   // loading 중에는 사이드바 배지가 없고, 받은 뒤에는 미처리 3건 배지가 붙는다
-  const btn = { dataset: { nav: 'map' }, title: '', html: '', querySelector: sel => sel === '.nav-label' ? { textContent: '전국 지도' } : null, querySelectorAll: () => [], insertAdjacentHTML(pos, h) { this.html += h; } };
+  const btn = { dataset: { nav: require('../js/nav.js').NOTICE_ID }, title: '', html: '', querySelector: sel => sel === '.nav-label' ? { textContent: '입찰 공고 현황' } : null, querySelectorAll: () => [], insertAdjacentHTML(pos, h) { this.html += h; } };
   global.document = { querySelectorAll: () => [btn] };
   try {
     ov.paintNavBadge();

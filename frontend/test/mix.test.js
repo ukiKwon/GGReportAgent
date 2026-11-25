@@ -25,93 +25,7 @@ function undated(n) {
   return out;
 }
 
-test('instScore: 6개월 안 +2, 6~12개월 +1, 1~2년 −1, 2년 넘음 −2, 미상·경과 null', () => {
-  assert.strictEqual(logic.instScore(rec(30), TODAY), 2);
-  assert.strictEqual(logic.instScore(rec(-40, false), TODAY), null);   // 경과는 따로 관리(사용자 2026-11-12). 확정 공고 −40일은 '진행 중'이라 추정으로 쓴다
-  assert.strictEqual(logic.instScore(rec(250), TODAY), 1);
-  assert.strictEqual(logic.instScore(rec(500), TODAY), -1);
-  assert.strictEqual(logic.instScore(rec(1000), TODAY), -2);
-  assert.strictEqual(logic.instScore({ name: 'x', type: '지자체' }, TODAY), null);
-});
-
-test('mixBandOf: 5단 경계(1.5·0.5·−0.5·−1.5)', () => {
-  assert.strictEqual(logic.mixBandOf(2), 'r3');
-  assert.strictEqual(logic.mixBandOf(1.5), 'r3');
-  assert.strictEqual(logic.mixBandOf(1.49), 'r2');
-  assert.strictEqual(logic.mixBandOf(0.5), 'r2');
-  assert.strictEqual(logic.mixBandOf(0.49), 'p');
-  assert.strictEqual(logic.mixBandOf(0), 'p');
-  assert.strictEqual(logic.mixBandOf(-0.5), 'b2');
-  assert.strictEqual(logic.mixBandOf(-1.49), 'b2');
-  assert.strictEqual(logic.mixBandOf(-1.5), 'b3');   // 규격 §3: 진파랑 m≤−1.5
-  assert.strictEqual(logic.mixBandOf(-1.51), 'b3');
-});
-
-// ── 규격 §3 시나리오 가~아 ────────────────────────────────────────────
-test('섞기 가: 6개월 안 1곳뿐 → 진빨강 ▲1', () => {
-  const m = logic.regionMix(recs(D.W6, 1), TODAY);
-  assert.strictEqual(m.band, 'r3'); assert.strictEqual(m.urgent, 1);
-});
-test('섞기 나: 6개월 안 1 + 2년 넘음 9 → 평균대로 진파랑 ▲1 (바닥 규칙 없음, 사용자 2026-11-12)', () => {
-  const m = logic.regionMix(recs(D.W6, 1).concat(recs(D.OVER, 9)), TODAY);
-  assert.ok(m.mean < -1.5);
-  assert.strictEqual(m.band, 'b3'); assert.strictEqual(m.urgent, 1);
-});
-test('섞기 다: 6개월 안 5 + 2년 넘음 5 → 보라 ▲5', () => {
-  const m = logic.regionMix(recs(D.W6, 5).concat(recs(D.OVER, 5)), TODAY);
-  assert.strictEqual(m.band, 'p'); assert.strictEqual(m.urgent, 5);
-});
-test('섞기 라: 6~12개월 1 + 2년 넘음 9 → 평균대로 진파랑, ▲ 없음', () => {
-  const m = logic.regionMix(recs(D.M12, 1).concat(recs(D.OVER, 9)), TODAY);
-  assert.strictEqual(m.band, 'b3'); assert.strictEqual(m.urgent, 0);
-});
-test('섞기 마: 6~12개월 2 → 빨강', () => {
-  assert.strictEqual(logic.regionMix(recs(D.M12, 2), TODAY).band, 'r2');
-});
-test('섞기 바: 1~2년 3 + 2년 넘음 1 → 파랑', () => {
-  assert.strictEqual(logic.regionMix(recs(D.Y2, 3).concat(recs(D.OVER, 1)), TODAY).band, 'b2');
-});
-test('섞기 사: 2년 넘음 4 → 진파랑', () => {
-  assert.strictEqual(logic.regionMix(recs(D.OVER, 4), TODAY).band, 'b3');
-});
-test('섞기 아: 날짜 미상 3 → 회색, 날짜 있는 기관이 0곳이면 가장 임박도 없음', () => {
-  const m = logic.regionMix(undated(3), TODAY);
-  assert.strictEqual(m.band, 'gray'); assert.strictEqual(m.imminent, null);
-  assert.strictEqual(m.unknown, 3);
-});
-test('섞기: 미상은 평균에서 빠진다(6개월 안 1 + 미상 5 → 진빨강)', () => {
-  const m = logic.regionMix(recs(D.W6, 1).concat(undated(5)), TODAY);
-  assert.strictEqual(m.band, 'r3'); assert.strictEqual(m.dated, 1); assert.strictEqual(m.total, 6);
-});
-test('섞기: 기관 0곳은 none, 1년 안 기관이 없으면 바닥 없이 파랑 쪽으로 간다', () => {
-  assert.strictEqual(logic.regionMix([], TODAY).band, 'none');
-  assert.strictEqual(logic.regionMix(recs(D.Y2, 2).concat(recs(D.OVER, 1)), TODAY).band, 'b2');   // 평균 −1.33
-  assert.strictEqual(logic.regionMix(recs(D.Y2, 1).concat(recs(D.OVER, 1)), TODAY).band, 'b3');   // 평균 −1.5 = 진파랑 경계
-});
-
-test('urgent: 6개월 안 기관 수, urgentAllEst는 전부 추정일 때만 true(▲n 표시는 사용자 11-25 제거)', () => {
-  const allEst = logic.regionMix([rec(D.W6, false, 'a'), rec(D.W6 + 5, false, 'b')], TODAY);
-  assert.strictEqual(allEst.urgent, 2); assert.strictEqual(allEst.urgentAllEst, true);
-  const mixed = logic.regionMix([rec(D.W6, false, 'a'), rec(D.W6 + 5, true, 'b')], TODAY);
-  assert.strictEqual(mixed.urgent, 2); assert.strictEqual(mixed.urgentAllEst, false);
-  assert.strictEqual(logic.regionMix(recs(D.OVER, 2), TODAY).urgent, 0);
-  assert.strictEqual(logic.urgentMark, undefined);
-});
-
-test('mostImminent: 가장 임박한 기관, 같은 날이면 확정이 먼저, 미상은 건너뛴다', () => {
-  const est = rec(D.W6, false, '추정기관');
-  const fixed = rec(D.W6, true, '확정기관');
-  assert.strictEqual(logic.mostImminent([est, fixed], TODAY).name, '확정기관');
-  assert.strictEqual(logic.mostImminent([fixed, est], TODAY).name, '확정기관');
-  assert.strictEqual(logic.mostImminent([rec(D.OVER, true, '먼'), est], TODAY).name, '추정기관');
-  assert.strictEqual(logic.mostImminent(undated(2), TODAY), null);
-  assert.strictEqual(logic.mostImminent([], TODAY), null);
-});
-
-test('regionMix.imminent는 mostImminent와 같은 기관이다', () => {
-  const list = [rec(D.OVER, true, '먼'), rec(D.W6, false, '추정'), rec(D.W6, true, '확정')];
-  assert.strictEqual(logic.regionMix(list, TODAY).imminent.name, '확정');
-});
+// 지도 집계(구간·가장 이른 예상·공고 중/경과 제외) 시험은 map_expected.test.js로 옮겼다(2026-11-25 예상 공고현황).
 
 test('종류 정본 6종과 옛 이름 접기, markerShape는 종류 기준(NEXT 82)', () => {
   assert.deepStrictEqual(logic.TYPE_KINDS, ['지자체','교육청','공공기관','대학','법원','병원']);
@@ -135,9 +49,9 @@ function withFeatureRecords(records, fn) {
   finally { render.municipalityForFeature = origLookup; render.state.today = origToday; }
 }
 
-test('subUrgencyColor: 켠 기관을 섞은 5단 색(다 시나리오 = 보라)', () => {
+test('subUrgencyColor: 면 색 = 가장 이른 예상 기관의 구간(가까운 5곳 + 먼 5곳도 r3)', () => {
   withFeatureRecords(recs(D.W6, 5).concat(recs(D.OVER, 5)), () => {
-    assert.strictEqual(render.subUrgencyColor({}), render.MAP_COLORS.p);
+    assert.strictEqual(render.subUrgencyColor({}), render.MAP_COLORS.r3);
   });
 });
 
@@ -195,18 +109,6 @@ test('클릭 기관은 그 구의 지자체 우선, 섞기 가장 임박은 더 
   });
 });
 
-test('경과 건은 색·▲·가장 임박에서 빠지고 overdue로만 센다(사용자 2026-11-12)', () => {
-  // 확정 공고는 120일 넘게 지나야 경과다(그 안은 '진행 중')
-  const m = logic.regionMix([rec(-150, true, '경과'), rec(D.OVER, true, '먼')], TODAY);
-  assert.strictEqual(m.overdue, 1); assert.strictEqual(m.within6, 0); assert.strictEqual(m.urgent, 0);
-  assert.strictEqual(m.mean, -2); assert.strictEqual(m.band, 'b3');
-  assert.strictEqual(m.imminent.name, '먼');
-  const only = logic.regionMix([rec(-150, true, '경과')], TODAY);
-  assert.strictEqual(only.band, 'gray'); assert.strictEqual(only.imminent, null);
-  const h = render.tipHtml('경과곳', m, TODAY);
-  assert.ok(h.includes('<span>예정일 경과</span><span class="rt-n">1건</span>') && h.includes('<span>합계</span><span class="rt-n">2건</span>') && h.includes('지도 색은 2건 중 1건으로 정했습니다') && !h.includes('뺌'), h);
-});
-
 test('recordForFeature: 날짜가 전부 없으면 첫 기관을 돌려준다(눌러서 고를 수는 있다)', () => {
   withFeatureRecords(undated(2), () => {
     assert.strictEqual(render.recordForFeature({}).name, '미상0');
@@ -231,25 +133,6 @@ test('테마 5단: 기본값, 마커는 지도 팔레트, 티커(크롬)는 옛 
   assert.strictEqual(render.markerColor('blue'), render.MAP_COLORS.b3);
   assert.strictEqual(render.markerColor('gray'), render.MAP_COLORS.gray);
   assert.deepStrictEqual(render.URGENCY_COLORS, { red:'#f0a6a9', orange:'#f3c795', yellow:'#e9e3a8', blue:'#a9c5ea', gray:'#7c8699' });
-});
-
-test('instScore 경계: 0·182 / 183·365 / 366·730 / 731 / −1일', () => {
-  assert.strictEqual(logic.instScore(rec(0), TODAY), 2);
-  assert.strictEqual(logic.instScore(rec(-1, false), TODAY), null);
-  assert.strictEqual(logic.instScore(rec(182), TODAY), 2);
-  assert.strictEqual(logic.instScore(rec(183), TODAY), 1);
-  assert.strictEqual(logic.instScore(rec(365), TODAY), 1);
-  assert.strictEqual(logic.instScore(rec(366), TODAY), -1);
-  assert.strictEqual(logic.instScore(rec(730), TODAY), -1);
-  assert.strictEqual(logic.instScore(rec(731), TODAY), -2);
-});
-
-test('바닥 없음: 평균이 −0.5면 6~12개월 기관이 있어도 파랑', () => {
-  const withFloor = logic.regionMix([rec(D.M12, true, 'a'), rec(D.OVER, true, 'b')], TODAY);   // (+1 −2)/2 = −0.5
-  assert.strictEqual(withFloor.mean, -0.5);
-  assert.strictEqual(withFloor.band, 'b2');
-  const noFloor = logic.regionMix([rec(D.Y2, true, 'a'), rec(D.Y2, true, 'b'), rec(D.OVER, true, 'c'), rec(D.OVER, true, 'd')], TODAY); // −1.5
-  assert.strictEqual(noFloor.band, 'b3');
 });
 
 test('migrateTheme: 대문자 hex 옛 기본값도 고른 색이 아니고, gray는 키가 같아 그대로 이어진다', () => {
@@ -302,41 +185,13 @@ test('migrateTheme: 옛 기본 포인트색(#57b8ad, 대소문자 무시)은 버
   assert.strictEqual(Object.assign({}, render.DEFAULT_THEME, render.migrateTheme({ accent:'#123456' })).accent, '#123456');
 });
 
-test('범례: 5단 + 날짜 미상, 색 이름은 카드 용어(6개월 미만·1년 미만·2년 미만·2년 이상 위주)', () => {
-  assert.deepStrictEqual(render.LEGEND_ITEMS.map(function (i) { return i[0]; }), ['r3','r2','p','b2','b3','gray']);
-  const text = render.LEGEND_ITEMS.map(function (i) { return i[1]; }).join('|');
-  assert.ok(text.includes('6개월 미만 위주') && text.includes('1년 미만 위주') && text.includes('2년 미만 위주') && text.includes('2년 이상 위주') && text.includes('날짜 미상'));
-  assert.ok(!text.includes('6개월 안') && !text.includes('2년 넘음'));
-  assert.ok(!/6개월↓|1년↓|2년↓|2년\+|미상$/.test(text.replace(/날짜 미상/g, '')));
-});
-
-test('tipHtml: 구간 수·색을 정한 건수 안내(가장 임박 줄 없음), 이스케이프', () => {
-  const list = [rec(D.W6, false, '<b>구청</b>'), rec(D.M12, true, 'B청')].concat(undated(2));
-  const info = logic.regionMix(list, TODAY);
-  const h = render.tipHtml('서울', info, TODAY);
-  assert.ok(h.includes('서울') && !h.includes('가장 임박') && !h.includes('rt-l') && !h.includes('D-30') && !h.includes('(추정)'));
-  assert.ok(render.tipHtml('<b>서울</b>', info, TODAY).includes('&lt;b&gt;서울&lt;/b&gt;') && !h.includes('<b>구청</b>'));
-  assert.ok(h.includes('<span>6개월 미만</span><span class="rt-n">1건</span>') && h.includes('<span>1년 미만</span><span class="rt-n">1건</span>'));
-  assert.ok(!h.includes('1개월 미만') && !h.includes('2년 이상'));   // 0건 줄은 숨김
-  assert.ok(h.includes('<span>알 수 없음</span><span class="rt-n">2건</span>') && h.includes('<span>합계</span><span class="rt-n">4건</span>') && h.includes('지도 색은 4건 중 2건으로 정했습니다') && !h.includes('뺌'));
-  assert.ok(render.tipHtml('빈곳', logic.regionMix([], TODAY), TODAY).includes('켠 종류의 기관이 없습니다'));
-  const u = render.tipHtml('미상곳', logic.regionMix(undated(2), TODAY), TODAY);
-  assert.ok(u.includes('<span>알 수 없음</span><span class="rt-n">2건</span>') && !u.includes('가장 임박') && !u.includes('날짜가 있는 기관이 없습니다') && u.includes('지도 색을 정할 건이 없어 회색입니다'));
-});
-
-test('mixAriaLabel: 이름, 색 이름, 6개월 안 공고 예정 건수, 합계 건수', () => {
-  const info = logic.regionMix(recs(D.W6, 1).concat(recs(D.OVER, 9)), TODAY);
-  assert.strictEqual(render.mixAriaLabel('서울', info), '서울, ' + render.MIX_NAME.b3 + ', 6개월 안 공고 예정 1건, 합계 10건');
-  assert.strictEqual(render.mixAriaLabel('빈곳', logic.regionMix([], TODAY)), '빈곳, 기관 없음, 합계 0건');
-});
-
 test('밝은 바탕 회귀(NEXT 97): 지도 안내 문구·범례·티커 글자는 흰색을 섞지 않고, 파랑·빨강 위 글자는 흰색', () => {
   const fsx = require('fs'), path = require('path');
   const js = fsx.readFileSync(path.join(__dirname, '../js/render.js'), 'utf8');
   const html = fsx.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
   assert.ok(js.includes('translate(-50%,-50%);color:var(--fg);'), '지도 불러오기 안내 문구는 본문색');
   assert.ok(!/color-mix\(in srgb, ' \+ c \+ ' \d+%, #ffffff\)/.test(js), '범례·티커 글자에 흰색 섞기 없음');
-  assert.strictEqual(js.split("50%, var(--fg))").length - 1, 2, '범례·티커 둘 다 본문색 섞기');
+  assert.strictEqual(js.split("50%, var(--fg))").length - 1, 1, '범례 글자만 본문색 섞기(티커는 없어짐)');
   assert.ok(!html.includes('#0d1116'), '파랑·빨강 바탕 위 어두운 글자 없음');
   assert.ok(html.includes('button.primary { background:var(--accent-color); color:#fff;'));
 });

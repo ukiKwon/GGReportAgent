@@ -53,10 +53,10 @@ test('면 색은 섞기 결과(5단)에서 나오고, 클릭 기관은 그 구�
   });
 });
 
-test('recordForFeature: 레코드가 없는 면은 null (색은 회색)', function () {
+test('recordForFeature: 레코드가 없는 면은 null (색은 공고 전 기관 없음 색)', function () {
   withFeatureRecords([], function () {
     assert.strictEqual(render.recordForFeature({}), null);
-    assert.strictEqual(render.subUrgencyColor({}), render.MAP_COLORS.gray);
+    assert.strictEqual(render.subUrgencyColor({}), render.NONE_FILL);
   });
 });
 

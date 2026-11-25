@@ -1,8 +1,8 @@
 (function (root) {
   'use strict';
   // 공고 예정일 경과(NEXT 30 추가 요건, 1단계 — 화면만, 서버 변경 없음).
-  //   ① 전국 지도 화면의 접는 경과 패널(보기 전용)  ② 로그인 직후 요약 팝업(영업 계열만)
-  //   ③ 사이드바 '전국 지도' 옆 미처리 건수 배지
+  //   ① 로그인 직후 요약 팝업(영업 계열만)  ② 사이드바 '입찰 공고 현황' 옆 미처리 건수 배지
+  //   (지도의 경과 패널은 2026-11-25 예상 공고현황으로 바뀌며 없어졌다 — 경과 목록은 입찰 공고 현황 [공고 예정일 경과] 탭)
   // 판정·묶음·정렬 규칙은 logic.js(overdueSummary 등)가 갖고, 이 파일은 그 결과를 HTML과 DOM에 옮긴다.
   // 2단계(공고 상태 기록): 미처리·지연·처리됨 판정은 logic.recordView(noticerec.snap) 한 곳. 서버 미연결이면 모든 경과 건이 미처리다.
   const logic = (typeof require === 'function' && typeof module !== 'undefined') ? require('./logic.js') : root.logic;
@@ -21,7 +21,7 @@
     open: false,
     opened: null,         // 펼쳐 둔 묶음(data-group) 집합 — 다시 그려도 유지. null이면 기본값
     wired: false,
-    pop: null,            // 팝업이 열려 있는 동안 {who, date, dest} — 열기·닫기·Esc·포커스는 dlg.js. dest: 'notice'(입찰 공고 현황) | 'map'(지도 경과 패널)
+    pop: null,            // 팝업이 열려 있는 동안 {who, date, dest} — 열기·닫기·Esc·포커스는 dlg.js. dest: 'notice'(입찰 공고 현황) | null
   };
 
   // 같은 파일이 브라우저(전역)와 node(테스트) 양쪽에서 돌도록 render는 늦게 찾는다.
@@ -143,7 +143,7 @@
   ov.HINT_POP = '관심 지역이 없어 최근에 지난 순으로 골랐습니다. 전국 지역별 화면에서 지역 카드의 별을 누르면 그 지역 건이 먼저 나옵니다. 관심 지역은 PC마다 따로 저장됩니다.';
 
   // 팝업에 채울 값 전부(순수). 상위 5건: 관심 지역 먼저, 최근에 지난 순, 확인 중은 뒤.
-  // dest: 'notice'면 안내 줄의 목적지가 입찰 공고 현황의 [공고 예정일 경과] 탭, 아니면 지도 경과 패널(design-reviewer 11-16 6-B).
+  // dest: 'notice'면 안내 줄의 목적지가 입찰 공고 현황의 [공고 예정일 경과] 탭, 아니면 '이 더 있습니다'만(목적지 없음).
   ov.popupParts = function (summary, watched, dateStr, dest, rc) {
     const items = (summary && summary.items) || [];
     const w = watched || [];
@@ -159,8 +159,8 @@
       }).join(''),
       cap: '먼저 볼 ' + top.length + '건 (관심 지역 먼저, 최근에 지난 순)',
       listHtml: top.map(function (it) { return ov.itemHtml(it, false, undefined, rc ? logic.recordView(it.rec, rc.snap, rc.today) : undefined); }).join(''),
-      more: items.length > 5 ? '외 ' + (items.length - 5) + '건은 '
-        + (dest === 'notice' ? '입찰 공고 현황의 [공고 예정일 경과]에서' : '경과 패널에서') + ' 볼 수 있습니다.' : '',
+      more: items.length > 5 ? '외 ' + (items.length - 5) + '건'
+        + (dest === 'notice' ? '은 입찰 공고 현황의 [공고 예정일 경과]에서 볼 수 있습니다.' : '이 더 있습니다.') : '',
       hint: w.length ? '' : ov.HINT_POP,
     };
   };
@@ -171,23 +171,12 @@
       sales: nav.isSales(ctx), count: count, skipped: store.isOverdueSkipped(who, dateStr) });
   };
 
-  // ── 배치 규칙(순수) ─────────────────────────────────────────────────────────
-  // 1366 이상 도킹(지도 옆 360px) / 881~1365 덮개 서랍 / 880 이하 지도 위 쌓기.
-  // 드릴인(랭킹 패널이 보임) 중에는 도킹하지 않고 덮개 서랍으로 연다(3열이 되지 않게).
-  ov.modeFor = function (width, drilled) {
-    if (width <= 880) return 'stack';
-    return (width < 1366 || drilled) ? 'drawer' : 'dock';
-  };
-  // 기본 열림: 도킹은 펼침(사용자가 접었으면 그 선택), 나머지는 접힘.
+  // ── 다시 그리기 규칙(순수) ──────────────────────────────────────────────────
   // 창 폭이 바뀌었고 드릴인이 아니면 전국 지도를 다시 그린다(같은 배치 안의 폭 변화 포함).
   // 드릴인이면 지역 지도·랭킹 패널을 건드리지 않는다. lastW가 없으면(첫 호출) 그리지 않는다.
   ov.shouldRedraw = function (lastW, width, drilled) {
     if (drilled || !lastW) return false;
     return lastW !== width;
-  };
-  ov.defaultOpen = function (mode, saved) {
-    if (mode === 'dock') return saved === null || saved === undefined ? true : !!saved;
-    return false;
   };
 
   // ── 현재 데이터 ─────────────────────────────────────────────────────────────
@@ -213,48 +202,14 @@
   function watched() { try { return store.loadWatch() || []; } catch (e) { return []; } }
 
   // ── DOM 그리기 ──────────────────────────────────────────────────────────────
-  function paintToggle() {
-    const tg = $('ov-toggle'); if (!tg) return;
-    const n = ov.count();
-    tg.innerHTML = icon('overdue') + '공고 예정일 경과' + (n > 0 && !ov.waiting() ? '<span class="ov-stamp">미처리 ' + n + '</span>' : '');
-  }
-
-  function paintPanel() {
-    const list = $('ov-list'); if (!list) return;
-    const s = ov.state.summary;
-    const n = ov.count();
-    const cnt = $('ov-count');
-    if (cnt) { cnt.textContent = n > 0 && !ov.waiting() ? '미처리 ' + n : ''; cnt.hidden = !(n > 0 && !ov.waiting()); }
-    const sub = $('ov-sub');
-    if (sub) sub.innerHTML = '기준일 <b>' + esc(todayStr()) + '</b>, 최근에 지난 순';
-    const pt = ov.state.parts || { pending: [], delayed: [], done: [] };
-    const nums = { pending: pt.pending.length, delayed: pt.delayed.length, done: pt.done.length, all: s ? s.items.length : 0 };
-    Array.prototype.forEach.call(document.querySelectorAll('#ov-tabs .ov-tab'), function (t) {
-      const sp = t.querySelector('.ov-tab-n'); if (sp) sp.textContent = String(nums[t.dataset.view]);
-    });
-    // 다시 그리기 전에 사용자가 펼쳐 둔 묶음을 기억한다(목록이 없던 첫 그림은 기본값 사용).
-    const groups = list.querySelectorAll('details.ov-grp');
-    if (groups.length) {
-      ov.state.opened = new Set(Array.prototype.map.call(list.querySelectorAll('details.ov-grp[open]'),
-        function (d) { return d.dataset.group; }));
-    }
-    list.innerHTML = ov.listHtml(s, ov.state.view, { watched: watched(), opened: ov.state.opened, snap: ov.snap(), today: todayStr() });
-    const unk = $('ov-unknown');
-    if (unk) {
-      const u = s ? s.unknown : 0;
-      unk.hidden = !(u > 0);
-      unk.innerHTML = '날짜 미상 <b>' + u + '</b>건은 예정일을 몰라 이 목록에서 뺐습니다.';
-    }
-  }
-
-  // 사이드바 '전국 지도' 항목 옆 배지. 0이면 렌더하지 않는다. 숫자는 aria-hidden, 문장은 .sr-only.
+  // 사이드바 '입찰 공고 현황' 항목 옆 배지(그 항목이 없으면 그리지 않는다). 0이면 렌더하지 않는다. 숫자는 aria-hidden, 문장은 .sr-only.
   ov.paintNavBadge = function () {
     if (typeof document === 'undefined') return;
     const items = Array.prototype.slice.call(document.querySelectorAll('#side-nav .nav-item'));
     const byId = function (id) { return items.filter(function (b) { return b.dataset && b.dataset.nav === id; })[0] || null; };
-    const nid = root.nav && root.nav.NOTICE_ID;
-    const btn = (nid && byId(nid)) || byId('map'); if (!btn) return;   // 배지는 '입찰 공고 현황' 옆(규격 P2-1), 그 항목이 없으면 예전처럼 '전국 지도'
-    items.forEach(function (b) {   // 예전 자리('전국 지도')나 옮기기 전 배지를 모두 지운다
+    const nid = nav && nav.NOTICE_ID;
+    const btn = nid && byId(nid); if (!btn) return;   // 배지는 '입찰 공고 현황' 옆에만(design-reviewer 2026-11-25 P2-3) — 지도 옆 대체 자리는 없앴다
+    items.forEach(function (b) {   // 옮기기 전 배지를 모두 지운다
       if (root.nav && b.dataset && b.dataset.nav === root.nav.COLLECT_ID) return;   // 수집 요청 대기 배지(plancollect.js)는 따로 칠한다 — 지우지 않는다
       Array.prototype.forEach.call(b.querySelectorAll('.nav-count, .ov-nav-sr'), function (x) { x.remove(); });
       const lb = b.querySelector('.nav-label'); if (lb) b.title = lb.textContent;
@@ -271,48 +226,23 @@
     }
   };
 
-  // 데이터가 바뀔 때마다(render.drawTicker가 부른다) 판정을 다시 하고 세 곳을 함께 칠한다.
+  // 데이터가 바뀔 때마다(render.drawTicker가 부른다) 판정을 다시 하고 사이드바 배지·팝업 건수를 맞춘다.
   ov.refresh = function () {
     ov.state.summary = ov.current();
     ov.state.parts = logic.splitOverdue(ov.state.summary ? ov.state.summary.items : [], ov.snap(), todayStr());
     const nrm = NR(); if (nrm && nrm.ensure) nrm.ensure();   // 처음 한 번 기록 목록을 받는다(실패하면 자동 재시도 없음)
     if (typeof document === 'undefined') return ov.state.summary;
-    paintToggle();
-    paintPanel();
     ov.paintNavBadge();
     return ov.state.summary;
   };
 
-  // ── 배치·열림 ───────────────────────────────────────────────────────────────
+  // ── 지도 다시 그리기 ────────────────────────────────────────────────────────
   function isDrilled() {
     const rp = $('rank-panel');
     return !!(rp && rp.style.display && rp.style.display !== 'none');
   }
-  function applyOpen() {
-    const wrap = $('drill-wrap'); if (!wrap) return;
-    wrap.dataset.ov = ov.state.open ? 'open' : 'closed';
-    ['ov-toggle', 'ov-collapse'].forEach(function (id) {
-      const b = $(id); if (b) b.setAttribute('aria-expanded', ov.state.open ? 'true' : 'false');
-    });
-    const cl = $('ov-collapse');
-    if (cl) cl.setAttribute('aria-label', ov.state.open ? '경과 패널 접기' : '경과 패널 펼치기');
-  }
 
-  // 지도 그리기 전(render.drawNational/drawRegion)에 부른다 — 폭이 확정된 뒤에 지도를 그리려고.
-  // 배치가 바뀌면 그 배치의 기본 열림 상태로 되돌린다(사용자 선택 저장은 setOpen만 한다).
-  ov.syncLayout = function () {
-    if (typeof document === 'undefined') return;
-    const wrap = $('drill-wrap'); if (!wrap) return;
-    const mode = ov.modeFor(root.innerWidth || 1440, isDrilled());
-    if (mode !== ov.state.mode) {
-      ov.state.mode = mode;
-      ov.state.open = ov.defaultOpen(mode, store.loadOverduePanelOpen());
-    }
-    wrap.dataset.ovmode = mode;
-    applyOpen();
-  };
-
-  // 도킹 폭이 바뀌면 옛 폭으로 그려진 전국 지도가 잘리거나 한쪽으로 쏠린다 — 다시 그린다.
+  // 창 폭이 바뀌면 옛 폭으로 그려진 전국 지도가 잘리거나 한쪽으로 쏠린다 — 다시 그린다.
   function redrawNational() {
     const r = R();
     if (!r || !r.drawNational || isDrilled() || typeof d3 === 'undefined' || root.__d3failed) return;
@@ -321,28 +251,11 @@
     ov.state.drawnW = root.innerWidth;
   }
 
-  ov.setOpen = function (open, opts) {
-    const before = ov.state.open;
-    ov.state.open = !!open;
-    applyOpen();
-    if (ov.state.mode === 'dock') {
-      store.saveOverduePanelOpen(ov.state.open);
-      if (before !== ov.state.open) redrawNational();
-    }
-    if (!open && opts && opts.focusToggle) { const t = $('ov-toggle'); if (t) t.focus(); }
-  };
-
-  function onMap() { const v = $('tab-map'); return !!(v && v.classList.contains('active')); }
-  function goMap() { const b = $('tab-btn-map'); if (b && !onMap()) b.click(); }
-  // 로그인 경과 팝업의 마지막 버튼 — 입찰 공고 현황 메뉴가 있으면 그 경과 탭으로, 없으면 지금처럼 지도 경과 패널로(사용자 11-16, design 6-B).
-  ov.POP_ALL_MAP = '경과 패널에서 전체 보기';
-  ov.POP_ALL_NOTICE = '입찰 공고 현황에서 보기';
-  ov.popAllLabel = function (dest) { return dest === 'notice' ? ov.POP_ALL_NOTICE : ov.POP_ALL_MAP; };
-  // 목적지 판정(열 때와 누를 때 두 번): 입찰 공고 현황 항목이 메뉴에 있고 본체가 있으면 'notice'.
-  // 영업 계열 밖에는 그 메뉴가 안 보이므로 자연히 'map'으로 떨어진다.
+  // 목적지 판정(열 때와 누를 때 두 번): 입찰 공고 현황 항목이 메뉴에 있고 본체가 있으면 'notice', 아니면 null.
+  // null이면 [전체 보기] 단추를 숨긴다(지도에 경과 패널이 없다 — design-reviewer 2026-11-25 P2-3).
   function popDest() {
     const A = root.app, N = root.nav, D = root.dashboard;
-    return !!(A && A.findNavItem && N && N.NOTICE_ID && A.findNavItem(N.NOTICE_ID) && D && D.mount) ? 'notice' : 'map';
+    return !!(A && A.findNavItem && N && N.NOTICE_ID && A.findNavItem(N.NOTICE_ID) && D && D.mount) ? 'notice' : null;
   }
   // 입찰 공고 현황이 지금 보이는지: 탭 활성 + 마운트 + #notice-root가 숨지 않음.
   function onNotice() {
@@ -354,27 +267,6 @@
     if (!onNotice() && !(root.app && root.app.openNavItem && root.app.openNavItem(N.NOTICE_ID))) return false;   // 이미 열려 있으면 다시 마운트하지 않는다
     if (root.dashboard.showPast) root.dashboard.showPast();
     return true;
-  }
-
-  // 팝업 '전체 보기'와 토글(전국 지역별 화면에서)이 쓴다: 지도 화면으로 옮긴 뒤 패널을 연다.
-  ov.openPanel = function (focusTitle) {
-    goMap();
-    ov.syncLayout();
-    ov.setOpen(true);
-    if (focusTitle) { const t = $('ov-title'); if (t) t.focus(); }
-  };
-
-  function setView(view, focus) {
-    ov.state.view = view;
-    Array.prototype.forEach.call(document.querySelectorAll('#ov-tabs .ov-tab'), function (t) {
-      const on = t.dataset.view === view;
-      t.setAttribute('aria-selected', on ? 'true' : 'false');
-      t.tabIndex = on ? 0 : -1;
-      if (on && focus) t.focus();
-    });
-    const list = $('ov-list');
-    if (list) list.setAttribute('aria-labelledby', 'ov-tab-' + view);
-    paintPanel();
   }
 
   // ── 로그인 직후 팝업 ────────────────────────────────────────────────────────
@@ -395,7 +287,7 @@
     set('ov-pop-list', p.listHtml);
     const more = $('ov-pop-more'); if (more) { more.textContent = p.more; more.hidden = !p.more; }
     const hint = $('ov-pop-hint'); if (hint) { hint.textContent = p.hint; hint.hidden = !p.hint; }
-    const allBtn = $('ov-pop-all'); if (allBtn) allBtn.textContent = ov.popAllLabel(dest);
+    const allBtn = $('ov-pop-all'); if (allBtn) allBtn.hidden = dest !== 'notice';   // 입찰 공고 현황 메뉴가 없으면 [전체 보기]를 숨긴다(Tab 순서에서도 빠진다)
     ov.state.pop = { who: who, date: dateStr, dest: dest };
     root.dlg.open(pop, { restoreFallback: popFallback, onClose: function () { ov.state.pop = null; } });   // 공통 팝업 틀 3단계 — 첫 포커스는 제목, Esc·바깥 클릭·Tab은 dlg
     return true;
@@ -439,42 +331,6 @@
   ov.wire = function () {
     if (ov.state.wired || typeof document === 'undefined') return;
     ov.state.wired = true;
-    const tg = $('ov-toggle'), cl = $('ov-collapse'), panel = $('ov-panel'), tabs = $('ov-tabs');
-
-    if (tg) tg.addEventListener('click', function () {
-      if (!onMap()) { ov.openPanel(false); return; }   // 전국 지역별 등에서 누르면 지도로 옮긴 뒤 연다
-      ov.setOpen(!ov.state.open);
-    });
-    if (cl) cl.addEventListener('click', function () { ov.setOpen(false, { focusToggle: true }); });
-    // 덮개 서랍은 모달이 아니므로 가두지 않고, Esc로 접으면 토글로 돌아간다.
-    [panel, tg].forEach(function (el) {
-      if (el) el.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && ov.state.mode === 'drawer' && ov.state.open) {
-          e.preventDefault(); ov.setOpen(false, { focusToggle: true });
-        }
-      });
-    });
-    const list = $('ov-list');
-    if (list) list.addEventListener('click', function (e) {
-      const b = e.target.closest ? e.target.closest('.ov-open') : null;
-      if (b) ov.openItem(b.dataset.id, b);
-    });
-    if (tabs) {
-      tabs.addEventListener('click', function (e) {
-        const t = e.target.closest ? e.target.closest('.ov-tab') : null;
-        if (t) setView(t.dataset.view, false);
-      });
-      tabs.addEventListener('keydown', function (e) {
-        const order = ['pending', 'delayed', 'done', 'all'];
-        const i = order.indexOf(ov.state.view);
-        let next = null;
-        if (e.key === 'ArrowRight') next = order[(i + 1) % order.length];
-        else if (e.key === 'ArrowLeft') next = order[(i + order.length - 1) % order.length];
-        else if (e.key === 'Home') next = order[0];
-        else if (e.key === 'End') next = order[order.length - 1];
-        if (next) { e.preventDefault(); setView(next, true); }
-      });
-    }
 
     // 팝업 버튼 3개
     const skip = $('ov-pop-skip'), close = $('ov-pop-close'), all = $('ov-pop-all');
@@ -485,11 +341,10 @@
       ov.closePopup(true);
     });
     if (all) all.addEventListener('click', function () {
-      const st = ov.state.pop;
-      // 열 때 판정에 더해 누르는 순간에도 목적지를 다시 본다(메뉴 권한이 바뀐 경우 — qa 11-16 P3-2).
+      // 열 때 판정에 더해 누르는 순간에도 목적지를 다시 본다(메뉴 권한이 바뀐 경우 — qa 11-16 P3-2). 없으면 그냥 닫는다.
       const toNotice = popDest() === 'notice';
+      if (!toNotice) { ov.closePopup(true); return; }
       ov.closePopup(false);
-      if (!toNotice) { ov.openPanel(true); return; }
       if (!goNotice()) {   // 탭이 가득 차 화면이 안 옮겨지면(안내는 app이 띄움) 포커스만 지금 화면 항목으로 돌린다
         const back = document.querySelector('#side-nav .nav-item[aria-current="page"]');
         if (back && back.focus) back.focus();
@@ -498,15 +353,12 @@
 
     // Esc·바깥 클릭·Tab 가두기는 공통 팝업 틀(dlg.js)이 맡는다(3단계, 11-23).
 
-    // 창 폭이 바뀌면 배치를 바로 다시 정하고, 지도는 150ms 잠잠해진 뒤 한 번만 다시 그린다
-    // (같은 배치 안의 폭 변화 포함. 다시 그리면 확대 상태는 초기화된다. 드릴인이면 건드리지 않는다).
+    // 창 폭이 바뀌면 지도는 150ms 잠잠해진 뒤 한 번만 다시 그린다(같은 배치 안의 폭 변화 포함. 다시 그리면 확대 상태는 초기화된다. 드릴인이면 전국 지도를 건드리지 않는다).
     let rzTimer = null;
     window.addEventListener('resize', function () {
-      ov.syncLayout();
       if (rzTimer) clearTimeout(rzTimer);
       rzTimer = setTimeout(function () {
         rzTimer = null;
-        ov.syncLayout();
         if (ov.shouldRedraw(ov.state.drawnW, root.innerWidth, isDrilled())) redrawNational();
         else if (isDrilled() && ov.state.drawnW && ov.state.drawnW !== root.innerWidth) {
           // 드릴인: 시군구 지시선 카드가 판 폭에 고정 좌표로 놓이므로 폭이 바뀌면 다시 배치한다(qa 11-24 P2). 고른 기관 강조는 되살린다.
@@ -516,9 +368,7 @@
       }, 150);
     });
 
-    { const nrm = NR(); if (nrm && nrm.onChange) nrm.onChange(function () { ov.refresh(); }); }   // 기록이 바뀌면 배지·패널을 함께 다시 칠한다
-    setView(ov.state.view, false);
-    ov.syncLayout();
+    { const nrm = NR(); if (nrm && nrm.onChange) nrm.onChange(function () { ov.refresh(); }); }   // 기록이 바뀌면 배지·팝업 건수를 함께 다시 칠한다
     ov.state.drawnW = root.innerWidth;
   };
 

@@ -22,31 +22,7 @@ function withDoc(doc, fn) {
 const S = logic.SUBCARD;
 
 // ── 카드 줄 ───────────────────────────────────────────────────────────
-test('subCardLines: 1개월 미만·6개월 미만·1년 미만·알 수 없음만, 겹치지 않게, 0건 줄은 숨김(사용자 11-24)', () => {
-  const info = logic.regionMix([
-    rec(-5, true, '공고a'), rec(-150, true, '경과a'),          // 카드에 안 씀
-    rec(10, true, '가1'), rec(29, true, '가2'),                // 1개월 미만 ×2
-    rec(60, true, '나'),                                       // 6개월 미만(30일~6개월)
-    rec(250, true, '다'),                                      // 1년 미만
-    rec(500, true, '라'),                                      // 1년 넘음: 카드에 안 씀
-    { name: '미상', type: '지자체' },                          // 알 수 없음
-  ], TODAY);
-  const lines = logic.subCardLines(info);
-  assert.deepStrictEqual(lines.map(l => [l.label, l.n]), [['1개월 미만', 2], ['6개월 미만', 1], ['1년 미만', 1], ['알 수 없음', 1]]);
-  assert.strictEqual(lines[0].strong, true);
-  assert.strictEqual(lines[3].muted, true);
-  assert.deepStrictEqual(logic.subCardLines(logic.regionMix([rec(60, true, 'a')], TODAY)).map(l => l.label), ['6개월 미만']);
-  assert.deepStrictEqual(logic.subCardLines(logic.regionMix([], TODAY)), []);
-  assert.deepStrictEqual(logic.subCardLines(null), []);
-});
-
-test('subCardEligible: 네 줄 중 하나라도 있어야 카드를 단다(공고 중·경과·1년 넘음만 있으면 안 단다)', () => {
-  assert.strictEqual(logic.subCardEligible(logic.regionMix([rec(500, true, 'a'), rec(-5, true, 'b'), rec(-150, true, 'c')], TODAY)), false);
-  assert.strictEqual(logic.subCardEligible(logic.regionMix([], TODAY)), false);
-  assert.strictEqual(logic.subCardEligible(logic.regionMix([{ name: '미상', type: '지자체' }], TODAY)), true);
-  assert.strictEqual(logic.subCardEligible(logic.regionMix([rec(250, true, 'a')], TODAY)), true);
-  assert.strictEqual(logic.subCardEligible(null), false);
-});
+// subCardLines·subCardEligible 시험은 예상 공고현황 기준으로 map_expected.test.js에 있다(2026-11-25).
 
 test('subCardHeight: 1줄 38, 2줄 53, 5줄 98', () => {
   assert.strictEqual(logic.subCardHeight(1), 38);
@@ -124,7 +100,7 @@ test('layoutSubCards: 양쪽 다 넘치면 우선순위가 낮은 카드부터 �
   });
 });
 
-test('layoutSubCards: 우선순위 비교는 공고 중이 가장 크다(경과·6개월 안이 많아도 공고 중 1곳이 이긴다)', () => {
+test('layoutSubCards: 우선순위 비교는 첫 칸(3개월 안)이 가장 크다(뒤 칸이 많아도 첫 칸 1곳이 이긴다)', () => {
   const items = [];
   for (let i = 0; i < 12; i++) items.push({ code: 'x' + i, ax: 100 + i, ay: 60 + i * 30, lines: 5, pri: [0, 3, 3, 3] });
   items.push({ code: 'notice', ax: 100, ay: 60, lines: 5, pri: [1, 0, 0, 0] });
@@ -143,22 +119,14 @@ test('layoutSubCards: 좌표가 NaN·숫자가 아니거나 줄이 0인 항목�
 });
 
 // ── aria·범례 ────────────────────────────────────────────────────────
-test('mixAriaLabelCard: 카드와 같은 분류·순서로 읽는다(기존 mixAriaLabel은 그대로)', () => {
-  const info = logic.regionMix([rec(10, true, '가'), rec(60, true, '나'), rec(250, true, '다'), rec(500, true, '라'), { name: '미상', type: '지자체' }], TODAY);
-  assert.strictEqual(render.mixAriaLabelCard('강남구', info),
-    '강남구, ' + render.MIX_NAME[info.band] + ', 1개월 미만 1건, 6개월 미만 1건, 1년 미만 1건, 알 수 없음 1건, 합계 5건');
-  assert.strictEqual(render.mixAriaLabelCard('빈곳', logic.regionMix([], TODAY)), '빈곳, ' + render.MIX_NAME.none + ', 합계 0건');
-});
-
-test('범례: 드릴인이면 카드 설명 한 줄, 전국은 그 줄도 공고 n·▲ 줄도 없음, 생략하면 currentRegion을 따른다', () => {
+// mixAriaLabelCard 시험은 map_expected.test.js로 옮겼다(2026-11-25).
+test('범례: 드릴인이면 카드 설명 한 줄, 전국은 그 줄이 없음, 생략하면 currentRegion을 따른다', () => {
   const el = { innerHTML: '' };
   const doc = { getElementById: id => (id === 'legend' ? el : null) };
   withDoc(doc, () => render.drawLegend('drill'));
-  assert.ok(el.innerHTML.includes('<i class="lg-card" aria-hidden="true"></i>카드: 시군구별 입찰 시기 건수 — 1개월 미만·6개월 미만·1년 미만·알 수 없음'));
-  assert.ok(!el.innerHTML.includes('lg-nchip'));
-  assert.ok(el.innerHTML.includes('준비중'));
+  assert.ok(el.innerHTML.includes('lg-card') && !el.innerHTML.includes('lg-nchip'));
   withDoc(doc, () => render.drawLegend('national'));
-  assert.ok(!el.innerHTML.includes('lg-tri"') && !el.innerHTML.includes('6개월 안 공고 예정 기관 수') && !el.innerHTML.includes('lg-nchip') && !el.innerHTML.includes('lg-tri-row') && !el.innerHTML.includes('lg-card'));
+  assert.ok(!el.innerHTML.includes('lg-tri"') && !el.innerHTML.includes('lg-nchip') && !el.innerHTML.includes('lg-tri-row') && !el.innerHTML.includes('lg-card'));
   const prev = render.state.currentRegion;
   try {
     render.state.currentRegion = '11';

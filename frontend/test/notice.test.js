@@ -74,40 +74,12 @@ test('noticeSummary: 마감 전(마감 가까운 순) → 마감일 미확인 �
 });
 
 // ── 점수·섞기 ───────────────────────────────────────────────────────
-test('instScore·isOverdue: 마감 전·마감일 미확인은 +2, 마감 지남은 색에서 빼고(null), 진행 중은 경과가 아니다', () => {
+// 점수·섞기·가장 임박 시험은 지도가 '예상 공고현황'으로 바뀌며 map_expected.test.js로 옮겼다(2026-11-25).
+// isOverdue(공고 중이 아니면서 예정일 지남)는 남아 있어 아래에서 확인한다.
+test('isOverdue: 진행 중은 경과가 아니고, 120일을 넘기면 경과', () => {
   const rcv = nrec('r', 10, { receiveTo: plus(4) }), unk = nrec('u', 10), awa = nrec('w', 10, { receiveTo: plus(-1) });
-  assert.strictEqual(logic.instScore(rcv, TODAY), 2);
-  assert.strictEqual(logic.instScore(unk, TODAY), 2);
-  assert.strictEqual(logic.instScore(awa, TODAY), null);
   [rcv, unk, awa].forEach(r => assert.strictEqual(logic.isOverdue(r, TODAY), false));
-  assert.strictEqual(logic.isOverdue(nrec('old', 130), TODAY), true);   // 120일을 넘으면 기존대로 경과
-});
-
-test('regionMix: notice·noticeOpen·receiving 수, 점수 +2, ▲(urgent)는 6개월 안 예정만', () => {
-  const list = [
-    nrec('A', 10, { receiveTo: plus(4) }), nrec('B', 20), nrec('C', 50, { receiveTo: plus(-10) }),
-    { name: 'D', region: '11', type: '지자체', contractEnd: plus(30), confirmed: false },
-  ];
-  const m = logic.regionMix(list, TODAY);
-  assert.strictEqual(m.notice, 3); assert.strictEqual(m.noticeOpen, 2);
-  assert.strictEqual(m.receiving, 1); assert.strictEqual(m.awaiting, 1);
-  assert.strictEqual(m.urgent, 1); assert.strictEqual(m.within6, 1);        // 진행 중은 ▲에 세지 않는다
-  assert.strictEqual(m.dated, 3); assert.strictEqual(m.mean, 2); assert.strictEqual(m.band, 'r3');
-  assert.strictEqual(m.overdue, 0);
-  assert.strictEqual(m.imminent.name, 'D');                                  // 가장 임박은 공고 전 예정 기관
-  assert.deepStrictEqual(m.notices.map(n => n.name), ['A', 'B', 'C']);
-  assert.strictEqual(m.urgentAllEst, true);
-  // 마감 지난 곳만 있으면 색에서 빠져 회색, 개수는 notice로 센다
-  const only = logic.regionMix([nrec('C', 50, { receiveTo: plus(-10) })], TODAY);
-  assert.strictEqual(only.band, 'gray'); assert.strictEqual(only.notice, 1); assert.strictEqual(only.noticeOpen, 0);
-});
-
-test('mostImminent: 마감 전 공고가 맨 앞(마감 가까운 곳), 없으면 기존 규칙', () => {
-  const soon = { name: '예정', region: '11', type: '지자체', contractEnd: plus(5), confirmed: false };
-  const r9 = nrec('마감9', 5, { receiveTo: plus(9) }), r3 = nrec('마감3', 8, { receiveTo: plus(3) });
-  assert.strictEqual(logic.mostImminent([soon, r9, r3], TODAY).name, '마감3');
-  assert.strictEqual(logic.mostImminent([soon, nrec('미확인', 5)], TODAY).name, '미확인');   // 미확인은 기존대로 날짜가 가장 이른 쪽
-  assert.strictEqual(logic.mostImminent([soon], TODAY).name, '예정');
+  assert.strictEqual(logic.isOverdue(nrec('old', 130), TODAY), true);
 });
 
 test('overdueSummary: 진행 중은 경과 목록에서 빠지고(check 판정보다 먼저), 별도로 센다', () => {
@@ -195,55 +167,9 @@ test('라벨 둘째 줄 \'공고 n\' 없음(사용자 11-25), 첫 줄 dy는 활�
   assert.strictEqual(render.labelDy(false), '0em');
   const src = fs.readFileSync(path.join(ROOT, 'js/render.js'), 'utf8');
   assert.ok(src.indexOf('noticeSubText') < 0 && src.indexOf("'sub notice'") < 0);
-  assert.ok(src.indexOf("text('준비중')") >= 0);
+  assert.ok(src.indexOf("text('조사 전')") >= 0 && src.indexOf("text('준비중')") < 0);
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   assert.ok(!/\.sub\.notice/.test(html) && !/lg-nchip/.test(html));
-});
-
-const TIP_LIST = [
-  nrec('송파문화재단', 10, { receiveTo: plus(4) }), nrec('마포구청', 12, { receiveFrom: plus(4), receiveTo: plus(7) }),
-  nrec('성북구청', 20), nrec('정읍시청', 50, { receiveTo: plus(-10) }),
-  { name: '하동군청', region: '11', type: '지자체', contractEnd: plus(30), confirmed: false },
-];
-
-test('tipHtml 공고 블록: 공고 진행 중 n건 + 상태별 줄(마감 전·접수 기간 원문 확인·선정 결과 대기) + 이름 줄, 마감 전 최대 2곳 + 외 n건', () => {
-  const info = logic.regionMix(TIP_LIST, TODAY);
-  const h = render.tipHtml('서울', info, TODAY);
-  assert.ok(h.includes('<div class="rt-kv rt-t"><span>공고 진행 중</span><span class="rt-n">4건</span></div>'), h);
-  assert.ok(h.includes('<div class="rt-kv rt-sub"><span>마감 전</span><span class="rt-n">2건</span></div>'), h);
-  assert.ok(h.includes('<span>접수 기간 원문 확인</span><span class="rt-n">1건</span>'), h);
-  assert.ok(h.includes('<span>선정 결과 대기</span><span class="rt-n">1건</span>'), h);
-  assert.ok(h.includes('<span class="rt-nm">송파문화재단</span><span class="rt-d">마감 D-4</span>'), h);
-  assert.ok(h.includes('<span class="rt-nm">마포구청</span><span class="rt-d">접수 ' + md(4) + '~' + md(7) + '</span>'), h);
-  assert.ok(h.indexOf('송파문화재단') < h.indexOf('마포구청'), '마감 가까운 순');
-  assert.ok(h.includes('<span class="rt-nm">성북구청</span><span class="rt-d rt-q">공고 후 20일</span>'), h);
-  assert.ok(h.includes('<div class="rt-it rt-w"><span class="rt-nm">정읍시청</span><span class="rt-d">공고 후 50일</span></div>'), h);
-  assert.ok(h.indexOf('공고 진행 중') < h.indexOf('입찰 예정 시기'), '첫 블록이 먼저');
-  assert.ok(!h.includes('가장 임박') && !h.includes('rt-l') && !h.includes('하동군청'), h);   // '가장 임박' 줄은 툴팁에서 뺌(design 11-24)
-  assert.ok(h.includes('<span>합계</span><span class="rt-n">5건</span>') && h.includes('지도 색은 5건 중 4건으로 정했습니다') && !h.includes('뺌') && !h.includes('마감 지난 공고'), h);
-  // 마감 전이 셋 이상이면 외 n건, 결과 확인이 마감 지남이면 '공고 후 n일'
-  const three = logic.regionMix([nrec('a', 5, { receiveTo: plus(1) }), nrec('b', 5, { receiveTo: plus(2) }), nrec('c', 5, { receiveTo: plus(3) }),
-    nrec('d', 33, { receiveTo: plus(-2) })], TODAY);
-  const h3 = render.tipHtml('x', three, TODAY);
-  assert.ok(h3.includes('<div class="rt-it rt-w"><span class="rt-nm">외 1건</span></div>') && h3.includes('<span class="rt-nm">d</span><span class="rt-d">공고 후 33일</span>') && !h3.includes('외 0건'), h3);
-});
-
-test('tipHtml: 공고만 있는 지역은 \'날짜가 있는 기관이 없습니다\'를 붙이지 않고, 이름은 이스케이프', () => {
-  const info = logic.regionMix([nrec('<b>x</b>', 5, { receiveTo: plus(4) })], TODAY);
-  const h = render.tipHtml('서울', info, TODAY);
-  assert.ok(!h.includes('날짜가 있는 기관이 없습니다'));
-  assert.ok(h.includes('&lt;b&gt;x&lt;/b&gt;') && !h.includes('<b>x</b>'));
-});
-
-test('mixAriaLabel: 공고 진행 중 n건(마감 전 m건), 6개월 안 공고 예정 n건, 합계 n건', () => {
-  const info = logic.regionMix(TIP_LIST, TODAY);
-  assert.strictEqual(render.mixAriaLabel('서울', info),
-    '서울, ' + render.MIX_NAME[info.band] + ', 공고 진행 중 4건(마감 전 2건), 6개월 안 공고 예정 1건(모두 추정), 합계 5건');
-  const zero = logic.regionMix([nrec('a', 5, { receiveTo: plus(4) })], TODAY);
-  assert.ok(render.mixAriaLabel('서울', zero).includes('공고 진행 중 1건(마감 전 1건), 6개월 안 공고 예정 0건, 합계 1건'));
-  // 공고가 없으면 기존 문장 그대로
-  const none = logic.regionMix([{ name: 'z', type: '지자체', contractEnd: plus(30), confirmed: true }], TODAY);
-  assert.ok(!render.mixAriaLabel('서울', none).includes('공고 진행 중'));
 });
 
 test('범례: 전국 범례에 ▲n 줄·공고 n 칩 줄 없음(사용자 11-25)', () => {
@@ -252,28 +178,6 @@ test('범례: 전국 범례에 ▲n 줄·공고 n 칩 줄 없음(사용자 11-25
   assert.ok(!el.innerHTML.includes('6개월 안 공고 예정 기관 수') && !el.innerHTML.includes('lg-tri"'));
   assert.ok(!el.innerHTML.includes('lg-nchip') && !el.innerHTML.includes('lg-tri-row') && !el.innerHTML.includes('공고가 나서 진행 중인 기관 수'));
   assert.ok(!el.innerHTML.includes('6개월 안 기관 수 (속 빈'));
-});
-
-test('티커: TOP5는 그대로, 캡션 뒤에 \'공고 중 n\' 칩(공고가 없으면 칩 없음)', () => {
-  const el = { innerHTML: '', querySelectorAll: () => [] };
-  const prevToday = render.state.today;
-  render.state.today = TODAY;
-  try {
-    withDoc({ getElementById: id => (id === 'ticker' ? el : null) }, () => {
-      store.setServerData([nrec('공고A', 10, { receiveTo: plus(4) }), nrec('공고B', 20),
-        { name: '예정시청', region: '11', type: '지자체', contractEnd: plus(30), confirmed: false }]);
-      render.drawTicker();
-      assert.ok(el.innerHTML.indexOf('<span class="tk-cap">임박 TOP5</span><span class="tk-n"') === 0, el.innerHTML);
-      assert.ok(el.innerHTML.includes('>공고 중 2</span>'));
-      assert.ok(el.innerHTML.includes('예정시청'));
-      store.setServerData([{ name: '예정시청', region: '11', type: '지자체', contractEnd: plus(30), confirmed: false }]);
-      render.drawTicker();
-      assert.ok(!el.innerHTML.includes('tk-n'));
-    });
-  } finally { store.clearServerData(); render.state.today = prevToday; }
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert.ok(/#ticker \.tk-n \{[^}]*border:1px solid var\(--fg\)/.test(html) && !/#ticker \.tk-n \{[^}]*background/.test(html));
-  assert.ok(render._rollTicker.toString().indexOf(':not(.tk-n)') >= 0);
 });
 
 // ── 현황판 ──────────────────────────────────────────────────────────
@@ -456,15 +360,13 @@ test('M3: 마감일 미확인은 공고 후 30일까지만 +2·띠 카드, 31일
   assert.strictEqual(logic.noticeState(u31, TODAY).late, true);
   assert.strictEqual(logic.noticeState(u31, TODAY).check, true);
   assert.strictEqual(logic.noticeState(nrec('r', 31, { receiveTo: plus(2) }), TODAY).check, false);   // 마감 전은 늦어도 마감 전
-  assert.strictEqual(logic.instScore(u30, TODAY), 2);
-  assert.strictEqual(logic.instScore(u31, TODAY), null);
+  assert.strictEqual(logic.mapBucket(u30, TODAY), 'notice');   // 공고 중은 지도 집계에서 뺀다(점수 +2·null 구분 없음)
+  assert.strictEqual(logic.mapBucket(u31, TODAY), 'notice');
   const s = logic.noticeSummary([u31, u30, nrec('지남', 5, { receiveTo: plus(-1) }), nrec('마감', 40, { receiveTo: plus(1) })], TODAY);
   assert.deepStrictEqual(s.items.map(i => i.name), ['마감', 'u30', '지남', 'u31']);   // 마감 전 → 미확인 → 결과 확인(공고 후 일수 순)
   assert.deepStrictEqual([s.receiving, s.unknown, s.late, s.awaiting, s.check], [1, 1, 1, 1, 2]);
   const mix = logic.regionMix([u30, u31], TODAY);
-  assert.strictEqual(mix.notice, 2); assert.strictEqual(mix.noticeOpen, 1); assert.strictEqual(mix.late, 1); assert.strictEqual(mix.awaiting, 0);
-  assert.strictEqual(mix.dated, 1);
-  assert.strictEqual(logic.regionMix([u31], TODAY).band, 'gray');
+  assert.strictEqual(mix.notice, 2); assert.strictEqual(mix.total, 0); assert.strictEqual(mix.band, 'none');
   // 띠: u31은 카드에서 빠지고 '결과 확인' 쪽
   const m = dash.model([nrec('송파', 8, { receiveTo: plus(4) }), u30, u31], TODAY);
   const h = dash.noticeBandHtml(m, '');
@@ -477,26 +379,6 @@ test('M3: 마감일 미확인은 공고 후 30일까지만 +2·띠 카드, 31일
   const r31 = dash.rowHtml(by('u31'), { id: 'b' });
   assert.ok(r31.includes('결과 공고를 확인하세요') && r31.includes('data-check="1"'), r31);
   assert.ok(!dash.rowHtml(by('u30'), { id: 'a' }).includes('data-check'));
-  // 툴팁: 미확인(30일 이내)과 결과 확인을 나눠 센다. 진행 중 전체 수(info.notice)는 그대로
-  const tip = render.tipHtml('서울', logic.regionMix([nrec('r', 5, { receiveTo: plus(3) }), u30, u31], TODAY), TODAY);
-  assert.ok(tip.includes('<span>마감 전</span><span class="rt-n">1건</span>') && tip.includes('<span>접수 기간 원문 확인</span><span class="rt-n">1건</span>') && tip.includes('<span>선정 결과 대기</span><span class="rt-n">1건</span>'), tip);
-  assert.strictEqual(logic.regionMix([u30, u31], TODAY).notice, 2);
-});
-
-test('L2: 공고일이 오늘인 확정 공고는 티커 TOP5에 D-day로 들지 않고 \'공고 중 n\'에만 센다', () => {
-  const el = { innerHTML: '', querySelectorAll: () => [] };
-  const prevToday = render.state.today;
-  render.state.today = TODAY;
-  try {
-    withDoc({ getElementById: id => (id === 'ticker' ? el : null) }, () => {
-      store.setServerData([nrec('공고당일', 0, { receiveTo: plus(5) }),
-        { name: '예정시청', region: '11', type: '지자체', contractEnd: plus(30), confirmed: false }]);
-      render.drawTicker();
-      assert.ok(el.innerHTML.includes('>공고 중 1</span>'), el.innerHTML);
-      assert.ok(!el.innerHTML.includes('공고당일'), el.innerHTML);
-      assert.ok(el.innerHTML.includes('예정시청'));
-    });
-  } finally { store.clearServerData(); render.state.today = prevToday; }
 });
 
 test('M2: 국민은행 금고 약정 와플의 분모는 지자체만(법원·교육청 등 제외)', () => {
