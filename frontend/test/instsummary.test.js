@@ -17,6 +17,7 @@ const KEYS = [
   key('head_name', 'FACT', '기관장', { required: true, fix_screen: 'head_card' }),
   key('current_bank', 'FACT', '현 거래 은행', { fix_screen: 'bank_contract' }),
   key('bid_kind', 'TEXT', '공고명(입찰 종류)', { required: true, max_len: 40 }),
+  key('head_title', 'TEXT', '기관장 직함', { max_len: 20 }),
   key('budget', 'TEXT', '예산', { max_len: 60 }),
   key('staff', 'TEXT', '임직원 수', { max_len: 40 }),
   key('supervisor', 'TEXT', '주무기관', { max_len: 60 }),
@@ -28,24 +29,26 @@ const KEYS = [
   key('biz', 'TABLE', '기관 주요 사업', { max_items: 40 }),
   key('fund', 'TABLE', '예산 운영 방식', { max_items: 10 }),
   key('years', 'TABLE', '연도별 예상 평잔·자금수익'),
+  key('scoring', 'TABLE', '평가 기준표'),
 ];
 const EFFECT = key('effect', 'LIST', '우리 회사 기대효과', { max_len: 300, max_items: 10 });
-function tplOf(withEffect) { return { tpl_ver: 1, keys: withEffect ? KEYS.concat([EFFECT]) : KEYS }; }
+function tplOf(withEffect) { return { tpl_ver: 3, keys: withEffect ? KEYS.concat([EFFECT]) : KEYS }; }
 
 function contentOf() {
   return {
-    v: 1, form: 'INST_SUMMARY', tpl_ver: 1,
+    v: 1, form: 'INST_SUMMARY', tpl_ver: 3,
     fields: {
       inst_name: { val: '노원구청', src: { title: '기관 기본 정보', checked_on: '2026-11-20', url: null } },
       inst_type: { val: '구청', src: {} }, head_name: { val: '홍길동', src: {} }, current_bank: { val: null, src: null },
-      bid_kind: { val: '주거래은행 선정', note: null }, budget: { val: '2조 1,000억원', note: '2026 예산서 3쪽' },
+      bid_kind: { val: '주거래은행 선정', note: null }, head_title: { val: null, note: null }, budget: { val: '2조 1,000억원', note: '2026 예산서 3쪽' },
       staff: { val: null, note: null }, supervisor: { val: null, note: null }, address: { val: null, note: null }, org_note: { val: null, note: null },
     },
     lists: { overview: ['1988년 설립'], mmda_basis: [], competition: [] },
     tables: {
-      biz: { src: { title: '기관 사업계획', checked_on: '2026-10-30' }, dropped: 0, rows: [{ group: '(A) 복지', sub: '노인 돌봄', lines: ['- 돌봄 대상 확대'] }] },
+      biz: { src: { title: '기관 사업계획', checked_on: '2026-10-30' }, dropped: 0, rows: [{ group: '(A) 복지', sub: '노인 돌봄', lines: [{ text: '- 돌봄 대상 확대', bold: false }] }] },
       fund: { rows: [{ kind: '예산', lines: [{ lv: 0, text: '본예산 기준' }, { lv: 1, text: '추경 제외' }] }] },
       years: { unit: '억원', from: 2028, to: 2033, end: 2032, mmda: { '2028': '100' }, income: { '2028': '3.5' }, notes: ['추정치'] },
+      scoring: null,
     },
   };
 }
@@ -129,14 +132,15 @@ test('modelFromView → buildBody: 사실 칸·biz.src·dropped 는 보내지 �
   const m = isn.modelFromView(v);
   const b = isn.buildBody(m, v.tpl, 3);
   assert.strictEqual(b.base_ver, 3);
-  assert.deepStrictEqual(Object.keys(b.fields).sort(), ['address', 'bid_kind', 'budget', 'org_note', 'staff', 'supervisor']);
+  assert.deepStrictEqual(Object.keys(b.fields).sort(), ['address', 'bid_kind', 'budget', 'head_title', 'org_note', 'staff', 'supervisor']);
   assert.deepStrictEqual(b.fields.budget, { val: '2조 1,000억원', note: '2026 예산서 3쪽' });
   assert.deepStrictEqual(b.fields.staff, { val: null, note: null });
   assert.deepStrictEqual(Object.keys(b.lists).sort(), ['competition', 'mmda_basis', 'overview']);
   assert.deepStrictEqual(b.lists.overview, ['1988년 설립']);
-  assert.deepStrictEqual(Object.keys(b.tables).sort(), ['biz', 'fund', 'years']);
+  assert.deepStrictEqual(Object.keys(b.tables).sort(), ['biz', 'fund', 'scoring', 'years']);   // v3: scoring 은 없어도 null 로 항상 보낸다
+  assert.strictEqual(b.tables.scoring, null);
   assert.deepStrictEqual(Object.keys(b.tables.biz), ['rows']);
-  assert.deepStrictEqual(b.tables.biz.rows, [{ group: '(A) 복지', sub: '노인 돌봄', lines: ['- 돌봄 대상 확대'] }]);
+  assert.deepStrictEqual(b.tables.biz.rows, [{ group: '(A) 복지', sub: '노인 돌봄', lines: [{ text: '- 돌봄 대상 확대', bold: false }] }]);
   assert.strictEqual(b.fields.inst_name, undefined);
   assert.strictEqual(b.fields.head_name, undefined);
   assert.deepStrictEqual(b.tables.years, { unit: '억원', from: 2028, to: 2033, end: 2032, mmda: { '2028': '100' }, income: { '2028': '3.5' }, notes: ['추정치'] });
@@ -164,7 +168,7 @@ test('buildBody: 통째로 빈 줄은 빼고, 글자는 앞뒤 공백을 지우�
   const b = isn.buildBody(m, v.tpl, 2);
   assert.strictEqual(b.fields.budget.val, '3억');
   assert.deepStrictEqual(b.lists.overview, ['가']);
-  assert.deepStrictEqual(b.tables.biz.rows, [{ group: 'B', sub: null, lines: ['x'] }]);
+  assert.deepStrictEqual(b.tables.biz.rows, [{ group: 'B', sub: null, lines: [{ text: 'x', bold: false }] }]);
   assert.deepStrictEqual(b.tables.fund.rows, [{ kind: '구분', lines: [{ lv: 1, text: '내용' }] }]);
   assert.deepStrictEqual(b.tables.years.mmda, { '2028': '1234', '2033': '5' });   // 2034 는 범위 밖
   assert.strictEqual(b.tables.years.end, null);                                    // 종료 연도가 범위 밖이면 null
@@ -424,4 +428,259 @@ test('소스 규칙: 요청은 isn.call 하나로, 내려받기는 blob → a[do
 test('소스 규칙: 새 hex 색·11px 미만 글자를 JS 에 직접 두지 않는다', function () {
   assert.doesNotMatch(SRC, /#[0-9a-fA-F]{3,6}\b(?![\w-])/);
   assert.doesNotMatch(SRC, /font-size:\s*(?:[0-9]|10)px/);
+});
+
+// ══ v3(NEXT 113 ④): 직함·각주·굵게·2쪽 평가 기준표 ══
+// 서버 보고(backend-dev 2026-11-25_2244)의 본문 예시와 같은 모양의 평가표.
+function scCells() {
+  return [
+    { r: 0, c: 0, rs: 2, cs: 1, text: '부문' }, { r: 0, c: 1, rs: 1, cs: 1, text: '항목' }, { r: 0, c: 2, rs: 2, cs: 1, text: '배 점' },
+    { r: 1, c: 1, rs: 1, cs: 1, text: '세부' },
+    { r: 2, c: 0, rs: 2, cs: 1, text: '1. 신용도' }, { r: 2, c: 1, rs: 1, cs: 1, text: 'a' }, { r: 2, c: 2, rs: 2, cs: 1, text: '10' },
+    { r: 3, c: 1, rs: 1, cs: 1, text: 'b' },
+  ];
+}
+function v3View() {
+  const v = viewOf();
+  v.content.fields.head_title = { val: '원장', note: null };
+  v.content.lists.mmda_basis = [{ text: '평잔 산정 기준 가', note: '각주 하나' }, { text: '기준 나', note: null }];
+  v.content.tables.biz.rows[0].lines = [{ text: '굵은 줄', bold: true }, { text: '보통 줄', bold: false }];
+  v.content.tables.scoring = { cells: scCells(), row_count: 4, col_count: 3, total: 100, source: { attach_id: 7, file: '공고.hwpx', table: 0 } };
+  return v;
+}
+
+test('v3 조회 → 저장: mmda_basis 줄은 {text,note}, 사업 줄은 {text,bold} 로 읽고 같은 모양으로 쓴다', function () {
+  const v = v3View();
+  const m = isn.modelFromView(v);
+  assert.deepStrictEqual(m.lists.mmda_basis, ['평잔 산정 기준 가', '기준 나']);
+  assert.deepStrictEqual(m.notes.mmda_basis, ['각주 하나', '']);
+  assert.deepStrictEqual(m.biz[0].lines, ['굵은 줄', '보통 줄']);
+  assert.deepStrictEqual(m.biz[0].bold, [true, false]);
+  const b = isn.buildBody(m, v.tpl, 5);
+  assert.deepStrictEqual(b.lists.mmda_basis, [{ text: '평잔 산정 기준 가', note: '각주 하나' }, { text: '기준 나', note: null }]);
+  assert.deepStrictEqual(b.tables.biz.rows[0].lines, [{ text: '굵은 줄', bold: true }, { text: '보통 줄', bold: false }]);
+  assert.strictEqual(isn.isDirty(m, isn.bodyKey(m, v.tpl), v.tpl), false);
+  m.notes.mmda_basis[1] = '새 각주';
+  assert.strictEqual(isn.isDirty(m, isn.bodyKey(isn.modelFromView(v), v.tpl), v.tpl), true);
+  m.notes.mmda_basis[1] = '';
+  m.biz[0].bold[1] = true;
+  assert.strictEqual(isn.buildBody(m, v.tpl, 5).tables.biz.rows[0].lines[1].bold, true);
+});
+test('v3 조회: 옛 문자열 줄도 방어적으로 읽는다(각주 없음·굵게 아님)', function () {
+  const v = viewOf();
+  v.content.lists.mmda_basis = ['옛 줄'];
+  const m = isn.modelFromView(v);
+  assert.deepStrictEqual(m.lists.mmda_basis, ['옛 줄']);
+  assert.deepStrictEqual(m.notes.mmda_basis, ['']);
+  assert.deepStrictEqual(m.biz[0].lines, ['- 돌봄 대상 확대']);
+  assert.deepStrictEqual(m.biz[0].bold, [false]);
+  assert.deepStrictEqual(isn.buildBody(m, v.tpl, 1).lists.mmda_basis, [{ text: '옛 줄', note: null }]);
+});
+test('각주 줄은 글이 비면 각주째 빠지고, 줄 순서(글·각주)가 어긋나지 않는다', function () {
+  const v = v3View();
+  const m = isn.modelFromView(v);
+  m.lists.mmda_basis = ['', '기준 나'];
+  m.notes.mmda_basis = ['버려질 각주', '둘째 각주'];
+  assert.deepStrictEqual(isn.buildBody(m, v.tpl, 1).lists.mmda_basis, [{ text: '기준 나', note: '둘째 각주' }]);
+});
+test('각주 번호: 글과 각주가 모두 있는 줄만 1부터 세고, 표 뒤 주석이 이어받는다', function () {
+  const tx = ['가', '', '다', '라'], nt = ['a', 'b', '', 'd'];
+  assert.strictEqual(isn.footNo(tx, nt, 0), 1);
+  assert.strictEqual(isn.footNo(tx, nt, 1), 0);   // 글이 없으면 번호 없음
+  assert.strictEqual(isn.footNo(tx, nt, 2), 0);   // 각주가 없으면 번호 없음
+  assert.strictEqual(isn.footNo(tx, nt, 3), 2);
+  assert.strictEqual(isn.footCount(tx, nt), 2);   // 표 뒤 주석은 주3) 부터
+  assert.strictEqual(isn.footMark(2), '주2)');
+  assert.strictEqual(isn.footMark(0), '각주');
+});
+test('head_title: 칸 지도에 있으면 그대로 보내고, 비우면 null(서버가 기관장으로 쓴다)', function () {
+  const v = v3View();
+  const m = isn.modelFromView(v);
+  assert.deepStrictEqual(isn.buildBody(m, v.tpl, 1).fields.head_title, { val: '원장', note: null });
+  m.texts.head_title.val = '  ';
+  assert.deepStrictEqual(isn.buildBody(m, v.tpl, 1).fields.head_title, { val: null, note: null });
+  m.texts.head_title.val = '가'.repeat(21);
+  const p = isn.precheck(m, v.tpl, {});
+  assert.strictEqual(p[0].id, 'isf-f-head_title');
+  assert.strictEqual(p[0].msg, '기관장 직함은 20자 이하 한 줄로 적으세요.');
+});
+test('협약 종료 뒤 연도 칸의 값도 범위(시작~끝) 안이면 저장 본문에 그대로 실린다', function () {
+  const v = viewOf();
+  v.content.tables.years = { unit: '억원', from: 2027, to: 2031, end: 2029, mmda: { '2027': '1200', '2030': '10,000', '2031': '5000' }, income: { '2030': '30', '2031': '15' }, notes: [] };
+  const b = isn.buildBody(isn.modelFromView(v), v.tpl, 1);
+  assert.strictEqual(b.tables.years.end, 2029);
+  assert.deepStrictEqual(b.tables.years.mmda, { '2027': '1200', '2030': '10000', '2031': '5000' });
+  assert.deepStrictEqual(b.tables.years.income, { '2030': '30', '2031': '15' });
+  assert.strictEqual(isn.T.afterEnd, '협약이 끝난 뒤 연도는 빗금으로 표시되고 숫자는 그대로 나옵니다.');
+  assert.doesNotMatch(strip(SRC), /빗금으로 칠해집니다/);
+});
+
+test('scoring: 병합 표를 행별 격자(rowspan·colspan)로 풀고 머리 줄 수는 서버와 같은 규칙으로 센다', function () {
+  const sc = isn.scNorm({ cells: scCells(), total: 100 });
+  assert.strictEqual(sc.row_count, 4); assert.strictEqual(sc.col_count, 3);
+  assert.strictEqual(isn.scHeadRows(sc), 2);   // 첫 행에 세로 병합 2 가 있다
+  const g = isn.scGrid(sc);
+  assert.strictEqual(g.length, 4);
+  assert.deepStrictEqual(g[0].cells.map(function (x) { return [x.c, x.rs, x.cs, x.text, x.head]; }), [[0, 2, 1, '부문', true], [1, 1, 1, '항목', true], [2, 2, 1, '배 점', true]]);
+  assert.deepStrictEqual(g[1].cells.map(function (x) { return [x.c, x.text, x.head]; }), [[1, '세부', true]]);   // 위 병합 아래 줄은 칸 번호 1 에서 시작
+  assert.deepStrictEqual(g[2].cells.map(function (x) { return [x.c, x.rs, x.head]; }), [[0, 2, false], [1, 1, false], [2, 2, false]]);
+  assert.strictEqual(g[3].cells.length, 1);
+  const wide = isn.scNorm({ cells: [{ r: 0, c: 0, rs: 1, cs: 2, text: 'x' }, { r: 1, c: 0, rs: 1, cs: 1, text: 'a' }, { r: 1, c: 1, rs: 1, cs: 1, text: 'b' }, { r: 2, c: 0, rs: 1, cs: 1, text: '' }] });
+  assert.strictEqual(isn.scHeadRows(wide), 2);  // 가로 병합 + 3행 이상
+  assert.strictEqual(isn.scHeadRows(isn.scNorm({ cells: [{ r: 0, c: 0, text: 'a' }, { r: 1, c: 0, text: 'b' }] })), 1);
+  assert.strictEqual(isn.scHeadRows(isn.scNorm({ cells: [{ r: 0, c: 0, text: 'a' }] })), 0);
+  const src = strip(SRC);
+  assert.match(src, /rowspan:/); assert.match(src, /colspan:/); assert.match(src, /h\('textarea'/);
+});
+test('저장 본문: tables.scoring 을 항상 보낸다(칸이 있으면 정렬된 칸·행열 수·합계·출처, 없으면 null)', function () {
+  const v = v3View();
+  const m = isn.modelFromView(v);
+  const b = isn.buildBody(m, v.tpl, 5);
+  assert.deepStrictEqual(Object.keys(b.tables.scoring).sort(), ['cells', 'col_count', 'row_count', 'source', 'total']);   // 서버가 받는 키만
+  assert.strictEqual(b.tables.scoring.row_count, 4); assert.strictEqual(b.tables.scoring.col_count, 3); assert.strictEqual(b.tables.scoring.total, 100);
+  assert.deepStrictEqual(b.tables.scoring.source, { attach_id: 7, file: '공고.hwpx', table: 0 });
+  assert.deepStrictEqual(Object.keys(b.tables.scoring.cells[0]).sort(), ['c', 'cs', 'r', 'rs', 'text']);
+  assert.deepStrictEqual(b.tables.scoring.cells.map(function (x) { return x.r + ',' + x.c; }), ['0,0', '0,1', '0,2', '1,1', '2,0', '2,1', '2,2', '3,1']);
+  m.scoring.cells.reverse();   // 모델 순서가 달라도 (r,c) 순
+  assert.strictEqual(isn.buildBody(m, v.tpl, 5).tables.scoring.cells[0].text, '부문');
+  m.scoring = null;
+  const none = isn.buildBody(m, v.tpl, 5);
+  assert.ok(Object.prototype.hasOwnProperty.call(none.tables, 'scoring'));
+  assert.strictEqual(none.tables.scoring, null);
+  m.scoring = isn.scBlank();   // 머리 글자만 있는 빈 표 + 글자 하나도 없으면 2쪽 없음
+  m.scoring.cells.forEach(function (x) { x.text = ''; });
+  assert.strictEqual(isn.buildBody(m, v.tpl, 5).tables.scoring, null);
+  const memo = isn.modelFromView(v);
+  memo.scoring.cells[0].text = '  고친 부문  ';
+  assert.strictEqual(isn.buildBody(memo, v.tpl, 5).tables.scoring.cells[0].text, '고친 부문');
+  assert.strictEqual(isn.isDirty(memo, isn.bodyKey(isn.modelFromView(v), v.tpl), v.tpl), true);
+});
+test('저장 본문: 서버가 정수 합계만 받으므로 소수·문자 합계는 null, 출처에 첨부 번호가 없으면 null', function () {
+  const sc = { cells: scCells(), total: 99.5, source: { attach_id: null, file: 'x.hwpx', table: 0 } };
+  const b = isn.scBody(sc);
+  assert.strictEqual(b.total, null);
+  assert.strictEqual(b.source, null);
+  assert.strictEqual(isn.scBody({ cells: scCells(), total: '100' }).total, 100);
+});
+test('공고 원본 읽기: HWPX 표(cells)는 편집 표로, 출처는 응답의 attach_id·file·table 로 만든다', function () {
+  const d = { found: true, kind: 'TABLE', attach_id: 7, file: '공고.hwpx', cells: scCells(), row_count: 4, col_count: 3, total: 100, table: 1,
+    candidate_count: 2, candidate_heads: ['부문 | 세부 항목 | 배 점', '구분 | 배점(점)'], rows: [['x']] };
+  const r = isn.scReadResult(d);
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.sc.source, { attach_id: 7, file: '공고.hwpx', table: 1 });
+  assert.strictEqual(r.sc.total, 100);
+  assert.strictEqual(r.sc.cells.length, 8);
+  assert.deepStrictEqual(r.cand, { count: 2, heads: ['부문 | 세부 항목 | 배 점', '구분 | 배점(점)'], table: 1 });
+  assert.strictEqual(isn.scReadResult(Object.assign({}, d, { candidate_count: 1 })).cand, null);   // 후보가 하나면 고르기 없음
+});
+test('공고 원본 읽기: 후보 고르기는 ?table=n 으로 다시 읽고, 요청 머리글은 사전준비 상세의 같은 요청과 같다', async function () {
+  assert.strictEqual(isn.scUrl('B 1', null), '/bidcases/B%201/prep/notice-scoring');
+  assert.strictEqual(isn.scUrl('B1', 2), '/bidcases/B1/prep/notice-scoring?table=2');
+  assert.strictEqual(isn.scUrl('B1', 0), '/bidcases/B1/prep/notice-scoring?table=0');
+  assert.strictEqual(isn.scUrl('B1', -3), '/bidcases/B1/prep/notice-scoring?table=0');
+  const seen = [];
+  await isn.call('GET', isn.scUrl('B1', 1), undefined, isn.SC_BTN, { fetch: fakeFetch(seen), screen: isn.SC_SCREEN });
+  assert.strictEqual(seen[0].init.headers['X-Screen-Id'], 'prep_detail');
+  assert.strictEqual(seen[0].init.headers['X-Button-Id'], 'refresh');
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'js', 'prep.js'), 'utf8'), /ui\('prep_detail', 'refresh'\)/);   // prep.js 와 같은 머리글
+});
+test('공고 원본 읽기: 못 읽음·PDF 줄 단위·스캔은 편집 표를 만들지 않고, PDF 줄은 참고로만 돌려준다', function () {
+  const none = isn.scReadResult({ found: false, reason: 'NO_FILE', files: 0 });
+  assert.deepStrictEqual([none.ok, none.sc, none.reason, none.rows], [false, null, 'NO_FILE', []]);
+  const pdf = isn.scReadResult({ found: true, kind: 'LINES', file: '공고.pdf', rows: [['1. 신용도 10'], ['2. 재무 20'], ['']], total: 30 });
+  assert.deepStrictEqual([pdf.ok, pdf.sc, pdf.reason, pdf.rows], [false, null, 'LINES', ['1. 신용도 10', '2. 재무 20']]);
+  const hwpOld = isn.scReadResult({ found: true, kind: 'TABLE', file: 'a.hwpx', rows: [['a', 'b']] });   // cells 가 없는 옛 응답
+  assert.strictEqual(hwpOld.ok, false);
+  assert.strictEqual(isn.T.scFail, '공고 원본(HWPX)에서 표를 읽지 못했습니다. 아래 빈 표에 직접 적으세요.');
+});
+test('빈 표로 시작: 샘플의 5칸 머리(평가 부문·평가 항목·세부 평가 항목·배점·평가 방법) + 빈 한 줄, 줄 추가·삭제는 병합 없는 줄만', function () {
+  const sc = isn.scBlank();
+  assert.deepStrictEqual(sc.cells.filter(function (x) { return x.r === 0; }).map(function (x) { return x.text; }), ['평가 부문', '평가 항목', '세부 평가 항목', '배점', '평가 방법']);
+  assert.deepStrictEqual([sc.row_count, sc.col_count, sc.cells.length, sc.source, sc.total], [2, 5, 10, null, null]);
+  assert.strictEqual(isn.scHeadRows(sc), 1);
+  assert.strictEqual(isn.scCanDel(sc, 0), false);   // 머리 줄은 지울 수 없다
+  assert.strictEqual(isn.scCanDel(sc, 1), true);
+  assert.strictEqual(isn.scAddRow(sc), true);
+  assert.deepStrictEqual([sc.row_count, sc.cells.length], [3, 15]);
+  sc.cells.forEach(function (x) { if (x.r === 2 && x.c === 3) x.text = '10'; });
+  assert.strictEqual(isn.scDelRow(sc, 1), true);   // 가운데 줄을 지우면 아래 줄이 올라온다
+  assert.deepStrictEqual([sc.row_count, sc.cells.length], [2, 10]);
+  assert.strictEqual(sc.cells.filter(function (x) { return x.r === 1 && x.c === 3; })[0].text, '10');
+  assert.strictEqual(isn.scDelRow(sc, 1), true);
+  assert.strictEqual(sc.row_count, 1);
+  assert.strictEqual(isn.scCanDel(sc, 0), false);   // 행이 하나만 남으면 더 지울 수 없다
+  const big = isn.scBlank(); big.row_count = 200;
+  assert.strictEqual(isn.scAddRow(big), false);
+});
+test('줄 삭제: 위에서 내려오는 병합이 걸치거나 이 줄에서 시작하는 칸이 세로 병합이면 지울 수 없다', function () {
+  const sc = isn.scNorm({ cells: scCells() });
+  assert.strictEqual(isn.scCanDel(sc, 0), false);   // 머리
+  assert.strictEqual(isn.scCanDel(sc, 2), false);   // 이 줄에서 시작하는 칸이 rs 2
+  assert.strictEqual(isn.scCanDel(sc, 3), false);   // 위(2행)의 병합이 걸친다
+  assert.strictEqual(isn.scDelRow(sc, 2), false);
+  assert.strictEqual(sc.row_count, 4);
+});
+test('합계: 배점 열 합이 total 과 다르면 경고만 내고, 열을 확신할 수 없으면 경고를 생략한다', function () {
+  const sc = isn.scNorm({ cells: scCells(), total: 100 });
+  assert.strictEqual(isn.scSum(sc), 10);
+  assert.strictEqual(isn.scWarn(sc), '배점 합계 10점이 합계 100점과 다릅니다. 원본과 맞는지 확인하세요(저장은 됩니다).');
+  sc.total = 10;
+  assert.strictEqual(isn.scWarn(sc), '');
+  sc.total = null;
+  assert.strictEqual(isn.scWarn(sc), '');           // total 이 없으면 비교하지 않는다
+  // 합계 줄은 합산에서 뺀다
+  const withTotal = isn.scNorm({ total: 30, cells: [
+    { r: 0, c: 0, text: '항목' }, { r: 0, c: 1, text: '배점' },
+    { r: 1, c: 0, text: 'a' }, { r: 1, c: 1, text: '10점' },
+    { r: 2, c: 0, text: 'b' }, { r: 2, c: 1, text: '20' },
+    { r: 3, c: 0, text: '계' }, { r: 3, c: 1, text: '30' }] });
+  assert.strictEqual(isn.scSum(withTotal), 30);
+  assert.strictEqual(isn.scWarn(withTotal), '');
+  // 배점 머리가 없거나 두 열이면 모른다
+  const noHead = isn.scNorm({ total: 5, cells: [{ r: 0, c: 0, text: '항목' }, { r: 0, c: 1, text: '점수' }, { r: 1, c: 0, text: 'a' }, { r: 1, c: 1, text: '1' }] });
+  assert.strictEqual(isn.scSum(noHead), null);
+  assert.strictEqual(isn.scWarn(noHead), '');
+  const two = isn.scNorm({ total: 5, cells: [{ r: 0, c: 0, text: '배점' }, { r: 0, c: 1, text: '배점' }, { r: 1, c: 0, text: '1' }, { r: 1, c: 1, text: '2' }] });
+  assert.strictEqual(isn.scSum(two), null);
+  const textOnly = isn.scNorm({ total: 5, cells: [{ r: 0, c: 0, text: '배점' }, { r: 1, c: 0, text: '비계량' }] });
+  assert.strictEqual(isn.scSum(textOnly), null);   // 숫자가 하나도 없으면 비교하지 않는다
+});
+test('2쪽 제목 미리보기: 참고자료 2. 「기관명」 {입찰 종류} 평가 기준표(입찰 종류가 비면 생략)', function () {
+  assert.strictEqual(isn.T.scTitle('노원구청', '주거래은행 선정'), '참고자료 2. 「노원구청」 주거래은행 선정 평가 기준표');
+  assert.strictEqual(isn.T.scTitle('노원구청', '  '), '참고자료 2. 「노원구청」 평가 기준표');
+  assert.strictEqual(isn.T.bidHelp, '1·2쪽 제목에 같이 쓰입니다(예: 주거래은행 선정, 금고 지정).');
+});
+test('precheck: 각주 300자·평가표 칸 500자·행 200줄 초과는 그 칸 id 로 안내한다', function () {
+  const v = v3View();
+  const m = isn.modelFromView(v);
+  m.notes.mmda_basis[0] = '가'.repeat(301);
+  m.scoring.cells[1].text = '나'.repeat(501);   // r0 c1
+  const by = {}; isn.precheck(m, v.tpl, {}).forEach(function (x) { by[x.id] = x.msg; });
+  assert.strictEqual(by['isf-l-mmda_basis-n-0'], '각주는 300자 이하로 적으세요.');
+  assert.strictEqual(by['isf-s-0-1'], '칸 글자는 500자 이하로 적으세요.');
+  m.scoring.cells[1].text = '나'.repeat(500);
+  m.notes.mmda_basis[0] = '가'.repeat(300);
+  assert.deepStrictEqual(isn.precheck(m, v.tpl, {}), []);
+  m.scoring.row_count = 201;
+  assert.strictEqual(isn.precheck(m, v.tpl, {})[0].id, 'isf-sc-add');
+});
+test('errInfo: BAD_SCORING·TOO_MANY(scoring)·PII_DETECTED(scoring) 는 평가 기준표 문구로, 서버 message 는 쓰지 않는다', function () {
+  const tpl = tplOf(false);
+  const E = function (status, detail, kind) { return isn.errInfo(status, detail, { tpl: tpl, kind: kind }); };
+  const a = E(400, { code: 'BAD_SCORING', key: 'scoring', message: '서버 원문' });
+  assert.strictEqual(a.text, isn.T.scBad);
+  assert.strictEqual(a.action, 'table');
+  assert.strictEqual(a.text.indexOf('서버 원문'), -1);
+  assert.strictEqual(E(400, { code: 'TOO_MANY', key: 'scoring' }).text, isn.T.scBad);
+  assert.strictEqual(E(400, { code: 'TOO_MANY', key: 'biz' }).text, '이 표에 형식이 맞지 않는 칸이 있습니다. 빨간 칸을 고치세요.');
+  assert.strictEqual(E(422, { code: 'PII_DETECTED', key: 'scoring' }).text, '평가 기준표에 주민등록번호·전화번호처럼 보이는 값이 있어 저장하지 않았습니다. 그 부분을 지우고 다시 저장하세요.');
+  assert.strictEqual(E(422, { code: 'PII_DETECTED', key: 'scoring' }).action, 'field');
+});
+test('소스 규칙(v3): 표 칸 글자는 textContent·value 로만 넣고, 산정 기준 줄·사업 줄은 aux 로 함께 움직인다', function () {
+  assert.doesNotMatch(SRC, /innerHTML|insertAdjacentHTML/);
+  assert.match(SRC, /h\('textarea', \{[^}]*value: g\.text/);
+  assert.match(SRC, /onScRead\(Number\(sel\.value\)\)/);
+  assert.match(SRC, /aux: m\.notes\.mmda_basis/);
+  assert.match(SRC, /aux: r\.bold/);
+  assert.match(SRC, /T\.scSec/);
 });

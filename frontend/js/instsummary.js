@@ -44,7 +44,11 @@
   const BIZ_LIMIT = { group: 60, sub: 60, lines: 5, line: 200 };
   const FUND_LIMIT = { kind: 60, lines: 10, line: 300 };
   const NOTES_LIMIT = { n: 5, len: 300 };
-  const TABLE_KEYS = { biz: 1, fund: 1, years: 1 };
+  const TABLE_KEYS = { biz: 1, fund: 1, years: 1, scoring: 1 };
+  const OBJ_LISTS = { mmda_basis: 1 };   // 줄이 {text, note} 인 목록(각주) — 나머지 목록은 글자 줄
+  const FOOT_LEN = 300;
+  const SC = { rows: 200, cols: 12, cell: 500, heads: ['평가 부문', '평가 항목', '세부 평가 항목', '배점', '평가 방법'] };
+  const SC_SCREEN = 'prep_detail', SC_BTN = 'refresh';   // 공고 원본 표 읽기는 사전준비 상세 화면의 같은 요청(prep.js)이라 그 머리글을 쓴다
   const MISMATCH = '화면과 서버의 양식이 맞지 않아 저장하지 못했습니다. 화면을 새로 고친 뒤 다시 하세요.';
 
   // ── 화면 문구 ─────────────────────────────────────────────────────
@@ -54,7 +58,28 @@
     prefilling: '원본에서 기관명·기관장·현 거래 은행과 주요 사업을 채우는 중…',
     emptyView: '아직 작성하지 않았습니다. 이 건의 영업 담당자가 작성하면 여기에서 볼 수 있습니다.',
     dirty: '닫으면 저장하지 않은 내용이 사라집니다.',
-    page1: '워드에는 1쪽(요약)만 나옵니다. 2쪽 평가 기준표는 아직 이 화면에서 만들지 않습니다.',
+    page1: '워드에는 1쪽(요약)이 나오고, 아래 \'평가 기준표(2쪽)\'에 표를 채우면 쪽을 나눠 2쪽으로 이어집니다.',
+    bidHelp: '1·2쪽 제목에 같이 쓰입니다(예: 주거래은행 선정, 금고 지정).',
+    titleHelp: '현황 표 첫 칸의 머리 이름입니다. 비우면 \'기관장\'으로 나옵니다. 기관에 맞게 원장·사장·이사장 등으로 고쳐 쓸 수 있습니다.',
+    footHelp: '각주는 그 줄 아래 주1)부터 나오고, 표 아래 주석이 번호를 이어받습니다.',
+    bankRef: '화면에서 참고만 하는 칸입니다. 워드 문서에는 나가지 않습니다.',
+    boldHelp: '\'굵게\'를 체크한 줄은 워드에서 굵게 나옵니다.',
+    scSec: '평가 기준표(2쪽)',
+    scIntro: '공고 원본에서 평가 표를 읽어 와 칸마다 고칠 수 있습니다. 워드에는 쪽을 나눠 2쪽으로 나옵니다. 비워 두면 1쪽만 나옵니다.',
+    scNone: '아직 평가 기준표가 없습니다.',
+    scReading: '공고 원본에서 읽는 중…',
+    scFail: '공고 원본(HWPX)에서 표를 읽지 못했습니다. 아래 빈 표에 직접 적으세요.',
+    scLinesRef: '공고 원문 줄(참고용, 펼쳐서 보세요)',
+    scStruct: '칸의 글자만 고칠 수 있습니다. 병합 모양이 원본과 다르면 [다시 읽기]로 다시 가져오거나 [표 비우기] 뒤 [빈 표로 시작]하세요.',
+    scRead: function (file) { return (file ? file + '에서 ' : '') + '표를 읽어 왔습니다. 칸을 확인하고 고친 뒤 [저장]하세요.'; },
+    scCand: function (n) { return '이 공고에서 평가 표 후보 ' + n + '개를 찾았습니다. 맞는 표를 고르세요.'; },
+    scTitle: function (name, bid) { return '참고자료 2. 「' + name + '」' + (t(bid) ? ' ' + t(bid) : '') + ' 평가 기준표'; },
+    scTotal: function (n) { return '합계 ' + n + '점'; },
+    scSumWarn: function (sum, total) { return '배점 합계 ' + sum + '점이 합계 ' + total + '점과 다릅니다. 원본과 맞는지 확인하세요(저장은 됩니다).'; },
+    scSrc: function (file, table) { return '출처: ' + file + (table != null ? '(' + (Number(table) + 1) + '번째 표)' : ''); },
+    scCellBad: '칸 글자는 500자 이하로 적으세요.',
+    scRowsBad: '행은 200줄까지 쓸 수 있습니다.',
+    scBad: '평가 기준표 형식이 맞지 않아 저장하지 못했습니다. 칸 수와 병합 모양을 확인하거나, [표 비우기] 뒤 다시 읽으세요.',
     saving: '저장 중…', making: '만드는 중…', confirming: '확정하는 중…',
     saved: function (v) { return 'v' + v + '판으로 저장했습니다.'; },
     noChange: '바뀐 내용이 없어 새 판을 만들지 않았습니다.',
@@ -64,7 +89,7 @@
     noteHelp: '어디서 확인했는지 적으세요(예: 2026 예산서 3쪽).',
     effectHelp: '금액·비율을 적으면 그 숫자가 어디서 나왔는지 같은 줄에 적으세요.',
     sameGroup: '같은 대분류가 이어진 줄은 워드에서 한 칸으로 합쳐집니다.',
-    afterEnd: '협약 종료 뒤 연도는 워드에서 빗금으로 칠해집니다.',
+    afterEnd: '협약이 끝난 뒤 연도는 빗금으로 표시되고 숫자는 그대로 나옵니다.',
     amountBad: '숫자로 적으세요(소수 3자리까지, 쉼표 가능).',
     fixCells: function (verb, n) { return verb + '하지 못했습니다. 빨간 칸 ' + n + '곳을 고치세요.'; },
     reasonEmpty: '취소 사유를 적으세요.',
@@ -166,17 +191,163 @@
   };
 
   // ── 화면 모델 ↔ 서버 본문 ─────────────────────────────────────────
-  // 모델: { texts:{key:{val,note}}, lists:{key:[글…]}, biz:[{group,sub,lines:[글…]}], fund:[{kind,lines:[{lv,text}]}], years:null|{unit,from,to,end,mmda,income,notes} }
+  // ── 2쪽 평가 기준표(tables.scoring) ───────────────────────────────
+  // 모델: null | { row_count, col_count, total:정수|null, source:null|{attach_id,file,table}, cells:[{r,c,rs,cs,text}] }
+  function posInt(v, d) { const n = Math.floor(Number(v)); return isFinite(n) && n >= 0 ? n : d; }
+  isn.scNorm = function (sc) {
+    const o = obj(sc);
+    const cells = arr(o.cells).filter(function (x) { return x && typeof x === 'object'; }).map(function (x) {
+      return { r: posInt(x.r, 0), c: posInt(x.c, 0), rs: Math.max(1, posInt(x.rs, 1)), cs: Math.max(1, posInt(x.cs, 1)), text: s(x.text) };
+    });
+    if (!cells.length) return null;
+    let rn = 0, cn = 0;
+    cells.forEach(function (x) { rn = Math.max(rn, x.r + x.rs); cn = Math.max(cn, x.c + x.cs); });
+    const tn = o.total == null || o.total === '' ? NaN : Number(o.total);
+    const so = o.source && typeof o.source === 'object' && !Array.isArray(o.source) ? o.source : null;
+    return {
+      row_count: Math.max(rn, posInt(o.row_count, 0)), col_count: Math.max(cn, posInt(o.col_count, 0)),
+      total: isFinite(tn) && Math.floor(tn) === tn ? tn : null,
+      source: so ? { attach_id: so.attach_id == null ? null : Number(so.attach_id), file: s(so.file), table: so.table == null ? null : posInt(so.table, 0) } : null,
+      cells: cells,
+    };
+  };
+  isn.scHasText = function (sc) { return !!sc && arr(sc.cells).some(function (x) { return t(x && x.text) !== ''; }); };
+  // PUT 본문의 tables.scoring — 칸 글자가 하나도 없으면 null(2쪽 없음). 서버가 받는 키만 보낸다.
+  isn.scBody = function (sc) {
+    const x = isn.scNorm(sc);
+    if (!x || !isn.scHasText(x)) return null;
+    return {
+      cells: x.cells.slice().sort(function (a, b) { return a.r - b.r || a.c - b.c; }).map(function (k) { return { r: k.r, c: k.c, rs: k.rs, cs: k.cs, text: t(k.text) }; }),
+      row_count: x.row_count, col_count: x.col_count, total: x.total,
+      source: x.source && x.source.attach_id != null && isFinite(x.source.attach_id) ? { attach_id: x.source.attach_id, file: x.source.file, table: x.source.table == null ? 0 : x.source.table } : null,
+    };
+  };
+  isn.scKey = function (sc) { return JSON.stringify(isn.scBody(sc)); };
+  isn.scBlank = function () {
+    const cells = [];
+    SC.heads.forEach(function (h0, c) { cells.push({ r: 0, c: c, rs: 1, cs: 1, text: h0 }); });
+    SC.heads.forEach(function (h0, c) { cells.push({ r: 1, c: c, rs: 1, cs: 1, text: '' }); });
+    return { row_count: 2, col_count: SC.heads.length, total: null, source: null, cells: cells };
+  };
+  // GET …/prep/notice-scoring 응답 → { ok, sc, cand, rows, reason, file }. HWPX 표(cells 있음)만 편집 표로 쓴다.
+  isn.scReadResult = function (d) {
+    const x = obj(d);
+    const n = Number(x.candidate_count) || 0;
+    const file = s(x.file);
+    if (x.found === true && arr(x.cells).length) {
+      const aid = Number(x.attach_id);
+      const sc = isn.scNorm({
+        cells: x.cells, row_count: x.row_count, col_count: x.col_count, total: x.total,
+        source: isFinite(aid) && x.attach_id != null ? { attach_id: aid, file: file, table: posInt(x.table, 0) } : null,
+      });
+      return { ok: !!sc, sc: sc, cand: n > 1 ? { count: n, heads: arr(x.candidate_heads).map(s), table: posInt(x.table, 0) } : null, rows: [], reason: '', file: file };
+    }
+    const rows = x.found === true && x.kind !== 'TABLE'
+      ? arr(x.rows).map(function (r) { return Array.isArray(r) ? r.map(s).join(' ') : s(r); }).filter(function (z) { return t(z) !== ''; }) : [];
+    return { ok: false, sc: null, cand: null, rows: rows, reason: x.found === true ? (x.kind === 'TABLE' ? 'NO_CELLS' : 'LINES') : (s(x.reason) || 'NOT_FOUND'), file: file };
+  };
+  isn.scUrl = function (id, table) {
+    return '/bidcases/' + encodeURIComponent(s(id)) + '/prep/notice-scoring' + (table == null ? '' : '?table=' + encodeURIComponent(String(Math.max(0, Math.floor(Number(table)) || 0))));
+  };
+  // 칸을 행별로: [{ r, cells:[{ c, rs, cs, text, head }] }] — 화면이 rowspan·colspan 으로 그린다.
+  isn.scHeadRows = function (sc) {
+    const cells = arr(sc && sc.cells), rows = Number(sc && sc.row_count) || 0;
+    const first = cells.filter(function (x) { return x.r === 0; });
+    if (first.some(function (x) { return x.rs >= 2; })) return 2;
+    if (first.some(function (x) { return x.cs > 1; }) && rows >= 3) return 2;
+    return rows <= 1 ? 0 : 1;
+  };
+  isn.scGrid = function (sc) {
+    const out = [];
+    if (!sc) return out;
+    const hr = isn.scHeadRows(sc);
+    for (let r = 0; r < sc.row_count; r += 1) out.push({ r: r, cells: [] });
+    arr(sc.cells).slice().sort(function (a, b) { return a.r - b.r || a.c - b.c; }).forEach(function (x) {
+      if (out[x.r]) out[x.r].cells.push({ c: x.c, rs: x.rs, cs: x.cs, text: x.text, head: x.r < hr, cell: x });
+    });
+    return out;
+  };
+  // 이 줄을 지워도 병합이 깨지지 않는가(위에서 내려오는 병합이 없고, 이 줄에서 시작하는 칸이 모두 한 줄짜리).
+  isn.scCanDel = function (sc, r) {
+    if (!sc || sc.row_count <= 1 || r < isn.scHeadRows(sc) || r >= sc.row_count) return false;
+    return !sc.cells.some(function (x) { return (x.r === r && x.rs > 1) || (x.r < r && x.r + x.rs > r); });
+  };
+  isn.scDelRow = function (sc, r) {
+    if (!isn.scCanDel(sc, r)) return false;
+    sc.cells = sc.cells.filter(function (x) { return x.r !== r; });
+    sc.cells.forEach(function (x) { if (x.r > r) x.r -= 1; });
+    sc.row_count -= 1;
+    return true;
+  };
+  isn.scAddRow = function (sc) {
+    if (!sc || sc.row_count >= SC.rows) return false;
+    for (let c = 0; c < sc.col_count; c += 1) sc.cells.push({ r: sc.row_count, c: c, rs: 1, cs: 1, text: '' });
+    sc.row_count += 1;
+    return true;
+  };
+  // 배점 열 합계 — 열을 확신할 수 없으면(머리가 없거나 여럿) null 이라 경고를 내지 않는다. 합계·계 줄은 뺀다.
+  const NUM_RE = /^(\d{1,6}(?:\.\d{1,2})?)\s*점?$/;
+  const TOTAL_RE = /^(계|합계|총점|총계|합\s*계|총\s*점|총\s*계)$/;
+  isn.scSum = function (sc) {
+    if (!sc) return null;
+    const hr = isn.scHeadRows(sc);
+    const squash = function (x) { return s(x).replace(/\s+/g, ''); };
+    const heads = sc.cells.filter(function (x) { return x.r < hr && /^배점/.test(squash(x.text)); });
+    const cols = {};
+    heads.forEach(function (x) { cols[x.c] = 1; });
+    const ks = Object.keys(cols);
+    if (ks.length !== 1 || heads.some(function (x) { return x.cs > 1; })) return null;
+    const col = Number(ks[0]);
+    const totalRows = {};
+    sc.cells.forEach(function (x) { if (x.r >= hr && TOTAL_RE.test(squash(x.text))) totalRows[x.r] = 1; });
+    let sum = 0, n = 0;
+    sc.cells.forEach(function (x) {
+      if (x.r < hr || x.c !== col || totalRows[x.r]) return;
+      const m = NUM_RE.exec(squash(x.text));
+      if (m) { sum += Number(m[1]); n += 1; }
+    });
+    return n ? Math.round(sum * 100) / 100 : null;
+  };
+  isn.scWarn = function (sc) {
+    const sum = isn.scSum(sc);
+    if (!sc || sc.total == null || sum == null || Math.abs(sum - sc.total) < 0.0001) return '';
+    return T.scSumWarn(sum, sc.total);
+  };
+  // 각주 번호: 글이 있는 줄 중 각주도 있는 줄만 1부터 센다.
+  isn.footNo = function (texts, notes, i) {
+    let n = 0;
+    for (let j = 0; j <= i; j += 1) if (t(arr(texts)[j]) !== '' && t(arr(notes)[j]) !== '') n += 1;
+    return t(arr(texts)[i]) !== '' && t(arr(notes)[i]) !== '' ? n : 0;
+  };
+  isn.footCount = function (texts, notes) {
+    let n = 0;
+    arr(texts).forEach(function (x, j) { if (t(x) !== '' && t(arr(notes)[j]) !== '') n += 1; });
+    return n;
+  };
+  isn.footMark = function (n) { return n ? '주' + n + ')' : '각주'; };
+
+  // ── 화면 모델 ↔ 서버 본문 ─────────────────────────────────────────
+  // 모델: { texts:{key:{val,note}}, lists:{key:[글…]}, notes:{mmda_basis:[각주…]}, biz:[{group,sub,lines:[글…],bold:[bool…]}], fund:[{kind,lines:[{lv,text}]}], years:null|{unit,from,to,end,mmda,income,notes}, scoring:null|{…} }
+  // 서버는 mmda_basis 줄을 {text,note}, 사업 줄을 {text,bold} 로 준다(옛 문자열 줄도 읽는다). 줄 글자와 각주·굵게는 나란한 배열로 들고 있어 줄 조작이 글자 배열만 다루게 한다.
+  function lineText(x) { return x && typeof x === 'object' ? s(x.text) : s(x); }
   isn.modelFromView = function (view) {
     const tpl = view && view.tpl;
     const c = view && view.content;
     const f = obj(c && c.fields), l = obj(c && c.lists), tb = obj(c && c.tables);
-    const m = { texts: {}, lists: {}, biz: [], fund: [], years: null };
+    const m = { texts: {}, lists: {}, notes: {}, biz: [], fund: [], years: null, scoring: null };
     isn.keysOf(tpl, 'TEXT').forEach(function (k) { const x = obj(f[k.key]); m.texts[k.key] = { val: s(x.val), note: s(x.note) }; });
-    isn.keysOf(tpl, 'LIST').forEach(function (k) { const a = arr(l[k.key]).map(s); m.lists[k.key] = a.length ? a : ['']; });
+    isn.keysOf(tpl, 'LIST').forEach(function (k) {
+      const raw = arr(l[k.key]);
+      const a = raw.map(lineText);
+      m.lists[k.key] = a.length ? a : [''];
+      if (OBJ_LISTS[k.key]) { const nt = raw.map(function (x) { return x && typeof x === 'object' ? s(x.note) : ''; }); m.notes[k.key] = nt.length ? nt : ['']; }
+    });
+    m.scoring = isn.scNorm(tb.scoring);
     m.biz = arr(obj(tb.biz).rows).map(function (r) {
-      const ln = arr(r && r.lines).map(s);
-      return { group: s(r && r.group), sub: s(r && r.sub), lines: ln.length ? ln : [''] };
+      const raw = arr(r && r.lines);
+      const ln = raw.map(lineText);
+      const bd = raw.map(function (x) { return !!(x && typeof x === 'object' && x.bold === true); });
+      return { group: s(r && r.group), sub: s(r && r.sub), lines: ln.length ? ln : [''], bold: ln.length ? bd : [false] };
     });
     m.fund = arr(obj(tb.fund).rows).map(function (r) {
       const ln = arr(r && r.lines).map(function (x) { return { lv: Number(x && x.lv) === 1 ? 1 : 0, text: s(x && x.text) }; });
@@ -211,10 +382,17 @@
     const mm = m || {};
     const fields = {}, lists = {};
     isn.keysOf(tpl, 'TEXT').forEach(function (k) { const x = obj(obj(mm.texts)[k.key]); fields[k.key] = { val: nz(x.val), note: nz(x.note) }; });
-    isn.keysOf(tpl, 'LIST').forEach(function (k) { lists[k.key] = arr(obj(mm.lists)[k.key]).map(t).filter(Boolean); });
+    isn.keysOf(tpl, 'LIST').forEach(function (k) {
+      const a = arr(obj(mm.lists)[k.key]);
+      if (OBJ_LISTS[k.key]) {
+        const nt = arr(obj(mm.notes)[k.key]);
+        lists[k.key] = a.map(function (v, i) { return { text: t(v), note: nz(nt[i]) }; }).filter(function (x) { return x.text !== ''; });
+      } else lists[k.key] = a.map(t).filter(Boolean);
+    });
     const biz = [];
     arr(mm.biz).forEach(function (r) {
-      const g = t(r.group), sub = t(r.sub), ln = arr(r.lines).map(t).filter(Boolean);
+      const g = t(r.group), sub = t(r.sub), bd = arr(r.bold);
+      const ln = arr(r.lines).map(function (x, j) { return { text: t(x), bold: bd[j] === true }; }).filter(function (x) { return x.text !== ''; });
       if (!g && !sub && !ln.length) return;
       biz.push({ group: g, sub: nz(sub), lines: ln });
     });
@@ -225,7 +403,8 @@
       if (!kind && !ln.length) return;
       fund.push({ kind: kind, lines: ln });
     });
-    return { base_ver: baseVer, fields: fields, lists: lists, tables: { biz: { rows: biz }, fund: { rows: fund }, years: yearsBody(mm.years) } };
+    // tables 는 통째로 바뀌므로 scoring 도 항상 같이 보낸다(없으면 null — 빠뜨리면 서버가 2쪽을 지운다).
+    return { base_ver: baseVer, fields: fields, lists: lists, tables: { biz: { rows: biz }, fund: { rows: fund }, years: yearsBody(mm.years), scoring: isn.scBody(mm.scoring) } };
   };
   isn.bodyKey = function (m, tpl) { return JSON.stringify(isn.buildBody(m, tpl, 0)); };
   isn.isDirty = function (m, baseKey, tpl) { return !!m && isn.bodyKey(m, tpl) !== baseKey; };
@@ -265,6 +444,10 @@
         n += 1;
         if (k.max_len && x.length > k.max_len) add('isf-l-' + k.key + '-' + i, (i + 1) + '번째 줄은 ' + k.max_len + '자 이하로 적으세요.');
       });
+      if (OBJ_LISTS[k.key]) {
+        const nt = arr(obj(mm.notes)[k.key]);
+        a.forEach(function (v, i) { if (t(v) && t(nt[i]).length > FOOT_LEN) add('isf-l-' + k.key + '-n-' + i, '각주는 ' + FOOT_LEN + '자 이하로 적으세요.'); });
+      }
       if (k.max_items && n > k.max_items) add('isf-l-' + k.key + '-add', k.max_items + '줄까지 쓸 수 있습니다.');
       if (opt.confirm && k.required && n === 0) add('isf-l-' + k.key + '-0', withObj(k.label) + ' 적으세요.');
     });
@@ -328,6 +511,14 @@
         if (x.length > NOTES_LIMIT.len) add('isf-yn-' + i, (i + 1) + '번째 주석은 ' + NOTES_LIMIT.len + '자 이하로 적으세요.');
       });
       if (nn > NOTES_LIMIT.n) add('isf-yn-add', '주석은 ' + NOTES_LIMIT.n + '개까지 쓸 수 있습니다.');
+    }
+    // 2쪽 평가 기준표
+    if (mm.scoring) {
+      const sc = isn.scNorm(mm.scoring);
+      if (sc) {
+        if (sc.row_count > SC.rows) add('isf-sc-add', T.scRowsBad);
+        sc.cells.forEach(function (x) { if (t(x.text).length > SC.cell) add('isf-s-' + x.r + '-' + x.c, T.scCellBad); });
+      }
     }
     if (opt.confirm && opt.view) isn.missingFacts(opt.view).forEach(function (key) { add('isf-f-' + key, isn.factMissingMsg(tpl, key)); });
     return out;
@@ -418,7 +609,7 @@
     const d = detail && typeof detail === 'object' ? detail : {};
     const code = s(d.code);
     const R = function (text, action, extra) { return Object.assign({ code: code, text: text, action: action || 'none', keys: [], key: '' }, extra || {}); };
-    const labelFor = function (k) { return k === 'reason' ? '취소 사유' : isn.keyInfo(tpl, k) ? isn.labelOf(tpl, k) : ''; };
+    const labelFor = function (k) { return k === 'reason' ? '취소 사유' : k === 'scoring' ? '평가 기준표' : isn.keyInfo(tpl, k) ? isn.labelOf(tpl, k) : ''; };
     if (!status) return R('서버에 연결하지 못했습니다. 입력한 내용은 그대로 있습니다.', 'none', { code: 'NETWORK' });
     if (status === 409) {
       switch (code) {
@@ -449,8 +640,9 @@
       if (code === 'CONTENT_TOO_LARGE') return R('양식 내용이 너무 커서 저장하지 못했습니다. 사업 표의 내용 줄을 줄이세요.');
       if (code === 'UNKNOWN_KEY' || code === 'FIELD_READONLY') return R(MISMATCH);
       if (code === 'UI_ID_REQUIRED') return R('요청에 화면 정보가 빠져 처리하지 못했습니다. 화면을 새로 고치세요.');
-      if (code === 'BAD_VALUE' || code === 'BAD_TYPE' || code === 'TOO_MANY' || code === 'BAD_YEARS') {
-        const key = s(d.key);
+      if (code === 'BAD_VALUE' || code === 'BAD_TYPE' || code === 'TOO_MANY' || code === 'BAD_YEARS' || code === 'BAD_SCORING') {
+        const key = code === 'BAD_SCORING' ? 'scoring' : s(d.key);
+        if (key === 'scoring') return R(T.scBad, 'table', { key: key });
         if (TABLE_KEYS[key]) return R('이 표에 형식이 맞지 않는 칸이 있습니다. 빨간 칸을 고치세요.', 'table', { key: key });
         if (key === 'reason') return R('취소 사유는 ' + REASON_MAX + '자 이하 한 줄로 적으세요.', 'field', { key: key });
         const ki = isn.keyInfo(tpl, key);
@@ -475,10 +667,11 @@
   // ── 요청 ──────────────────────────────────────────────────────────
   isn.url = function (id, tail) { return '/bidcases/' + encodeURIComponent(s(id)) + '/prep/forms/' + isn.FORM_CD + (tail || ''); };
   // 모든 호출은 이 함수 하나로. 실패하면 Error 에 status·detail 을 달아 던진다(네트워크 실패는 status 없음).
-  // o.blob 이면 내려받기 — { blob, name }. o.fetch 는 시험용 주입.
+  // o.blob 이면 내려받기 — { blob, name }. o.fetch 는 시험용 주입. o.screen 은 양식 밖 요청(공고 원본 표 읽기)의 화면 머리글.
+  isn.SC_SCREEN = SC_SCREEN; isn.SC_BTN = SC_BTN;
   isn.call = function (method, url, body, button, o) {
     const opt = o || {};
-    const init = { method: method, headers: { 'X-Screen-Id': isn.SCREEN, 'X-Button-Id': button } };
+    const init = { method: method, headers: { 'X-Screen-Id': opt.screen || isn.SCREEN, 'X-Button-Id': button } };
     if (body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
     const f = opt.fetch || fetch;
     return f(url, init).then(function (r) {
@@ -706,16 +899,30 @@
   function move(a, i, d) { const j = i + d; if (j < 0 || j >= a.length) return false; const x = a[i]; a[i] = a[j]; a[j] = x; return true; }
 
   // 목록(글머리 ㅇ 줄 목록). o: { id, arr, max, maxLen, label, bullet?, cls?, addText? }
+  // o.aux 는 o.arr 와 나란한 배열(각주·굵게) — 줄을 넣고 빼고 옮길 때 같이 움직인다. 빈 값은 o.auxBlank.
+  function auxSplice(o, at, del, n) {
+    if (!o.aux) return;
+    const blanks = [];
+    for (let k = 0; k < n; k += 1) blanks.push(o.auxBlank);
+    Array.prototype.splice.apply(o.aux, [at, del].concat(blanks));
+  }
+  function auxFit(o) {
+    if (!o.aux) return;
+    while (o.aux.length < o.arr.length) o.aux.push(o.auxBlank);
+    if (o.aux.length > o.arr.length) o.aux.length = o.arr.length;
+  }
   function onListKey(ev, o, i, inp) {
     if (ev.isComposing || ev.keyCode === 229) return;
     if (ev.key === 'Enter') {
       ev.preventDefault();
       if (o.arr.length >= o.max) { const l = byId(o.id + '-lim'); if (l) l.textContent = o.max + '줄까지 쓸 수 있습니다.'; return; }
       o.arr.splice(i + 1, 0, '');
+      auxSplice(o, i + 1, 0, 1);
       redraw(o.id + '-' + (i + 1));
-    } else if (ev.key === 'Backspace' && inp.value === '' && o.arr.length > 1) {
+    } else if (ev.key === 'Backspace' && inp.value === '' && o.arr.length > 1 && !(o.aux && typeof o.aux[i] === 'string' && t(o.aux[i]) !== '')) {   // 각주가 적힌 줄은 지우지 않는다
       ev.preventDefault();
       o.arr.splice(i, 1);
+      auxSplice(o, i, 1, 0);
       redraw(o.id + '-' + Math.max(0, i - 1), true);
     }
   }
@@ -723,21 +930,29 @@
     const txt = ev.clipboardData ? ev.clipboardData.getData('text') : '';
     if (!/[\r\n]/.test(txt)) return;   // 한 줄 붙여넣기는 브라우저 기본 동작
     ev.preventDefault();
+    const wasBlank = t(o.arr[i]) === '';
     const r = isn.pasteInto(o.arr, i, txt, o.max);
+    if (r.added) auxSplice(o, wasBlank ? i : i + 1, wasBlank ? 1 : 0, r.added);
     if (r.dropped) say(o.max + '줄을 넘는 ' + r.dropped + '줄은 붙이지 않았습니다.', false, true);
     redraw(o.id + '-' + r.last, true);
   }
   function listEditor(o) {
     const a = o.arr;
+    auxFit(o);
     const bul = o.bullet || function () { return 'ㅇ'; };
     const wrap = h('div', {});
     const cls = 'isf-list' + (o.cls ? ' ' + o.cls : '');
+    const fnLabel = function (i) { return isn.footMark(isn.footNo(a, o.aux, i)); };
     if (!S.write) {
-      const items = a.map(t).filter(Boolean);
+      const items = [];
+      a.forEach(function (x, i) { if (t(x)) items.push(i); });
       if (!items.length) { wrap.appendChild(h('div', { cls: 'isf-ind' }, [valNode('')])); return wrap; }
-      wrap.appendChild(h('ul', { cls: cls }, items.map(function (x, i) {
-        return h('li', {}, [h('span', { cls: 'isf-bul', 'aria-hidden': 'true', text: bul(i) }), h('span', { cls: 'isf-val', text: x })]);
-      })));
+      const lis = [];
+      items.forEach(function (i) {
+        lis.push(h('li', {}, [h('span', { cls: 'isf-bul', 'aria-hidden': 'true', 'data-fn': o.fnKey ? o.fnKey + ':' + i : null, text: bul(i) }), h('span', { cls: 'isf-val', text: a[i] })]));
+        if (o.aux && t(o.aux[i])) lis.push(h('li', {}, [h('span', { cls: 'isf-bul', 'aria-hidden': 'true', text: fnLabel(i) }), h('span', { cls: 'isf-val', text: o.aux[i] })]));
+      });
+      wrap.appendChild(h('ul', { cls: cls }, lis));
       return wrap;
     }
     const ul = h('ul', { cls: cls });
@@ -745,20 +960,27 @@
       const inp = h('input', { type: 'text', id: o.id + '-' + i, 'aria-label': o.label + ' ' + (i + 1) + '번째 줄', value: val, autocomplete: 'off' });
       const cnt = h('span', { cls: 'isf-cnt', hidden: true });
       countUpd(inp, cnt, o.maxLen);
-      inp.addEventListener('input', function () { a[i] = inp.value; countUpd(inp, cnt, o.maxLen); const l = byId(o.id + '-lim'); if (l) l.textContent = ''; });
+      inp.addEventListener('input', function () { a[i] = inp.value; countUpd(inp, cnt, o.maxLen); const l = byId(o.id + '-lim'); if (l) l.textContent = ''; if (o.onChange) o.onChange(); });
       inp.addEventListener('keydown', function (ev) { onListKey(ev, o, i, inp); });
       inp.addEventListener('paste', function (ev) { onListPaste(ev, o, i); });
       const pre = o.label + ' ' + (i + 1) + '번째 줄 ';
       const rb = h('span', { cls: 'isf-rowbtn' }, [
         cnt,
-        rowBtn('↑', pre + '위로', i === 0, function () { if (move(a, i, -1)) redraw(o.id + '-' + (i - 1)); }),
-        rowBtn('↓', pre + '아래로', i === a.length - 1, function () { if (move(a, i, 1)) redraw(o.id + '-' + (i + 1)); }),
+        rowBtn('↑', pre + '위로', i === 0, function () { if (move(a, i, -1)) { if (o.aux) move(o.aux, i, -1); redraw(o.id + '-' + (i - 1)); } }),
+        rowBtn('↓', pre + '아래로', i === a.length - 1, function () { if (move(a, i, 1)) { if (o.aux) move(o.aux, i, 1); redraw(o.id + '-' + (i + 1)); } }),
         rowBtn('삭제', pre + '삭제', false, function () {
-          if (a.length > 1) a.splice(i, 1); else a[0] = '';
+          if (a.length > 1) { a.splice(i, 1); auxSplice(o, i, 1, 0); } else { a[0] = ''; if (o.aux) o.aux[0] = o.auxBlank; }
           redraw(o.id + '-' + Math.max(0, Math.min(i, a.length - 1)));
         }),
       ]);
-      ul.appendChild(h('li', {}, [h('span', { cls: 'isf-bul', 'aria-hidden': 'true', text: bul(i) }), h('span', { cls: 'isf-fw' }, [inp]), rb]));
+      ul.appendChild(h('li', {}, [h('span', { cls: 'isf-bul', 'aria-hidden': 'true', 'data-fn': o.fnKey ? o.fnKey + ':' + i : null, text: bul(i) }), h('span', { cls: 'isf-fw' }, [inp]), rb]));
+      if (o.aux) {   // 줄마다 각주 한 칸(선택)
+        const ni = h('input', { type: 'text', id: o.id + '-n-' + i, 'aria-label': pre + '각주(선택)', placeholder: '각주(선택)', value: o.aux[i], autocomplete: 'off' });
+        const nc = h('span', { cls: 'isf-cnt', hidden: true });
+        countUpd(ni, nc, FOOT_LEN);
+        ni.addEventListener('input', function () { o.aux[i] = ni.value; countUpd(ni, nc, FOOT_LEN); if (o.onChange) o.onChange(); });
+        ul.appendChild(h('li', {}, [h('span', { cls: 'isf-bul', 'aria-hidden': 'true', 'data-fn': 'n:' + i, text: fnLabel(i) }), h('span', { cls: 'isf-fw' }, [ni, nc])]));
+      }
     });
     wrap.appendChild(ul);
     wrap.appendChild(btn(o.addText || '줄 더하기', {
@@ -766,6 +988,7 @@
       click: function () {
         if (a.length >= o.max) { const l = byId(o.id + '-lim'); if (l) l.textContent = o.max + '줄까지 쓸 수 있습니다.'; return; }
         a.push('');
+        if (o.aux) o.aux.push(o.auxBlank);
         redraw(o.id + '-' + (a.length - 1));
       },
     }));
@@ -773,8 +996,22 @@
     return wrap;
   }
 
+  // 산정 기준 줄·각주를 고치면 각주 번호 표시(주n))와 표 뒤 주석 번호를 그 자리에서 다시 매긴다.
+  function refreshFoot() {
+    if (!S || !S.m || typeof document === 'undefined') return;
+    const tx = arr(S.m.lists.mmda_basis), nt = arr(obj(S.m.notes).mmda_basis);
+    const base = isn.footCount(tx, nt);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-fn]'), function (el) {
+      const p = el.getAttribute('data-fn').split(':');
+      const i = Number(p[1]);
+      if (p[0] === 'n') el.textContent = isn.footMark(isn.footNo(tx, nt, i));
+      else if (p[0] === 'y') el.textContent = '주' + (base + i + 1) + ')';
+    });
+  }
+
   // ── 원본(FACT) 칸 ─────────────────────────────────────────────────
   function factOf(key) { return obj(obj(obj(S.view.content).fields)[key]); }
+  function scName() { return t(factOf('inst_name').val) || S.name || '기관'; }
   function changeKind(key) {
     if (arr(S.view.stale_keys).indexOf(key) >= 0) return 'before';
     if (S.view.confirmed && arr(S.view.confirmed_changed_keys).indexOf(key) >= 0) return 'after';
@@ -839,12 +1076,15 @@
     if (bi) {
       const x = m.texts.bid_kind || (m.texts.bid_kind = { val: '', note: '' });
       const lab = h(S.write ? 'label' : 'span', { cls: 'isf-bid' }, [h('span', {}, [bi.label, bi.required ? reqMark() : null])]);
-      if (S.write) lab.appendChild(inputBound('isf-f-bid_kind', x, 'val', bi.max_len, { 'aria-required': bi.required ? 'true' : null }));
-      else lab.appendChild(valNode(x.val, 'isf-f-bid_kind'));
+      if (S.write) {
+        lab.appendChild(inputBound('isf-f-bid_kind', x, 'val', bi.max_len, { 'aria-required': bi.required ? 'true' : null, 'aria-describedby': 'isf-bid-help' }));
+        lab.querySelector('input').addEventListener('input', function () { const p = byId('isf-sc-title'); if (p) p.textContent = T.scTitle(scName(), x.val); });
+      } else lab.appendChild(valNode(x.val, 'isf-f-bid_kind'));
       title.appendChild(lab);
     }
     title.appendChild(document.createTextNode(' 관련 요약'));
     doc.appendChild(title);
+    if (S.write && bi) doc.appendChild(h('p', { cls: 'isf-cap', id: 'isf-bid-help', text: T.bidHelp }));
     if (nameF.metas.length) doc.appendChild(h('div', { cls: 'isf-tmeta' }, nameF.metas));
     doc.appendChild(h('p', { cls: 'isf-lead' }, ['■ [', t(factOf('inst_name').val) || S.name || '기관', '] 입찰 관련 주요내용']));
 
@@ -880,6 +1120,14 @@
     const ov = info('overview');
     if (ov) { bg.push(head('- 기관 현황', null, ov.required)); bg.push(listFor('overview')); }
     bg.push(head('ㅇ 기관 주요 현황'));
+    const ht = info('head_title');
+    if (ht) {   // 현황 표 첫 칸 머리 이름(비우면 '기관장')
+      const hx = m.texts.head_title || (m.texts.head_title = { val: '', note: '' });
+      bg.push(h('div', { cls: 'isf-ind' }, [
+        S.write ? h('label', { cls: 'isf-lab', for: 'isf-f-head_title', text: ht.label }) : h('span', { cls: 'isf-lab', text: ht.label }),
+        S.write ? inputBound('isf-f-head_title', hx, 'val', ht.max_len || 20, { placeholder: '기관장', 'aria-describedby': 'isf-title-help' }) : valNode(hx.val)]));
+      if (S.write) bg.push(h('p', { cls: 'isf-cap', id: 'isf-title-help', text: T.titleHelp }));
+    }
     const grid = h('div', { cls: 'isf-grid' });
     [factCell('head_name'), textCell('budget', true), textCell('staff'), textCell('supervisor'), factCell('inst_type'), textCell('address')].forEach(function (c) { if (c) grid.appendChild(c); });
     bg.push(grid);
@@ -899,7 +1147,12 @@
     const fd = info('fund');
     if (fd) fundBlock(bg, fd, head);
     const mb = info('mmda_basis');
-    if (mb) { bg.push(head('ㅇ ' + mb.label)); bg.push(listFor('mmda_basis')); }
+    if (mb) {
+      bg.push(head('ㅇ ' + mb.label));
+      if (S.write) bg.push(h('p', { cls: 'isf-cap', text: T.footHelp }));
+      if (!m.notes.mmda_basis) m.notes.mmda_basis = [''];
+      bg.push(listFor('mmda_basis', { aux: m.notes.mmda_basis, auxBlank: '', cls: 'isf-notes', bullet: function () { return '·'; }, onChange: refreshFoot }));
+    }
     const yr = info('years');
     if (yr) yearsBlock(bg, yr, head);
     doc.appendChild(h('section', { cls: 'isf-sec' }, [h('h3', {}, [h('span', { text: '추진 배경' })]), h('div', { cls: 'isf-main' }, bg)]));
@@ -911,7 +1164,7 @@
     const cb = info('current_bank');
     if (cb) {
       const f = factNodes('current_bank');
-      et.push(h('div', { cls: 'isf-ind' }, [h('span', { cls: 'isf-lab', text: cb.label }), f.box].concat(f.metas)));
+      et.push(h('div', { cls: 'isf-ind' }, [h('span', { cls: 'isf-lab', text: cb.label }), f.box].concat(f.metas, [h('div', { cls: 'isf-fmeta', text: T.bankRef })])));
     }
     if (cp) et.push(listFor('competition'));
     const ef = info('effect');   // 안 A — 서버가 칸을 내려 줄 때만 그린다
@@ -921,6 +1174,14 @@
       et.push(listFor('effect'));
     }
     doc.appendChild(h('section', { cls: 'isf-sec' }, [h('h3', {}, [h('span', { text: '기타 사항' })]), h('div', { cls: 'isf-main' }, et)]));
+
+    // ── 2쪽 평가 기준표 ──
+    const sk = info('scoring');
+    if (sk) {
+      const sb = [];
+      scoringBlock(sb);
+      doc.appendChild(h('section', { cls: 'isf-sec', id: 'isf-sc' }, [h('h3', {}, [h('span', { text: T.scSec })]), h('div', { cls: 'isf-main' }, sb)]));
+    }
     return doc;
   }
 
@@ -958,13 +1219,14 @@
           h('th', {}, [h('span', { cls: 'sr-only', text: '줄 조작' })])])]),
         tb]));
       out.push(h('p', { cls: 'isf-cap', text: T.sameGroup }));
+      if (S.write) out.push(h('p', { cls: 'isf-cap', text: T.boldHelp }));
     }
     if (S.write) {
       out.push(btn('사업 줄 더하기', {
         id: 'isf-b-add', cls: 'isf-add',
         click: function () {
           if (nRows >= (info.max_items || 40)) { inlineMsg('isf-biz-msg', (info.max_items || 40) + '줄까지 쓸 수 있습니다.'); return; }
-          rows.push({ group: '', sub: '', lines: [''] });
+          rows.push({ group: '', sub: '', lines: [''], bold: [false] });
           redraw('isf-b-' + (rows.length - 1) + '-g');
         },
       }));
@@ -987,27 +1249,35 @@
     if (!S.write) {
       tr.appendChild(h('td', { cls: 'isf-grp' }, [valNode(r.group)]));
       tr.appendChild(h('td', {}, [valNode(r.sub)]));
-      tr.appendChild(h('td', {}, [h('div', { cls: 'isf-lines' }, arr(r.lines).filter(function (x) { return t(x); }).map(function (x) { return h('div', { text: x }); }))]));
+      const bd = arr(r.bold);
+      const shown = [];
+      arr(r.lines).forEach(function (x, j) { if (t(x)) shown.push(h('div', {}, [bd[j] === true ? h('strong', { text: x }) : x])); });
+      tr.appendChild(h('td', {}, [h('div', { cls: 'isf-lines' }, shown)]));
       tr.appendChild(h('td'));
       return tr;
     }
+    if (!Array.isArray(r.bold)) r.bold = [];
+    while (r.bold.length < r.lines.length) r.bold.push(false);
     tr.appendChild(h('td', { cls: 'isf-grp' }, [plainInput('isf-b-' + i + '-g', r, 'group', n + '번째 사업 대분류', function () { markSame(rows, tb); })]));
     tr.appendChild(h('td', {}, [plainInput('isf-b-' + i + '-s', r, 'sub', n + '번째 사업 세부', null)]));
     const lines = h('div', { cls: 'isf-lines' });
-    const lo = { id: 'isf-b-' + i + '-l', arr: r.lines, max: BIZ_LIMIT.lines };
+    const lo = { id: 'isf-b-' + i + '-l', arr: r.lines, max: BIZ_LIMIT.lines, aux: r.bold, auxBlank: false };
     r.lines.forEach(function (x, j) {
       const inp = h('input', { type: 'text', id: lo.id + '-' + j, 'aria-label': n + '번째 사업 내용 ' + (j + 1) + '번째 줄', value: x, autocomplete: 'off' });
       inp.addEventListener('input', function () { r.lines[j] = inp.value; });
       inp.addEventListener('keydown', function (ev) { onListKey(ev, lo, j, inp); });
       inp.addEventListener('paste', function (ev) { onListPaste(ev, lo, j); });
-      const row = h('div', {}, [inp]);
+      // 굵게 체크: 기존 .isf-lines 입력 규칙(폭 늘림)에 걸리지 않게 줄 안 스타일로 막는다(새 CSS 없이).
+      const chk = h('input', { type: 'checkbox', id: lo.id + '-b-' + j, checked: r.bold[j] === true, 'aria-label': n + '번째 사업 내용 ' + (j + 1) + '번째 줄 굵게', style: 'flex:0 0 auto;width:auto;margin:0' });
+      chk.addEventListener('change', function () { r.bold[j] = chk.checked; });
+      const row = h('div', {}, [inp, h('label', { cls: 'isf-bold', style: 'display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:12px' }, [chk, '굵게'])]);
       if (r.lines.length > 1) {
-        row.appendChild(rowBtn('삭제', n + '번째 사업 내용 ' + (j + 1) + '번째 줄 삭제', false, function () { r.lines.splice(j, 1); redraw(lo.id + '-' + Math.max(0, j - 1)); }));
+        row.appendChild(rowBtn('삭제', n + '번째 사업 내용 ' + (j + 1) + '번째 줄 삭제', false, function () { r.lines.splice(j, 1); r.bold.splice(j, 1); redraw(lo.id + '-' + Math.max(0, j - 1)); }));
       }
       lines.appendChild(row);
     });
     if (r.lines.length < BIZ_LIMIT.lines) {
-      lines.appendChild(btn('+줄', { id: lo.id + '-add', aria: n + '번째 사업 내용 줄 더하기', click: function () { r.lines.push(''); redraw(lo.id + '-' + (r.lines.length - 1)); } }));
+      lines.appendChild(btn('+줄', { id: lo.id + '-add', aria: n + '번째 사업 내용 줄 더하기', click: function () { r.lines.push(''); r.bold.push(false); redraw(lo.id + '-' + (r.lines.length - 1)); } }));
     }
     tr.appendChild(h('td', {}, [lines]));
     tr.appendChild(h('td', {}, [h('span', { cls: 'isf-rowbtn' }, [
@@ -1142,7 +1412,137 @@
       if (clipTxt) out.push(h('p', { cls: 'isf-cap', id: 'isf-y-clip', role: 'status', text: clipTxt }));
     }
     out.push(h('div', { cls: 'isf-ind' }, [h('span', { cls: 'isf-lab', text: '주석' }),
-      listEditor({ id: 'isf-yn', arr: y.notes, max: NOTES_LIMIT.n, maxLen: NOTES_LIMIT.len, label: '주석', bullet: function (i) { return '주' + (i + 1) + ')'; }, cls: 'isf-notes', addText: '주석 더하기' })]));
+      listEditor({ id: 'isf-yn', arr: y.notes, max: NOTES_LIMIT.n, maxLen: NOTES_LIMIT.len, label: '주석', fnKey: 'y', cls: 'isf-notes', addText: '주석 더하기',
+        bullet: function (i) { return '주' + (isn.footCount(m.lists.mmda_basis, obj(m.notes).mmda_basis) + i + 1) + ')'; } })]));   // 산정 기준 각주 번호를 이어받는다
+  }
+
+  // ── 2쪽 평가 기준표 ───────────────────────────────────────────────
+  function scState() { return { busy: false, msg: '', err: false, fail: null, cand: null, pristine: '' }; }
+  function multi(text) {
+    const out = [];
+    s(text).split('\n').forEach(function (p, i) { if (i) out.push(h('br')); out.push(p); });
+    return out;
+  }
+  function updScWarn() {
+    const p = byId('isf-sc-warn');
+    if (!p || !S || !S.m) return;
+    const w = isn.scWarn(S.m.scoring);
+    p.textContent = w;
+    p.hidden = !w;
+  }
+  function scoringBlock(out) {
+    const ui = S.sc, sc = S.m.scoring;
+    const has = !!sc && arr(sc.cells).length > 0;
+    out.push(h('p', { cls: 'isf-lead', id: 'isf-sc-title', text: T.scTitle(scName(), obj(S.m.texts.bid_kind).val) }));
+    if (S.write) {
+      out.push(h('p', { cls: 'isf-cap', text: T.scIntro }));
+      const acts = [btn(ui.busy ? T.scReading : has ? '다시 읽기' : '공고 원본에서 읽기', { id: 'isf-sc-read', disabled: ui.busy, click: function () { onScRead(null); } })];
+      if (ui.cand && ui.cand.count > 1) {
+        const heads = arr(ui.cand.heads);
+        const opts = [];
+        for (let k = 0; k < ui.cand.count; k += 1) opts.push(h('option', { value: String(k), text: '표 ' + (k + 1) + (t(heads[k]) ? ': ' + heads[k] : '') }));
+        const sel = h('select', { id: 'isf-sc-cand', 'aria-label': '평가 표 후보 고르기', disabled: ui.busy }, opts);
+        sel.value = String(ui.cand.table);
+        sel.addEventListener('change', function () { onScRead(Number(sel.value)); });
+        acts.push(sel);
+      }
+      acts.push(has ? btn('표 비우기', { id: 'isf-sc-clear', disabled: ui.busy, click: onScClear }) : btn('빈 표로 시작', { id: 'isf-sc-blank', disabled: ui.busy, click: onScBlank }));
+      out.push(h('div', { cls: 'isf-ind' }, acts));
+      if (ui.cand && ui.cand.count > 1) out.push(h('p', { cls: 'isf-cap', text: T.scCand(ui.cand.count) }));
+    }
+    out.push(h('p', { cls: 'isf-cap', id: 'isf-sc-msg', role: ui.err ? 'alert' : 'status', text: ui.busy ? T.scReading : ui.msg }));
+    if (S.write && ui.fail) {
+      out.push(h('p', { cls: 'isf-warn', id: 'isf-sc-fail', text: T.scFail }));
+      if (ui.fail.rows.length) {
+        out.push(h('details', { cls: 'isf-cap' }, [h('summary', { text: T.scLinesRef }), h('div', {}, ui.fail.rows.map(function (x) { return h('div', { text: x }); }))]));
+      }
+    }
+    if (!has) { out.push(h('p', { cls: 'isf-empty', text: T.scNone + ' 워드에는 1쪽만 나옵니다.' })); return; }
+    const tb = h('tbody');
+    isn.scGrid(sc).forEach(function (row) {
+      const tr = h('tr');
+      row.cells.forEach(function (g, gi) {
+        const kids = [];
+        if (!S.write) multi(g.text).forEach(function (x) { kids.push(x); });
+        else {
+          const ta = h('textarea', { id: 'isf-s-' + g.cell.r + '-' + g.cell.c, rows: 2, 'aria-label': (g.cell.r + 1) + '행 ' + (g.cell.c + 1) + '열', value: g.text, style: 'width:100%;min-width:7em;box-sizing:border-box' });
+          ta.addEventListener('input', function () { g.cell.text = ta.value; updScWarn(); });
+          kids.push(ta);
+          if (gi === row.cells.length - 1 && isn.scCanDel(sc, row.r)) {
+            kids.push(rowBtn('줄 삭제', (row.r + 1) + '행 삭제', false, function () { if (isn.scDelRow(sc, row.r)) redraw('isf-sc-add'); }));
+          }
+        }
+        tr.appendChild(h(g.head ? 'th' : 'td', { rowspan: g.rs > 1 ? g.rs : null, colspan: g.cs > 1 ? g.cs : null, scope: g.head ? 'col' : null }, kids));
+      });
+      tb.appendChild(tr);
+    });
+    out.push(h('div', { cls: 'isf-ywrap' }, [h('table', { cls: 'isf-tbl' }, [h('caption', { cls: 'sr-only', text: T.scSec }), tb])]));
+    if (sc.total != null) out.push(h('p', { cls: 'isf-cap', text: T.scTotal(sc.total) }));
+    const w = isn.scWarn(sc);
+    out.push(h('p', { cls: 'isf-warn', id: 'isf-sc-warn', role: 'status', hidden: !w, text: w }));
+    if (sc.source && sc.source.file) out.push(h('p', { cls: 'isf-cap', text: T.scSrc(sc.source.file, sc.source.table) }));
+    if (S.write) {
+      out.push(h('p', { cls: 'isf-cap', text: T.scStruct }));
+      out.push(btn('줄 추가', {
+        id: 'isf-sc-add', cls: 'isf-add',
+        click: function () {
+          if (!isn.scAddRow(sc)) { inlineMsg('isf-sc-msg', T.scRowsBad); return; }
+          redraw('isf-s-' + (sc.row_count - 1) + '-0');
+        },
+      }));
+    }
+  }
+  function onScBlank() {
+    const my = S;
+    if (!my || !my.write || my.sc.busy) return;
+    my.m.scoring = isn.scBlank();
+    my.sc.pristine = '';
+    redraw('isf-s-1-0');
+  }
+  function onScClear() {
+    const my = S;
+    if (!my || !my.write || my.sc.busy) return;
+    const done = function () { my.m.scoring = null; my.sc.pristine = ''; my.sc.cand = null; my.sc.fail = null; my.sc.msg = ''; redraw('isf-sc-read'); };
+    if (!isn.scHasText(my.m.scoring)) { done(); return; }
+    dlgApi().confirm({
+      title: '평가 기준표 비우기',
+      text: '평가 기준표의 모든 칸을 비웁니다. 저장하면 워드에는 1쪽만 나옵니다.\n이전 판은 판 이력에 남고, 공고 원본의 표는 [공고 원본에서 읽기]로 다시 가져올 수 있습니다.',
+      go: '비우기', danger: true,
+    }).then(function (ok) { if (ok && S === my) done(); });
+  }
+  // table: null 이면 공고의 첫 표, 숫자면 그 번호의 후보 표(?table=n).
+  function onScRead(table) {
+    const my = S;
+    if (!my || !my.write || my.busy || my.sc.busy) return;
+    const cur = my.m.scoring;
+    const go = function () { scFetch(my, table); };
+    if (isn.scHasText(cur) && isn.scKey(cur) !== my.sc.pristine) {   // 방금 읽어 온 그대로면 묻지 않고, 고친 표가 있으면 덮어쓰기 전에 묻는다
+      dlgApi().confirm({
+        title: '평가 기준표 다시 읽기',
+        text: '공고 원본에서 표를 다시 읽으면 지금 표(직접 고친 내용 포함)를 덮어씁니다.\n저장하지 않은 내용은 되돌릴 수 없습니다. 이전에 저장한 판은 판 이력에 남습니다.',
+        go: '다시 읽기', danger: true,
+      }).then(function (ok) { if (ok && S === my) go(); });
+      return;
+    }
+    go();
+  }
+  function scFetch(my, table) {
+    const fid = table == null ? 'isf-sc-read' : 'isf-sc-cand';
+    my.sc.busy = true; my.sc.msg = ''; my.sc.err = false;
+    redraw();
+    isn.call('GET', isn.scUrl(my.bid, table), undefined, SC_BTN, { screen: SC_SCREEN }).then(function (d) {
+      if (S !== my) return;
+      my.sc.busy = false;
+      const r = isn.scReadResult(d);
+      if (r.ok) { my.m.scoring = r.sc; my.sc.pristine = isn.scKey(r.sc); my.sc.cand = r.cand; my.sc.fail = null; my.sc.msg = T.scRead(r.file); }
+      else { my.sc.fail = r; my.sc.cand = null; my.sc.msg = ''; }
+      redraw(fid);
+    }).catch(function (e) {
+      if (S !== my) return;
+      my.sc.busy = false; my.sc.err = true;
+      my.sc.msg = isn.errInfo(e && e.status, e && e.detail, { tpl: my.tpl, kind: 'scoring' }).text;
+      redraw(fid);
+    });
   }
 
   // ── 동작 ──────────────────────────────────────────────────────────
@@ -1174,6 +1574,7 @@
     S.loading = false;
     S.loadErr = '';
     S.headSig = '';
+    S.sc = scState();
     closeCf();
     paintAll();
   }
@@ -1478,7 +1879,7 @@
     const D = dlgApi();
     if (S && S.ov && D.isOpen(S.ov)) return;
     const my = S = { o: o, bid: String(o.bidCaseId), name: s(o.instName), ov: null, view: null, tpl: null, m: null, baseKey: '', write: false,
-      busy: false, loading: true, loadErr: '', loadText: T.loading, changed: false, broken: false, timer: null, headSig: '', hm: null, docxKind: null };
+      busy: false, loading: true, loadErr: '', loadText: T.loading, changed: false, broken: false, timer: null, headSig: '', hm: null, docxKind: null, sc: scState() };
     my.ov = buildShell(my);
     document.body.appendChild(my.ov);   // 덮개는 body 직계여야 dlg가 나머지 화면을 inert로 막는다
     if (o.opener && o.opener.focus && document.body.contains(o.opener)) o.opener.focus();   // 닫으면 이 단추로 돌아온다
