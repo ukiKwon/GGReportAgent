@@ -121,15 +121,17 @@
     saving: '저장 중…',
     lastCheck: function (date, by) { return '마지막 체크 ' + date + (by ? ' ' + by : ''); },
     taskNone: '이 단계에 걸린 준비 과제가 없습니다.',
-    foldHint: '아래 내용을 읽고, 비어 있으면 [작성하기], 고칠 것이 있으면 [수정하기]로 고친 뒤 과제마다 [완료로 표시]를 누릅니다.',
+    foldHint: '아래 내용을 읽고, 비어 있으면 [작성 시작], 고칠 것이 있으면 [수정하기]로 고친 뒤 과제마다 [완료로 표시]를 누릅니다.',
     foldCheckHint: '내용을 확인했으면 [완료로 표시]를 누르세요.',
     docEdit: '수정하기',
-    docWrite: '작성하기',
+    docWrite: '작성 시작',
+    docWriteNote: '누르면 원본 자료로 기관명·기관장·현 거래 은행·주요 사업을 채운 첫 판이 바로 저장됩니다.',
+    docView: '보기',
     docShow: '다시 보기',
     docFold: '접기',
     docLoading: '내용을 불러오는 중…',
     docErr: '내용을 불러오지 못했습니다. [수정하기]로 열어 확인하세요.',
-    sumEmpty: '아직 작성하지 않았습니다. [작성하기]를 눌러 작성하세요.',
+    sumEmpty: '아직 작성하지 않았습니다. [작성 시작]을 누르면 첫 판이 저장되고 작성 창이 열립니다.',
     sumNone: '적은 내용 없음',
     changeAssignee: '담당자 변경…',
     changeAssigneeNote: '담당자는 여러 명을 둘 수 있습니다. 바꾸면 바로 반영되고, 새 담당자·빠진 담당자·남은 담당자·영업팀장에게 쪽지함으로 알립니다.',
@@ -199,8 +201,10 @@
     nextOk: '확인',
     noticeGuide: '이 화면에서는 고치지 않습니다. 고칠 것이 있으면 아래 화면 중 한 곳에서 고친 뒤 돌아오세요.',
     noticeNav: [['board', '입찰 현황판'], ['notice', '입찰 공고 현황']],
-    noticeOk: '누락되거나 미확인인 항목이 없습니다. [다음]을 누르면 \'확인 완료\'로 기록됩니다(누가·언제 확인했는지 남습니다).',
-    noticeOkView: '누락되거나 미확인인 항목이 없습니다. 확인 기록은 이 기관의 담당 영업이 [다음]을 누를 때 남습니다.',
+    noticeOk: '공고 자료(입찰 예정일·공고일·접수 마감일·공고 링크)에 빠진 것이 없습니다. [다음]을 누르면 \'확인 완료\'로 기록됩니다(누가·언제 확인했는지 남습니다).',
+    noticeOkView: '공고 자료(입찰 예정일·공고일·접수 마감일·공고 링크)에 빠진 것이 없습니다. 확인 기록은 이 기관의 담당 영업이 [다음]을 누를 때 남습니다.',
+    noticeNote: function (n) { return '공고 자료(입찰 예정일·공고일·접수 마감일·공고 링크)에 빠진 것은 없습니다. 위에 붉게 표시한 ' + n + '건은 확인만 하면 되고, [다음]을 누르면 \'확인 완료\'로 기록됩니다.'; },
+    noticeNoteView: function (n) { return '공고 자료(입찰 예정일·공고일·접수 마감일·공고 링크)에 빠진 것은 없습니다. 위에 붉게 표시한 ' + n + '건을 확인하세요. 확인 기록은 이 기관의 담당 영업이 [다음]을 누를 때 남습니다.'; },
     noticeGapsNo: '이 항목들이 남아 있으면 [다음]으로 넘어가도 확인으로 기록되지 않습니다.',
     noticeUndo: '확인 취소',
     stNoticeTodo: '확인 전',
@@ -557,10 +561,13 @@
       const live = t.state === 'TODO' || t.state === 'DONE';
       const open = live && (t.state !== 'DONE' || !!fo[cd]);
       let acts = '';
-      if (live && vw.is_assignee) acts += '<button type="button" class="pp-act" data-act="doc-edit" data-task="' + esc(cd) + '" aria-label="\'' + esc(t.name) + '\' ' + esc(d.empty ? T.docWrite : T.docEdit) + '">' + esc(d.empty ? T.docWrite : T.docEdit) + '</button>';
+      const wnote = live && vw.is_assignee && d.empty && cd === 'T1';   // 판이 없을 때만 — [작성 시작]이 첫 판을 바로 저장한다고 알린다
+      const wnId = 'ts-wn-' + cd;
+      if (live && vw.is_assignee) acts += '<button type="button" class="pp-act" data-act="doc-edit" data-task="' + esc(cd) + '"' + (wnote ? ' aria-describedby="' + wnId + '"' : '') + ' aria-label="\'' + esc(t.name) + '\' ' + esc(d.empty ? T.docWrite : T.docEdit) + '">' + esc(d.empty ? T.docWrite : T.docEdit) + '</button>';
       if (t.state === 'DONE') acts += '<button type="button" class="pp-act" data-act="doc-toggle" data-task="' + esc(cd) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' + esc(open ? T.docFold : T.docShow) + '</button>';
-      const body = !open ? '' : '<div class="ts-fold" tabindex="0" role="region" aria-label="' + esc(t.name + ' 내용') + '">' +
-        (d.state === 'ok' ? str(d.html) || note(T.sumNone) : note(d.state === 'err' ? T.docErr : T.docLoading)) + '</div>';
+      const wn = wnote ? '<p class="ts-note" id="' + wnId + '">' + esc(T.docWriteNote) + '</p>' : '';
+      const body = wn + (!open ? '' : '<div class="ts-fold" tabindex="0" role="region" aria-label="' + esc(t.name + ' 내용') + '">' +
+        (d.state === 'ok' ? str(d.html) || note(T.sumNone) : note(d.state === 'err' ? T.docErr : T.docLoading)) + '</div>');
       return prep.taskItemHtml(t, m, { acts: acts, tail: body });
     }).join('') + '</ol>';
   }
@@ -681,7 +688,6 @@
     } else if (s.kind === 'notice') {
       // 기관정보 팝업과 같은 내용을 읽기 전용으로(m.notice = { state: 'ok'|'none'|'loading', html, gaps } — prep.js가 dashboard.js로 만든다)
       const ni = m.notice || {};
-      h += '<dl class="ts-facts"><div><dt>공고 상태</dt><dd>' + esc(pt.cellState(m.row, s.cd, m.marks).notice || '없음') + '</dd></div></dl>';
       // 확인 기록(누가·언제) — 서버 칸의 mark DONE. 확인 취소는 체크할 수 있는 담당만.
       const nc = pt.cellState(m.row, s.cd, m.marks);
       const craw = m.row && m.row.cells && m.row.cells[s.cd] ? m.row.cells[s.cd] : {};
@@ -694,10 +700,13 @@
       h += pt.noticeChecksHtml(ni.checks);
       if (ni.state === 'ok') {
         const gaps = Array.isArray(ni.gaps) ? ni.gaps : [];
+        const nBad = (Array.isArray(ni.checks) ? ni.checks : []).filter(function (c) { return c && c.bad; }).length;
         h += gaps.length
           ? '<div class="ts-gaps" role="note"><b>' + esc(T.noticeGapsHead(gaps.length)) + '</b><ul>' + gaps.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join('') + '</ul>' +
             (done ? '' : '<p>' + esc(T.noticeGapsNo) + '</p>') + '</div>'
-          : (done ? '' : '<p class="ts-okline" role="note">' + pt.CK_SVG + '<span>' + esc(gate.can ? T.noticeOk : T.noticeOkView) + '</span></p>');
+          : (done ? '' : (nBad > 0
+            ? '<p class="ts-okline is-note" role="note"><span>' + esc(gate.can ? T.noticeNote(nBad) : T.noticeNoteView(nBad)) + '</span></p>'
+            : '<p class="ts-okline" role="note">' + pt.CK_SVG + '<span>' + esc(gate.can ? T.noticeOk : T.noticeOkView) + '</span></p>'));
         h += '<div class="ts-notice">' + str(ni.html) + '</div>';   // dashboard.js가 이스케이프해 만든 마크업
       } else {
         h += note(ni.state === 'loading' ? T.noticeLoading : T.noticeNoRec);

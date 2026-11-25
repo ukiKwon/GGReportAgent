@@ -280,7 +280,7 @@ test('countHtml·emptyModel·readOnlyAll', function () {
   assert.strictEqual(pb.emptyModel(5, 0, { q: '진주', scope: 'dept' }).text, '부서 작업에서 \'진주\'와 맞는 기관이 없습니다.');
   assert.strictEqual(pb.emptyModel(5, 0, { q: '북구', scope: 'mine' }).text, '내 작업에서 \'북구\'와 맞는 기관이 없습니다.');
   assert.strictEqual(pb.emptyModel(5, 0, { q: '강남', scope: 'mine' }).text, '내 작업에서 \'강남\'과 맞는 기관이 없습니다.');
-  assert.ok(pb.T.emptyMine.indexOf('[제안 확정]') > 0 && pb.T.openMap === '입찰 현황판 열기' && pb.T.emptyMine.indexOf('입찰 현황판에서') > 0 && pb.T.emptyMine.indexOf('지역별 공고현황') < 0);
+  assert.ok(pb.T.emptyMine.indexOf('[제안 사전준비]') > 0 && pb.T.emptyMine.indexOf('[제안 확정]') < 0 && /나타납니다\.$/.test(pb.T.emptyMine) && pb.T.openMap === '입찰 현황판 열기' && pb.T.emptyMine.indexOf('입찰 현황판에서') > 0 && pb.T.emptyMine.indexOf('지역별 공고현황') < 0);
   assert.strictEqual(pb.T.all, '전체', 'headModel이 쓰는 T.all은 남긴다');
   assert.strictEqual(pb.readOnlyAll([row({ can_check: false }), row({ can_check: false })]), true);
   assert.strictEqual(pb.readOnlyAll([row({ can_check: false }), row({ can_check: true })]), false);

@@ -40,7 +40,7 @@
     forbidden: function (roleLabel) {
       return '이 화면은 영업팀·영업팀장·영업부장이 쓰는 화면입니다. 지금 계정(' + (roleLabel || '소속 없음') + ')으로는 볼 수 없습니다.';
     },
-    emptyActive: '제안 확정한 기관이 없습니다. 입찰 현황판에서 목표 기관을 고르고 [제안 확정]을 누르면 여기에 나타납니다.',
+    emptyActive: '제안 확정한 기관이 없습니다. 입찰 현황판에서 올해 목표 기관을 고르고 표 위 [제안 사전준비]를 누르면 여기에 나타납니다.',
     emptyClosed: '취소하거나 중단한 건이 없습니다.',
     emptyQuery: function (q) { return '\'' + q + '\'와 맞는 기관이 없습니다.'; },
     openMap: '입찰 현황판 열기',

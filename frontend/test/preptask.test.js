@@ -423,7 +423,9 @@ test('bodyHtml 입찰공고확인: 기관정보 내용(읽기 전용)·누락 �
   assert.ok(/data-nav="board">입찰 현황판</.test(g) && /data-nav="notice">입찰 공고 현황</.test(g) && !/data-nav="map"/.test(g) && g.indexOf('지역별 공고현황') < 0);
   assert.ok(!/data-act="mark"/.test(g), '이 단계에서는 고치지 않는다');
   const ok = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { row: todoRow, notice: { state: 'ok', html: '', gaps: [] } }));
-  assert.ok(ok.indexOf('누락되거나 미확인인 항목이 없습니다. [다음]을 누르면') > 0 && ok.indexOf('확인이 필요한 항목') < 0);
+  assert.ok(ok.indexOf('공고 자료(입찰 예정일·공고일·접수 마감일·공고 링크)에 빠진 것이 없습니다. [다음]을 누르면') > 0 && ok.indexOf('확인이 필요한 항목') < 0);
+  assert.ok(ok.indexOf('class="ts-okline"') > 0 && ok.indexOf('is-note') < 0 && ok.indexOf('누락되거나 미확인인') < 0, 'G=0·B=0이면 초록 줄(체크 글리프)');
+  assert.ok(ok.indexOf('<dt>공고 상태</dt>') < 0 && g.indexOf('<dt>공고 상태</dt>') < 0, '2단계 본문에 머리 줄 공고 상태가 없다');
   const viewer = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { row: row({ can_check: false, cells: todoRow.cells }), notice: { state: 'ok', html: '', gaps: [] } }));
   assert.ok(viewer.indexOf(pt.T.noticeOkView) > 0, '담당이 아니면 기록은 담당이 남긴다고 알린다');
   // 확인을 적은 뒤: 누가·언제 + [확인 취소](담당만)
@@ -580,22 +582,32 @@ test('2단계 확인 항목: 공고 진행(마감·입찰 없음은 붉은 줄)�
   // 본문: 확인 항목이 누락 목록·기관정보 내용보다 위, 원본 파일 묶음이 있다
   const b = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', gaps: [], html: '<div>공고</div>', checks: past }, noticeFiles: '<div class="pp-files" data-kind="NOTICE"></div>',
     row: row({ cells: { NOTICE_CHECK: { notice_status_name: '공고 확인', notice_ok: true } } }) }));
-  assert.ok(b.indexOf('class="ts-chk"') > 0 && b.indexOf('class="ts-chk"') < b.indexOf('class="ts-okline"') && b.indexOf('class="ts-okline"') < b.indexOf('class="ts-notice"'));
+  assert.ok(b.indexOf('class="ts-chk"') > 0 && b.indexOf('class="ts-chk"') < b.indexOf('class="ts-okline is-note"') && b.indexOf('class="ts-okline is-note"') < b.indexOf('class="ts-notice"'));
+  // B>0·G=0: 초록 대신 중립 줄 — 범위를 밝히고 '누락되거나 미확인인' 단언을 하지 않는다
+  assert.ok(b.indexOf('위에 붉게 표시한 2건은 확인만 하면 되고') > 0 && b.indexOf('누락되거나 미확인인') < 0 && b.indexOf('class="ts-okline"') < 0);
+  const bView = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', gaps: [], html: '', checks: past }, row: row({ can_check: false, cells: { NOTICE_CHECK: { notice_status_name: '공고 확인' } } }) }));
+  assert.ok(bView.indexOf(pt.T.noticeNoteView(2)) > 0);
+  // G>0: 주황만, 초록·중립 줄은 없다
+  const bGap = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', gaps: ['공고 링크 없음'], html: '', checks: past }, row: row({ cells: { NOTICE_CHECK: { notice_status_name: '공고 확인' } } }) }));
+  assert.ok(bGap.indexOf('class="ts-gaps"') > 0 && bGap.indexOf('ts-okline') < 0);
+  assert.ok(/\.ts-okline\.is-note \{ color:var\(--fg\)/.test(HTML) && /\.ts-name \{ white-space:normal/.test(HTML));
   assert.ok(b.indexOf('>공고 원본 파일</h4><div class="pp-files" data-kind="NOTICE">') > 0);
   assert.ok(/\.ts-chk li\.is-bad \{ color:var\(--red\)/.test(HTML));
   assert.ok(pt.bodyHtml(model(view('IN_PROGRESS'), 1)).indexOf(pt.T.filesLater) > 0, '첨부 목록을 못 받았으면 안내만');
 });
 
-test('3단계: 과제 이름은 화면에서 바꿔 보이고, 한 번도 저장하지 않았으면 [작성하기]', function () {
+test('3단계: 과제 이름은 화면에서 바꿔 보이고, 한 번도 저장하지 않았으면 [작성 시작]', function () {
   assert.strictEqual(prep.T1_NAME, '기관 선정 입찰참여 관련 요약');
   assert.ok(/if \(t && t\.task_cd === 'T1'\) t\.name = prep\.T1_NAME;/.test(PREP_SRC));
   const todo = TASKS.map(function (t) { return t.task_cd === 'T1' ? Object.assign({}, t, { state: 'TODO', can_check: true, name: prep.T1_NAME }) : t; });
   const v = view('IN_PROGRESS', { tasks: todo });
   const empty = pt.bodyHtml(model(v, idxOf('INST_ANALYSIS'), { docs: { T1: { state: 'ok', html: '', empty: true }, T2: { state: 'ok', html: 'x' } } }));
-  assert.ok(/data-act="doc-edit" data-task="T1"[^>]*>작성하기</.test(empty) && /data-act="doc-edit" data-task="T2"[^>]*>수정하기</.test(empty));
+  assert.ok(/data-act="doc-edit" data-task="T1"[^>]*>작성 시작</.test(empty) && /data-act="doc-edit" data-task="T2"[^>]*>수정하기</.test(empty));
+  assert.ok(/data-task="T1" aria-describedby="ts-wn-T1"/.test(empty) && empty.indexOf('<p class="ts-note" id="ts-wn-T1">' + pt.T.docWriteNote + '</p>') > 0, '판이 없을 때 T1 단추 아래에 저장 안내');
+  assert.ok(empty.indexOf('ts-wn-T2') < 0, '안내는 T1만');
   assert.ok(empty.indexOf('기관 선정 입찰참여 관련 요약') > 0);
   const filled = pt.bodyHtml(model(v, idxOf('INST_ANALYSIS'), { docs: { T1: { state: 'ok', html: 'y', empty: false } } }));
-  assert.ok(/data-act="doc-edit" data-task="T1"[^>]*>수정하기</.test(filled));
+  assert.ok(/data-act="doc-edit" data-task="T1"[^>]*>수정하기</.test(filled) && filled.indexOf('ts-wn-T1') < 0 && filled.indexOf('>작성 시작<') < 0);
   assert.ok(/empty: sm\.state === 'ok' && !\(Number\(sm\.view && sm\.view\.cur_ver\) > 0\)/.test(PREP_SRC));
 });
 

@@ -667,6 +667,7 @@ test('담당자 지정 제출이 POST /bidcases/X/prep/start 로 나간다(base(
 
 test('빈 상태 안내: 제안 확정은 입찰 현황판에서만 — 지역별 공고현황 안내 없음, 단추는 입찰 현황판으로', function () {
   assert.ok(prep.T.emptyActive.indexOf('입찰 현황판에서') > 0 && prep.T.emptyActive.indexOf('지역별 공고현황') < 0);
+  assert.ok(prep.T.emptyActive.indexOf('[제안 사전준비]') > 0 && prep.T.emptyActive.indexOf('[제안 확정]') < 0 && /나타납니다\.$/.test(prep.T.emptyActive));
   assert.strictEqual(prep.T.openMap, '입찰 현황판 열기');
   assert.ok(!/openNavItem\('map'\)/.test(SRC), '지도로 가는 이동 코드가 없다');
 });
