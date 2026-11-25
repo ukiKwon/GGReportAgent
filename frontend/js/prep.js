@@ -771,7 +771,9 @@
     return h;
   };
   // 준비 과제 한 줄(<li>). t = prep.taskModel 결과.
-  prep.taskItemHtml = function (t, m) {
+  // x(선택): { acts: 완료 단추 앞에 둘 단추들 HTML, tail: 줄 끝에 붙일 내용 HTML } — 구간·단계 화면의 펼침형 과제가 쓴다.
+  prep.taskItemHtml = function (t, m, x) {
+    const xa = x && x.acts ? str(x.acts) : '';
     const v = m.view || {};
     const vw = v.viewer || {};
     let act = '';
@@ -785,10 +787,10 @@
     return '<li class="pp-task ' + t.cls + '" data-task="' + esc(t.cd) + '"><div class="pp-task-head">' + glyphHtml(t.glyph) +
       '<span class="pp-task-no">' + t.no + '</span><b>' + esc(t.name) + '</b>' +
       (t.preparing ? '<span class="pp-prep-tag">준비중</span>'
-        : '<span class="pp-kind">' + esc(t.stateWord) + (t.kindText ? ' · ' + esc(t.kindText) : '') + '</span>') + act + '</div>' +
+        : '<span class="pp-kind">' + esc(t.stateWord) + (t.kindText ? ' · ' + esc(t.kindText) : '') + '</span>') + (xa ? '<span class="pp-acts">' + xa + act + '</span>' : act) + '</div>' +
       (t.sub ? '<div class="pp-task-sub">' + esc(t.sub) + '</div>' : '') +
       (askUncheck ? confirmHtml(T.uncheckConfirm, 'uncheck-no', 'uncheck-ok', '완료 취소하기', '그대로 두기', t.cd, '완료 취소 확인') : '') +
-      (showFiles ? prep.filesHtml({ rows: m.attach, viewer: vw, meEmp: m.meEmp, role: m.role, stateCd: v.state_cd, uploading: m.uploading, showVoid: m.showVoid }) : '') + '</li>';
+      (showFiles ? prep.filesHtml({ rows: m.attach, viewer: vw, meEmp: m.meEmp, role: m.role, stateCd: v.state_cd, uploading: m.uploading, showVoid: m.showVoid }) : '') + (x && x.tail ? str(x.tail) : '') + '</li>';
   };
   // 옛 한 장짜리 상세(5칸 단계 막대 + 과제 목록). 구간·단계 화면(preptask.js)이 없을 때의 대체 경로다.
   prep.caseHtml = function (m) {
@@ -978,7 +980,7 @@
              seq: 0, listSeq: 0, flash: '', refocus: '', focusTitle: false, withdrawing: false,
              nb: null, nbSeen: '',   // nb: 열린 입찰 없음 팝업 { id, round, rev, sending } · nbSeen: 이미 띄운 건|회차|판정 번호
              view: 'board', fromBoard: false, pendingCase: false, boardName: '',
-             board: null, boardLoading: false, boardSeq: 0, stepIdx: -1, stepAuto: true, markBusy: {}, live: '' };   // 구간·단계 화면(preptask.js): board = { row, marks, scope }(제안 준비 현황 표의 그 줄), stepIdx -1 = '지금 할 단계'로 자동   // 제안 준비 현황 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
+             board: null, boardLoading: false, boardSeq: 0, stepIdx: -1, stepAuto: true, markBusy: {}, live: '', sum: null, foldOpen: {}, nextAsk: false };   // 구간·단계 화면(preptask.js): board = { row, marks, scope }(제안 준비 현황 표의 그 줄), stepIdx -1 = '지금 할 단계'로 자동   // 제안 준비 현황 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
   }
   let S = freshState();
   let reqSeq = 0;   // 요청 번호는 S 밖에서 단조 증가 — 계정 전환으로 S가 새로 만들어져도 옛 응답 번호와 겹치지 않는다(seq·listSeq 공용)
@@ -1063,6 +1065,7 @@
   function resetSteps(bd) {
     S.board = bd && bd.row ? { row: bd.row, marks: Array.isArray(bd.marks) ? bd.marks : [], scope: str(bd.scope) } : null;
     S.boardLoading = false; S.boardSeq = ++reqSeq; S.stepIdx = -1; S.stepAuto = true; S.markBusy = {}; S.live = '';
+    S.sum = null; S.foldOpen = {};   // 3단계 펼침 내용(기관 정보 요약 응답)·다시 편 과제
   }
   function boardHooks() {
     const role = myRole();
@@ -1191,7 +1194,9 @@
       const ni = noticeInfo(d.view, model.row);   // 입찰공고확인 판정을 그 줄에 적는다 — '지금 할 단계'보다 먼저
       if (S.stepIdx < 0) S.stepIdx = pt.defaultIdx(d.view, model.row, model.marks);
       model.idx = S.stepIdx; model.markBusy = S.markBusy;
-      if (pt.STEPS[pt.clampIdx(S.stepIdx)].kind === 'notice') model.notice = { state: ni.state, gaps: ni.gaps, html: ni.build ? ni.build() : '' };
+      const curStep = pt.STEPS[pt.clampIdx(S.stepIdx)];
+      if (curStep.kind === 'notice') model.notice = { state: ni.state, gaps: ni.gaps, html: ni.build ? ni.build() : '' };
+      if (curStep.id === 'INST_ANALYSIS') { model.docs = stepDocs(d.view); model.foldOpen = S.foldOpen; }
       box.innerHTML = pt.caseHtml(model);
       if (S.live) { const lv = el('ts-live'); if (lv) lv.textContent = S.live; S.live = ''; }
     } else {
@@ -1280,6 +1285,62 @@
       row.cells.NOTICE_CHECK = cell;
     }
     return out;
+  }
+  // 3단계 기관 정보 분석(펼침형, 사용자 11-25): 과제 내용을 본문에 펼친다.
+  //   T1 기관 정보 요약 = 양식 응답(GET …/prep/forms/INST_SUMMARY)을 읽기용 표로, [수정하기] = 양식 작성 창(instsummary.js).
+  //   T2 기관장 프로필 = 기관정보의 기관장 카드(headcard.js) 그대로, [수정하기] = 그 카드의 편집 창.
+  function hcEnv() {
+    const D = root.dashboard;
+    const v = (S.detail && S.detail.view) || {};
+    return { serverMode: root.store.isServerMode(), hasEmp: !!myEmp(), role: myRole(), emp: myEmp(),
+             today: D && D.util && D.util.todayDate ? D.util.todayDate() : new Date(), repaint: repaintKeep, instName: str(v.institution_name) };
+  }
+  function loadSummary(id) {
+    const mine = S.sum = { state: 'loading', view: null };
+    req('GET', base(id) + '/forms/INST_SUMMARY', undefined, ui('prep_form', 'form_open')).then(function (view) {
+      if (S.sum !== mine || S.selected !== id) return;
+      mine.state = 'ok'; mine.view = view;
+      repaintKeep();
+    }).catch(function () {
+      if (S.sum !== mine || S.selected !== id) return;
+      mine.state = 'err';
+      repaintKeep();
+    });
+  }
+  function stepDocs(v) {
+    const pt = root.preptask, hc = root.headcard;
+    const docs = {};
+    const has = function (cd) { return (v.tasks || []).some(function (t) { return t && t.task_cd === cd && (t.state === 'TODO' || t.state === 'DONE'); }); };
+    if (has('T1')) {
+      if (!S.sum && S.selected) loadSummary(S.selected);
+      const sm = S.sum || { state: 'loading' };
+      docs.T1 = { state: sm.state, html: sm.state === 'ok' && pt.summaryHtml ? pt.summaryHtml(sm.view) : '' };
+    }
+    if (has('T2')) {
+      const id = str(v.institution_id);
+      let html = '';
+      try { html = hc && hc.paneSection && id ? hc.paneSection({ institutionId: id }, hcEnv()) : ''; } catch (e) { html = ''; }
+      docs.T2 = { state: html ? 'ok' : 'err', html: html };
+    }
+    return docs;
+  }
+  function onDocEdit(cd, btn) {
+    const id = S.selected;
+    const v = (S.detail && S.detail.view) || {};
+    if (!id) return;
+    if (cd === 'T1') {
+      if (!root.instSummary || !root.instSummary.open) { setPerr('기관 정보 요약 양식을 열 수 없습니다. 화면을 새로 고친 뒤 다시 하세요.'); return; }
+      root.instSummary.open({
+        bidCaseId: id, instName: str(v.institution_name) || caseName(), opener: btn,
+        restoreFallback: function () { return el('pp-case-title'); },
+        onClosed: function () { if (S.selected === id) { S.sum = null; repaintKeep(); } },   // 닫으면 본문 내용을 다시 읽는다(저장만 하고 닫은 경우도 반영)
+      });
+    } else if (cd === 'T2') {
+      const hc = root.headcard;
+      if (!hc || !hc.onPaneClick) return;
+      const st = hc.view ? hc.view().status : '';
+      hc.onPaneClick(st === 'none' ? 'add-head' : 'edit', hcEnv);
+    }
   }
   // [다음] 확인 팝업(사용자 11-25: 단계마다 공통) — [확인]이면 다음 단계로, [닫기]·Esc·바깥 클릭이면 그대로.
   function openNextAsk() {
@@ -1850,6 +1911,9 @@
     if (!t) return;
     if (t.classList.contains('tm-item')) { selectCase(t.getAttribute('data-id')); return; }
     if (t.classList.contains('ts-step')) { selectStep(Number(t.getAttribute('data-i')), ''); return; }
+    // 본문에 실은 기관장 카드의 단추([새로 고침]·[워드 내려받기] 등) — headcard.js가 처리한다
+    const hcWhat = t.getAttribute('data-hc');
+    if (hcWhat && root.headcard && root.headcard.onPaneClick && t.closest && t.closest('#pp-case')) { root.headcard.onPaneClick(hcWhat, hcEnv); return; }
     if (t.getAttribute('data-tab')) {
       S.tab = t.getAttribute('data-tab') === 'closed' ? 'closed' : 'active';
       markTabs();
@@ -1868,6 +1932,8 @@
       case 'ts-prev': stepBy(-1); return;
       case 'ts-next': openNextAsk(); return;
       case 'go-nav': goNav(t.getAttribute('data-nav')); return;
+      case 'doc-edit': onDocEdit(cd, t); return;
+      case 'doc-toggle': S.foldOpen[cd] = !S.foldOpen[cd]; S.refocus = '[data-act="doc-toggle"][data-task="' + cd + '"]'; paintCase(); return;
       case 'mark': if (t.getAttribute('aria-disabled') !== 'true') onMark(t.getAttribute('data-col'), t.getAttribute('data-mk')); return;
       case 'to-board-doc': if (root.app && root.app.openNavItem && root.nav) root.app.openNavItem(root.nav.BOARD_ID); return;
       case 'back': if (boardOn()) backToBoard(); return;

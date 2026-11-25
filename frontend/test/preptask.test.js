@@ -422,3 +422,58 @@ test('담당자 지정: 끝난 뒤 [담당자 변경…], 결재 없는 시작 �
   assert.ok(/if \(m\.direct && !m\.sel\.length\) \{ const me = myEmp\(\);/.test(PREP_SRC));
   assert.ok(/team: N\.TEAM_ID/.test(PREP_SRC) && /board: N\.DASH_ID/.test(PREP_SRC));
 });
+
+// ── 11-25 추가: 3단계 펼침형 ──
+const SUM_VIEW = { cur_ver: 2, viewer: { can_edit: true },
+  tpl: { keys: [{ key: 'inst_name', label: '기관명', kind: 'FACT' }, { key: 'budget', label: '예산 규모', kind: 'TEXT' }, { key: 'overview', label: '기관 현황', kind: 'LIST' },
+                { key: 'biz', label: '기관 주요 사업', kind: 'TABLE' }, { key: 'fund', label: '예산 운영 방식', kind: 'TABLE' }, { key: 'years', label: '연도별 예상', kind: 'TABLE' }] },
+  content: { fields: { inst_name: { val: '청주시<b>' }, budget: { val: '3조 2천억', note: '2026 예산서 3쪽' } }, lists: { overview: ['인구 85만', ''] },
+    tables: { biz: { rows: [{ group: '복지', sub: '돌봄', lines: ['통합 돌봄 확대'] }] }, fund: { rows: [{ kind: '일반회계', lines: [{ lv: 0, text: '평잔 운용' }, { lv: 1, text: '정기예금' }] }] },
+      years: { unit: '억원', from: 2027, to: 2028, end: 2028, mmda: { 2027: '120', 2028: '130' }, income: { 2027: '3.1' }, notes: ['가정: 금리 2.5%'] } } } };
+
+test('summaryHtml: 기관 정보 요약을 읽기용 표로 — 칸 순서 그대로, 값은 이스케이프, 안 쓴 양식은 안내', function () {
+  const h = pt.summaryHtml(SUM_VIEW);
+  assert.ok(h.indexOf('<th scope="row">기관명</th><td>청주시&lt;b&gt;</td>') > 0);
+  assert.ok(h.indexOf('<th scope="row">예산 규모</th><td>3조 2천억 <span class="ts-note">(2026 예산서 3쪽)</span></td>') > 0);
+  assert.ok(h.indexOf('<h4 class="ts-doc-h">기관 현황</h4><ul class="ts-doc-l"><li>인구 85만</li></ul>') > 0, '빈 줄은 뺀다');
+  assert.ok(h.indexOf('<th scope="row">복지</th><td>돌봄</td><td><ul><li>통합 돌봄 확대</li></ul></td>') > 0);
+  assert.ok(h.indexOf('<li>- 정기예금</li>') > 0);
+  assert.ok(h.indexOf('<th scope="col">2027</th><th scope="col">2028</th>') > 0 && h.indexOf('<td class="m">130</td>') > 0);
+  assert.ok(h.indexOf('<li>가정: 금리 2.5%</li>') > 0);
+  assert.ok(h.indexOf('기관명') < h.indexOf('기관 현황') && h.indexOf('기관 현황') < h.indexOf('기관 주요 사업'));
+  assert.ok(pt.summaryHtml(Object.assign({}, SUM_VIEW, { cur_ver: 0 })).indexOf(pt.T.sumEmpty) > 0);
+  assert.strictEqual(pt.summaryHtml(null), '');
+});
+
+test('3단계 펼침형: 안 끝난 과제는 내용이 펼쳐지고 [수정하기], 끝난 과제는 접히고 [다시 보기]', function () {
+  const docs = { T1: { state: 'ok', html: '<table class="ts-doc"></table>' }, T2: { state: 'ok', html: '<div class="hc">카드</div>' } };
+  const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('INST_ANALYSIS'), { docs: docs, foldOpen: {} }));
+  assert.strictEqual((h.match(/<li class="pp-task/g) || []).length, 2);
+  // T1 = 완료 → 접힘
+  assert.ok(/data-act="doc-toggle" data-task="T1" aria-expanded="false">다시 보기</.test(h));
+  assert.ok(h.indexOf('<table class="ts-doc"></table>') < 0, '접힌 과제의 내용은 그리지 않는다');
+  // T2 = 할 일 → 펼침 + 수정하기 + 완료로 표시
+  assert.ok(/<div class="ts-fold" tabindex="0" role="region" aria-label="기관장 프로필 내용"><div class="hc">카드<\/div><\/div>/.test(h));
+  assert.ok(/data-act="doc-edit" data-task="T2"[^>]*>수정하기</.test(h) && /data-act="check" data-task="T2"/.test(h));
+  assert.ok(h.indexOf(pt.T.foldCheckHint) > 0 && h.indexOf('작성 화면은 준비 중') < 0);
+  assert.ok(/<span class="pp-acts">/.test(h));
+  // 다시 펴면 내용과 [접기]
+  const o = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('INST_ANALYSIS'), { docs: docs, foldOpen: { T1: true } }));
+  assert.ok(o.indexOf('<table class="ts-doc"></table>') > 0 && /aria-expanded="true">접기</.test(o));
+  // 불러오는 중·실패
+  const l = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('INST_ANALYSIS'), { docs: { T2: { state: 'loading' } } }));
+  assert.ok(l.indexOf(pt.T.docLoading) > 0);
+  // 담당이 아니면 [수정하기] 없음
+  const ro = pt.bodyHtml(model(view('IN_PROGRESS', { viewer: { is_assignee: false } }), idxOf('INST_ANALYSIS'), { docs: docs }));
+  assert.ok(!/data-act="doc-edit"/.test(ro) && ro.indexOf(prep.T.readonly) > 0);
+});
+
+test('3단계 배선: 양식 창·기관장 카드 연결, 건을 바꾸면 펼침 상태를 버린다', function () {
+  assert.ok(/case 'doc-edit': onDocEdit\(cd, t\); return;/.test(PREP_SRC) && /case 'doc-toggle':/.test(PREP_SRC));
+  assert.ok(/root\.instSummary\.open\(\{/.test(PREP_SRC) && /hc\.onPaneClick\(st === 'none' \? 'add-head' : 'edit', hcEnv\);/.test(PREP_SRC));
+  assert.ok(/req\('GET', base\(id\) \+ '\/forms\/INST_SUMMARY', undefined, ui\('prep_form', 'form_open'\)\)/.test(PREP_SRC));
+  assert.ok(/S\.sum = null; S\.foldOpen = \{\};/.test(PREP_SRC));
+  const a = HTML.indexOf('js/dlg.js'), b = HTML.indexOf('js/instsummary.js');
+  assert.ok(a > 0 && b > a, 'instsummary.js는 dlg.js 뒤에 실린다');
+  ['.ts-fold {', '.ts-doc {', '.isf-state {', '.pp-acts {'].forEach(function (sel) { assert.ok(HTML.indexOf(sel) > 0, sel); });
+});

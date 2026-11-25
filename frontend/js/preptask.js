@@ -106,6 +106,15 @@
     saving: '저장 중…',
     lastCheck: function (date, by) { return '마지막 체크 ' + date + (by ? ' ' + by : ''); },
     taskNone: '이 단계에 걸린 준비 과제가 없습니다.',
+    foldHint: '아래 내용을 읽고, 고칠 것이 있으면 [수정하기]로 고친 뒤 과제마다 [완료로 표시]를 누릅니다.',
+    foldCheckHint: '내용을 확인했으면 [완료로 표시]를 누르세요.',
+    docEdit: '수정하기',
+    docShow: '다시 보기',
+    docFold: '접기',
+    docLoading: '내용을 불러오는 중…',
+    docErr: '내용을 불러오지 못했습니다. [수정하기]로 열어 확인하세요.',
+    sumEmpty: '아직 작성하지 않았습니다. [수정하기]를 눌러 작성하세요.',
+    sumNone: '적은 내용 없음',
     changeAssignee: '담당자 변경…',
     changeAssigneeNote: '담당자 변경은 [제안팀 구성·배정] 화면에서 요청합니다.',
     nextAskTitle: '다음 단계로',
@@ -356,6 +365,85 @@
       return prep.taskItemHtml(prep.taskModel(by[cd], by, vw, all.indexOf(by[cd])), m);
     }).join('') + '</ol>';
   }
+  // ── 3단계 기관 정보 분석: 펼침형(사용자 11-25 시안 B) ──────────────────
+  // 과제마다 내용을 본문에 펼쳐 보이고(길면 그 안에서 스크롤), [수정하기]로 고친 뒤 [완료로 표시]. 완료한 과제는 한 줄로 접히고 [다시 보기]로 편다.
+  // '기관 정보 요약' 양식(서버 GET …/prep/forms/INST_SUMMARY 응답)을 읽기용 표로. 값은 모두 이스케이프한다.
+  pt.summaryHtml = function (view) {
+    const isn = isNode ? require('./instsummary.js') : root.instSummary;
+    if (!isn || !view || !view.tpl) return '';
+    if (!(Number(view.cur_ver) > 0)) return note(T.sumEmpty);
+    const m = isn.modelFromView(view);
+    const f = (view.content && view.content.fields) || {};
+    let h = '', rows = [];
+    function flush() {
+      if (rows.length) h += '<table class="ts-doc"><tbody>' + rows.join('') + '</tbody></table>';
+      rows = [];
+    }
+    function lines(a) { return a.filter(function (x) { return str(x).trim() !== ''; }).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join(''); }
+    (Array.isArray(view.tpl.keys) ? view.tpl.keys : []).forEach(function (k) {
+      if (!k || !k.key) return;
+      const label = str(k.label) || str(k.key);
+      if (k.key === 'biz') {
+        flush();
+        const body = m.biz.map(function (r) { return '<tr><th scope="row">' + esc(r.group) + '</th><td>' + esc(r.sub) + '</td><td><ul>' + lines(r.lines) + '</ul></td></tr>'; }).join('');
+        h += '<h4 class="ts-doc-h">' + esc(label) + '</h4>' + (body ? '<table class="ts-doc"><tbody>' + body + '</tbody></table>' : note(T.sumNone));
+      } else if (k.key === 'fund') {
+        flush();
+        const body = m.fund.map(function (r) {
+          return '<tr><th scope="row">' + esc(r.kind) + '</th><td><ul>' + lines(r.lines.map(function (x) { return (x.lv === 1 ? '- ' : '') + x.text; })) + '</ul></td></tr>';
+        }).join('');
+        h += '<h4 class="ts-doc-h">' + esc(label) + '</h4>' + (body ? '<table class="ts-doc"><tbody>' + body + '</tbody></table>' : note(T.sumNone));
+      } else if (k.key === 'years') {
+        flush();
+        const y = m.years;
+        h += '<h4 class="ts-doc-h">' + esc(label) + '</h4>';
+        if (!y) { h += note(T.sumNone); return; }
+        const ys = Object.keys(Object.assign({}, y.mmda, y.income)).sort();
+        h += ys.length ? '<table class="ts-doc ts-doc-y"><thead><tr><th scope="col">(' + esc(y.unit) + ')</th>' + ys.map(function (yy) { return '<th scope="col">' + esc(yy) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+          [['mmda', 'MMDA 연평잔'], ['income', '자금수익']].map(function (r) {
+            return '<tr><th scope="row">' + r[1] + '</th>' + ys.map(function (yy) { return '<td class="m">' + esc(y[r[0]][yy] || '') + '</td>'; }).join('') + '</tr>';
+          }).join('') + '</tbody></table>' : note(T.sumNone);
+        const nt = lines(y.notes);
+        if (nt) h += '<ul class="ts-doc-l">' + nt + '</ul>';
+      } else if (k.kind === 'LIST') {
+        flush();
+        const li = lines(m.lists[k.key] || []);
+        h += '<h4 class="ts-doc-h">' + esc(label) + '</h4>' + (li ? '<ul class="ts-doc-l">' + li + '</ul>' : note(T.sumNone));
+      } else {   // TEXT·FACT — 이름표와 값 한 줄
+        const x = f[k.key] && typeof f[k.key] === 'object' ? f[k.key] : {};
+        const val = str(x.val).trim(), nt = str(x.note).trim();
+        rows.push('<tr><th scope="row">' + esc(label) + '</th><td>' + (val ? esc(val) : '<span class="ts-note">' + esc(T.sumNone) + '</span>') +
+          (nt ? ' <span class="ts-note">(' + esc(nt) + ')</span>' : '') + '</td></tr>');
+      }
+    });
+    flush();
+    return h;
+  };
+  // m.docs = { T1: { state: 'loading'|'ok'|'err', html }, T2: {…} } — prep.js가 채운다. m.foldOpen = { T1: true } — 완료한 과제를 다시 편 상태.
+  function foldBlock(m, s) {
+    const v = m.view || {};
+    const all = Array.isArray(v.tasks) ? v.tasks : [];
+    const by = prep.tasksByCd(all);
+    const mine = (s.tasks || []).filter(function (cd) { return !!by[cd]; });
+    if (!all.length || !mine.length) return tasksBlock(m, s);
+    const vw = v.viewer || {};
+    const docs = m.docs || {}, fo = m.foldOpen || {};
+    let h = prep.TASK_STATES.indexOf(v.state_cd) >= 0 && !vw.is_assignee ? note(prep.T.readonly) : note(T.foldHint);
+    return h + '<ol class="pp-tasks ts-folds" aria-label="준비 과제">' + mine.map(function (cd) {
+      const t = prep.taskModel(by[cd], by, vw, all.indexOf(by[cd]));
+      const d = docs[cd] || {};
+      if (t.act === 'check') t.sub = T.foldCheckHint;   // 옛 문구('작성 화면은 준비 중')를 대신한다
+      const live = t.state === 'TODO' || t.state === 'DONE';
+      const open = live && (t.state !== 'DONE' || !!fo[cd]);
+      let acts = '';
+      if (live && vw.is_assignee) acts += '<button type="button" class="pp-act" data-act="doc-edit" data-task="' + esc(cd) + '" aria-label="\'' + esc(t.name) + '\' 수정하기">' + esc(T.docEdit) + '</button>';
+      if (t.state === 'DONE') acts += '<button type="button" class="pp-act" data-act="doc-toggle" data-task="' + esc(cd) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' + esc(open ? T.docFold : T.docShow) + '</button>';
+      const body = !open ? '' : '<div class="ts-fold" tabindex="0" role="region" aria-label="' + esc(t.name + ' 내용') + '">' +
+        (d.state === 'ok' ? str(d.html) || note(T.sumNone) : note(d.state === 'err' ? T.docErr : T.docLoading)) + '</div>';
+      return prep.taskItemHtml(t, m, { acts: acts, tail: body });
+    }).join('') + '</ol>';
+  }
+
   const PROPOSAL_STATES = ['IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING'];
 
   // m: prep.caseHtml과 같은 모델 + { row, marks, rowState, idx, markBusy }
@@ -401,7 +489,7 @@
         (PROPOSAL_STATES.indexOf(str(v.state_cd)) >= 0 ? prep.endHtml(v, ctx) : (v.state_cd === 'CANCELLED' ? '' : note(T.proposalLater)));
     } else {   // auto·board·script — 준비 과제를 여기에서 처리한다
       if (s.kind === 'board') h += note(T.boardHint);
-      const tb = tasksBlock(m, s);
+      const tb = s.id === 'INST_ANALYSIS' ? foldBlock(m, s) : tasksBlock(m, s);
       h += tb || note(T.taskNone);
       if (s.kind === 'board') h += '<div class="ts-acts"><button type="button" data-act="to-board-doc">' + esc(T.openBoard) + '</button></div>';
     }
