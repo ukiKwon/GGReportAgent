@@ -497,6 +497,38 @@ public class PrepAttachApiTest {
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ASSIGNEE_CHANGE' AND OUTCOME='OK'", bid));
     }
 
+    /** security 재검토(cb705c6e) 권고: 담당 아닌 팀장이 자기 추가 + 기존 담당 전원 해제를 한 요청으로 해도 기록·쪽지가 남는다. */
+    @Test
+    public void 팀장이_자기_추가와_전원_해제를_한_요청으로_하면_기록과_쪽지가_남는다() throws Exception {
+        String bid = opened();   // 담당자 = 윤서준(MEMBER2) 한 명, LEAD 는 담당이 아닌 같은 팀 팀장
+        String path = "/bidcases/" + bid + "/prep/assignees/change";
+        MvcResult ok = postJson(path, LEAD, "{\"add_emp_nos\":" + arr(LEAD) + ",\"remove_emp_nos\":" + arr(MEMBER2) + ",\"reason\":\"팀장이 직접 맡음\"}");
+        assertEquals(text(ok), 200, ok.getResponse().getStatus());
+        JsonNode o = json(ok);
+        assertEquals(1, o.path("added_count").asInt());
+        assertEquals(1, o.path("removed_count").asInt());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1 AND EMP_NO=?", bid, LEAD));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGN_LOG WHERE BID_CASE_ID=? AND ACTION_CD='RELEASE' AND TARGET_EMP_NO=? AND REQ_ID IS NULL AND ACTOR_EMP_NO=?", bid, MEMBER2, LEAD));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGN_LOG WHERE BID_CASE_ID=? AND ACTION_CD='ADD' AND TARGET_EMP_NO=? AND REQ_ID IS NULL AND ACTOR_EMP_NO=?", bid, LEAD, LEAD));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ASSIGNEE_CHANGE' AND OUTCOME='OK'", bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", MEMBER2));   // 빠진 사람
+        assertEquals(0, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", LEAD));       // 바꾼 본인
+    }
+
+    /** security 재검토(cb705c6e) 권고: 다른 팀 영업팀장(안재원 5640327, 이 건 담당자의 결재선 밖)의 자기 추가는 403이고 담당은 그대로. */
+    @Test
+    public void 다른_팀_팀장의_자기_추가는_403() throws Exception {
+        String lead2 = "5640327";
+        String bid = opened();   // 담당자 = 윤서준(MEMBER2), 팀장 = 이영업(LEAD)
+        String path = "/bidcases/" + bid + "/prep/assignees/change";
+        MvcResult r = postJson(path, lead2, "{\"add_emp_nos\":" + arr(lead2) + ",\"reason\":\"다른 팀 팀장\"}");
+        assertEquals(text(r), 403, r.getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1 AND EMP_NO=?", bid, lead2));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ASSIGNEE_CHANGE' AND OUTCOME='OK'", bid));
+    }
+
     @Test
     public void 업로드_입력_검사_과제_코드_파일_없음_이름() throws Exception {
         String bid = opened();
