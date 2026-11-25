@@ -1643,6 +1643,38 @@ test('학력·경력 시작 연도 또는 연-월(사용자 11-24): 입력 칸 �
   ['', null, '2018-7', '2018-13', '2018-00', '1899', '2101', '1899-12', '18', '18-07', '2018-07-01', '2018.07'].forEach(function (v) { assert.strictEqual(hc.startMonthOk(v), false, String(v)); });
 });
 
+test('학력 연도 비움(사용자 11-25): 폼 문구·검사·표시·정렬', function () {
+  const edu = hc.valueRowHtml('EDU', TODAY), car = hc.valueRowHtml('CAREER', TODAY);
+  assert.ok(edu.indexOf('시작(연도 또는 연-월, 모르면 비워 두세요)') >= 0 && !/name="from"[^>]*required/.test(edu));
+  assert.ok(edu.indexOf('끝(연도 또는 연-월, 모르면 비워 두세요)') >= 0 && edu.indexOf('비우면 현재') < 0);
+  assert.ok(car.indexOf('시작(연도 또는 연-월, 필수)') >= 0 && /name="from"[^>]*required/.test(car));
+  // 검사: 학력은 둘 다 비면 통과, 끝만 있으면 막음, 시작이 있으면 형식 검사. 경력은 시작 필수.
+  assert.strictEqual(hc.periodCheck('EDU', '', ''), '');
+  assert.strictEqual(hc.periodCheck('EDU', null, undefined), '');
+  assert.strictEqual(hc.periodCheck('EDU', ' ', ' '), '');
+  assert.ok(hc.periodCheck('EDU', '', '2001').indexOf('시작') >= 0);
+  assert.strictEqual(hc.periodCheck('EDU', '1999', ''), '');
+  assert.strictEqual(hc.periodCheck('EDU', '1999-03', '2001'), '');
+  assert.ok(hc.periodCheck('EDU', '99', '').indexOf('연도') >= 0);
+  assert.ok(hc.periodCheck('CAREER', '', '').indexOf('연도') >= 0);
+  assert.ok(hc.periodCheck('CAREER', '', '2001').indexOf('연도') >= 0);
+  assert.strictEqual(hc.periodCheck('CAREER', '2018', ''), '');
+  // 몸통: 비운 연도는 키 자체를 싣지 않는다
+  const b = hc.buildItemBody('7', 'EDU', { value: ' 가람대 ', from: '', to: '', src_kind: 'NEC', src_title: 't', src_url: '', checked_on: '2026-11-25' });
+  assert.strictEqual('from' in b, false); assert.strictEqual('to' in b, false);
+  // 표시·정렬: from이 null·''·없음 어느 쪽이든 연도 칸 없이 내용만, undefined·~현재 없음, 연도 있는 줄 뒤
+  const mk = function (id, value, from, to) { const o = { item_id: id, head_id: 7, field_cd: 'EDU', value: value, source: SRC, created_by: '1' }; if (from !== undefined) o.from = from; if (to !== undefined) o.to = to; return o; };
+  const full = hc.cardHtml(view({ head: { education: [mk(1, '가학교', null, null), mk(2, '나학교', '', ''), mk(3, '다학교', undefined, undefined), mk(4, '라학교', '1999', '2001')] } }), { today: TODAY });
+  const s0 = full.indexOf('<dt>학력</dt>'), s1 = full.indexOf('<dt>경력</dt>');
+  assert.ok(s0 >= 0 && s1 > s0);
+  const html = full.slice(s0, s1);   // 학력 목록 구간만
+  const at = function (s) { return html.indexOf(s); };
+  assert.ok(at('라학교') >= 0 && at('라학교') < at('가학교') && at('라학교') < at('나학교') && at('라학교') < at('다학교'));
+  assert.ok(html.indexOf('undefined') < 0 && html.indexOf('null') < 0);
+  assert.strictEqual((html.match(/class="yr"/g) || []).length, 1);   // 연도 있는 한 줄만
+  assert.ok(html.indexOf('~현재') < 0);
+});
+
 test('학력·경력 정렬(사용자 11-24): YYYY와 YYYY-MM이 섞여도 최근 것부터, 연도만 끝값은 그 해 말로 본다', function () {
   const mk = function (id, value, from, to) { return { item_id: id, head_id: 7, field_cd: 'CAREER', value: value, from: from, to: to, source: SRC, created_by: '1' }; };
   const html = hc.cardHtml(view({ head: { career: [mk(1, '가경력', '2010', '2017'), mk(2, '나경력', '2018', '2022-06'), mk(3, '다경력', '2018-03', '2022'), mk(4, '라경력', '2023-01', null)] } }), { today: TODAY });

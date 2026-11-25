@@ -228,6 +228,14 @@
     const mo = Number(m[2]);
     return mo >= 1 && mo <= 12;
   };
+  // 학력·경력 기간 저장 전 검사 → 안내 글 | ''(통과). 학력은 연도를 확인하지 못하면 둘 다 비워 저장할 수 있다(사용자 11-25).
+  // 끝만 있고 시작이 없으면 학력도 막는다. 경력은 시작 필수(서버 HeadText 와 같은 규칙).
+  hc.periodCheck = function (fieldCd, from, to) {
+    const f = trim(from), t = trim(to);
+    if (fieldCd === 'EDU' && !f && !t) return '';
+    if (fieldCd === 'EDU' && !f && t) return '끝 연도만 입력할 수 없습니다. 시작 연도도 함께 입력하거나 둘 다 비워 두세요.';
+    return hc.startMonthOk(f) ? '' : '시작은 연도(예: 2018) 또는 연-월(예: 2018-07)로 입력하세요.';
+  };
   // 제출 전 화면 검사 → 안내 글 | ''(통과). 입력값은 문구에 싣지 않는다.
   hc.birthCheck = function (value, today) {
     const v = trim(value);
@@ -725,9 +733,10 @@
     if (f.kind === 'flag') return '<label class="hc-lab">권한대행 여부<select name="flag">' + opt('0', '아니오(정식 임명)', true) + opt('1', '예(권한대행)', false) + '</select></label>';
     if (f.kind === 'date') return '<label class="hc-lab">' + esc(f.label) + '<input type="date" name="date" required min="1900-01-01"></label>';
     if (f.kind === 'period') {
+      const edu = f.cd === 'EDU';   // 학력은 연도를 확인하지 못하면 비워 저장(사용자 11-25), 경력은 시작 필수
       return '<label class="hc-lab wide">' + esc(f.label) + ' 내용(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"></label>' +
-        '<label class="hc-lab">시작(연도 또는 연-월, 필수)<input type="text" name="from" maxlength="7" required inputmode="numeric" autocomplete="off" placeholder="2018 또는 2018-07"></label>' +
-        '<label class="hc-lab">끝(연도 또는 연-월, 비우면 현재)<input type="text" name="to" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="2022 또는 2022-06"></label>';
+        '<label class="hc-lab">' + (edu ? '시작(연도 또는 연-월, 모르면 비워 두세요)' : '시작(연도 또는 연-월, 필수)') + '<input type="text" name="from" maxlength="7"' + (edu ? '' : ' required') + ' inputmode="numeric" autocomplete="off" placeholder="2018 또는 2018-07"></label>' +
+        '<label class="hc-lab">' + (edu ? '끝(연도 또는 연-월, 모르면 비워 두세요)' : '끝(연도 또는 연-월, 비우면 현재)') + '<input type="text" name="to" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="2022 또는 2022-06"></label>';
     }
     return '<label class="hc-lab wide">' + esc(f.label) + '(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"' +
       (f.cd === 'NAME' ? ' placeholder="숫자는 쓸 수 없습니다"' : '') + '></label>';
@@ -1093,10 +1102,9 @@
     const v = formValues(form);
     const headId = V.data && V.data.head ? V.data.head.head_id : 0;
     if (kind === 'add-item') {
-      if ((v.field_cd === 'EDU' || v.field_cd === 'CAREER') && !hc.startMonthOk(v.from)) {   // 시작 년-월 필수(사용자 11-20) — 서버와 같은 검사
-        setMsg('시작은 연도(예: 2018) 또는 연-월(예: 2018-07)로 입력하세요.', true);
-        focusStatus();
-        return;
+      if (v.field_cd === 'EDU' || v.field_cd === 'CAREER') {   // 경력은 시작 필수(사용자 11-20), 학력은 둘 다 비면 통과(사용자 11-25) — 서버와 같은 검사
+        const bad = hc.periodCheck(v.field_cd, v.from, v.to);
+        if (bad) { setMsg(bad, true); focusStatus(); return; }
       }
       if (v.field_cd === 'BIRTH_DATE') {   // 제출 전 화면 검사 — 실패하면 요청 없이 칸 아래 오류
         const bad = hc.birthCheck(v.date, envNow().today);

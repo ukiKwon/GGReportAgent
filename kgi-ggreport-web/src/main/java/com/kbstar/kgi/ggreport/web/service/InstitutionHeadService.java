@@ -355,8 +355,12 @@ public class InstitutionHeadService {
             i.setValText(HeadText.noAge(HeadText.requireLine("position", in.getValue(), 40, false)));
         } else if ("EDU".equals(f)) {
             i.setValText(HeadText.noAge(HeadText.requireLine("edu", in.getValue(), 60, false)));
-            i.setValFrom(HeadText.requireStart(in.getFrom()));   // 시작 필수, YYYY 또는 YYYY-MM(사용자 11-20 필수·11-24 연도만 허용)
+            // 학력은 연도를 확인하지 못하면 둘 다 비워 저장(사용자 11-25). 시작 없이 끝만 있는 조합은 거절, 형식·순서 검사는 그대로.
+            i.setValFrom(HeadText.requirePeriod("from", in.getFrom()));
             i.setValTo(HeadText.requirePeriod("to", in.getTo()));
+            if (i.getValFrom() == null && i.getValTo() != null) {
+                throw coded(400, "INVALID_DATE", "졸업(끝) 연도만 넣을 수 없습니다. 입학(시작) 연도도 넣거나 둘 다 비우세요.");
+            }
             requireOrder(i);
         } else if ("CAREER".equals(f)) {
             i.setValText(HeadText.noAge(HeadText.requireLine("career", in.getValue(), 60, false)));
