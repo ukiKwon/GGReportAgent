@@ -395,8 +395,8 @@
   // 기록이 없으면 날짜로 본다: 공고(noticeState)가 진행 중이면서 접수 마감 전, 마감일을 모르면 공고 후 30일 이내만 보인다.
   // → 'confirm' | 'closed' | 'nobid' | 'delayed' | 'past'(접수 마감이 지났거나 마감일 모름·공고 후 30일 초과) | 'later'(공고가 아직 없다)
   // 예외(사용자 11-19): o.goals = { year, ids }에 든 올해 목표 기관은 공고가 아직 없어도('later') 'confirm'. 관심·다른 해 목표·목표 아님은 그대로.
-  // 입찰 없음·종료·지연·접수 기간 지남은 목표 기관이어도 막는다.
-  dash.proposeGate = function (rec, o) {
+  // 입찰 없음·종료·지연·접수 기간 지남은 기관 단위 공고 상태라, 올해 목표 기관이면 막지 않는다(사용자 11-25 — 안 되는 경우는 최종본을 올릴 때 확인사항으로 안내). 아래 proposeGate가 덮는다.
+  function gateCore(rec, o) {
     const today = (o && o.today) || todayDate();
     const snap = (o && o.snap) || null;
     // 다음 확인일이 지난 '지연·재공고 대기'는 logic.recordView가 미처리(pending)로 되돌린다 — 같은 기준으로 기록 없음으로 보고 날짜 규칙으로 간다.
@@ -412,7 +412,23 @@
     if (ns && (ns.phase === 'receiving' || (ns.phase === 'unknown' && !ns.late))) return 'confirm';
     if (ns && ns.check) return 'past';
     return dash.isGoalRec(rec, o && o.goals, today) ? 'confirm' : 'later';
+  }
+  const GATE_STATUS = { past: 1, closed: 1, nobid: 1, delayed: 1 };
+  dash.proposeGate = function (rec, o) {
+    const r = gateCore(rec, o);
+    return GATE_STATUS[r] && dash.isGoalRec(rec, o && o.goals, (o && o.today) || todayDate()) ? 'confirm' : r;
   };
+  // 순수: 목표 기관이라 'confirm'이 됐지만 공고 상태가 past·closed·nobid·delayed인가 → 그 상태 이름, 아니면 ''.
+  dash.proposeStatus = function (rec, o) {
+    const r = gateCore(rec, o);
+    return GATE_STATUS[r] && dash.proposeGate(rec, o) === 'confirm' ? r : '';
+  };
+  // 확인 상자 본문 3 자리의 평문 한 줄(사실만, 기록하라는 지시·경고 없음)
+  dash.PREP_STATUS_NOTE = {
+    past: '공고 상태: 접수 기간이 지난 것으로 기록돼 있습니다. 사전준비는 그대로 시작할 수 있습니다.',
+    closed: '공고 상태: 이번 회차 공고가 끝난 것으로 기록돼 있습니다. 사전준비는 그대로 시작할 수 있습니다.',
+    nobid: "공고 상태: 이번 회차는 '입찰 없음'으로 기록돼 있습니다. 사전준비는 그대로 시작할 수 있습니다.",
+    delayed: '공고 상태: 공고가 늦어지거나 재공고를 기다리는 것으로 기록돼 있습니다. 사전준비는 그대로 시작할 수 있습니다.' };
   // 순수: 이 'confirm'이 '공고 전 목표 기관 예외' 때문인가(안내 한 줄을 붙일지 정한다).
   dash.proposeEarly = function (rec, o) {
     return dash.proposeGate(rec, o) === 'confirm' && dash.proposeGate(rec, Object.assign({}, o, { goals: null })) === 'later';
@@ -1048,9 +1064,10 @@
   }
   // 확정 확인 상자(현황판 상세 팝업 = popup, 상세 칸 = 아님). 본문 1·2, 공고 전이면 평문 본문 3 — 굵은 경고·[계속 진행]은 없다.
   function confirmBoxHtml(it, c, popup) {
-    return '<div class="db-confirm' + (popup ? ' dm-confirm' : '') + '"' + (popup ? ' id="dm-confirm"' : '') + ' role="group" aria-labelledby="db-cf-t"' + (c.early ? ' aria-describedby="db-cf-d"' : '') + '><span id="db-cf-t">' +
+    const b3 = c.early ? dash.PREP_BODY3 : (c.status && dash.PREP_STATUS_NOTE[c.status]) || '';   // 본문 3: 공고 전이면 안내, 목표 기관의 공고 상태가 있으면 사실 한 줄
+    return '<div class="db-confirm' + (popup ? ' dm-confirm' : '') + '"' + (popup ? ' id="dm-confirm"' : '') + ' role="group" aria-labelledby="db-cf-t"' + (b3 ? ' aria-describedby="db-cf-d"' : '') + '><span id="db-cf-t">' +
       esc(it.name) + dash.josaEul(it.name) + ' 제안 대상으로 확정합니다. ' + esc(dash.PREP_BODY2) + '</span>' +
-      (c.early ? '<span class="db-cf-b" id="db-cf-d">' + esc(dash.PREP_BODY3) + '</span>' : '') +
+      (b3 ? '<span class="db-cf-b" id="db-cf-d">' + esc(b3) + '</span>' : '') +
       '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (c.busy ? '확정하는 중…' : esc(dash.PREP_CONFIRM_GO)) + '</button><button type="button" id="db-cancel">취소</button></div></div>';
   }
 
@@ -1877,7 +1894,7 @@
     else if (m.noConfirm && act === 'confirm') act = 'noconfirm';   // 협약 성과 화면에서 연 상세: [제안 확정] 없이 이유 글만
     const raw =root.render && root.render.popRawHtml ? root.render.popRawHtml(m.rec) : '';
     const parts = dash.popupHtml(m.it, {
-      act: act, board: m.screen === 'bid_board', goal: dash.isGoalRec(m.rec, { year: goalSt.year, ids: goalSt.ids }), early: act === 'confirm' && dash.proposeEarly(m.rec, gateOpts()), confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
+      act: act, board: m.screen === 'bid_board', goal: dash.isGoalRec(m.rec, { year: goalSt.year, ids: goalSt.ids }), early: act === 'confirm' && dash.proposeEarly(m.rec, gateOpts()), status: act === 'confirm' ? dash.proposeStatus(m.rec, gateOpts()) : '', confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
       headHtml: root.headcard ? root.headcard.paneSection(m.rec, dmHeadEnv(m)) : undefined,
       recordHtml: ie.isOpenCheck(m.rec) ? '' : recViewHtml(dmRc(m)), bank: m.readOnly ? dash.lockBank(bankView(m.rec)) : bankView(m.rec),
       nameId: 'dm-name', readOnly: m.readOnly, back: dmBackInfo(m), editing: !!m.bankEdit,   // 보기 전용: 머리 줄에는 ×만(주버튼은 act 'none'이라 없다). back = 스택 단계(약정 편집 → 읽기 → 목록)

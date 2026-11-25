@@ -2707,7 +2707,8 @@
       if (pr && pr.can_view === false) return { on: false, why: prepFailMsg(e.id, '') };
     }
     if (act === 'open') return { on: true, open: true, e: e, why: e.name + tc.eun(e.name) + ' 사전준비 중입니다. 누르면 그 화면으로 갑니다.' };
-    if (act === 'confirm') return { on: true, e: e, nm: nm, early: dash.proposeEarly(rec, U.gateOpts()), why: nm + tc.eul(nm) + ' 확정하고 제안 준비 현황으로 갑니다.' };
+    // 올해 목표 기관은 공고 상태(접수 기간 지남·입찰 종료·입찰 없음·지연)로 막지 않는다(사용자 11-25) — 확인 상자 본문 3에 사실 한 줄만
+    if (act === 'confirm' || (act === 'closed' || act === 'past' || act === 'nobid' || act === 'delayed')) return { on: true, e: e, nm: nm, early: act === 'confirm' && dash.proposeEarly(rec, U.gateOpts()), status: act === 'confirm' ? (dash.proposeStatus ? dash.proposeStatus(rec, U.gateOpts()) : '') : act, why: nm + tc.eul(nm) + ' 확정하고 제안 준비 현황으로 갑니다.' };
     if (act === 'wait') return { why: '제안 진행 상황을 확인하는 중입니다.' };
     return { why: dash.CONFIRM_WHY[act] || '지금은 이 기관의 제안 사전준비를 시작할 수 없습니다.' };
   }
@@ -2738,6 +2739,7 @@
     if (!root.dlg || !root.dlg.confirm) return;
     const e = s.e, lines = [e.name + tc.eul(e.name) + ' 제안 대상으로 확정합니다.', dash.PREP_BODY2];   // 상세 팝업의 확인 상자와 같은 문구(dashboard.js 한 곳)
     if (s.early) lines.push(dash.PREP_BODY3);
+    else if (s.status && dash.PREP_STATUS_NOTE[s.status]) lines.push(dash.PREP_STATUS_NOTE[s.status]);
     root.dlg.confirm({ title: '제안 사전준비 — ' + s.nm, text: lines.join('\n'), go: dash.PREP_CONFIRM_GO, cancel: '취소' }).then(function (ok) {
       if (ok && host) doPrepStart(e);
     });

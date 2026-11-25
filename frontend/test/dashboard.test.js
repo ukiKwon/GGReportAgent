@@ -415,11 +415,24 @@ test('proposeGate(11-19): 올해 목표 기관은 공고 전에도 confirm — �
   assert.strictEqual(gate(r(40), goals(Y, ['I9'])), 'later');               // 다른 기관만 목표
   assert.strictEqual(gate(r(40), goals(Y + 1)), 'later');                   // 2027 목표(다른 연도 응답)
   const nb = { today: plus(0), byId: { I1: { institution_id: 'I1', status_cd: 'NO_BID', next_check_date: plus(10) } } };
-  assert.strictEqual(gate(r(40), goals(Y), nb), 'nobid');                   // 목표 + 입찰 없음 → 막음
+  assert.strictEqual(gate(r(40), null, nb), 'nobid');                       // 목표 아님 + 입찰 없음 → 막음
+  assert.strictEqual(gate(r(40), goals(Y), nb), 'confirm');                 // 목표 + 입찰 없음 → 막지 않음(사용자 11-25)
   assert.strictEqual(gate(r(-3, { receiveTo: plus(5) }), goals(Y)), 'confirm');   // 공고 중은 원래대로
-  assert.strictEqual(gate(r(-9, { receiveTo: plus(-1) }), goals(Y)), 'past');     // 접수 지남은 목표여도 막음
+  assert.strictEqual(gate(r(-9, { receiveTo: plus(-1) }), null), 'past');         // 목표 아님 + 접수 지남 → 막음
+  assert.strictEqual(gate(r(-9, { receiveTo: plus(-1) }), goals(Y + 1)), 'past'); // 작년 목표 집합 → 막음
+  assert.strictEqual(gate(r(-9, { receiveTo: plus(-1) }), goals(Y)), 'confirm');  // 목표 + 접수 지남 → 막지 않음
   const cl = { today: plus(0), byId: { I1: { institution_id: 'I1', status_cd: 'CLOSED', next_check_date: plus(10) } } };
-  assert.strictEqual(gate(r(40), goals(Y), cl), 'closed');
+  assert.strictEqual(gate(r(40), goals(Y), cl), 'confirm');
+  assert.strictEqual(gate(r(40), null, cl), 'closed');
+  const dl = { today: plus(0), byId: { I1: { institution_id: 'I1', status_cd: 'DELAYED', next_check_date: plus(10) } } };
+  const st = function (x, g, snap) { return dash.proposeStatus(x, { today: TODAY, snap: snap || null, goals: g }); };
+  assert.strictEqual(st(r(40), goals(Y), nb), 'nobid'); assert.strictEqual(st(r(40), goals(Y), cl), 'closed'); assert.strictEqual(st(r(40), goals(Y), dl), 'delayed');
+  assert.strictEqual(st(r(-9, { receiveTo: plus(-1) }), goals(Y)), 'past');
+  assert.strictEqual(st(r(-9, { receiveTo: plus(-1) }), null), '');           // 목표 아님은 상태 줄 없음(막힌 그대로)
+  assert.strictEqual(st(r(-3, { receiveTo: plus(5) }), goals(Y)), '');         // 공고 중은 상태 줄 없음
+  assert.strictEqual(dash.proposeEarly(r(-9, { receiveTo: plus(-1) }), { today: TODAY, snap: null, goals: goals(Y) }), false);   // 공고 전 안내와 겹치지 않는다
+  const html = dash.actParts({ name: '영천시청' }, { act: 'confirm', board: true, confirm: true, status: 'past' }).confirm;
+  assert.ok(html.indexOf('접수 기간이 지난 것으로 기록돼 있습니다') > 0 && html.indexOf('aria-describedby="db-cf-d"') > 0);
 });
 
 test('dash.setGoals·isGoalRec·proposeEarly: 올해 응답만 담고, 안내는 예외로 열렸을 때만', function () {

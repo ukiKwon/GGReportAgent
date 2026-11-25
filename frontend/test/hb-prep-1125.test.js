@@ -20,7 +20,7 @@ function makePrepState(env) {
   const body = K.slice(a, b);
   const sel = env.sel;
   const U = { actCtx: function () { return { role: env.role === undefined ? '영업팀' : env.role }; }, serverMode: function () { return env.server !== false; }, hasEmp: function () { return true; }, gateOpts: function () { return {}; }, todayDate: function () { return new Date(); } };
-  const D = { CONFIRM_WHY: dash.CONFIRM_WHY, isViewOnly: function () { return !!env.viewOnly; }, proposeEarly: function () { return !!env.early; } };
+  const D = { CONFIRM_WHY: dash.CONFIRM_WHY, isViewOnly: function () { return !!env.viewOnly; }, proposeEarly: function () { return !!env.early; }, proposeStatus: function () { return env.status || ''; } };
   const fn = new Function('tc', 'U', 'P', 'dash', 'gs', 'canEditNow', 'BYID', 'actOf', 'goalMode', 'prepOfId', 'prepFailMsg', body + '\nreturn prepState;');
   return fn(tc, U, function () { return { CONFIRM_ROLES: ['영업팀', '영업팀장'] }; }, D, { sel: sel, st: env.st === undefined ? 'ok' : env.st }, function () { return env.canEdit !== false; }, env.byId || { G1: { institutionId: 'G1' } }, function () { return env.act || 'confirm'; },
     function () { return env.mode === undefined ? 'DIRECT' : env.mode; },
@@ -44,9 +44,11 @@ test('B 상태 표: 0곳·2곳 이상·관심·wait·종료 계열은 꺼짐 + �
   assert.deepStrictEqual(makePrepState({ sel: s2 }), { why: '기관을 하나만 고르세요. 지금 2곳을 골랐습니다.' });
   assert.deepStrictEqual(makePrepState({ sel: sel1({ kind: 'WATCH' }) }), { why: '관심 기관은 목표 기관이 된 뒤에 시작합니다.' });
   assert.deepStrictEqual(makePrepState({ sel: sel1(), act: 'wait' }), { why: '제안 진행 상황을 확인하는 중입니다.' });
-  ['closed', 'past', 'nobid', 'delayed'].forEach(function (a) {
-    assert.deepStrictEqual(makePrepState({ sel: sel1(), act: a }), { why: dash.CONFIRM_WHY[a] }, a);   // 상세 팝업과 같은 문장
-  });
+  assert.deepStrictEqual(makePrepState({ sel: sel1(), act: 'later' }), { why: dash.CONFIRM_WHY.later });   // 공고 상태가 아닌 막힘은 그대로
+  assert.deepStrictEqual(makePrepState({ sel: sel1({ year: new Date().getFullYear() - 1 }), act: 'past' }), { why: '올해 목표 기관만 제안 사전준비를 할 수 있습니다.' });   // 작년 목표
+  assert.deepStrictEqual(makePrepState({ sel: sel1({ kind: 'WATCH' }), act: 'past' }), { why: '관심 기관은 목표 기관이 된 뒤에 시작합니다.' });
+  const s2b = sel1(); tc.pick(s2b, { id: 'G2', name: '수원시', regionName: '경기', kind: 'GOAL', targetNo: 2 });
+  assert.strictEqual(makePrepState({ sel: s2b, act: 'past' }).on, undefined);   // 2곳은 여전히 꺼짐
   assert.deepStrictEqual(makePrepState({ sel: sel1(), byId: {} }), { why: '서울 노원구청은 공고 정보를 찾지 못해 시작할 수 없습니다.' });
 });
 
@@ -58,6 +60,15 @@ test('B 상태 표: 목표 + confirm(공고 전 포함)은 켜짐(확인 상자)
   assert.strictEqual(makePrepState({ sel: sel1(), early: true }).early, true);   // 공고 전 목표 기관은 본문 3(평문)만 더한다
   const o = makePrepState({ sel: sel1(), act: 'open' });
   assert.deepStrictEqual([o.on, o.open, o.why], [true, true, '노원구청은 사전준비 중입니다. 누르면 그 화면으로 갑니다.']);
+});
+
+test('공고 상태(past·closed·nobid·delayed)여도 목표 1곳이면 켜짐 + 확인 상자 평문 한 줄(사용자 11-25)', function () {
+  ['past', 'closed', 'nobid', 'delayed'].forEach(function (a) {
+    const s = makePrepState({ sel: sel1(), act: a });
+    assert.strictEqual(s.on, true, a); assert.strictEqual(s.status, a); assert.strictEqual(s.early, false);
+    assert.ok(dash.PREP_STATUS_NOTE[a].indexOf('공고 상태: ') === 0 && dash.PREP_STATUS_NOTE[a].indexOf('사전준비는 그대로 시작할 수 있습니다.') > 0 && dash.PREP_STATUS_NOTE[a].indexOf('기록하세요') < 0);
+  });
+  assert.ok(K.indexOf('else if (s.status && dash.PREP_STATUS_NOTE[s.status]) lines.push(dash.PREP_STATUS_NOTE[s.status]);') > 0);
 });
 
 test('열람 규칙: can_view false인 사전준비 건은 이동하지 않고 담당자 안내(패치 A·B)', function () {
