@@ -2452,6 +2452,14 @@
     if (plan === 'redraw') board.mount();   // #bd-form이 사라졌으므로 처음부터 다시 그린다
   };
   board.unmount = function () { /* 폴링·스트림 없음 */ };
+  // 다른 화면(제안 준비 현황 › 기관 상세 7단계 '이사회 자료 작성')에서 그 기관의 자료를 바로 연다 — 메뉴로 옮긴 뒤 목록 대신 자료 화면.
+  // 메뉴를 열 수 없거나(권한) 저장 안 한 값이 있으면 false.
+  board.openMaterial = function (id) {
+    if (typeof document === 'undefined' || !root.app || !root.app.openNavItem || !root.nav) return false;
+    if (!root.app.openNavItem(root.nav.BOARD_ID)) return false;   // showSoon → board.mount()
+    const m = matCtl();
+    return !!(m && m.openMaterial && m.openMaterial(id));
+  };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = board;
   else root.board = board;

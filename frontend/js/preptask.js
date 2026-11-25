@@ -100,6 +100,17 @@
     proposalLater: '담당자 지정이 끝나면 여기에서 제안서 작성을 시작합니다.',
     openBefore: function (names) { return '입찰 자료확인 구간에 아직 안 끝난 단계가 있습니다: ' + names.join(', ') + '. 작성 시작을 막지는 않으니 확인만 하세요.'; },
     openBoard: '이사회 자료 작성 열기',
+    openBoardMat: '이사회 자료 열기',
+    boardGoCheck: '표별 확인·제출하러 가기',
+    boardCheckHint: '아래는 수익성 분석표로 채운 지금 버전입니다. 표마다 원본과 대조해 확인하고 제출하는 일은 [표별 확인·제출하러 가기]에서 합니다.',
+    boardConfirmed: '확정된 이사회 자료입니다. 확정본 워드는 이사회 자료 화면에서 내려받습니다.',
+    boardNone: '아직 이 기관의 이사회 자료가 없습니다. 4단계에서 수익성 분석표(xlsx)를 올리면 초안이 자동으로 만들어집니다.',
+    boardErr: '이사회 자료를 불러오지 못했습니다. 이사회 자료 작성 화면에서 확인하세요.',
+    profitHint: '수익성 분석표(xlsx)를 올리면 이사회 자료 초안이 자동으로 만들어집니다. 표별 확인은 7단계 \'이사회 자료 작성\'에서 합니다.',
+    draftSaved: function (n) { return '이사회 자료 초안을 버전 ' + n + '(으)로 저장했습니다. 7단계에서 표별로 확인하세요.'; },
+    draftSame: '이사회 자료는 지금 버전과 값이 같아 새로 만들지 않았습니다.',
+    draftLocked: '이사회 자료가 이미 제출·확정되어 초안은 바꾸지 않았습니다.',
+    draftFail: '이사회 자료 초안은 자동으로 만들지 못했습니다. 7단계에서 이사회 자료 작성을 열어 엑셀을 직접 올려 주세요.',
     noRow: '제안 준비 현황 표의 체크 기록을 불러오지 못해 보기만 합니다. [← 제안 준비 현황으로] 돌아가 다시 여세요.',
     rowLoading: '체크 기록을 불러오는 중…',
     ended: '끝난 건이라 체크할 수 없습니다.',
@@ -455,6 +466,26 @@
     }).join('') + '</ol>';
   }
 
+  // ── 7단계 이사회 자료 작성: 이 건의 이사회 자료(수익성 분석표가 채운 결과)를 읽기용으로 ──
+  // b = { state: 'loading'|'ok'|'none'|'err', id, statusName, snapNo, saved, confirmed, html } — prep.js stepBoard가 만든다(html은 board-material.js readOnlyHtml).
+  pt.boardBlockHtml = function (b) {
+    const x = b || {};
+    const go = function (label, id, strong) {
+      return '<div class="ts-acts"><button type="button"' + (strong ? ' class="pp-next-btn"' : '') + ' data-act="to-board-doc"' + (id != null ? ' data-mat="' + esc(id) + '"' : '') + '>' + esc(label) + '</button></div>';
+    };
+    if (x.state === 'ok') {
+      return '<dl class="ts-facts"><div><dt>자료 상태</dt><dd>' + esc(x.statusName || '') + '</dd></div>' +
+        '<div><dt>버전</dt><dd><span class="m">' + (Number(x.snapNo) || 0) + '</span></dd></div>' +
+        (x.saved ? '<div><dt>마지막 저장</dt><dd>' + esc(x.saved) + '</dd></div>' : '') + '</dl>' +
+        note(x.confirmed ? T.boardConfirmed : T.boardCheckHint) +
+        go(x.confirmed ? T.openBoardMat : T.boardGoCheck, x.id, !x.confirmed) +
+        '<div class="ts-fold ts-board" tabindex="0" role="region" aria-label="이사회 자료 내용">' + (str(x.html) || note(T.sumNone)) + '</div>';
+    }
+    if (x.state === 'none') return note(T.boardNone) + go(T.openBoard, null, false);
+    if (x.state === 'err') return note(T.boardErr) + go(T.openBoard, null, false);
+    return note(T.docLoading);
+  };
+
   const PROPOSAL_STATES = ['IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING'];
 
   // m: prep.caseHtml과 같은 모델 + { row, marks, rowState, idx, markBusy }
@@ -510,9 +541,10 @@
         (PROPOSAL_STATES.indexOf(str(v.state_cd)) >= 0 ? prep.endHtml(v, ctx) : (v.state_cd === 'CANCELLED' ? '' : note(T.proposalLater)));
     } else {   // auto·board·script — 준비 과제를 여기에서 처리한다
       if (s.kind === 'board') h += note(T.boardHint);
+      if (s.id === 'PROFIT') h += note(T.profitHint);
       const tb = s.id === 'INST_ANALYSIS' ? foldBlock(m, s) : tasksBlock(m, s);
       h += tb || note(T.taskNone);
-      if (s.kind === 'board') h += '<div class="ts-acts"><button type="button" data-act="to-board-doc">' + esc(T.openBoard) + '</button></div>';
+      if (s.kind === 'board') h += pt.boardBlockHtml(m.board);
     }
     const prev = idx > 0 ? { label: T.prev(pt.STEPS[idx - 1].label), off: false } : { label: T.prevNone, off: true };
     const next = idx < n - 1 ? { label: T.next(pt.STEPS[idx + 1].label), off: false } : { label: T.nextNone, off: true };

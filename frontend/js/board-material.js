@@ -1563,6 +1563,13 @@
 
     return {
       mount: mount, reset: reset, view: function () { return view; },
+      // 바깥(제안 준비 현황 › 기관 상세 7단계)에서 자료 id로 바로 연다(board.openMaterial). 저장 안 한 값이 있으면 열지 않고 지금 화면에 머문다.
+      openMaterial: function (id) {
+        if (env.write && env.write.dirty && env.write.dirty() > 0) return false;
+        build();
+        openMaterial(id, false);
+        return true;
+      },
       showForm: function () { showView('form'); },
       leaveForm: function () {   // 양식 화면 → 목록
         const b = $('bd-body'); if (b) b.innerHTML = '';

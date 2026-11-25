@@ -254,7 +254,7 @@ test('bodyHtml 과제 단계: 그 단계에 걸린 과제만, 체크 단추는 p
   assert.ok(!/data-task="T3"/.test(h));
   const p = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('PROFIT'), { attach: [] }));
   assert.ok(/data-task="T3"/.test(p) && /data-act="upload"/.test(p), '수익성 분석표 파일 칸');
-  const b = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('BOARD_DOC')));
+  const b = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('BOARD_DOC'), { board: { state: 'none' } }));
   assert.ok(/data-task="T5"/.test(b) && /data-act="to-board-doc"/.test(b));
   const ro = pt.bodyHtml(model(view('IN_PROGRESS', { viewer: { is_assignee: false } }), idxOf('INST_ANALYSIS')));
   assert.ok(ro.indexOf(prep.T.readonly) >= 0);
@@ -494,4 +494,38 @@ test('3단계 배선: 양식 창·기관장 카드 연결, 건을 바꾸면 펼�
   const a = HTML.indexOf('js/dlg.js'), b = HTML.indexOf('js/instsummary.js');
   assert.ok(a > 0 && b > a, 'instsummary.js는 dlg.js 뒤에 실린다');
   ['.ts-fold {', '.ts-doc {', '.isf-state {', '.pp-acts {'].forEach(function (sel) { assert.ok(HTML.indexOf(sel) > 0, sel); });
+});
+
+// ── 11-25 추가: 4·7단계 수익성 분석표 → 이사회 자료 ──
+test('7단계 이사회 자료: 채워진 표(읽기 전용)·상태·[표별 확인·제출하러 가기], 자료가 없으면 4단계 안내', function () {
+  const ok = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('BOARD_DOC'), { board: { state: 'ok', id: 12, statusName: '작성 중', snapNo: 3, saved: '김영업 · 11-25 10:40', confirmed: false, html: '<div class="bd-m-ro-tables">표</div>' } }));
+  assert.ok(/<dt>자료 상태<\/dt><dd>작성 중<\/dd>/.test(ok) && /<dt>버전<\/dt><dd><span class="m">3<\/span><\/dd>/.test(ok) && ok.indexOf('김영업 · 11-25 10:40') > 0);
+  assert.ok(/class="pp-next-btn" data-act="to-board-doc" data-mat="12">표별 확인·제출하러 가기</.test(ok));
+  assert.ok(/<div class="ts-fold ts-board" tabindex="0" role="region" aria-label="이사회 자료 내용"><div class="bd-m-ro-tables">표<\/div><\/div>/.test(ok));
+  assert.ok(/data-task="T5"/.test(ok), '이사회 자료 과제 줄도 그대로');
+  const cf = pt.boardBlockHtml({ state: 'ok', id: 12, statusName: '확정', snapNo: 4, confirmed: true, html: 'x' });
+  assert.ok(cf.indexOf(pt.T.boardConfirmed) > 0 && />이사회 자료 열기</.test(cf) && !/pp-next-btn/.test(cf));
+  const none = pt.boardBlockHtml({ state: 'none' });
+  assert.ok(none.indexOf('4단계에서 수익성 분석표(xlsx)를 올리면') > 0 && /data-act="to-board-doc">이사회 자료 작성 열기</.test(none));
+  assert.ok(pt.boardBlockHtml({ state: 'err' }).indexOf(pt.T.boardErr) > 0);
+  assert.ok(pt.boardBlockHtml(undefined).indexOf(pt.T.docLoading) > 0);
+  const p = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('PROFIT'), { attach: [] }));
+  assert.ok(p.indexOf('이사회 자료 초안이 자동으로 만들어집니다') > 0);
+});
+
+test('4·7단계 배선: 올린 뒤 자동 초안(자료 만들기 → 엑셀 채우기 → 버전 저장), 제출·확정 자료는 건드리지 않음, 자료 바로 열기', function () {
+  const a = PREP_SRC.indexOf('function autoBoardDraft(id, file) {'), b = PREP_SRC.indexOf('// 7단계 본문: 이 건의 이사회 자료');
+  assert.ok(a > 0 && b > a);
+  const f = PREP_SRC.slice(a, b);
+  assert.ok(f.indexOf('.xlsx$/i.test(') > 0, 'xlsx만');
+  assert.ok(f.indexOf("mat.createMaterial(bfetch, { bidCaseId: id, year: new Date().getFullYear() })") > 0);
+  assert.ok(f.indexOf("if (str(d.status_cd) !== 'DRAFT' && str(d.status_cd) !== 'PREP') return { kind: 'locked' };") > 0);
+  assert.ok(f.indexOf('bw.upload(bfetch,') > 0 && f.indexOf('bw.adoptManual(bw.buildState(') > 0 && f.indexOf('bw.saveBody(ws, baseVals, d.current_snap,') > 0 && f.indexOf('bw.postSnapshot(bfetch, mid, body)') > 0);
+  assert.ok(PREP_SRC.indexOf('autoBoardDraft(id, f).then(function (r) {') > 0, '파일 올리기 성공 뒤에 부른다');
+  assert.ok(PREP_SRC.indexOf('root.board.openMaterial(Number(mid))') > 0);
+  const BOARD_SRC = src('js/board.js'), MAT_SRC = src('js/board-material.js');
+  assert.ok(BOARD_SRC.indexOf('board.openMaterial = function (id) {') > 0 && BOARD_SRC.indexOf('root.app.openNavItem(root.nav.BOARD_ID)') > 0);
+  assert.ok(MAT_SRC.indexOf('if (env.write && env.write.dirty && env.write.dirty() > 0) return false;') > 0, '저장 안 한 값이 있으면 열지 않는다');
+  ['draftSaved', 'draftSame', 'draftLocked', 'draftFail'].forEach(function (k) { assert.ok(pt.T[k], k); });
+  assert.strictEqual(pt.T.draftSaved(4), '이사회 자료 초안을 버전 4(으)로 저장했습니다. 7단계에서 표별로 확인하세요.');
 });

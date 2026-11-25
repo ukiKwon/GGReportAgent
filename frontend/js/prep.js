@@ -1066,6 +1066,7 @@
     S.board = bd && bd.row ? { row: bd.row, marks: Array.isArray(bd.marks) ? bd.marks : [], scope: str(bd.scope) } : null;
     S.boardLoading = false; S.boardSeq = ++reqSeq; S.stepIdx = -1; S.stepAuto = true; S.markBusy = {}; S.live = '';
     S.sum = null; S.foldOpen = {};   // 3단계 펼침 내용(기관 정보 요약 응답)·다시 편 과제
+    S.mat = null;                    // 7단계 이사회 자료
   }
   function boardHooks() {
     const role = myRole();
@@ -1197,6 +1198,7 @@
       const curStep = pt.STEPS[pt.clampIdx(S.stepIdx)];
       if (curStep.kind === 'notice') model.notice = { state: ni.state, gaps: ni.gaps, html: ni.build ? ni.build() : '' };
       if (curStep.id === 'INST_ANALYSIS') { model.docs = stepDocs(d.view); model.foldOpen = S.foldOpen; }
+      if (curStep.id === 'BOARD_DOC') model.board = stepBoard();
       box.innerHTML = pt.caseHtml(model);
       if (S.live) { const lv = el('ts-live'); if (lv) lv.textContent = S.live; S.live = ''; }
     } else {
@@ -1341,6 +1343,71 @@
       const st = hc.view ? hc.view().status : '';
       hc.onPaneClick(st === 'none' ? 'add-head' : 'edit', hcEnv);
     }
+  }
+  // ── 4·7단계: 수익성 분석표 → 이사회 자료(사용자 11-25) ──
+  //   4단계에서 수익성 분석표(xlsx)를 올리면 그 기관의 이사회 자료 초안을 자동으로 만든다: 자료가 없으면 만들고 → 엑셀을 양식에 채우고 → 버전으로 저장.
+  //   모두 '이사회 자료 작성' 화면이 쓰는 서버 주소·함수(board-write.js·board-material.js) 그대로다. 표별 확인·제출은 7단계에서 그 화면으로 가서 한다.
+  //   실패해도 올린 파일은 그대로다 — 알림만 하고 7단계에서 직접 올리게 한다.
+  function bfetch(url, init) { return fetch(url, init); }
+  function matOfCase(id) {   // → Promise<{ ok, item|null }> — 이 건의 이사회 자료(여러 해면 가장 최근 해)
+    const mat = root.boardMat;
+    return mat.loadList(bfetch, {}).then(function (r) {
+      if (!r.ok) return { ok: false, item: null };
+      const mine = r.items.filter(function (i) { return str(i.bid_case_id) === id; }).sort(function (a, b) { return Number(b.year) - Number(a.year); });
+      return { ok: true, item: mine[0] || null };
+    });
+  }
+  function autoBoardDraft(id, file) {   // → Promise<{ kind: 'skip'|'saved'|'same'|'locked'|'fail', snapNo }>
+    const bw = root.boardWrite, mat = root.boardMat;
+    if (!bw || !mat || !bw.buildState || !mat.loadList || !/\.xlsx$/i.test(str(file && file.name))) return Promise.resolve({ kind: 'skip' });
+    const fail = { kind: 'fail' };
+    return matOfCase(id).then(function (f) {
+      if (!f.ok) return fail;
+      if (f.item) return f.item.material_id;
+      return mat.createMaterial(bfetch, { bidCaseId: id, year: new Date().getFullYear() }).then(function (c) {
+        return c.ok ? c.material.material_id : c.exists ? c.materialId : null;
+      });
+    }).then(function (mid) {
+      if (mid == null || mid === fail) return fail;
+      return mat.loadMaterial(bfetch, mid, mat.UI.WRITE, mat.BTN.OPEN).then(function (r) {
+        if (!r.ok) return fail;
+        const d = r.material;
+        if (str(d.status_cd) !== 'DRAFT' && str(d.status_cd) !== 'PREP') return { kind: 'locked' };   // 제출·확정된 자료는 건드리지 않는다
+        return bw.upload(bfetch, str(d.form_id) || 'default_doc', d.form_version, file, null, id).then(function (x) {
+          if (!x.ok || !x.body || !Array.isArray(x.body.tables)) return fail;
+          const baseVals = mat.baseOf(d.snapshot && d.snapshot.tables);
+          const ws = bw.adoptManual(bw.buildState(d.form, x.body, { fileName: file.name, formId: str(d.form_id), version: d.form_version }), baseVals);
+          const body = bw.saveBody(ws, baseVals, d.current_snap, '수익성 분석표 올리기로 자동 작성(표별 확인 전)');
+          return bw.postSnapshot(bfetch, mid, body).then(function (s) {
+            if (!s.ok) return fail;
+            return { kind: s.body && s.body.changed === false ? 'same' : 'saved', snapNo: Number(s.body && s.body.snap_no) || 0 };
+          });
+        });
+      });
+    }).catch(function () { return fail; });
+  }
+  // 7단계 본문: 이 건의 이사회 자료(상태·마지막 저장·채워진 표). S.mat = { state: 'loading'|'ok'|'none'|'err', d }
+  function loadMat(id) {
+    const mat = root.boardMat;
+    const mine = S.mat = { state: 'loading', d: null };
+    const done = function (state, d) { if (S.mat !== mine || S.selected !== id) return; mine.state = state; mine.d = d || null; repaintKeep(); };
+    if (!mat || !mat.loadList) { mine.state = 'err'; return; }
+    matOfCase(id).then(function (f) {
+      if (!f.ok) { done('err'); return; }
+      if (!f.item) { done('none'); return; }
+      return mat.loadMaterial(bfetch, f.item.material_id, mat.UI.REVIEW, mat.BTN.OPEN).then(function (r) { done(r.ok ? 'ok' : 'err', r.ok ? r.material : null); });
+    }).catch(function () { done('err'); });
+  }
+  function stepBoard() {
+    const mat = root.boardMat;
+    if (!S.mat && S.selected) loadMat(S.selected);
+    const sm = S.mat || { state: 'loading' };
+    if (sm.state !== 'ok' || !sm.d || !mat) return { state: sm.state };
+    const d = sm.d;
+    let html = '';
+    try { html = mat.readOnlyHtml(d.form, d.snapshot && d.snapshot.tables); } catch (e) { html = ''; }
+    return { state: 'ok', id: d.material_id, statusName: str(d.status_name), snapNo: Number(d.current_snap) || 0,
+             saved: mat.savedLabel ? mat.savedLabel(d) : '', confirmed: d.confirmed_snap != null, html: html };
   }
   // [다음] 확인 팝업(사용자 11-25: 단계마다 공통) — [확인]이면 다음 단계로, [닫기]·Esc·바깥 클릭이면 그대로.
   function openNextAsk() {
@@ -1616,10 +1683,20 @@
     paintCase();
     req('POST', base(id) + '/attachments', undefined, ui('prep_detail', 'attach_upload'), form).then(function (res) {
       S.uploading = false; S.busy = false;
-      setFlash(prep.uploadOkText(f.name, res));
+      const okText = prep.uploadOkText(f.name, res);
+      setFlash(okText);
       S.refocus = '[data-act="upload"]';
       invalidateCache();
       if (id === S.selected) loadDetail(id);
+      // 4단계 → 이사회 자료 초안 자동 작성(실패해도 올린 파일은 그대로)
+      autoBoardDraft(id, f).then(function (r) {
+        if (id !== S.selected || r.kind === 'skip') return;
+        S.mat = null;   // 7단계 본문을 다시 읽게
+        const T7 = root.preptask && root.preptask.T ? root.preptask.T : {};
+        const tail = r.kind === 'saved' && T7.draftSaved ? T7.draftSaved(r.snapNo) : r.kind === 'same' ? T7.draftSame : r.kind === 'locked' ? T7.draftLocked : T7.draftFail;
+        if (tail) setFlash(okText + ' ' + tail);
+        repaintKeep();
+      });
     }).catch(function (e) {
       S.uploading = false; S.busy = false;
       handleError(e, 'attach');
@@ -1944,7 +2021,13 @@
       case 'doc-edit': onDocEdit(cd, t); return;
       case 'doc-toggle': S.foldOpen[cd] = !S.foldOpen[cd]; S.refocus = '[data-act="doc-toggle"][data-task="' + cd + '"]'; paintCase(); return;
       case 'mark': if (t.getAttribute('aria-disabled') !== 'true') onMark(t.getAttribute('data-col'), t.getAttribute('data-mk')); return;
-      case 'to-board-doc': if (root.app && root.app.openNavItem && root.nav) root.app.openNavItem(root.nav.BOARD_ID); return;
+      case 'to-board-doc': {   // 이 건의 자료가 있으면 그 자료를 바로 열고(board.openMaterial), 없으면 메뉴 첫 화면(목록)
+        const mid = t.getAttribute('data-mat');
+        S.mat = null;   // 다녀오면 다시 읽는다
+        if (mid && root.board && root.board.openMaterial && root.board.openMaterial(Number(mid))) return;
+        if (root.app && root.app.openNavItem && root.nav) root.app.openNavItem(root.nav.BOARD_ID);
+        return;
+      }
       case 'back': if (boardOn()) backToBoard(); return;
       case 'check': onCheck(cd, true); return;
       case 'uncheck': onUncheckAsk(cd); return;
