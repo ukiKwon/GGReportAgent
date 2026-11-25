@@ -684,3 +684,31 @@ test('소스 규칙(v3): 표 칸 글자는 textContent·value 로만 넣고, 산
   assert.match(SRC, /aux: r\.bold/);
   assert.match(SRC, /T\.scSec/);
 });
+test('scNorm 상한: rs·cs·r 이 터무니없이 큰 칸이 섞여도 행 200·열 12 안에서 즉시 끝난다(서버 MAX_SCORING_ROWS·COLS 와 같음)', function () {
+  const BIG = 2147483647;
+  const sc = isn.scNorm({ row_count: BIG, col_count: BIG, cells: [
+    { r: 0, c: 0, rs: BIG, cs: BIG, text: 'a' },
+    { r: 5000, c: 0, rs: 1, cs: 1, text: 'far-row' },
+    { r: 0, c: 99, rs: 1, cs: 1, text: 'far-col' },
+    { r: 3, c: 11, rs: 1, cs: BIG, text: 'edge' },
+    { r: 199, c: 0, rs: 5, cs: 1, text: 'tail' },
+    { r: -4, c: 'x', rs: 0, cs: -1, text: 'bad' },
+  ] });
+  assert.ok(sc.row_count <= 200 && sc.col_count <= 12);
+  assert.strictEqual(sc.cells.length, 4);   // 멀리 있는 두 칸은 버린다
+  const by = {}; sc.cells.forEach(function (x) { by[x.text] = x; });
+  assert.deepStrictEqual([by.a.rs, by.a.cs], [200, 12]);
+  assert.strictEqual(by.edge.cs, 1);
+  assert.strictEqual(by.tail.rs, 1);
+  assert.deepStrictEqual([by.bad.r, by.bad.c, by.bad.rs, by.bad.cs], [0, 0, 1, 1]);
+  const g = isn.scGrid(sc);
+  assert.strictEqual(g.length, 200);
+  assert.ok(isn.scHeadRows({ row_count: BIG, cells: sc.cells }) <= 2);
+  assert.strictEqual(isn.scGrid({ row_count: BIG, cells: [] }).length, 200);
+  assert.strictEqual(isn.scNorm({ cells: [{ r: 5000, c: 0, text: 'x' }] }), null);
+});
+test('scNorm 상한: 정상 표는 결과가 그대로다', function () {
+  const sc = isn.scNorm({ cells: [{ r: 0, c: 0, rs: 1, cs: 2, text: 'x' }, { r: 1, c: 0, text: 'a' }, { r: 1, c: 1, text: 'b' }], row_count: 2, col_count: 2 });
+  assert.deepStrictEqual([sc.row_count, sc.col_count, sc.cells.length], [2, 2, 3]);
+  assert.strictEqual(sc.cells[0].cs, 2);
+});

@@ -196,8 +196,12 @@
   function posInt(v, d) { const n = Math.floor(Number(v)); return isFinite(n) && n >= 0 ? n : d; }
   isn.scNorm = function (sc) {
     const o = obj(sc);
+    // 상한(SC.rows·SC.cols = 서버 MAX_SCORING_ROWS 200·MAX_SCORING_COLS 12 와 같다) — 저장본의 rs=2147483647 같은 값으로 격자가 끝없이 돌지 않게 자른다.
     const cells = arr(o.cells).filter(function (x) { return x && typeof x === 'object'; }).map(function (x) {
       return { r: posInt(x.r, 0), c: posInt(x.c, 0), rs: Math.max(1, posInt(x.rs, 1)), cs: Math.max(1, posInt(x.cs, 1)), text: s(x.text) };
+    }).filter(function (x) { return x.r < SC.rows && x.c < SC.cols; }).map(function (x) {
+      x.rs = Math.min(x.rs, SC.rows - x.r); x.cs = Math.min(x.cs, SC.cols - x.c);
+      return x;
     });
     if (!cells.length) return null;
     let rn = 0, cn = 0;
@@ -205,7 +209,7 @@
     const tn = o.total == null || o.total === '' ? NaN : Number(o.total);
     const so = o.source && typeof o.source === 'object' && !Array.isArray(o.source) ? o.source : null;
     return {
-      row_count: Math.max(rn, posInt(o.row_count, 0)), col_count: Math.max(cn, posInt(o.col_count, 0)),
+      row_count: Math.min(SC.rows, Math.max(rn, posInt(o.row_count, 0))), col_count: Math.min(SC.cols, Math.max(cn, posInt(o.col_count, 0))),
       total: isFinite(tn) && Math.floor(tn) === tn ? tn : null,
       source: so ? { attach_id: so.attach_id == null ? null : Number(so.attach_id), file: s(so.file), table: so.table == null ? null : posInt(so.table, 0) } : null,
       cells: cells,
@@ -251,7 +255,7 @@
   };
   // 칸을 행별로: [{ r, cells:[{ c, rs, cs, text, head }] }] — 화면이 rowspan·colspan 으로 그린다.
   isn.scHeadRows = function (sc) {
-    const cells = arr(sc && sc.cells), rows = Number(sc && sc.row_count) || 0;
+    const cells = arr(sc && sc.cells), rows = Math.min(SC.rows, Number(sc && sc.row_count) || 0);
     const first = cells.filter(function (x) { return x.r === 0; });
     if (first.some(function (x) { return x.rs >= 2; })) return 2;
     if (first.some(function (x) { return x.cs > 1; }) && rows >= 3) return 2;
@@ -261,7 +265,7 @@
     const out = [];
     if (!sc) return out;
     const hr = isn.scHeadRows(sc);
-    for (let r = 0; r < sc.row_count; r += 1) out.push({ r: r, cells: [] });
+    for (let r = 0, rn = Math.min(SC.rows, Number(sc.row_count) || 0); r < rn; r += 1) out.push({ r: r, cells: [] });
     arr(sc.cells).slice().sort(function (a, b) { return a.r - b.r || a.c - b.c; }).forEach(function (x) {
       if (out[x.r]) out[x.r].cells.push({ c: x.c, rs: x.rs, cs: x.cs, text: x.text, head: x.r < hr, cell: x });
     });
@@ -516,7 +520,8 @@
     if (mm.scoring) {
       const sc = isn.scNorm(mm.scoring);
       if (sc) {
-        if (sc.row_count > SC.rows) add('isf-sc-add', T.scRowsBad);
+        // scNorm 이 200 으로 자르므로 자르기 전 값(mm.scoring)으로 본다 — 줄이 200 을 넘으면 안내한다.
+        if (Number(mm.scoring.row_count) > SC.rows || arr(mm.scoring.cells).some(function (x) { return x && Number(x.r) >= SC.rows; })) add('isf-sc-add', T.scRowsBad);
         sc.cells.forEach(function (x) { if (t(x.text).length > SC.cell) add('isf-s-' + x.r + '-' + x.c, T.scCellBad); });
       }
     }

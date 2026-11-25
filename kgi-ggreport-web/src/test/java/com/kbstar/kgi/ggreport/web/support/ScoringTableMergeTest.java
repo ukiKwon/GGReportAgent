@@ -119,6 +119,22 @@ public class ScoringTableMergeTest {
     }
 
     @Test
+    public void colAddr가_int_최대인_칸_뒤에_주소_없는_칸이_와도_모든_칸이_범위_안이다() throws Exception {
+        String t = "<hp:tbl>" + tr(tc("배점", 0, 0, 1, 1), tc("x", 2147483647, 0, 1, 1), tc("y", -1, 0, 0, 0))
+                + tr(tc("가", 0, 1, 1, 1), tc("100", 1, 1, 1, 1))
+                + tr(tc("합계", 0, 2, 1, 1), tc("100", 1, 2, 1, 1)) + "</hp:tbl>";
+        ScoringTable.Result r = ScoringTable.extract("hwpx", hwpx(HEAD + t + TAIL));
+        assertNotNull(r);
+        assertTrue(r.getColCount() <= 12);
+        for (ScoringTable.Cell c : r.getCells()) {
+            assertTrue(c.getR() >= 0);
+            assertTrue(c.getC() >= 0);
+            assertTrue(c.getRs() >= 1);
+            assertTrue(c.getCs() >= 1);
+        }
+    }
+
+    @Test
     public void 후보_표가_둘이면_첫_표가_기본이고_후보_수와_머리가_돌아온다() throws Exception {
         String second = "<hp:tbl>" + tr(tc("구분", 0, 0, 1, 1), tc("배점(점)", 1, 0, 1, 1))
                 + tr(tc("가격", 0, 1, 1, 1), tc("30", 1, 1, 1, 1)) + tr(tc("합계", 0, 2, 1, 1), tc("30", 1, 2, 1, 1)) + "</hp:tbl>";

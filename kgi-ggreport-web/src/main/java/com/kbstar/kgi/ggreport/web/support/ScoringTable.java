@@ -326,8 +326,8 @@ public final class ScoringTable {
                         }
                         int rr = cr >= 0 ? cr : rowIdx;
                         int c0 = cc >= 0 ? cc : colCursor;
-                        colCursor = c0 + ccs;
-                        if (rr < MAX_ROWS && c0 < MAX_COLS && tbl != null && tbl.cells.size() < MAX_ROWS * MAX_COLS) {
+                        colCursor = (int) Math.min((long) MAX_COLS, (long) c0 + ccs);
+                        if (rr >= 0 && c0 >= 0 && rr < MAX_ROWS && c0 < MAX_COLS && tbl != null && tbl.cells.size() < MAX_ROWS * MAX_COLS) {
                             int rs = Math.min(crs, MAX_ROWS - rr);
                             int cs = Math.min(ccs, MAX_COLS - c0);
                             tbl.cells.add(new Cell(rr, c0, rs, cs, text));

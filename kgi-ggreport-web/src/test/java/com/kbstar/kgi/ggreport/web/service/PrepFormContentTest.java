@@ -275,6 +275,11 @@ public class PrepFormContentTest {
     }
 
     @Test
+    public void 평가표_병합_수가_int_최대여도_넘침_없이_BAD_SCORING이다() {
+        expectTables("{'scoring':{'row_count':2,'col_count':2,'cells':[{'r':1,'c':1,'rs':2147483647,'cs':2147483647,'text':'x'}]}}", 400, "BAD_SCORING");
+    }
+
+    @Test
     public void 평가표_칸_글자는_500자_개인정보_형_모르는_키를_검사한다() {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < 501; i++) {

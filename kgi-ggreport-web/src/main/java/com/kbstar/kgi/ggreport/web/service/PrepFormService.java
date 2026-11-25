@@ -1175,7 +1175,8 @@ public class PrepFormService {
             int k = strictInt(c.get("c"), "scoring");
             int rs = strictInt(c.get("rs"), "scoring");
             int cs = strictInt(c.get("cs"), "scoring");
-            if (r < 0 || k < 0 || rs < 1 || cs < 1 || r + rs > rn || k + cs > cn) {
+            if (r < 0 || k < 0 || rs < 1 || cs < 1 || rs > rn || cs > cn
+                    || (long) r + rs > rn || (long) k + cs > cn) {
                 throw badScoring("평가 기준표 칸의 위치·병합 범위가 표 밖입니다.");
             }
             for (int i = r; i < r + rs; i++) {

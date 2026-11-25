@@ -416,4 +416,17 @@ public class InstSummaryDocBuilderTest {
             // ok
         }
     }
+
+    @Test
+    public void v3_평가표_칸_병합_수가_int_최대여도_넘침_없이_IllegalArgumentException이다() {
+        JsonNode c = content(BIZ_ROWS, "null");
+        set(c, "/tables", "scoring", "{'row_count':2,'col_count':2,'total':null,'source':null,'cells':["
+                + "{'r':1,'c':1,'rs':2147483647,'cs':2147483647,'text':'x'}]}");
+        try {
+            InstSummaryDocBuilder.build(c, 3, false);
+            fail("넘침 값");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+    }
 }

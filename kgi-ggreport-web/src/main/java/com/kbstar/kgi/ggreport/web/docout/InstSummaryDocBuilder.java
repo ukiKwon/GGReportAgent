@@ -337,7 +337,8 @@ public final class InstSummaryDocBuilder {
             rs[i] = n.path("rs").asInt(1);
             cs[i] = n.path("cs").asInt(1);
             tx[i] = orEmpty(text(n.path("text")));
-            if (cr[i] < 0 || cc[i] < 0 || rs[i] < 1 || cs[i] < 1 || cr[i] + rs[i] > rn || cc[i] + cs[i] > cn) {
+            if (cr[i] < 0 || cc[i] < 0 || rs[i] < 1 || cs[i] < 1 || rs[i] > rn || cs[i] > cn
+                    || (long) cr[i] + rs[i] > rn || (long) cc[i] + cs[i] > cn) {
                 throw new IllegalArgumentException("scoring cell range");
             }
             for (int r = cr[i]; r < cr[i] + rs[i]; r++) {
