@@ -66,8 +66,9 @@ test('PHASES·STEPS: 구간 3개, 24단계(담당자 지정 + 현업 23단계), 
     assert.ok(k >= last, s.label + ' 구간이 앞으로 돌아가지 않는다');
     last = k;
   });
-  assert.deepStrictEqual(pt.phaseIdxs('agree').map(function (i) { return pt.STEPS[i].label; }), ['우선협상', '협약서(법률)', '협약체결품의', '협약식']);
-  assert.deepStrictEqual(pt.phaseIdxs('after').map(function (i) { return pt.STEPS[i].label; }), ['ATM', 'KB카드', '전산구축', 'VIP 지정', '금리승인']);
+  assert.deepStrictEqual(pt.phaseIdxs('agree').map(function (i) { return pt.STEPS[i].label; }), ['우선협상', '협약서(법률)', '협약체결품의']);
+  assert.deepStrictEqual(pt.phaseIdxs('after').map(function (i) { return pt.STEPS[i].label; }), ['ATM', 'KB카드', '전산구축', 'VIP 지정', '금리승인', '협약식']);
+  assert.strictEqual(pt.STEPS[pt.STEPS.length - 1].label, '협약식', '엑셀 칸 순서 그대로 협약식이 마지막');
   assert.strictEqual(pt.phaseIdxs('prep').length, 15);
 });
 
@@ -146,7 +147,7 @@ test('phaseModel·phaseEntryIdx: 구간 숫자와 구간 단추가 데려갈 단
   const v = view('IN_PROGRESS');
   const pm = pt.phaseModel(v, row(), MARKS, idxOf('FIN_COMMITTEE'));
   assert.deepStrictEqual(pm.map(function (p) { return [p.key, p.no, p.done, p.total, p.current]; }),
-    [['prep', 1, 1, 14, true], ['agree', 2, 0, 4, false], ['after', 3, 0, 5, false]]);   // prep: 15단계 중 입찰공고확인 제외 14, 끝난 것 = 담당자 지정
+    [['prep', 1, 1, 14, true], ['agree', 2, 0, 3, false], ['after', 3, 0, 6, false]]);   // prep: 15단계 중 입찰공고확인 제외 14, 끝난 것 = 담당자 지정
   assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('agree', v, row(), MARKS)].id, 'PRIORITY_NEGO');
   assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('prep', v, row(), MARKS)].id, 'INST_ANALYSIS');
   const r = row({ cells: { PRIORITY_NEGO: { mark_cd: 'DONE' } } });
@@ -160,8 +161,8 @@ test('phaseModel·phaseEntryIdx: 구간 숫자와 구간 단추가 데려갈 단
 test('stepsModel·stepsHtml: 지금 구간의 단계만, 번호는 전체 순번, 탭 정지는 지금 단계 하나', function () {
   const v = view('IN_PROGRESS');
   const m = pt.stepsModel(v, row(), MARKS, idxOf('AGREE_LEGAL'));
-  assert.deepStrictEqual(m.map(function (x) { return x.label; }), ['우선협상', '협약서(법률)', '협약체결품의', '협약식']);
-  assert.deepStrictEqual(m.map(function (x) { return x.no; }), [16, 17, 18, 19]);
+  assert.deepStrictEqual(m.map(function (x) { return x.label; }), ['우선협상', '협약서(법률)', '협약체결품의']);
+  assert.deepStrictEqual(m.map(function (x) { return x.no; }), [16, 17, 18]);
   const h = pt.stepsHtml(m);
   assert.strictEqual((h.match(/tabindex="0"/g) || []).length, 1);
   assert.strictEqual((h.match(/aria-current="step"/g) || []).length, 1);

@@ -16,7 +16,8 @@
   function str(v) { return v == null ? '' : String(v); }
 
   // ── 구간·단계 정본 ───────────────────────────────────────────────
-  // 구간 나눔은 사용자 11-25 "제안서를 쓰기 위한 사전 단계(제안서 작성 포함) · 협약일 · 협약일 이후". 어느 단계가 어느 구간인지는 아래 ph 값으로 바꾼다.
+  // 구간 나눔은 사용자 11-25 "제안서를 쓰기 위한 사전 단계(제안서 작성 포함) · 협약일 · 협약일 이후". 단계 순서는 엑셀 칸 순서 그대로(협약식이 맨 끝 — 사용자 11-25 확정).
+  // 어느 단계가 어느 구간인지는 아래 ph 값으로 바꾼다.
   pt.PHASES = [
     { key: 'prep', label: '제안 사전준비' },
     { key: 'agree', label: '협약' },
@@ -47,12 +48,12 @@
     step('PRIORITY_NEGO', '우선협상', 'manual', 'agree'),
     step('AGREE_LEGAL', '협약서(법률)', 'manual', 'agree'),
     step('CONTRACT_APPR', '협약체결품의', 'group', 'agree', { subs: [sub('CONTRACT_AUDIT', '감사·감시'), sub('CONTRACT_STRATEGY', '전략'), sub('CONTRACT_PROPERTY', '재산상이익'), sub('CONTRACT_BRANCH', '영업점안내')] }),
-    step('CEREMONY', '협약식', 'manual', 'agree'),
     step('ATM', 'ATM', 'manual', 'after'),
     step('KB_CARD', 'KB카드', 'manual', 'after'),
     step('IT_BUILD', '전산구축', 'manual', 'after'),
     step('VIP', 'VIP 지정', 'manual', 'after'),
     step('RATE_APPROVAL', '금리승인', 'manual', 'after'),
+    step('CEREMONY', '협약식', 'manual', 'after'),
   ];
   pt.clampIdx = function (i) {
     const n = Number(i);
