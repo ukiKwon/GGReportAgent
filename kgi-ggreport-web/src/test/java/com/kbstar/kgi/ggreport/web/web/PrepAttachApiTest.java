@@ -404,6 +404,24 @@ public class PrepAttachApiTest {
         assertEquals("UNCHECKED", json(getAs("/bidcases/" + bid + "/prep/attachments", HEAD)).get(0).path("pii_state").asText());
     }
 
+    /** 단계 자료 3종(입찰공고 원본·이사회 추가 자료·이사회 결과 문서)도 같은 규칙으로 올리고 목록에 종류가 실린다(사용자 2026-11-25). */
+    @Test
+    public void 단계_자료_3종_올리기_목록에_종류() throws Exception {
+        String bid = opened();
+        uploaded(bid, MEMBER2, "NOTICE", "공고문.pdf", pdf("Public notice for the treasury bank selection", false));
+        uploaded(bid, MEMBER2, "BOARD_ADD", "추가자료.docx", docx("가상 설명"));
+        uploaded(bid, MEMBER2, "BOARD_RES", "결과통보.pdf", pdf("Board resolution result summary", false));
+        JsonNode list = json(getAs("/bidcases/" + bid + "/prep/attachments", MEMBER2));
+        java.util.Set<String> kinds = new java.util.TreeSet<>();
+        for (JsonNode n : list) {
+            kinds.add(n.path("task_cd").asText());
+            assertFalse(n.path("confirmed").asBoolean());   // 확정본 지정은 T3 만
+        }
+        assertEquals("[BOARD_ADD, BOARD_RES, NOTICE]", kinds.toString());
+        assertEquals(400, upload(bid, MEMBER2, "BOARD", "a.pdf", pdf("x y z", false)).getResponse().getStatus());   // 목록에 없는 종류
+        assertEquals(403, upload(bid, MEMBER, "NOTICE", "a.pdf", pdf("x y z", false)).getResponse().getStatus());   // 담당자만
+    }
+
     @Test
     public void 업로드_입력_검사_과제_코드_파일_없음_이름() throws Exception {
         String bid = opened();

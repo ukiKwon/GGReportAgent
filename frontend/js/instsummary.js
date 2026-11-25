@@ -49,7 +49,7 @@
 
   // ── 화면 문구 ─────────────────────────────────────────────────────
   const T = isn.T = {
-    title: function (n) { return '기관 정보 요약 — ' + s(n); },
+    title: function (n) { return '기관 선정 입찰참여 관련 요약 — ' + s(n); },
     loading: '양식을 불러오는 중…',
     prefilling: '원본에서 기관명·기관장·현 거래 은행과 주요 사업을 채우는 중…',
     emptyView: '아직 작성하지 않았습니다. 이 건의 영업 담당자가 작성하면 여기에서 볼 수 있습니다.',
@@ -1334,7 +1334,7 @@
       focusId('isf-refillall');
       return;
     }
-    dlgApi().confirm({ title: '기관 정보 요약 확정', text: isn.confirmText(my.view.cur_ver, isDirtyNow(my)), go: '확정' }).then(function (yes) {
+    dlgApi().confirm({ title: '기관 선정 입찰참여 관련 요약 확정', text: isn.confirmText(my.view.cur_ver, isDirtyNow(my)), go: '확정' }).then(function (yes) {
       if (!yes || S !== my) return null;
       return ensureSaved(BTN.confirm).then(function (saved) {
         if (!saved || S !== my) return null;
@@ -1395,7 +1395,7 @@
     inp.addEventListener('input', function () { countUpd(inp, cnt, REASON_MAX); });
     const cancel = btn('취소', { id: 'isf-un-cancel' });
     const go = btn('확정 취소', { id: 'isf-un-go', cls: 'dlg-go' });
-    const mini = miniDlg('isf-un', 'isf-un-t', '확정 취소 — 기관 정보 요약', [cancel, go]);
+    const mini = miniDlg('isf-un', 'isf-un-t', '확정 취소 — 기관 선정 입찰참여 관련 요약', [cancel, go]);
     const err = h('p', { cls: 'dlg-err', id: 'isf-un-err', role: 'alert' });
     mini.note.appendChild(err);
     mini.body.appendChild(h('div', { cls: 'dlg-f' }, [
@@ -1437,7 +1437,7 @@
     isn.call('GET', isn.url(my.bid, '/versions'), undefined, BTN.history).then(function (list) {
       if (S !== my) return;
       const D = dlgApi();
-      const mini = miniDlg('isf-hist', 'isf-hist-t', '판 이력 — 기관 정보 요약', null);
+      const mini = miniDlg('isf-hist', 'isf-hist-t', '판 이력 — 기관 선정 입찰참여 관련 요약', null);
       mini.body.appendChild(h('p', { cls: 'isf-cap', text: T.histHelp }));
       const rows = isn.histRows(list);
       mini.body.appendChild(h('table', { cls: 'isf-hist' }, [

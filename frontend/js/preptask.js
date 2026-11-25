@@ -24,7 +24,8 @@
     { key: 'agree', label: '협약 이행 준비' },
   ];
   // cd = 서버 PrepBoardColumns 칸 코드(묶음은 묶음 코드, 칸이 아닌 단계는 ''). tasks = 이 단계 본문에 싣는 사전준비 과제 코드.
-  // kind: start(담당자 지정)·notice(읽기만)·auto(과제가 채움)·board(이사회 자료)·script(발표 대본)·proposal(제안서)·manual(담당 영업 체크)·group(묶음 체크)
+  // kind: start(담당자 지정)·notice(읽기만)·auto(과제가 채움)·board(이사회 준비 한 묶음)·proposal(제안서)·manual(담당 영업 체크)·group(묶음 체크)
+  // 사용자 11-25: '이사회 자료 작성'과 '이사회 발표 대본'은 한 단계(이사회 준비 = 자료 작성·일정 등록·추가 자료 등록·발표 대본), '이사회'는 '이사회 개최 및 결과'(결과 등록·결과 문서 보관).
   function step(cd, label, kind, ph, o) {
     return Object.assign({ cd: cd, id: cd, label: label, kind: kind, ph: ph, tasks: [], subs: null }, o || {});
   }
@@ -36,9 +37,8 @@
     step('PROFIT', '수익성분석', 'auto', 'bid', { tasks: ['T3'] }),
     step('FIN_COMMITTEE', '가결위(재무)', 'manual', 'bid'),
     step('BIZ_COMMITTEE', '출심위(사업부)', 'manual', 'bid'),
-    step('', '이사회 자료 작성', 'board', 'bid', { id: 'BOARD_DOC', tasks: ['T5'] }),
-    step('', '이사회 발표 대본', 'script', 'bid', { id: 'BOARD_SCRIPT', tasks: ['T6'] }),
-    step('BOARD', '이사회', 'group', 'bid', { subs: [sub('BOARD_SECRETARIAT', '사무국'), sub('BOARD_AUDIT', '감사·감시'), sub('BOARD_COMPLIANCE', '준법')] }),
+    step('', '이사회 준비', 'board', 'bid', { id: 'BOARD_DOC', tasks: ['T5', 'T6'] }),
+    step('BOARD', '이사회 개최 및 결과', 'group', 'bid', { result: true, subs: [sub('BOARD_SECRETARIAT', '사무국'), sub('BOARD_AUDIT', '감사·감시'), sub('BOARD_COMPLIANCE', '준법')] }),
     step('PROPOSAL', '제안서', 'proposal', 'prep'),
     step('PRESENT_DOC', '발표자료', 'manual', 'prep'),
     step('SUBMIT_DOCS', '제출서류', 'manual', 'prep', { tasks: ['T4'] }),
@@ -117,17 +117,62 @@
     saving: '저장 중…',
     lastCheck: function (date, by) { return '마지막 체크 ' + date + (by ? ' ' + by : ''); },
     taskNone: '이 단계에 걸린 준비 과제가 없습니다.',
-    foldHint: '아래 내용을 읽고, 고칠 것이 있으면 [수정하기]로 고친 뒤 과제마다 [완료로 표시]를 누릅니다.',
+    foldHint: '아래 내용을 읽고, 비어 있으면 [작성하기], 고칠 것이 있으면 [수정하기]로 고친 뒤 과제마다 [완료로 표시]를 누릅니다.',
     foldCheckHint: '내용을 확인했으면 [완료로 표시]를 누르세요.',
     docEdit: '수정하기',
+    docWrite: '작성하기',
     docShow: '다시 보기',
     docFold: '접기',
     docLoading: '내용을 불러오는 중…',
     docErr: '내용을 불러오지 못했습니다. [수정하기]로 열어 확인하세요.',
-    sumEmpty: '아직 작성하지 않았습니다. [수정하기]를 눌러 작성하세요.',
+    sumEmpty: '아직 작성하지 않았습니다. [작성하기]를 눌러 작성하세요.',
     sumNone: '적은 내용 없음',
     changeAssignee: '담당자 변경…',
-    changeAssigneeNote: '담당자 변경은 [제안팀 구성·배정] 화면에서 요청합니다.',
+    changeAssigneeNote: '담당자는 여러 명을 둘 수 있습니다. 변경은 이 화면에서 요청하고, 영업팀장(팀장이 들어 있으면 영업부장)이 승인하면 바뀝니다.',
+    changeAssigneeView: '담당자 변경은 지금 담당자나 영업팀장이 요청합니다.',
+    assigneeCount: function (n) { return '담당 ' + n + '명'; },
+    // 2단계 확인 항목(사용자 11-25: 공고 진행·원본 파일을 확인, 마감 같은 사실은 붉은 글씨 + 체크 모양)
+    chkHead: '확인 항목',
+    chkProgress: '공고 진행',
+    chkFile: '공고 원본 파일',
+    fileHas: function (n) { return '있음 · ' + n + '개'; },
+    fileNone: '없음 — 아래에서 올려 주세요.',
+    fileNoneView: '없음 — 이 기관의 담당 영업이 올립니다.',
+    fileUnknown: '담당자 지정 뒤에 올릴 수 있습니다.',
+    progReceiving: function (to, dd) { return '접수 중' + (to ? ' · 마감 ' + to : '') + (dd ? ' (' + dd + ')' : ''); },
+    progUnknown: function (since) { return '공고 진행 중 · 접수 마감일 미확인(공고 후 ' + since + '일)'; },
+    progPast: function (to) { return '마감 — 접수 마감이 지났습니다' + (to ? '(마감 ' + to + ')' : '') + '.'; },
+    progLate: function (since) { return '마감일을 모르는 채로 공고 후 ' + since + '일이 지났습니다. 결과 공고를 확인하세요.'; },
+    progNone: '진행 중인 공고가 없습니다.',
+    progRec: { CLOSED: '마감 — 이번 회차 공고가 끝난 것으로 기록돼 있습니다.', NO_BID: '입찰 없음으로 기록돼 있습니다.', DELAYED: '지연·재공고 대기로 기록돼 있습니다.' },
+    noticeFilesTitle: '공고 원본 파일',
+    noticeFilesHint: '공고문·제안요청서(RFP) 원본을 올려 둡니다. PDF·HWPX·DOCX·XLSX (HWP는 HWPX나 PDF로 저장해 올립니다).',
+    noticeFilesEmpty: '아직 올린 공고 원본 파일이 없습니다.',
+    // 7단계 이사회 준비 · 8단계 이사회 개최 및 결과
+    secDoc: '이사회 자료 작성',
+    secSched: '이사회 일정 등록',
+    secAdd: '이사회 추가 자료 등록',
+    secScript: '이사회 발표 대본',
+    secResult: '이사회 결과 등록',
+    secResDoc: '이사회 결과 문서 보관',
+    secMarks: '부서별 확인',
+    schedNone: '아직 등록한 이사회 일정이 없습니다.',
+    schedNeedDoc: '이사회 자료가 확정된 뒤에 일정을 등록합니다.',
+    schedNoMat: '이사회 자료가 만들어진 뒤에 등록합니다.',
+    schedView: '일정·결과는 이 기관의 담당 영업이 등록합니다.',
+    schedSave: '일정 등록',
+    schedEdit: '일정 바꾸기',
+    schedDate: '이사회 날짜',
+    resNone: '아직 등록한 결과가 없습니다.',
+    resSave: '결과 등록',
+    resLabel: '의결 결과',
+    resDate: '개최일',
+    resNames: { SCHEDULED: '의결 예정', PASSED: '가결', REJECTED: '부결' },
+    addFilesHint: '이사회에 함께 올리는 설명 자료·별첨을 올려 둡니다. PDF·HWPX·DOCX·XLSX.',
+    addFilesEmpty: '아직 올린 추가 자료가 없습니다.',
+    resFilesHint: '이사회 의결서·결과 통보 같은 결과 문서를 올려 보관합니다. PDF·HWPX·DOCX·XLSX.',
+    resFilesEmpty: '아직 올린 결과 문서가 없습니다.',
+    filesLater: '담당자 지정이 끝나면 담당 영업이 올리고, 담당 영업·영업팀장·영업부장이 봅니다.',
     nextAskTitle: '다음 단계로',
     nextAsk: function (label) { return '현재 상태를 저장하고 다음 단계(' + label + ')로 넘어갑니다.'; },
     nextNo: '닫기',
@@ -206,6 +251,37 @@
     return g;
   };
 
+  // 2단계 '확인 항목' 줄(사용자 11-25): 공고 진행과 공고 원본 파일. 마감·입찰 없음처럼 꼭 알아야 하는 사실과 원본 파일 없음은 bad(붉은 글씨).
+  //   ns = logic.noticeState 결과(없으면 null), recCd = 담당자가 적은 공고 상태 기록 코드, files = { known, n }, o = { canUpload }
+  // → [{ label, text, bad }]. bad는 '확인 필요'(gaps)와 다르다 — 넘어가는 것을 막지 않고 사실만 알린다.
+  pt.noticeChecks = function (ns, recCd, files, o) {
+    const x = o || {}, fl = files || {};
+    const out = [];
+    const rec = T.progRec[str(recCd)];
+    if (rec) out.push({ label: T.chkProgress, text: rec, bad: true });
+    else if (!ns) out.push({ label: T.chkProgress, text: T.progNone, bad: false });
+    else if (ns.phase === 'receiving') {
+      const dl = Number(ns.deadlineDays);
+      out.push({ label: T.chkProgress, text: T.progReceiving(str(ns.receiveTo), dl === 0 ? 'D-day' : dl > 0 ? 'D-' + dl : ''), bad: false });
+    } else if (ns.phase === 'awaiting') out.push({ label: T.chkProgress, text: T.progPast(str(ns.receiveTo)), bad: true });
+    else if (ns.late) out.push({ label: T.chkProgress, text: T.progLate(Number(ns.since) || 0), bad: true });
+    else out.push({ label: T.chkProgress, text: T.progUnknown(Number(ns.since) || 0), bad: false });
+    if (!fl.known) out.push({ label: T.chkFile, text: T.fileUnknown, bad: false });
+    else if (Number(fl.n) > 0) out.push({ label: T.chkFile, text: T.fileHas(Number(fl.n)), bad: false });
+    else out.push({ label: T.chkFile, text: x.canUpload ? T.fileNone : T.fileNoneView, bad: true });
+    return out;
+  };
+  // 체크 모양(네모 안의 ✓) — 글자색을 따른다.
+  pt.CK_SVG = '<svg class="ts-ck" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4.4 8.3l2.4 2.4 4.8-5.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  pt.noticeChecksHtml = function (checks) {
+    const list = Array.isArray(checks) ? checks : [];
+    if (!list.length) return '';
+    return '<div class="ts-chk" role="group" aria-label="' + esc(T.chkHead) + '"><ul>' + list.map(function (c) {
+      return '<li' + (c.bad ? ' class="is-bad"' : '') + '>' + pt.CK_SVG + '<span class="ts-chk-l">' + esc(c.label) + '</span><span class="ts-chk-t">' + esc(c.text) +
+        (c.bad ? '<span class="sr-only"> (확인하세요)</span>' : '') + '</span></li>';
+    }).join('') + '</ul></div>';
+  };
+
   // ── 단계 상태(왼쪽 목록의 글리프·구간 숫자·'지금 할 단계') ────────────
   // → { glyph: 'done'|'prog'|'na'|'', text, cnt, closed(끝났거나 대상 아님) }
   pt.stepState = function (s, view, row, marks) {
@@ -241,8 +317,11 @@
     } else if (s.kind === 'proposal') {
       const c = fromCell(s.cd);
       if (c.mark === 'NONE' && v.state_cd === 'WRITING') { out.glyph = 'prog'; out.text = T.stWriting; }
-    } else {   // auto·board·script — 과제 상태가 먼저, 과제가 아직 없으면(담당자 지정 전) 표의 칸
-      const ts = tasksOf(v, s).filter(function (t) { return t.state !== 'PREPARING'; });
+    } else {   // auto·board — 과제 상태가 먼저, 과제가 아직 없으면(담당자 지정 전) 표의 칸
+      // 선택 과제(이사회 발표 대본)는 필수 과제와 한 단계에 있을 때 단계의 끝남을 막지 않는다.
+      const live = tasksOf(v, s).filter(function (t) { return t.state !== 'PREPARING'; });
+      const must = live.filter(function (t) { return t.kind_cd !== 'OPTIONAL'; });
+      const ts = must.length ? must : live;
       if (ts.length) {
         const done = ts.filter(function (t) { return t.state === 'DONE'; }).length;
         const na = ts.filter(function (t) { return t.state === 'NOT_APPLICABLE'; }).length;
@@ -458,7 +537,7 @@
       const live = t.state === 'TODO' || t.state === 'DONE';
       const open = live && (t.state !== 'DONE' || !!fo[cd]);
       let acts = '';
-      if (live && vw.is_assignee) acts += '<button type="button" class="pp-act" data-act="doc-edit" data-task="' + esc(cd) + '" aria-label="\'' + esc(t.name) + '\' 수정하기">' + esc(T.docEdit) + '</button>';
+      if (live && vw.is_assignee) acts += '<button type="button" class="pp-act" data-act="doc-edit" data-task="' + esc(cd) + '" aria-label="\'' + esc(t.name) + '\' ' + esc(d.empty ? T.docWrite : T.docEdit) + '">' + esc(d.empty ? T.docWrite : T.docEdit) + '</button>';
       if (t.state === 'DONE') acts += '<button type="button" class="pp-act" data-act="doc-toggle" data-task="' + esc(cd) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' + esc(open ? T.docFold : T.docShow) + '</button>';
       const body = !open ? '' : '<div class="ts-fold" tabindex="0" role="region" aria-label="' + esc(t.name + ' 내용') + '">' +
         (d.state === 'ok' ? str(d.html) || note(T.sumNone) : note(d.state === 'err' ? T.docErr : T.docLoading)) + '</div>';
@@ -486,6 +565,47 @@
     return note(T.docLoading);
   };
 
+  function sec(title, inner) { return '<div class="ts-sec"><h4 class="ts-sec-h">' + esc(title) + '</h4>' + inner + '</div>'; }
+  // 이사회 일정·결과(이사회 자료의 '의결 결과·개최일' 칸을 그대로 쓴다 — 서버 규칙: 확정된 자료에만, 담당 영업만).
+  // b = stepBoard 결과 + { resultCd, meeting(YYYY-MM-DD), canResult, resBusy, resErr }
+  function resultFact(b) {
+    const nm = T.resNames[str(b.resultCd)] || '';
+    return '<dl class="ts-facts"><div><dt>' + esc(T.schedDate) + '</dt><dd><span class="m">' + esc(b.meeting || '—') + '</span></dd></div>' +
+      '<div><dt>' + esc(T.resLabel) + '</dt><dd>' + esc(nm || '—') + '</dd></div></dl>';
+  }
+  function resultGate(b) {
+    if (!b || b.state === 'loading') return note(T.docLoading);
+    if (b.state !== 'ok') return note(b.state === 'err' ? T.boardErr : T.schedNoMat);
+    if (!b.confirmed) return note(T.schedNeedDoc);
+    return '';
+  }
+  pt.boardSchedHtml = function (b) {
+    const g = resultGate(b);
+    if (g) return g;
+    let h = b.meeting ? resultFact(b) : note(T.schedNone);
+    if (!b.canResult) return h + note(T.schedView);
+    // 결과(가결·부결)가 이미 있으면 일정은 8단계에서 고친다 — 여기서 날짜만 바꾸면 결과가 '의결 예정'으로 돌아간다.
+    if (str(b.resultCd) && str(b.resultCd) !== 'SCHEDULED') return h;
+    return h + '<div class="ts-form"><label for="ts-sched-date">' + esc(T.schedDate) + '</label>' +
+      '<input type="date" id="ts-sched-date" value="' + esc(b.meeting || '') + '">' +
+      '<button type="button" data-act="board-sched"' + (b.resBusy ? ' aria-disabled="true"' : '') + '>' + esc(b.meeting ? T.schedEdit : T.schedSave) + '</button>' +
+      (b.resBusy ? '<span class="ts-saving">' + esc(T.saving) + '</span>' : '') + '</div>' +
+      (b.resErr ? '<p class="ap-err" role="alert">' + esc(b.resErr) + '</p>' : '');
+  };
+  pt.boardResultHtml = function (b) {
+    const g = resultGate(b);
+    if (g) return g;
+    const cur = str(b.resultCd);
+    let h = cur ? resultFact(b) : note(T.resNone);
+    if (!b.canResult) return h + note(T.schedView);
+    return h + '<div class="ts-form"><label for="ts-res-cd">' + esc(T.resLabel) + '</label><select id="ts-res-cd">' +
+      ['SCHEDULED', 'PASSED', 'REJECTED'].map(function (k) { return '<option value="' + k + '"' + (k === (cur || 'PASSED') ? ' selected' : '') + '>' + esc(T.resNames[k]) + '</option>'; }).join('') + '</select>' +
+      '<label for="ts-res-date">' + esc(T.resDate) + '</label><input type="date" id="ts-res-date" value="' + esc(b.meeting || '') + '">' +
+      '<button type="button" data-act="board-result"' + (b.resBusy ? ' aria-disabled="true"' : '') + '>' + esc(T.resSave) + '</button>' +
+      (b.resBusy ? '<span class="ts-saving">' + esc(T.saving) + '</span>' : '') + '</div>' +
+      (b.resErr ? '<p class="ap-err" role="alert">' + esc(b.resErr) + '</p>' : '');
+  };
+
   const PROPOSAL_STATES = ['IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING'];
 
   // m: prep.caseHtml과 같은 모델 + { row, marks, rowState, idx, markBusy }
@@ -503,9 +623,16 @@
       if (sc === 'CONFIRMED' || sc === 'OPEN_PENDING') h += note(T.startHint) + prep.endHtml(v, ctx);
       else if (sc === 'CANCELLED') h += note(T.startEnded);
       else {
-        const names = (Array.isArray(v.assignees) ? v.assignees : []).map(function (a) { return str(a.name); }).filter(Boolean);
-        h += note(T.startDone) + '<dl class="ts-facts"><div><dt>담당</dt><dd>' + esc(names.length ? names.join(', ') : prep.T.noAssignees) + '</dd></div></dl>' +
-          '<div class="ts-acts"><button type="button" data-act="go-nav" data-nav="team">' + esc(T.changeAssignee) + '</button><span class="ts-note">' + esc(T.changeAssigneeNote) + '</span></div>';
+        // 담당자는 여러 명일 수 있다. 변경은 이 화면에서(사용자 11-25) — 담당자 고르기 창을 지금 담당자가 골라진 채로 연다.
+        const as = (Array.isArray(v.assignees) ? v.assignees : []).filter(function (a) { return a && str(a.name); });
+        const vw = v.viewer || {};
+        const canChange = PROPOSAL_STATES.indexOf(sc) >= 0 && (vw.is_assignee === true || m.role === prep.LEAD);
+        h += note(T.startDone) + '<div class="ts-sec"><h4 class="ts-sec-h">' + esc(T.assigneeCount(as.length)) + '</h4>' +
+          (as.length ? '<ul class="ts-people">' + as.map(function (a) {
+            return '<li><b>' + esc(a.name) + '</b>' + (str(a.position) ? '<span class="ts-note">' + esc(a.position) + '</span>' : '') + '</li>';
+          }).join('') + '</ul>' : note(prep.T.noAssignees)) +
+          (canChange ? '<div class="ts-acts"><button type="button" data-act="assignee-change">' + esc(T.changeAssignee) + '</button></div>' : '') +
+          note(canChange ? T.changeAssigneeNote : (sc === 'CANCELLED' ? '' : T.changeAssigneeView)) + '</div>';
       }
     } else if (s.kind === 'notice') {
       // 기관정보 팝업과 같은 내용을 읽기 전용으로(m.notice = { state: 'ok'|'none'|'loading', html, gaps } — prep.js가 dashboard.js로 만든다)
@@ -520,31 +647,42 @@
           '<span class="ts-last">' + esc([nc.by, pb.fullDate(craw.confirmed_on) || nc.date].filter(Boolean).join(' ')) + '</span>' +
           (gate.can ? '<button type="button" data-act="mark" data-col="' + esc(s.cd) + '" data-mk="NONE"' + ((m.markBusy || {})[s.cd] ? ' aria-disabled="true"' : '') + '>' + esc(T.noticeUndo) + '</button>' : '') + '</div>';
       }
+      h += pt.noticeChecksHtml(ni.checks);
       if (ni.state === 'ok') {
         const gaps = Array.isArray(ni.gaps) ? ni.gaps : [];
         h += gaps.length
           ? '<div class="ts-gaps" role="note"><b>' + esc(T.noticeGapsHead(gaps.length)) + '</b><ul>' + gaps.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join('') + '</ul>' +
             (done ? '' : '<p>' + esc(T.noticeGapsNo) + '</p>') + '</div>'
-          : (done ? '' : '<p class="ts-okline" role="note">' + esc(gate.can ? T.noticeOk : T.noticeOkView) + '</p>');
+          : (done ? '' : '<p class="ts-okline" role="note">' + pt.CK_SVG + '<span>' + esc(gate.can ? T.noticeOk : T.noticeOkView) + '</span></p>');
         h += '<div class="ts-notice">' + str(ni.html) + '</div>';   // dashboard.js가 이스케이프해 만든 마크업
       } else {
         h += note(ni.state === 'loading' ? T.noticeLoading : T.noticeNoRec);
       }
+      h += '<div class="ts-sec"><h4 class="ts-sec-h">' + esc(T.noticeFilesTitle) + '</h4>' + (m.noticeFiles ? str(m.noticeFiles) : note(T.filesLater)) + '</div>';
       h += note(T.noticeGuide) + '<div class="ts-acts">' + T.noticeNav.map(function (n) {
         return '<button type="button" data-act="go-nav" data-nav="' + n[0] + '">' + esc(n[1]) + '</button>';
       }).join('') + '</div>';
+    } else if (s.kind === 'group' && s.result) {
+      // 8단계 이사회 개최 및 결과: 결과 등록 → 결과 문서 보관 → 부서별 확인(표의 체크 칸)
+      h += sec(T.secResult, pt.boardResultHtml(m.board)) +
+        sec(T.secResDoc, m.resFiles ? str(m.resFiles) : note(T.filesLater)) +
+        sec(T.secMarks, note(T.groupHint) + markBlock(m, s, gate) + note(gate.why));
     } else if (s.kind === 'manual' || s.kind === 'group') {
       h += note(s.kind === 'group' ? T.groupHint : T.manualHint) + markBlock(m, s, gate) + note(gate.why) + tasksBlock(m, s);
     } else if (s.kind === 'proposal') {
       const open = v.state_cd === 'CANCELLED' ? [] : pt.openBefore(v, m.row, m.marks);
       h += note(T.proposalHint) + (open.length ? '<p class="pp-next" role="note">' + esc(T.openBefore(open)) + '</p>' : '') + '<dl class="ts-facts"><div><dt>제안서(디자인 최종)</dt><dd>' + stateSpan(pt.cellState(m.row, s.cd, m.marks)) + '</dd></div></dl>' +
         (PROPOSAL_STATES.indexOf(str(v.state_cd)) >= 0 ? prep.endHtml(v, ctx) : (v.state_cd === 'CANCELLED' ? '' : note(T.proposalLater)));
-    } else {   // auto·board·script — 준비 과제를 여기에서 처리한다
-      if (s.kind === 'board') h += note(T.boardHint);
+    } else if (s.kind === 'board') {
+      // 7단계 이사회 준비(사용자 11-25): 자료 작성 · 일정 등록 · 추가 자료 등록 · 발표 대본을 한 묶음으로
+      h += sec(T.secDoc, note(T.boardHint) + (tasksBlock(m, { tasks: ['T5'] }) || '') + pt.boardBlockHtml(m.board)) +
+        sec(T.secSched, pt.boardSchedHtml(m.board)) +
+        sec(T.secAdd, m.addFiles ? str(m.addFiles) : note(T.filesLater)) +
+        sec(T.secScript, tasksBlock(m, { tasks: ['T6'] }) || note(T.taskNone));
+    } else {   // auto — 준비 과제를 여기에서 처리한다
       if (s.id === 'PROFIT') h += note(T.profitHint);
       const tb = s.id === 'INST_ANALYSIS' ? foldBlock(m, s) : tasksBlock(m, s);
       h += tb || note(T.taskNone);
-      if (s.kind === 'board') h += pt.boardBlockHtml(m.board);
     }
     const prev = idx > 0 ? { label: T.prev(pt.STEPS[idx - 1].label), off: false } : { label: T.prevNone, off: true };
     const next = idx < n - 1 ? { label: T.next(pt.STEPS[idx + 1].label), off: false } : { label: T.nextNone, off: true };

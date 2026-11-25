@@ -1638,6 +1638,24 @@
   .ts-ask .ts-go { min-height:32px; padding:4px 16px; font-weight:700; }
   .ts-gaps { padding:8px 12px; font-size:13px; border:1px solid var(--orange); border-radius:var(--r); background:var(--panel2); }
   .ts-gaps b { color:var(--orange); } .ts-gaps ul { margin:4px 0 0; padding-left:18px; }
+  /* 2단계 확인 항목(공고 진행·원본 파일) — 알아야 하는 사실은 붉은 글씨 + 체크 모양(사용자 11-25) */
+  .ts-chk { padding:8px 12px; font-size:13px; border:1px solid var(--line); border-radius:var(--r); background:var(--panel2); }
+  .ts-chk ul { list-style:none; margin:0; padding:0; display:grid; gap:4px; }
+  .ts-chk li { display:flex; align-items:flex-start; gap:8px; color:var(--fg); }
+  .ts-chk li.is-bad { color:var(--red); font-weight:600; }
+  .ts-chk .ts-chk-l { flex:none; min-width:7.5em; color:inherit; }
+  .ts-ck { flex:none; margin-top:2px; }
+  .ts-okline { display:flex; align-items:flex-start; gap:8px; }
+  /* 단계 본문 안의 작은 묶음(7·8단계 이사회, 1단계 담당자, 2단계 원본 파일) */
+  .ts-sec { display:grid; gap:8px; padding-top:10px; border-top:1px solid var(--line); }
+  .ts-sec-h { margin:0; font-size:13px; font-weight:600; color:var(--fg); }
+  .ts-people { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:6px 16px; font-size:13px; }
+  .ts-people li { display:flex; align-items:baseline; gap:6px; } .ts-people b { font-weight:600; }
+  .ts-form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:13px; }
+  .ts-form label { color:var(--muted); font-size:12px; }
+  .pp-files.pp-files-flat { margin:0; }
+  /* 파일 표: 머리·칸 모두 가운데(사용자 11-25) */
+  .pp-files .ad-table.pp-ftbl th, .pp-files .ad-table.pp-ftbl td { text-align:center; vertical-align:middle; }
   .ts-okline { margin:0; padding:8px 12px; font-size:13px; color:var(--green); border:1px solid var(--line); border-radius:var(--r); background:var(--panel2); }
   .ts-notice { border:1px solid var(--line); border-radius:var(--r); padding:0 14px; }
   .ts-notice .db-sub { margin:10px 0 0; } .ts-notice .db-sec:first-of-type { border-top:0; }

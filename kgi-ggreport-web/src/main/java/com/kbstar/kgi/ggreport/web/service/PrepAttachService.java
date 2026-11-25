@@ -62,6 +62,12 @@ public class PrepAttachService {
 
     private static final String TASK_T3 = "T3";
     private static final String TASK_T4 = "T4";
+    /** 과제가 아닌 단계 자료(사용자 2026-11-25): 입찰공고 원본 · 이사회 추가 자료 · 이사회 결과 문서. 보관·검사·권한은 과제 첨부와 같다. */
+    static final String KIND_NOTICE = "NOTICE";
+    static final String KIND_BOARD_ADD = "BOARD_ADD";
+    static final String KIND_BOARD_RES = "BOARD_RES";
+    private static final java.util.Set<String> UPLOAD_KINDS = java.util.Collections.unmodifiableSet(new java.util.HashSet<>(
+            java.util.Arrays.asList(TASK_T3, TASK_T4, KIND_NOTICE, KIND_BOARD_ADD, KIND_BOARD_RES)));
     private static final Pattern STORE_KEY = Pattern.compile("[0-9a-f]{32}");
 
     private final PrepMapper mapper;
@@ -107,7 +113,7 @@ public class PrepAttachService {
             throw stateChanged();
         }
         String task = taskCdRaw == null ? "" : taskCdRaw.trim();
-        if (!TASK_T3.equals(task) && !TASK_T4.equals(task)) {
+        if (!UPLOAD_KINDS.contains(task)) {
             throw coded(400, "BAD_VALUE", "첨부할 과제를 고르세요(수익성 분석표 또는 RFP 붙임서류).");
         }
         if (file == null || file.isEmpty()) {

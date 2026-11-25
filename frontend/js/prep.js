@@ -20,6 +20,7 @@
   prep.VIEW_ROLES = ['영업팀', '영업팀장', '영업부장'];   // nav.TEAM_ROLES와 같아야 한다
   prep.CONFIRM_ROLES = ['영업팀', '영업팀장'];          // 제안 확정은 영업부장이 하지 않는다
   prep.LEAD = '영업팀장';
+  prep.T1_NAME = '기관 선정 입찰참여 관련 요약';
   prep.MAX = 10;
   prep.REASON_MAX = 200;
   prep.TABS = [{ key: 'active', label: '진행 중' }, { key: 'closed', label: '취소·중단' }];
@@ -85,6 +86,15 @@
     fileHint: 'HWPX·PDF·xlsx·docx, 한 파일 30MB 이하',
     fileEmpty: '아직 올린 파일이 없습니다. 수익성 분석표를 올리고 확정본으로 지정하면 이 과제가 완료됩니다.',
     uploading: '올리는 중…',
+    okChangeReq: '담당자 변경을 요청했습니다. 승인되면 담당자가 바뀝니다.',
+    changeNote: '담당자를 더하거나 뺍니다(여러 명 가능, 1~10명). 요청하면 영업팀장이 승인한 뒤 바뀌고, 영업팀장이 들어 있으면 영업부장이 승인합니다.',
+    changeWhySame: '바뀐 담당자가 없습니다.',
+    okSched: '이사회 일정을 등록했습니다.',
+    okResult: '이사회 결과를 등록했습니다.',
+    errDate: '날짜를 고르세요.',
+    errResult: '등록하지 못했습니다. 잠시 뒤 다시 하세요.',
+    piiOk: '이상 없음',
+    piiTitle: '올린 파일에 주민등록번호·카드번호 같은 개인정보가 들어 있는지 서버가 자동으로 살핀 결과입니다.',
     uploadWait: '검사하는 데 시간이 걸릴 수 있습니다.',
     uncheckedWhy: '글자를 읽을 수 없는 파일(스캔 PDF 등)이라 개인정보 검사를 하지 못했습니다.',
     selfReport: '로그인 신원을 확인하지 않은 기록입니다',
@@ -587,8 +597,15 @@
       return '<span class="pp-unchecked">검사 못 함</span><span class="pp-funch">' + esc(T.uncheckedWhy) + '</span>';
     }
     if (r.pii_note) return '<span class="wf-badge gap">개인정보 경고: ' + esc(r.pii_note) + '</span>';
-    return '';
+    return '<span class="pp-fsize">' + esc(T.piiOk) + '</span>';
   }
+  // 첨부 종류: T3(수익성 분석표 — 확정본 지정이 있다) · NOTICE(입찰공고 원본) · BOARD_ADD(이사회 추가 자료) · BOARD_RES(이사회 결과 문서)
+  prep.FILE_KINDS = {
+    T3: { title: '수익성 분석표 파일', empty: T.fileEmpty, hint: T.fileHint, pick: true },
+    NOTICE: { title: '', empty: '', hint: T.fileHint, pick: false },
+    BOARD_ADD: { title: '', empty: '', hint: T.fileHint, pick: false },
+    BOARD_RES: { title: '', empty: '', hint: T.fileHint, pick: false },
+  };
 
   function fileActions(r, a) {
     const n = esc(str(r.name));
@@ -604,34 +621,43 @@
     return h;
   }
 
-  // m: { rows, viewer, meEmp, uploading, showVoid }
+  // m: { rows, viewer, meEmp, uploading, showVoid, task('T3' 기본), title, empty, hint }
+  // 열(사용자 11-25): 파일명 | 상태 | 개인정보 검사 | 담당자 | 수정시간 (+ 동작) — 가운데 정렬.
   prep.filesHtml = function (m) {
-    // 이 영역은 T3(수익성 분석표) 파일만 보인다 — 서버 목록에는 다른 과제 첨부가 섞일 수 있다.
-    const rows = (Array.isArray(m.rows) ? m.rows : []).filter(function (r) { return !r.task_cd || r.task_cd === 'T3'; });
+    // 한 영역에는 한 종류의 파일만 보인다 — 서버 목록에는 다른 종류의 첨부가 섞여 온다.
+    const task = str(m.task) || 'T3';
+    const K = prep.FILE_KINDS[task] || prep.FILE_KINDS.T3;
+    const rows = (Array.isArray(m.rows) ? m.rows : []).filter(function (r) { return task === 'T3' ? (!r.task_cd || r.task_cd === 'T3') : r.task_cd === task; });
     const v = m.viewer || {};
     const valid = rows.filter(function (r) { return r.valid; });
     const voided = rows.filter(function (r) { return !r.valid; });
-    let h = '<div class="pp-files"><div class="pp-files-head"><b>수익성 분석표 파일</b>';
+    const title = m.title !== undefined ? str(m.title) : K.title;
+    const busy = !!m.uploading;
+    const mineUp = m.uploading === true || m.uploading === task;   // 지금 이 종류를 올리는 중인가
+    let h = '<div class="pp-files' + (task === 'T3' ? '' : ' pp-files-flat') + '" data-kind="' + esc(task) + '"><div class="pp-files-head">' + (title ? '<b>' + esc(title) + '</b>' : '');
     if (v.can_upload) {
-      h += '<button type="button" data-act="upload"' + (m.uploading ? ' aria-disabled="true"' : '') + '>' + esc(m.uploading ? T.uploading : '파일 올리기') + '</button>';
+      h += '<button type="button" data-act="upload" data-kind="' + esc(task) + '"' + (busy ? ' aria-disabled="true"' : '') + '>' + esc(mineUp ? T.uploading : '파일 올리기') + '</button>';
     }
-    h += '<span class="pp-fhint">' + esc(T.fileHint) + '</span></div>';
-    if (m.uploading) h += '<div class="pp-fhint" role="status">' + esc(T.uploadWait) + '</div>';
+    h += '<span class="pp-fhint">' + esc(str(m.hint) || K.hint) + '</span></div>';
+    if (mineUp) h += '<div class="pp-fhint" role="status">' + esc(T.uploadWait) + '</div>';
     if (!valid.length) {
-      h += '<p class="wf-empty">' + esc(T.fileEmpty) + '</p>';
+      h += '<p class="wf-empty">' + esc(str(m.empty) || K.empty || T.fileEmpty) + '</p>';
     } else {
-      h += '<div class="tm-tbl-wrap"><table class="ad-table"><thead><tr><th>파일</th><th>올린 사람·시각</th><th>검사</th><th>상태</th><th>동작</th></tr></thead><tbody>' +
+      h += '<div class="tm-tbl-wrap"><table class="ad-table pp-ftbl"><thead><tr><th scope="col">파일명</th><th scope="col">상태</th>' +
+        '<th scope="col" title="' + esc(T.piiTitle) + '">개인정보 검사</th><th scope="col">담당자</th><th scope="col">수정시간</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead><tbody>' +
         valid.map(function (r) {
           const who = r.uploaded_by && r.uploaded_by.name ? r.uploaded_by.name : '';
+          const a = prep.attachActions(r, v, m.meEmp, m.role, m.stateCd);
+          if (!K.pick) { a.setConfirmed = false; a.clearConfirmed = false; }
           return '<tr><td class="pp-fname">' + esc(str(r.name)) + '<br><span class="pp-fsize">' + esc(prep.formatSize(r.size_bytes)) + '</span></td>' +
-            '<td>' + esc(who) + (r.emp_verified === false ? ' <span class="ad-badge muted" title="' + esc(T.selfReport) + '">자기신고</span>' : '') +
-            '<br><span class="pp-fsize">' + esc(prep.stamp(r.uploaded_at)) + '</span></td>' +
+            '<td>' + (r.confirmed ? '<span class="wf-badge ok">확정본</span>' : '<span class="pp-fsize">' + (K.pick ? '올림' : '보관') + '</span>') + '</td>' +
             '<td>' + piiCell(r) + '</td>' +
-            '<td>' + (r.confirmed ? '<span class="wf-badge ok">확정본</span>' : '') + '</td>' +
-            '<td>' + fileActions(r, prep.attachActions(r, v, m.meEmp, m.role, m.stateCd)) + '</td></tr>';
+            '<td>' + esc(who) + (r.emp_verified === false ? ' <span class="ad-badge muted" title="' + esc(T.selfReport) + '">자기신고</span>' : '') + '</td>' +
+            '<td><span class="pp-fsize">' + esc(prep.stamp(r.uploaded_at)) + '</span></td>' +
+            '<td>' + fileActions(r, a) + '</td></tr>';
         }).join('') + '</tbody></table></div>';
     }
-    if (voided.length) {
+    if (voided.length && task === 'T3') {
       h += '<button type="button" class="link-btn pp-fmore" data-act="toggle-void" aria-expanded="' + (m.showVoid ? 'true' : 'false') + '">' +
         esc(m.showVoid ? '무효 처리한 파일 숨기기' : '무효 처리한 파일 ' + voided.length + '개 보기') + '</button>';
       if (m.showVoid) {
@@ -818,13 +844,13 @@
   // info: { name, assignees(명), writing, fileName, meEmp }
   prep.modalTitle = function (kind, info) {
     const i = info || {};
-    if (kind === 'open') return (i.direct ? '담당자 지정 — ' : '개설 신청 — ') + str(i.name);
+    if (kind === 'open') return (i.change ? '담당자 변경 — ' : i.direct ? '담당자 지정 — ' : '개설 신청 — ') + str(i.name);
     if (kind === 'unconfirm') return '제안 확정 취소 — ' + str(i.name);
     if (kind === 'abort') return '사전준비 중단 — ' + str(i.name);
     return '파일 무효 처리 — ' + str(i.fileName);
   };
-  prep.modalGoLabel = function (kind, direct) {
-    return { open: direct ? '사전준비 시작' : '개설 신청 올리기', unconfirm: '확정 취소하기', abort: '중단하기', 'void': '무효 처리하기' }[kind] || '확인';
+  prep.modalGoLabel = function (kind, direct, change) {
+    return { open: change ? '담당자 변경 요청' : direct ? '사전준비 시작' : '개설 신청 올리기', unconfirm: '확정 취소하기', abort: '중단하기', 'void': '무효 처리하기' }[kind] || '확인';
   };
   prep.modalCancelLabel = function (kind) { return kind === 'open' ? '취소' : '닫기'; };
 
@@ -849,6 +875,11 @@
           '<span id="pp-open-n" class="tm-count' + (n >= prep.MAX ? ' full' : '') + '" aria-live="polite">' + n + '/' + prep.MAX + '명</span></div>' +
           '<div class="tm-picks" id="pp-open-picks">' + prep.openPicksHtml(m, i.meEmp) + '</div>' +
           '<p class="tm-note" id="pp-max-note"' + (n >= prep.MAX ? '' : ' hidden') + '>' + esc(tm.T.maxNote) + '</p>';
+      }
+      if (m.change) {
+        return '<p class="tm-note">' + esc(T.changeNote) + '</p>' +
+          '<fieldset class="tm-fs"><legend>담당자</legend>' + inner + '</fieldset>' +
+          reasonBlock(m, '변경 사유 (필수)', '사유에는 주민등록번호·카드번호 같은 개인정보를 적지 마세요.');
       }
       return nobidWarnBlock(i.nobidWarn) + (m.direct
         ? '<p class="tm-note">' + esc(T.startModalNote) + ' 담당자는 1~10명 지정합니다.</p>'
@@ -877,10 +908,10 @@
   };
 
   prep.modalHtml = function (m, info) {
-    const go = prep.modalGoLabel(m.kind, !!m.direct);
+    const go = prep.modalGoLabel(m.kind, !!m.direct, !!m.change);
     const goCls = m.kind === 'abort' ? ' class="pp-danger"' : (m.kind === 'open' ? ' class="pp-next-btn"' : '');
     return '<div class="modal-box tm-modal-box" role="dialog" aria-modal="true" aria-labelledby="pp-m-title">' +
-      '<h3 id="pp-m-title">' + esc(prep.modalTitle(m.kind, Object.assign({}, info, { direct: !!m.direct }))) + '</h3>' +
+      '<h3 id="pp-m-title">' + esc(prep.modalTitle(m.kind, Object.assign({}, info, { direct: !!m.direct, change: !!m.change }))) + '</h3>' +
       '<div class="modal-scroll tm-m-body">' + prep.modalBodyHtml(m, info) + '<div id="pp-m-err" class="ap-err" role="alert"></div></div>' +
       '<div id="pp-m-confirm"></div>' +
       '<div class="tm-m-actions"><span id="pp-m-why" class="tm-why"></span><button type="button" id="pp-m-cancel">' + esc(prep.modalCancelLabel(m.kind)) + '</button>' +
@@ -892,9 +923,22 @@
     const reason = str(m.reason).trim();
     if (m.kind === 'open') {
       const n = (m.sel || []).length;
+      if (m.change) {
+        const d = prep.assigneeDiff(m.cur, m.sel);
+        const same = !d.add.length && !d.remove.length;
+        const okReason = reason.length >= 1 && reason.length <= prep.REASON_MAX;
+        return { canGo: n >= 1 && !same && okReason && m.candState === 'ok' && !busy,
+                 why: n < 1 ? tm.T.assignWhy : same ? T.changeWhySame : okReason ? '' : '사유를 적으세요.', count: n + '/' + prep.MAX + '명' };
+      }
       return { canGo: n >= 1 && m.candState === 'ok' && !busy, why: n < 1 ? tm.T.assignWhy : '', count: n + '/' + prep.MAX + '명' };
     }
     return { canGo: reason.length >= 1 && reason.length <= prep.REASON_MAX && !busy, why: reason ? '' : '사유를 적으세요.', count: '' };
+  };
+
+  // 지금 담당자(cur)와 고른 사람(sel)의 차이 → { add, remove } (사번 목록)
+  prep.assigneeDiff = function (cur, sel) {
+    const c = (Array.isArray(cur) ? cur : []).map(str), x = (Array.isArray(sel) ? sel : []).map(str);
+    return { add: x.filter(function (e) { return c.indexOf(e) < 0; }), remove: c.filter(function (e) { return x.indexOf(e) < 0; }) };
   };
 
   prep.closeConfirmHtml = function () {
@@ -1065,7 +1109,7 @@
   function resetSteps(bd) {
     S.board = bd && bd.row ? { row: bd.row, marks: Array.isArray(bd.marks) ? bd.marks : [], scope: str(bd.scope) } : null;
     S.boardLoading = false; S.boardSeq = ++reqSeq; S.stepIdx = -1; S.stepAuto = true; S.markBusy = {}; S.live = '';
-    S.sum = null; S.foldOpen = {};   // 3단계 펼침 내용(기관 정보 요약 응답)·다시 편 과제
+    S.sum = null; S.foldOpen = {}; S.res = null;   // 3단계 펼침 내용(기관 정보 요약 응답)·다시 편 과제
     S.mat = null;                    // 7단계 이사회 자료
   }
   function boardHooks() {
@@ -1196,9 +1240,23 @@
       if (S.stepIdx < 0) S.stepIdx = pt.defaultIdx(d.view, model.row, model.marks);
       model.idx = S.stepIdx; model.markBusy = S.markBusy;
       const curStep = pt.STEPS[pt.clampIdx(S.stepIdx)];
-      if (curStep.kind === 'notice') model.notice = { state: ni.state, gaps: ni.gaps, html: ni.build ? ni.build() : '' };
+      const filesOf = function (kind, o) {   // 첨부 목록을 받았을 때만(담당자 지정 뒤, 볼 수 있는 사람)
+        if (!Array.isArray(d.attach)) return '';
+        return prep.filesHtml(Object.assign({ rows: d.attach, viewer: (d.view && d.view.viewer) || {}, meEmp: myEmp(), role: myRole(), stateCd: d.view.state_cd,
+          uploading: S.uploading, showVoid: false, task: kind }, o));
+      };
+      if (curStep.kind === 'notice') {
+        const vwr = (d.view && d.view.viewer) || {};
+        const nFiles = Array.isArray(d.attach) ? d.attach.filter(function (r) { return r && r.valid && r.task_cd === 'NOTICE'; }).length : 0;
+        const cell = model.row && model.row.cells && model.row.cells.NOTICE_CHECK ? model.row.cells.NOTICE_CHECK : {};
+        model.notice = { state: ni.state, gaps: ni.gaps, html: ni.build ? ni.build() : '',
+          checks: pt.noticeChecks ? pt.noticeChecks(ni.ns || null, str(cell.notice_status_cd), { known: Array.isArray(d.attach), n: nFiles }, { canUpload: !!vwr.can_upload }) : [] };
+        model.noticeFiles = filesOf('NOTICE', { title: '', hint: pt.T.noticeFilesHint, empty: pt.T.noticeFilesEmpty });
+      }
       if (curStep.id === 'INST_ANALYSIS') { model.docs = stepDocs(d.view); model.foldOpen = S.foldOpen; }
-      if (curStep.id === 'BOARD_DOC') model.board = stepBoard();
+      if (curStep.id === 'BOARD_DOC' || curStep.result) model.board = stepBoard();
+      if (curStep.id === 'BOARD_DOC') model.addFiles = filesOf('BOARD_ADD', { title: '', hint: pt.T.addFilesHint, empty: pt.T.addFilesEmpty });
+      if (curStep.result) model.resFiles = filesOf('BOARD_RES', { title: '', hint: pt.T.resFilesHint, empty: pt.T.resFilesEmpty });
       box.innerHTML = pt.caseHtml(model);
       if (S.live) { const lv = el('ts-live'); if (lv) lv.textContent = S.live; S.live = ''; }
     } else {
@@ -1269,7 +1327,9 @@
         const nr = root.noticerec;
         if (nr && nr.ensure) nr.ensure();
         const snap = nr && nr.snap ? nr.snap() : null;
-        out = { state: 'ok',
+        let ns = null;
+        try { ns = root.logic && root.logic.noticeState ? root.logic.noticeState(rec, today) : null; } catch (e) { ns = null; }
+        out = { state: 'ok', ns: ns,
           gaps: pt.noticeGaps(it, { hasLink: !!(D.noticeLink && D.noticeLink(rec)), unhandled: !!(snap && D.isUnhandled && D.isUnhandled(it, snap)) }),
           build: function () {
             try {
@@ -1316,7 +1376,8 @@
     if (has('T1')) {
       if (!S.sum && S.selected) loadSummary(S.selected);
       const sm = S.sum || { state: 'loading' };
-      docs.T1 = { state: sm.state, html: sm.state === 'ok' && pt.summaryHtml ? pt.summaryHtml(sm.view) : '' };
+      // 아직 한 번도 저장하지 않았으면(판 0) 단추 이름이 [작성하기]다(사용자 11-25)
+      docs.T1 = { state: sm.state, html: sm.state === 'ok' && pt.summaryHtml ? pt.summaryHtml(sm.view) : '', empty: sm.state === 'ok' && !(Number(sm.view && sm.view.cur_ver) > 0) };
     }
     if (has('T2')) {
       const id = str(v.institution_id);
@@ -1331,7 +1392,7 @@
     const v = (S.detail && S.detail.view) || {};
     if (!id) return;
     if (cd === 'T1') {
-      if (!root.instSummary || !root.instSummary.open) { setPerr('기관 정보 요약 양식을 열 수 없습니다. 화면을 새로 고친 뒤 다시 하세요.'); return; }
+      if (!root.instSummary || !root.instSummary.open) { setPerr('기관 선정 입찰참여 관련 요약 양식을 열 수 없습니다. 화면을 새로 고친 뒤 다시 하세요.'); return; }
       root.instSummary.open({
         bidCaseId: id, instName: str(v.institution_name) || caseName(), opener: btn,
         restoreFallback: function () { return el('pp-case-title'); },
@@ -1406,8 +1467,36 @@
     const d = sm.d;
     let html = '';
     try { html = mat.readOnlyHtml(d.form, d.snapshot && d.snapshot.tables); } catch (e) { html = ''; }
+    const rs = S.res || {};
     return { state: 'ok', id: d.material_id, statusName: str(d.status_name), snapNo: Number(d.current_snap) || 0,
-             saved: mat.savedLabel ? mat.savedLabel(d) : '', confirmed: d.confirmed_snap != null, html: html };
+             saved: mat.savedLabel ? mat.savedLabel(d) : '', confirmed: d.confirmed_snap != null, html: html,
+             resultCd: str(d.result_cd), meeting: mat.dateOf ? str(mat.dateOf(d.meeting_date)) : str(d.meeting_date).slice(0, 10),
+             canResult: !!(d.viewer && d.viewer.can_set_result === true), resBusy: !!rs.busy, resErr: str(rs.err) };
+  }
+  // 이사회 일정 등록(sched: 결과 = 의결 예정)·결과 등록 — 이사회 자료 화면의 '의결 결과 입력'과 같은 주소(누가·언제는 자료 이력에 남는다).
+  function onBoardResult(sched) {
+    const mat = root.boardMat, sm = S.mat, id = S.selected;
+    if (!mat || !mat.actCall || !sm || sm.state !== 'ok' || !sm.d || (S.res && S.res.busy)) return;
+    const dateEl = el(sched ? 'ts-sched-date' : 'ts-res-date'), cdEl = el('ts-res-cd');
+    const date = str(dateEl && dateEl.value).trim();
+    const result = sched ? 'SCHEDULED' : str(cdEl && cdEl.value);
+    const sel = '[data-act="' + (sched ? 'board-sched' : 'board-result') + '"]';
+    if (!date) { S.res = { busy: false, err: T.errDate }; S.refocus = '#' + (sched ? 'ts-sched-date' : 'ts-res-date'); paintCase(); return; }
+    const mine = S.res = { busy: true, err: '' };
+    S.refocus = sel; paintCase();
+    mat.actCall(bfetch, 'result', sm.d.material_id, { result: result, date: date }).then(function (r) {
+      if (S.res !== mine || S.selected !== id) return;
+      if (!r || !r.ok) {
+        const msg = r && r.body && typeof r.body === 'object' ? str(r.body.message || r.body.error) : '';
+        S.res = { busy: false, err: msg || T.errResult }; S.refocus = sel; paintCase(); return;
+      }
+      S.res = null; S.mat = null;   // 자료를 다시 읽는다
+      setFlash(sched ? T.okSched : T.okResult);
+      S.refocus = sel; paintCase();
+    }).catch(function () {
+      if (S.res !== mine) return;
+      S.res = { busy: false, err: T.errResult }; S.refocus = sel; paintCase();
+    });
   }
   // [다음] 확인 팝업(사용자 11-25: 단계마다 공통) — [확인]이면 다음 단계로, [닫기]·Esc·바깥 클릭이면 그대로.
   function openNextAsk() {
@@ -1516,8 +1605,9 @@
     req('GET', base(id), undefined, ui(S.fromBoard ? 'prep_dashboard' : 'prep_detail', 'open')).then(function (view) {
       const vw = (view && view.viewer) || {};
       const tasks = (view && view.tasks) || [];
-      const hasT3 = tasks.some(function (t) { return t.task_cd === 'T3' && (t.state === 'TODO' || t.state === 'DONE'); });
-      const wantAttach = hasT3 && !!(vw.is_assignee || vw.is_head || myRole() === prep.LEAD);
+      // 사용자 11-25: '기관 정보 요약' 과제의 화면 이름
+      tasks.forEach(function (t) { if (t && t.task_cd === 'T1') t.name = prep.T1_NAME; });
+      const wantAttach = tasks.length > 0 && !!(vw.is_assignee || vw.is_head || myRole() === prep.LEAD);
       return Promise.all([
         view && view.state_cd === 'CANCELLED'
           ? req('GET', base(id) + '/history', undefined, ui('prep_history', 'history_open')).catch(function () { return []; })
@@ -1662,8 +1752,9 @@
   }
 
   // ── 파일 ──
-  function onUploadPick() {
+  function onUploadPick(kind) {
     if (S.uploading) return;
+    S.upKind = prep.FILE_KINDS[str(kind)] ? str(kind) : 'T3';
     const inp = el('pp-file');
     if (!inp) return;
     inp.value = '';
@@ -1675,9 +1766,10 @@
     if (!f || S.uploading || S.busy || !S.selected) return;
     const id = S.selected;
     const form = new FormData();
-    form.append('task_cd', 'T3');
+    const kind = S.upKind || 'T3';
+    form.append('task_cd', kind);
     form.append('file', f, f.name);
-    S.uploading = true;
+    S.uploading = kind;
     S.busy = true;
     setPerr('');
     paintCase();
@@ -1685,9 +1777,10 @@
       S.uploading = false; S.busy = false;
       const okText = prep.uploadOkText(f.name, res);
       setFlash(okText);
-      S.refocus = '[data-act="upload"]';
+      S.refocus = '[data-act="upload"][data-kind="' + kind + '"]';
       invalidateCache();
       if (id === S.selected) loadDetail(id);
+      if (kind !== 'T3') return;
       // 4단계 → 이사회 자료 초안 자동 작성(실패해도 올린 파일은 그대로)
       autoBoardDraft(id, f).then(function (r) {
         if (id !== S.selected || r.kind === 'skip') return;
@@ -1767,7 +1860,7 @@
         m.cands = Array.isArray(list) ? list : [];
         m.candState = 'ok';
         // 결재 없는 시작(담당자 지정): 누른 사람을 기본으로 골라 둔다(사용자 11-25) — 후보에 있을 때만, 바꿀 수 있다
-        if (m.direct && !m.sel.length) { const me = myEmp(); if (me && m.cands.some(function (c) { return c && c.emp_no === me; })) m.sel = [me]; }
+        if (m.direct && !m.change && !m.sel.length) { const me = myEmp(); if (me && m.cands.some(function (c) { return c && c.emp_no === me; })) m.sel = [me]; }
         repaintModalBody();
       }).catch(function () {
         if (S.modal !== m) return;
@@ -1831,7 +1924,8 @@
     const m = S.modal;
     if (!m || S.busy) return;
     if (m.closing) { keepWriting(); return; }
-    if (str(m.reason).trim() || m.sel.length) {
+    const touched = m.change ? (function () { const d = prep.assigneeDiff(m.cur, m.sel); return d.add.length + d.remove.length > 0; })() : m.sel.length > 0;
+    if (str(m.reason).trim() || touched) {
       m.closing = true;
       el('pp-m-confirm').innerHTML = prep.closeConfirmHtml();
       const k = el('pp-m-keep'); if (k) k.focus();
@@ -1850,7 +1944,12 @@
     if (m.kind === 'open') {
       const body = { emp_nos: m.sel.slice() };
       if (reason) body.comment = reason;
-      if (m.direct) {
+      if (m.change) {
+        const d = prep.assigneeDiff(m.cur, m.sel);
+        doAct(function () {
+          return req('POST', '/approval-requests/assignee-change', { bid_case_id: S.selected, add_emp_nos: d.add, remove_emp_nos: d.remove, reason: reason }, ui('prep_detail', 'assignee_change'));
+        }, T.okChangeReq, { modal: true, focusTitle: true, where: 'change' });
+      } else if (m.direct) {
         doAct(function () { return req('POST', base(S.selected) + '/prep/start', body, ui('prep_detail', 'open_start')); },
           T.okPrepStart, { modal: true, focusTitle: true, where: 'prepstart' });
       } else {
@@ -2044,7 +2143,14 @@
       case 'abort-open': openModal('abort'); return;
       case 'open-request-open': openModal('open'); return;
       case 'prep-start-open': openModal('open', { direct: true }); return;
-      case 'upload': onUploadPick(); return;
+      case 'assignee-change': {
+        const as = ((S.detail && S.detail.view && S.detail.view.assignees) || []).map(function (a) { return str(a && a.emp_no); }).filter(Boolean);
+        openModal('open', { change: true, cur: as, sel: as.slice() });
+        return;
+      }
+      case 'board-sched': onBoardResult(true); return;
+      case 'board-result': onBoardResult(false); return;
+      case 'upload': onUploadPick(t.getAttribute('data-kind')); return;
       case 'download': onDownload(t.getAttribute('data-attach')); return;
       case 'setconfirm': onSetConfirmed(t.getAttribute('data-attach')); return;
       case 'clearconfirm': onClearConfirmed(t.getAttribute('data-attach')); return;
