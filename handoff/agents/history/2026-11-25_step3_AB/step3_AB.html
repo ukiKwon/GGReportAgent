@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>시안 비교 — 3단계 기관 정보 분석 (A 팝업형 / B 펼침형)</title>
+<style>
+  :root { --bg:#e9ecf0; --panel:#fff; --panel2:#f6f7f9; --line:#c3c9d1; --line-strong:#6d7882; --fg:#1e2124; --muted:#464c53; --accent:#0b50d0; --green:#1d6f3a; --r:2px;
+          --mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:16px 20px 40px; font-family:"Malgun Gothic","Segoe UI",sans-serif; font-size:13px; color:var(--fg); background:var(--bg); font-variant-numeric:tabular-nums; }
+  h1 { font-size:16px; margin:0 0 4px; } .lead { margin:0 0 12px; color:var(--muted); font-size:12px; }
+  button { font:inherit; font-size:13px; min-height:30px; padding:4px 12px; color:var(--fg); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); cursor:pointer; }
+  button:hover { background:var(--panel2); } button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .pick { display:flex; gap:6px; margin-bottom:12px; }
+  .pick button[aria-pressed="true"] { border-color:var(--accent); box-shadow:inset 0 -3px 0 var(--accent); font-weight:700; }
+  .frame { max-width:1180px; }
+  .phases { display:flex; gap:6px; margin:10px 0; }
+  .phase { flex:1; display:flex; align-items:center; gap:8px; min-height:40px; padding:6px 12px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); }
+  .phase.on { background:var(--panel); border-color:var(--accent); box-shadow:inset 0 -3px 0 var(--accent); font-weight:700; }
+  .phase span:last-child { margin-left:auto; font:400 12px var(--mono); color:var(--muted); }
+  .grid { display:grid; grid-template-columns:232px minmax(0,1fr); gap:12px; align-items:start; }
+  .steps { padding:4px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); }
+  .steps div { display:grid; grid-template-columns:22px 1fr auto; gap:6px; padding:7px 8px; font-size:13px; }
+  .steps div.cur { background:var(--panel); box-shadow:inset 3px 0 0 var(--accent); font-weight:700; }
+  .steps i { font:400 12px var(--mono); font-style:normal; color:var(--muted); text-align:right; }
+  .steps em { font:400 12px var(--mono); font-style:normal; color:var(--muted); }
+  .body { background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); padding:14px 16px; display:flex; flex-direction:column; gap:12px; min-height:420px; }
+  .pos { font:400 12px var(--mono); color:var(--muted); } h2 { margin:0; font-size:15px; }
+  .note { margin:0; font-size:12px; color:var(--muted); }
+  .sec-h { font-size:12px; font-weight:700; color:var(--muted); margin:4px 0 -4px; }
+  .card { border:1px solid var(--line-strong); border-radius:var(--r); padding:10px 12px; }
+  .card-h { display:flex; align-items:center; gap:8px; }
+  .card-h b { font-size:13px; } .card-h .kind { font-size:12px; color:var(--muted); } .card-h .acts { margin-left:auto; display:flex; gap:6px; }
+  .card.ok { border-color:var(--line); background:var(--panel2); }
+  .ok-tag { color:var(--green); font-weight:700; font-size:12px; }
+  .sub { margin-top:4px; font-size:12px; color:var(--muted); }
+  .primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; } .primary:hover { background:#0942ad; }
+  .pager { display:flex; justify-content:space-between; margin-top:auto; padding-top:12px; border-top:1px solid var(--line); }
+  dl.doc { display:grid; grid-template-columns:110px 1fr; gap:4px 12px; margin:8px 0 0; font-size:13px; } dl.doc dt { color:var(--muted); font-size:12px; } dl.doc dd { margin:0; }
+  table.doc { width:100%; border-collapse:collapse; margin-top:8px; font-size:12px; } table.doc th, table.doc td { border:1px solid var(--line); padding:4px 8px; text-align:left; } table.doc th { background:#eef1f5; width:110px; }
+  .fold { margin-top:10px; padding-top:10px; border-top:1px solid var(--line); }
+  .foot { display:flex; align-items:center; gap:8px; margin-top:10px; } .foot span { font-size:12px; color:var(--muted); }
+  .ov { position:fixed; inset:0; background:rgba(20,25,34,.45); display:flex; align-items:center; justify-content:center; } .ov[hidden] { display:none; }
+  .dlg { width:640px; max-height:80vh; overflow:auto; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); padding:16px 18px; }
+  .dlg h3 { margin:0 0 4px; font-size:15px; } .dlg .foot { justify-content:flex-end; }
+  .cmp { margin-top:18px; max-width:1180px; background:var(--panel); border:1px solid var(--line); padding:12px 16px; } .cmp table { border-collapse:collapse; width:100%; font-size:12px; } .cmp th, .cmp td { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; } .cmp th { background:#eef1f5; }
+</style></head>
+<body>
+<h1>시안 비교 — 3단계 '기관 정보 분석'</h1>
+<p class="lead">견본 값으로 그린 시안입니다(실제 기관 값 아님). 위 단추로 A·B를 바꿔 보고, 과제를 눌러 [확인함으로 표시]까지 해 보세요. [이전]·[다음] 강조 색도 이 시안에 같이 넣었습니다.</p>
+<div class="pick" role="group" aria-label="시안 고르기">
+  <button type="button" id="pa" aria-pressed="true">A. 팝업형 — 과제를 누르면 내용 팝업</button>
+  <button type="button" id="pb" aria-pressed="false">B. 펼침형 — 본문에 세로로 펼쳐 보기</button>
+  <button type="button" id="rs">처음 상태로</button>
+</div>
+
+<div class="frame">
+  <div><b style="font-size:16px">가평군청</b> <span style="border:1px solid var(--line-strong);padding:1px 6px;font-size:12px">사전준비 중</span>
+    <div class="note" style="margin-top:2px">확정 김영업 11-24 14:02 · 담당 김영업, 배지아</div></div>
+  <div class="phases"><div class="phase on"><span>1</span><span>입찰 자료확인</span><span id="pc">1/8</span></div><div class="phase"><span>2</span><span>제안 준비</span><span>0/5</span></div><div class="phase"><span>3</span><span>협약 이행 준비</span><span>0/10</span></div></div>
+  <div class="grid">
+    <div class="steps">
+      <div><i>1</i><span>✓ 담당자 지정</span><em></em></div><div><i>2</i><span>입찰공고확인</span><em></em></div>
+      <div class="cur"><i>3</i><span>기관 정보 분석</span><em id="sc">확인 0/2</em></div>
+      <div><i>4</i><span>수익성분석</span><em></em></div><div><i>5</i><span>가결위(재무)</span><em></em></div><div><i>6</i><span>출심위(사업부)</span><em></em></div>
+      <div><i>7</i><span>이사회 자료 작성</span><em></em></div><div><i>8</i><span>이사회 발표 대본</span><em></em></div><div><i>9</i><span>이사회</span><em>완료 0/3</em></div>
+    </div>
+    <div class="body">
+      <div class="pos">입찰 자료확인 · 3 / 24</div><h2>기관 정보 분석</h2>
+      <p class="note" id="hint"></p>
+      <div id="host"></div>
+      <div class="pager"><button type="button">이전: 입찰공고확인</button><button type="button" class="primary">다음: 수익성분석 →</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="ov" hidden><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dt"><h3 id="dt"></h3><div id="dc"></div>
+  <div class="foot"><span id="dn"></span><button type="button" id="dx">닫기</button><button type="button" class="primary" id="dk">확인함으로 표시</button></div></div></div>
+
+<div class="cmp"><b>두 시안의 차이</b>
+<table><tr><th style="width:120px"></th><th>A. 팝업형</th><th>B. 펼침형</th></tr>
+<tr><th>보는 방법</th><td>본문에는 과제 이름과 상태만. [내용 보기]를 누르면 팝업에 내용이 뜨고 그 안에서 [확인함으로 표시].</td><td>본문에 두 과제 내용이 위아래로 펼쳐져 있고, 각 내용 끝에서 [확인함으로 표시]. 확인하면 한 줄로 접힘.</td></tr>
+<tr><th>좋은 점</th><td>본문이 짧아 무엇이 남았는지 한눈에 보임. 내용이 길어져도(주요 사업·예산 표) 본문이 밀리지 않음.</td><td>누르지 않아도 내용이 보여 훑어보기 빠름. 두 과제를 이어서 읽고 확인하기 좋음.</td></tr>
+<tr><th>아쉬운 점</th><td>내용을 보려면 과제마다 한 번씩 눌러야 함. 팝업이 떠 있는 동안 단계 목록이 가려짐.</td><td>내용이 길면 스크롤이 길어지고 [다음] 단추가 아래로 밀림.</td></tr>
+<tr><th>확인한 뒤</th><td colspan="2">두 시안 모두 '확인함' 묶음으로 내려가고, 누가·언제 확인했는지와 [다시 보기]·[확인 취소]가 남습니다.</td></tr></table></div>
+
+<script>
+const DOCS = {
+  T1: { name: '기관 정보 요약', kind: '필수', html:
+    '<table class="doc"><tr><th>기관</th><td>가평군청 (견본)</td><th>기관장</th><td>○○○ 군수</td></tr><tr><th>인구</th><td>6.2만 명</td><th>예산 규모</th><td>7,480억 원</td></tr>' +
+    '<tr><th>현 금고</th><td>1금고 ○○은행</td><th>약정 기간</th><td>2023-01-01 ~ 2026-12-31</td></tr></table>' +
+    '<dl class="doc"><dt>주요 사업</dt><dd>① 관광 기반 정비 ② 농촌 정주 여건 개선 ③ 디지털 행정 전환</dd><dt>예산 운영 방식</dt><dd>일반회계·특별회계 분리 운영, 기금 9종</dd><dt>우리 회사 기대효과</dt><dd>지역 내 점포 연계 수납 확대 (견본 문장)</dd></dl>' },
+  T2: { name: '기관장 프로필', kind: '필수', html:
+    '<dl class="doc"><dt>이름·직위</dt><dd>○○○ 가평군수 (견본)</dd><dt>임기</dt><dd>2022-07-01 ~ 2026-06-30</dd><dt>학력</dt><dd>■ ○○대학교 행정학과</dd><dt>경력</dt><dd>■ 경기도의회 의원<br>■ 가평군 부군수</dd><dt>주요 공약</dt><dd>관광 인프라, 청년 정착 지원</dd></dl>' }
+};
+let type = 'A', done = {}, open = '';
+const $ = function (id) { return document.getElementById(id); };
+function stamp() { return '확인함 · 김영업 11-25 10:40'; }
+function paint() {
+  $('pa').setAttribute('aria-pressed', type === 'A'); $('pb').setAttribute('aria-pressed', type === 'B');
+  const n = Object.keys(done).length; $('sc').textContent = '확인 ' + n + '/2'; $('pc').textContent = (n === 2 ? 2 : 1) + '/8';
+  $('hint').textContent = type === 'A' ? '과제를 눌러 내용을 확인한 뒤 [확인함으로 표시]를 누릅니다.' : '아래 내용을 읽고 과제마다 [확인함으로 표시]를 누릅니다.';
+  const todo = ['T1', 'T2'].filter(function (k) { return !done[k]; }), ok = ['T1', 'T2'].filter(function (k) { return done[k]; });
+  let h = '';
+  if (todo.length) h += '<div class="sec-h">확인할 것 ' + todo.length + '</div>';
+  todo.forEach(function (k) {
+    const d = DOCS[k];
+    if (type === 'A') h += '<div class="card" style="margin-top:8px"><div class="card-h"><b>' + d.name + '</b><span class="kind">' + d.kind + ' · 아직 확인 전</span><span class="acts"><button type="button" class="primary" data-open="' + k + '">내용 보기</button></span></div></div>';
+    else h += '<div class="card" style="margin-top:8px"><div class="card-h"><b>' + d.name + '</b><span class="kind">' + d.kind + ' · 아직 확인 전</span></div><div class="fold">' + d.html + '</div><div class="foot"><button type="button" class="primary" data-ok="' + k + '">확인함으로 표시</button><span>확인하면 한 줄로 접힙니다.</span></div></div>';
+  });
+  if (ok.length) h += '<div class="sec-h" style="margin-top:14px">확인함 ' + ok.length + '</div>';
+  ok.forEach(function (k) {
+    const d = DOCS[k];
+    h += '<div class="card ok" style="margin-top:8px"><div class="card-h"><span class="ok-tag">✓</span><b>' + d.name + '</b><span class="kind">' + stamp() + '</span><span class="acts"><button type="button" data-open="' + k + '">다시 보기</button><button type="button" data-undo="' + k + '">확인 취소</button></span></div></div>';
+  });
+  if (!todo.length) h += '<p class="note" style="margin-top:10px">이 단계의 확인이 모두 끝났습니다. [다음]으로 넘어가세요.</p>';
+  $('host').innerHTML = h;
+  $('ov').hidden = !open;
+  if (open) { $('dt').textContent = DOCS[open].name + ' — 가평군청'; $('dc').innerHTML = DOCS[open].html; $('dk').hidden = !!done[open]; $('dn').textContent = done[open] ? stamp() : ''; }
+}
+document.addEventListener('click', function (e) {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.id === 'pa') type = 'A'; else if (t.id === 'pb') type = 'B'; else if (t.id === 'rs') { done = {}; open = ''; }
+  else if (t.dataset.open) open = t.dataset.open; else if (t.dataset.ok) done[t.dataset.ok] = 1; else if (t.dataset.undo) delete done[t.dataset.undo];
+  else if (t.id === 'dx') open = ''; else if (t.id === 'dk') { done[open] = 1; open = ''; } else return;
+  paint();
+});
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && open) { open = ''; paint(); } });
+paint();
+</script>
+</body></html>

@@ -1188,8 +1188,10 @@
     if (pt && pt.caseHtml) {   // 구간·단계 한 화면(NEXT 113 2단계)
       const bd = S.board || {};
       model.row = bd.row || null; model.marks = bd.marks || []; model.rowState = S.boardLoading ? 'loading' : 'none';
+      const ni = noticeInfo(d.view, model.row);   // 입찰공고확인 판정을 그 줄에 적는다 — '지금 할 단계'보다 먼저
       if (S.stepIdx < 0) S.stepIdx = pt.defaultIdx(d.view, model.row, model.marks);
       model.idx = S.stepIdx; model.markBusy = S.markBusy;
+      if (pt.STEPS[pt.clampIdx(S.stepIdx)].kind === 'notice') model.notice = { state: ni.state, gaps: ni.gaps, html: ni.build ? ni.build() : '' };
       box.innerHTML = pt.caseHtml(model);
       if (S.live) { const lv = el('ts-live'); if (lv) lv.textContent = S.live; S.live = ''; }
     } else {
@@ -1244,6 +1246,65 @@
     S.refocus = refocus || '.ts-step[data-i="' + i + '"]';
     S.live = c.pt.liveText(c.v, c.row, c.marks, i);
     paintCase();
+  }
+  // 2단계 입찰공고확인(사용자 11-25): 기관정보 팝업과 같은 내용을 읽기 전용으로 보이고, 누락·미확인이 없으면 완료로 본다.
+  // 판정은 표의 그 줄 NOTICE_CHECK 칸에 notice_ok로 적는다(preptask.stepState가 읽는다). 기관 자료를 못 찾으면 판정하지 않는다.
+  function noticeInfo(v, row) {
+    const D = root.dashboard, pt = root.preptask;
+    let out = { state: 'none', gaps: [], build: null };
+    try {
+      const id = str(v && v.institution_id);
+      const list = D && D.util && D.util.dataList ? D.util.dataList() : [];
+      const rec = id ? list.filter(function (r) { return String(r.institutionId || '') === id; })[0] : null;
+      if (rec && D.itemForRec && D.paneParts && pt && pt.noticeGaps) {
+        const today = D.util.todayDate ? D.util.todayDate() : new Date();
+        const it = D.itemForRec(rec, today);
+        const nr = root.noticerec;
+        if (nr && nr.ensure) nr.ensure();
+        const snap = nr && nr.snap ? nr.snap() : null;
+        out = { state: 'ok',
+          gaps: pt.noticeGaps(it, { hasLink: !!(D.noticeLink && D.noticeLink(rec)), unhandled: !!(snap && D.isUnhandled && D.isUnhandled(it, snap)) }),
+          build: function () {
+            try {
+              const p = D.paneParts(it, { readOnly: true, today: today });
+              // 읽기 전용: 단추는 걷고, 다른 화면의 같은 id와 겹치지 않게 id도 뺀다
+              return (str(p.sub) + str(p.rest)).replace(/<button\b[\s\S]*?<\/button>/g, '').replace(/\s(?:id|aria-labelledby|aria-describedby)="[^"]*"/g, '');
+            } catch (e) { return ''; }
+          } };
+      }
+    } catch (e) { out = { state: 'none', gaps: [], build: null }; }
+    if (row) {
+      row.cells = row.cells || {};
+      const cell = Object.assign({}, row.cells.NOTICE_CHECK);
+      if (out.state === 'ok') cell.notice_ok = out.gaps.length === 0; else delete cell.notice_ok;
+      row.cells.NOTICE_CHECK = cell;
+    }
+    return out;
+  }
+  // [다음] 확인 팝업(사용자 11-25: 단계마다 공통) — [확인]이면 다음 단계로, [닫기]·Esc·바깥 클릭이면 그대로.
+  function openNextAsk() {
+    const c = stepCtx();
+    if (!c || S.modal || S.nb || S.nextAsk || !c.pt.nextAskHtml) return;
+    const html = c.pt.nextAskHtml(S.stepIdx);
+    if (!html) return;
+    S.nextAsk = true;
+    const box = el('pp-modal');
+    box.innerHTML = html;
+    box.style.display = '';
+    const ok = el('pp-nx-ok'); if (ok) ok.focus();
+  }
+  function closeNextAsk(go) {
+    if (!S.nextAsk) return;
+    S.nextAsk = false;
+    const box = el('pp-modal'); box.style.display = 'none'; box.innerHTML = '';
+    if (go) { stepBy(1); return; }
+    const b = el('pp-case').querySelector('[data-act="ts-next"]'); if (b) b.focus();
+  }
+  // 단계 본문의 이동 단추 → 다른 메뉴 화면
+  function goNav(name) {
+    const N = root.nav || {};
+    const id = { board: N.DASH_ID, map: 'map', notice: N.NOTICE_ID, team: N.TEAM_ID }[name];
+    if (id && root.app && root.app.openNavItem) root.app.openNavItem(id);
   }
   // [이전]/[다음] — 누른 단추에 포커스를 남긴다(연달아 누를 수 있게). 끝에서 그 단추가 꺼지면 반대 단추로.
   function stepBy(d) {
@@ -1558,6 +1619,8 @@
         if (S.modal !== m) return;
         m.cands = Array.isArray(list) ? list : [];
         m.candState = 'ok';
+        // 결재 없는 시작(담당자 지정): 누른 사람을 기본으로 골라 둔다(사용자 11-25) — 후보에 있을 때만, 바꿀 수 있다
+        if (m.direct && !m.sel.length) { const me = myEmp(); if (me && m.cands.some(function (c) { return c && c.emp_no === me; })) m.sel = [me]; }
         repaintModalBody();
       }).catch(function () {
         if (S.modal !== m) return;
@@ -1803,7 +1866,8 @@
         return;
       }
       case 'ts-prev': stepBy(-1); return;
-      case 'ts-next': stepBy(1); return;
+      case 'ts-next': openNextAsk(); return;
+      case 'go-nav': goNav(t.getAttribute('data-nav')); return;
       case 'mark': if (t.getAttribute('aria-disabled') !== 'true') onMark(t.getAttribute('data-col'), t.getAttribute('data-mk')); return;
       case 'to-board-doc': if (root.app && root.app.openNavItem && root.nav) root.app.openNavItem(root.nav.BOARD_ID); return;
       case 'back': if (boardOn()) backToBoard(); return;
@@ -1837,6 +1901,8 @@
     switch (t.id) {
       case 'pp-retry-list': S.listState = 'loading'; paintList(); loadList(); break;
       case 'pp-retry-detail': if (S.selected) loadDetail(S.selected, { popup: true }); break;
+      case 'pp-nx-ok': closeNextAsk(true); break;
+      case 'pp-nx-no': closeNextAsk(false); break;
       case 'pp-m-cancel': requestClose(); break;
       case 'pp-m-go': onModalGo(); break;
       case 'pp-m-keep': keepWriting(); break;
@@ -1878,7 +1944,7 @@
     if (t) t.focus();
   }
   function onModalKey(e) {
-    if ((!S.modal && !S.nb) || e.key !== 'Tab') return;      // Esc는 wire()의 document 핸들러가 처리
+    if ((!S.modal && !S.nb && !S.nextAsk) || e.key !== 'Tab') return;      // Esc는 wire()의 document 핸들러가 처리
     const list = Array.prototype.filter.call(el('pp-modal').querySelectorAll('button, input, textarea, a[href]'), function (n) {
       return !n.disabled && n.getClientRects().length > 0;
     });
@@ -1923,13 +1989,14 @@
     md.addEventListener('mousedown', function (e) { downOnBg = (e.target === md); });
     md.addEventListener('click', function (e) {
       if (e.target === md && downOnBg) {
-        if (S.nb) { if (!S.nb.sending) closeNobid(true); } else requestClose();
+        if (S.nb) { if (!S.nb.sending) closeNobid(true); } else if (S.nextAsk) closeNextAsk(false); else requestClose();
       }
       downOnBg = false;
     });
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
       if (S.nb) { e.preventDefault(); if (!S.nb.sending) closeNobid(true); return; }   // 팝업만 닫고 상세에 머문다(기록 없음)
+      if (S.nextAsk) { e.preventDefault(); closeNextAsk(false); return; }
       if (!S.modal) return;
       e.preventDefault();
       requestClose();
@@ -1944,7 +2011,7 @@
     const who = whoNow();
     if (who !== S.who) { S = freshState(); S.who = who; clearQueryBox(); if (root.prepboard && root.prepboard.reset) root.prepboard.reset(); }
     if (boardOn()) { if (S.pendingCase) S.pendingCase = false; else toBoardState(); }   // 메뉴로 들어오면 표부터. 지도·현황판이 openCase로 열면 상세
-    const md = el('pp-modal'); md.style.display = 'none'; md.innerHTML = ''; S.modal = null;
+    const md = el('pp-modal'); md.style.display = 'none'; md.innerHTML = ''; S.modal = null; S.nextAsk = false;
     S.nb = null; nbRelease();
     S.confirm = null;
     clearNotices();

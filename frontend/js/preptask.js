@@ -106,6 +106,20 @@
     saving: '저장 중…',
     lastCheck: function (date, by) { return '마지막 체크 ' + date + (by ? ' ' + by : ''); },
     taskNone: '이 단계에 걸린 준비 과제가 없습니다.',
+    changeAssignee: '담당자 변경…',
+    changeAssigneeNote: '담당자 변경은 [제안팀 구성·배정] 화면에서 요청합니다.',
+    nextAskTitle: '다음 단계로',
+    nextAsk: function (label) { return '현재 상태를 저장하고 다음 단계(' + label + ')로 넘어갑니다.'; },
+    nextNo: '닫기',
+    nextOk: '확인',
+    noticeGuide: '이 화면에서는 고치지 않습니다. 고칠 것이 있으면 아래 화면 중 한 곳에서 고친 뒤 돌아오세요.',
+    noticeNav: [['board', '입찰 현황판'], ['map', '지역별 공고현황'], ['notice', '입찰 공고 현황']],
+    noticeOk: '누락되거나 미확인인 항목이 없습니다. [다음]으로 넘어가면 됩니다.',
+    noticeGapsHead: function (n) { return '확인이 필요한 항목 ' + n + '건'; },
+    noticeNoRec: '이 기관의 입찰 공고 자료를 찾지 못했습니다. 입찰 공고 현황에서 기관을 확인하세요.',
+    noticeLoading: '입찰 공고 자료를 불러오는 중…',
+    stNoticeOk: '확인 완료',
+    stNoticeGap: '확인 필요',
     stTodo: '할 일',
     stWait: '승인 대기',
     stDone: '완료',
@@ -142,6 +156,26 @@
     return { can: true, why: '' };
   };
 
+  // 입찰공고확인 판정: true(누락 없음)·false(확인 필요)·undefined(아직 모름 — 공고 자료를 못 봄)
+  pt.noticeOk = function (row) {
+    const c = row && row.cells && row.cells.NOTICE_CHECK;
+    return c && typeof c.notice_ok === 'boolean' ? c.notice_ok : undefined;
+  };
+  // 판정을 모르는 입찰공고확인 단계는 '지금 할 단계'·구간 숫자·안내에서 뺀다(읽기만 하던 때와 같게).
+  function skipNotice(s, row) { return s.kind === 'notice' && pt.noticeOk(row) === undefined; }
+  // 공고 자료(dashboard.js의 항목 it)에서 누락·미확인 항목 이름을 뽑는다. o: { hasLink, unhandled(예정일이 지났는데 공고 상태 기록이 없음) }
+  pt.noticeGaps = function (it, o) {
+    const x = o || {};
+    if (!it) return ['입찰 공고 자료 없음'];
+    const g = [];
+    if (it.unknown) g.push('입찰 예정일 미상');
+    if (it.check) g.push('공고일 확인 필요');
+    if (it.notice && !it.receiveTo) g.push('접수 마감일 미확인');
+    if (it.notice && !x.hasLink) g.push('공고 링크 없음');
+    if (x.unhandled) g.push('예정일이 지났는데 공고 상태 기록이 없음');
+    return g;
+  };
+
   // ── 단계 상태(왼쪽 목록의 글리프·구간 숫자·'지금 할 단계') ────────────
   // → { glyph: 'done'|'prog'|'na'|'', text, cnt, closed(끝났거나 대상 아님) }
   pt.stepState = function (s, view, row, marks) {
@@ -159,7 +193,12 @@
       else if (sc === 'CANCELLED') out.text = '';
       else { out.glyph = 'done'; out.text = T.stDone; out.closed = true; }
     } else if (s.kind === 'notice') {
-      out.text = pt.cellState(row, s.cd, marks).notice;
+      // 입찰 공고 자료에 누락·미확인이 없으면 완료(사용자 11-25). 판정(notice_ok)은 prep.js가 공고 자료를 보고 그 줄에 적어 둔다 — 모르면 상태 없음.
+      const ok = pt.noticeOk(row);
+      const nm = pt.cellState(row, s.cd, marks).notice;
+      if (ok === true) { out.glyph = 'done'; out.closed = true; out.text = (nm ? nm + ', ' : '') + T.stNoticeOk; }
+      else if (ok === false) out.text = (nm ? nm + ', ' : '') + T.stNoticeGap;
+      else out.text = nm;
     } else if (s.kind === 'group') {
       const g = pt.groupCount(row, s);
       out.cnt = '완료 ' + g.done + '/' + g.total;
@@ -189,7 +228,7 @@
     if (view && view.state_cd === 'CANCELLED') return 0;
     for (let i = 0; i < pt.STEPS.length; i += 1) {
       const s = pt.STEPS[i];
-      if (s.kind === 'notice') continue;
+      if (skipNotice(s, row)) continue;
       if (!pt.stepState(s, view, row, marks).closed) return i;
     }
     return pt.STEPS.length - 1;
@@ -198,7 +237,7 @@
   // 표의 그 줄을 못 받았으면 손 칸의 값을 모르므로 빈 목록(잘못 알리지 않는다). 읽기만 하는 입찰공고확인과 선택 과제인 이사회 발표 대본은 뺀다.
   pt.openBefore = function (view, row, marks) {
     if (!row) return [];
-    return pt.STEPS.filter(function (s) { return s.ph === 'bid' && s.kind !== 'notice' && s.kind !== 'script' && !pt.stepState(s, view, row, marks).closed; })
+    return pt.STEPS.filter(function (s) { return s.ph === 'bid' && !skipNotice(s, row) && s.kind !== 'script' && !pt.stepState(s, view, row, marks).closed; })
       .map(function (s) { return s.label; });
   };
   // 구간 단추를 눌렀을 때 갈 단계 = 그 구간의 첫 '안 끝난 단계', 없으면 구간 첫 단계
@@ -207,7 +246,7 @@
     if (!ids.length) return 0;
     for (let k = 0; k < ids.length; k += 1) {
       const s = pt.STEPS[ids[k]];
-      if (s.kind !== 'notice' && !pt.stepState(s, view, row, marks).closed) return ids[k];
+      if (!skipNotice(s, row) && !pt.stepState(s, view, row, marks).closed) return ids[k];
     }
     return ids[0];
   };
@@ -217,7 +256,7 @@
   pt.phaseModel = function (view, row, marks, idx) {
     const cur = pt.phaseOf(idx);
     return pt.PHASES.map(function (p, n) {
-      const steps = pt.STEPS.filter(function (s) { return s.ph === p.key && s.kind !== 'notice'; });
+      const steps = pt.STEPS.filter(function (s) { return s.ph === p.key && !skipNotice(s, row); });
       return { key: p.key, label: p.label, no: n + 1, total: steps.length, current: p.key === cur,
                done: steps.filter(function (s) { return pt.stepState(s, view, row, marks).closed; }).length };
     });
@@ -335,10 +374,25 @@
       else if (sc === 'CANCELLED') h += note(T.startEnded);
       else {
         const names = (Array.isArray(v.assignees) ? v.assignees : []).map(function (a) { return str(a.name); }).filter(Boolean);
-        h += note(T.startDone) + '<dl class="ts-facts"><div><dt>담당</dt><dd>' + esc(names.length ? names.join(', ') : prep.T.noAssignees) + '</dd></div></dl>';
+        h += note(T.startDone) + '<dl class="ts-facts"><div><dt>담당</dt><dd>' + esc(names.length ? names.join(', ') : prep.T.noAssignees) + '</dd></div></dl>' +
+          '<div class="ts-acts"><button type="button" data-act="go-nav" data-nav="team">' + esc(T.changeAssignee) + '</button><span class="ts-note">' + esc(T.changeAssigneeNote) + '</span></div>';
       }
     } else if (s.kind === 'notice') {
-      h += '<dl class="ts-facts"><div><dt>공고 상태</dt><dd>' + esc(pt.cellState(m.row, s.cd, m.marks).notice || '없음') + '</dd></div></dl>' + note(pb.T.infoNotice);
+      // 기관정보 팝업과 같은 내용을 읽기 전용으로(m.notice = { state: 'ok'|'none'|'loading', html, gaps } — prep.js가 dashboard.js로 만든다)
+      const ni = m.notice || {};
+      h += '<dl class="ts-facts"><div><dt>공고 상태</dt><dd>' + esc(pt.cellState(m.row, s.cd, m.marks).notice || '없음') + '</dd></div></dl>';
+      if (ni.state === 'ok') {
+        const gaps = Array.isArray(ni.gaps) ? ni.gaps : [];
+        h += gaps.length
+          ? '<div class="ts-gaps" role="note"><b>' + esc(T.noticeGapsHead(gaps.length)) + '</b><ul>' + gaps.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join('') + '</ul></div>'
+          : '<p class="ts-okline" role="note">' + esc(T.noticeOk) + '</p>';
+        h += '<div class="ts-notice">' + str(ni.html) + '</div>';   // dashboard.js가 이스케이프해 만든 마크업
+      } else {
+        h += note(ni.state === 'loading' ? T.noticeLoading : T.noticeNoRec);
+      }
+      h += note(T.noticeGuide) + '<div class="ts-acts">' + T.noticeNav.map(function (n) {
+        return '<button type="button" data-act="go-nav" data-nav="' + n[0] + '">' + esc(n[1]) + '</button>';
+      }).join('') + '</div>';
     } else if (s.kind === 'manual' || s.kind === 'group') {
       h += note(s.kind === 'group' ? T.groupHint : T.manualHint) + markBlock(m, s, gate) + note(gate.why) + tasksBlock(m, s);
     } else if (s.kind === 'proposal') {
@@ -354,7 +408,16 @@
     const prev = idx > 0 ? { label: T.prev(pt.STEPS[idx - 1].label), off: false } : { label: T.prevNone, off: true };
     const next = idx < n - 1 ? { label: T.next(pt.STEPS[idx + 1].label), off: false } : { label: T.nextNone, off: true };
     return h + '<div class="ts-pager"><button type="button" data-act="ts-prev"' + (prev.off ? ' disabled' : '') + '>' + esc(prev.label) + '</button>' +
-      '<button type="button" data-act="ts-next"' + (next.off ? ' disabled' : '') + '>' + esc(next.label) + '</button></div>';
+      '<button type="button" class="ts-go" data-act="ts-next"' + (next.off ? ' disabled' : '') + '>' + esc(next.label) + '</button></div>';
+  };
+  // [다음] 확인 팝업(사용자 11-25: 단계마다 공통). 첫 포커스는 [확인].
+  pt.nextAskHtml = function (idx) {
+    const s = pt.STEPS[pt.clampIdx(idx) + 1];
+    if (!s) return '';
+    return '<div class="modal-box tm-modal-box ts-ask" role="dialog" aria-modal="true" aria-labelledby="ts-ask-t" aria-describedby="ts-ask-d">' +
+      '<h3 id="ts-ask-t">' + esc(T.nextAskTitle) + '</h3><p id="ts-ask-d" class="ts-ask-d">' + esc(T.nextAsk(s.label)) + '</p>' +
+      '<div class="tm-m-actions"><button type="button" id="pp-nx-no">' + esc(T.nextNo) + '</button>' +
+      '<button type="button" id="pp-nx-ok" class="ts-go">' + esc(T.nextOk) + '</button></div></div>';
   };
 
   // ── 상세 전체 ────────────────────────────────────────────────────

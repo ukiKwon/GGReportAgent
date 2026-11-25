@@ -1628,6 +1628,20 @@
   .ts-body .pp-tasks { margin:0; }
   .ts-body .pp-end { margin-top:0; }
   .ts-pager { display:flex; justify-content:space-between; gap:8px; margin-top:auto; padding-top:12px; border-top:1px solid var(--line); }
+  /* [이전]·[다음] 구분(사용자 11-25 "무엇을 눌러야 할지 눈에 안 들어온다"): 다음 = 채운 파랑(#hb-add와 같은 예외), 이전 = 굵은 테두리. 흰 글자 대비 약 7.6:1 */
+  .ts-pager button { min-height:34px; padding:6px 14px; font-weight:700; border:1px solid var(--line-strong); }
+  .ts-go:not(:disabled) { background:var(--accent-color); border-color:var(--accent-color); color:#fff; }
+  .ts-go:not(:disabled):hover { filter:brightness(.92); }
+  .ts-pager button:disabled { font-weight:400; color:var(--muted); }
+  .ts-ask { max-width:440px; }
+  .ts-ask-d { margin:8px 0 14px; font-size:13px; }
+  .ts-ask .ts-go { min-height:32px; padding:4px 16px; font-weight:700; }
+  .ts-gaps { padding:8px 12px; font-size:13px; border:1px solid var(--orange); border-radius:var(--r); background:var(--panel2); }
+  .ts-gaps b { color:var(--orange); } .ts-gaps ul { margin:4px 0 0; padding-left:18px; }
+  .ts-okline { margin:0; padding:8px 12px; font-size:13px; color:var(--green); border:1px solid var(--line); border-radius:var(--r); background:var(--panel2); }
+  .ts-notice { border:1px solid var(--line); border-radius:var(--r); padding:0 14px; }
+  .ts-notice .db-sub { margin:10px 0 0; } .ts-notice .db-sec:first-of-type { border-top:0; }
+  .ts-acts { align-items:center; }
   .ts-cell { display:inline-flex; align-items:center; gap:4px; }
   /* 협약준비 업무 끝 */
 

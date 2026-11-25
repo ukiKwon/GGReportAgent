@@ -368,3 +368,57 @@ test('제안서 단계: 입찰 자료확인 구간에 안 끝난 단계가 있�
   assert.deepStrictEqual(pt.openBefore(view('IN_PROGRESS', { tasks: done }), row({ cells: cells }), MARKS), []);
   assert.ok(pt.bodyHtml(model(view('CANCELLED'), idxOf('PROPOSAL'))).indexOf('아직 안 끝난 단계') < 0);
 });
+
+// ── 11-25 추가: [다음] 확인 팝업·입찰공고확인 본문·담당자 지정 ──
+test('[다음]: 채운 강조 단추, 확인 팝업 문구는 다음 단계 이름을 담는다', function () {
+  const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('FIN_COMMITTEE')));
+  assert.ok(/<button type="button" class="ts-go" data-act="ts-next">다음: 출심위\(사업부\)</.test(h));
+  const a = pt.nextAskHtml(idxOf('FIN_COMMITTEE'));
+  assert.ok(/role="dialog" aria-modal="true"/.test(a));
+  assert.ok(a.indexOf('현재 상태를 저장하고 다음 단계(출심위(사업부))로 넘어갑니다.') > 0);
+  assert.ok(/id="pp-nx-no">닫기</.test(a) && /id="pp-nx-ok" class="ts-go">확인</.test(a));
+  assert.strictEqual(pt.nextAskHtml(pt.STEPS.length - 1), '', '마지막 단계는 팝업 없음');
+  assert.ok(/case 'ts-next': openNextAsk\(\); return;/.test(PREP_SRC) && /case 'pp-nx-ok': closeNextAsk\(true\); break;/.test(PREP_SRC));
+  assert.ok(/if \(S\.nextAsk\) \{ e\.preventDefault\(\); closeNextAsk\(false\); return; \}/.test(PREP_SRC), 'Esc로 닫힌다');
+});
+
+test('noticeGaps·noticeOk: 누락·미확인 항목과 단계 완료 판정', function () {
+  assert.deepStrictEqual(pt.noticeGaps(null), ['입찰 공고 자료 없음']);
+  assert.deepStrictEqual(pt.noticeGaps({ notice: true, receiveTo: '2026-12-01' }, { hasLink: true }), []);
+  assert.deepStrictEqual(pt.noticeGaps({ notice: true }, { hasLink: false }), ['접수 마감일 미확인', '공고 링크 없음']);
+  assert.deepStrictEqual(pt.noticeGaps({ unknown: true }, {}), ['입찰 예정일 미상']);
+  assert.deepStrictEqual(pt.noticeGaps({ check: true }, { unhandled: true }), ['공고일 확인 필요', '예정일이 지났는데 공고 상태 기록이 없음']);
+  const s = pt.STEPS[1], v = view('IN_PROGRESS');
+  const ok = row({ cells: { NOTICE_CHECK: { notice_status_name: '공고 확인', notice_ok: true } } });
+  const gap = row({ cells: { NOTICE_CHECK: { notice_status_name: '공고 확인', notice_ok: false } } });
+  assert.deepStrictEqual(pt.stepState(s, v, ok, MARKS), { glyph: 'done', text: '공고 확인, 확인 완료', cnt: '', closed: true });
+  assert.strictEqual(pt.stepState(s, v, gap, MARKS).closed, false);
+  assert.strictEqual(pt.stepState(s, v, gap, MARKS).text, '공고 확인, 확인 필요');
+  assert.strictEqual(pt.stepState(s, v, row(), MARKS).glyph, '', '판정을 모르면 상태 없음');
+  // 판정이 있으면 구간 숫자에 들어가고, 확인 필요면 '지금 할 단계'가 된다
+  assert.strictEqual(pt.phaseModel(v, ok, MARKS, 0)[0].total, 9);
+  assert.strictEqual(pt.phaseModel(v, row(), MARKS, 0)[0].total, 8);
+  assert.strictEqual(pt.STEPS[pt.defaultIdx(v, gap, MARKS)].id, 'NOTICE_CHECK');
+  assert.strictEqual(pt.STEPS[pt.defaultIdx(v, ok, MARKS)].id, 'INST_ANALYSIS');
+});
+
+test('bodyHtml 입찰공고확인: 기관정보 내용(읽기 전용)·누락 목록·고칠 화면 세 곳 안내', function () {
+  const g = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', html: '<div class="db-sec">공고 진행</div>', gaps: ['공고 링크 없음'] } }));
+  assert.ok(g.indexOf('확인이 필요한 항목 1건') > 0 && g.indexOf('<li>공고 링크 없음</li>') > 0);
+  assert.ok(g.indexOf('<div class="ts-notice"><div class="db-sec">공고 진행</div></div>') > 0);
+  assert.strictEqual((g.match(/data-act="go-nav"/g) || []).length, 3);
+  assert.ok(/data-nav="board">입찰 현황판</.test(g) && /data-nav="map">지역별 공고현황</.test(g) && /data-nav="notice">입찰 공고 현황</.test(g));
+  assert.ok(!/data-act="mark"/.test(g), '이 단계에서는 고치지 않는다');
+  const ok = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', html: '', gaps: [] } }));
+  assert.ok(ok.indexOf(pt.T.noticeOk) > 0 && ok.indexOf('확인이 필요한 항목') < 0);
+  const none = pt.bodyHtml(model(view('IN_PROGRESS'), 1));
+  assert.ok(none.indexOf(pt.T.noticeNoRec) > 0);
+  assert.ok(/function noticeInfo\(v, row\) \{/.test(PREP_SRC) && PREP_SRC.indexOf("button>/g, '').replace(") > 0, '실은 내용에서 단추를 걷는다');
+});
+
+test('담당자 지정: 끝난 뒤 [담당자 변경…], 결재 없는 시작 창은 누른 사람이 기본 선택', function () {
+  const d = pt.bodyHtml(model(view('IN_PROGRESS'), 0));
+  assert.ok(/data-act="go-nav" data-nav="team">담당자 변경…</.test(d));
+  assert.ok(/if \(m\.direct && !m\.sel\.length\) \{ const me = myEmp\(\);/.test(PREP_SRC));
+  assert.ok(/team: N\.TEAM_ID/.test(PREP_SRC) && /board: N\.DASH_ID/.test(PREP_SRC));
+});
