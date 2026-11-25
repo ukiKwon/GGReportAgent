@@ -18,7 +18,12 @@ public final class InstSummaryTpl {
 
     public static final String FORM_CD = "INST_SUMMARY";
     public static final String TASK_CD = "T1";
-    public static final int TPL_VER = 2;   // 2: 'effect'(우리 회사 기대효과) 추가. 1 판은 effect 가 없고 빈 목록으로 읽는다.
+    /**
+     * 2: 'effect'(우리 회사 기대효과) 추가. 1 판은 effect 가 없고 빈 목록으로 읽는다.
+     * 3: 샘플 두 쪽(NEXT 113 ④) — 'head_title'(현황 표 첫 칸 직함)·'scoring'(2쪽 평가 기준표, tables.scoring) 추가,
+     *    mmda_basis 줄이 {text,note}(서술 줄 각주), biz 줄이 {text,bold}. 옛 판의 문자열 줄은 읽을 때 같은 모양으로 올린다(저장본은 그대로).
+     */
+    public static final int TPL_VER = 3;
     /** 정규 JSON(UTF-8) 상한 — 넘으면 저장하지 않는다(400 CONTENT_TOO_LARGE). */
     public static final int MAX_CONTENT_BYTES = 120 * 1024;
     /** 양식당 판 상한 — 넘으면 409 TOO_MANY_VERSIONS(security 11-20 중-3: 같은 내용 재저장은 판을 만들지 않지만 건당 총량도 막는다). */
@@ -28,6 +33,11 @@ public final class InstSummaryTpl {
     public static final int MAX_FUND_ROWS = 10;
     public static final int MAX_LIST_ITEMS = 10;
     public static final int MAX_NOTE = 100;
+    /** 2쪽 평가 기준표(tables.scoring) 상한 — ScoringTable 의 읽기 상한(행 200·열 12)과 같다. 칸 글자는 줄바꿈 허용. */
+    public static final int MAX_SCORING_ROWS = 200;
+    public static final int MAX_SCORING_COLS = 12;
+    public static final int MAX_SCORING_CELL = 500;
+    public static final int MAX_SCORING_TABLE_INDEX = 19;
 
     public enum Kind { FACT, TEXT, LIST, TABLE }
 
@@ -69,6 +79,7 @@ public final class InstSummaryTpl {
         k.add(new Key("head_name", Kind.FACT, "기관장", true, 0, 0, "head_card"));   // 기관장 기능이 꺼져 있으면 서비스가 필수에서 뺀다
         k.add(new Key("current_bank", Kind.FACT, "현 거래 은행", false, 0, 0, "bank_contract"));
         k.add(new Key("bid_kind", Kind.TEXT, "공고명(입찰 종류)", true, 40, 0, null));
+        k.add(new Key("head_title", Kind.TEXT, "기관장 직함(현황 표 첫 칸 머리, 비면 '기관장')", false, 20, 0, null));
         k.add(new Key("budget", Kind.TEXT, "예산", false, 60, 0, null));
         k.add(new Key("staff", Kind.TEXT, "임직원 수", false, 40, 0, null));
         k.add(new Key("supervisor", Kind.TEXT, "주무기관", false, 60, 0, null));
@@ -81,6 +92,7 @@ public final class InstSummaryTpl {
         k.add(new Key("biz", Kind.TABLE, "기관 주요 사업", false, 0, MAX_BIZ_ROWS, null));
         k.add(new Key("fund", Kind.TABLE, "예산 운영 방식", false, 0, MAX_FUND_ROWS, null));
         k.add(new Key("years", Kind.TABLE, "연도별 예상 평잔·자금수익", false, 0, 0, null));
+        k.add(new Key("scoring", Kind.TABLE, "선정 평가 기준표(2쪽)", false, 0, 0, null));
         KEYS = Collections.unmodifiableList(k);
         Map<String, Key> m = new LinkedHashMap<String, Key>();
         for (Key x : KEYS) {

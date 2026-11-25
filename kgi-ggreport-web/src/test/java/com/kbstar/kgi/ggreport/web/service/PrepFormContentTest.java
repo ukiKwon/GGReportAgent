@@ -168,6 +168,156 @@ public class PrepFormContentTest {
         assertTrue(s, s.contains("\"mmda\":{\"2027\":\"1200\"}"));
     }
 
+    // ── v3(샘플 두 쪽, NEXT 113 ④) ──────────────────────────────────────
+
+    private static final String SC_OK = "{'scoring':{'row_count':3,'col_count':3,'total':100,'source':{'attach_id':7,'file':'공고.hwpx','table':1},'cells':["
+            + "{'r':2,'c':0,'rs':1,'cs':2,'text':'계'},{'r':0,'c':0,'rs':2,'cs':1,'text':'부문\\n(비고)'},{'r':0,'c':1,'rs':1,'cs':2,'text':'항목'},"
+            + "{'r':1,'c':1,'rs':1,'cs':1,'text':'a'},{'r':1,'c':2,'rs':1,'cs':1,'text':'10'},{'r':2,'c':2,'rs':1,'cs':1,'text':'100'}]}}";
+
+    private static ApiException expectTables(String tables, int status, String code) {
+        return expect(draft(null, null, tables), status, code);
+    }
+
+    @Test
+    public void 직함_칸은_20자까지이고_비면_빈_값이다() {
+        Map<String, Object> ok = PrepFormService.buildDraft(PrepFormService.emptyContent(), draft("{'head_title':{'val':' 원장 ','note':null}}", null, null));
+        assertTrue(PrepFormService.canonical(ok), PrepFormService.canonical(ok).contains("\"head_title\":{\"note\":null,\"val\":\"원장\"}"));
+        ApiException e = expect(draft("{'head_title':{'val':'가나다라마바사아자차카타파하가나다라마바사','note':null}}", null, null), 400, "BAD_VALUE");   // 21자
+        assertEquals("head_title", ((Map<?, ?>) e.getDetailObject()).get("key"));
+        assertTrue(PrepFormService.canonical(PrepFormService.emptyContent()).contains("\"head_title\":{\"note\":null,\"val\":null}"));
+    }
+
+    @Test
+    public void 산정_기준_줄은_문자열도_받고_늘_text_note_모양으로_저장한다() {
+        Map<String, Object> m = PrepFormService.buildDraft(PrepFormService.emptyContent(),
+                draft(null, "{'mmda_basis':['기준 1',{'text':'기준 2','note':' 각주 '},{'text':'  ','note':'버림'}]}", null));
+        String s = PrepFormService.canonical(m);
+        assertTrue(s, s.contains("\"mmda_basis\":[{\"note\":null,\"text\":\"기준 1\"},{\"note\":\"각주\",\"text\":\"기준 2\"}]"));
+    }
+
+    @Test
+    public void 산정_기준_각주는_300자_줄바꿈_모르는_키_개인정보를_막는다() {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < 301; i++) {
+            b.append('가');
+        }
+        ApiException e = expect(draft(null, "{'mmda_basis':[{'text':'a','note':'" + b + "'}]}", null), 400, "BAD_VALUE");
+        assertEquals("mmda_basis", ((Map<?, ?>) e.getDetailObject()).get("key"));
+        expect(draft(null, "{'mmda_basis':[{'text':'a','note':'가\\n나'}]}", null), 400, "BAD_VALUE");
+        expect(draft(null, "{'mmda_basis':[{'text':'a','foo':'x'}]}", null), 400, "UNKNOWN_KEY");
+        expect(draft(null, "{'mmda_basis':[{'text':'a','note':'900101-1234567'}]}", null), 422, "PII_DETECTED");
+        expect(draft(null, "{'mmda_basis':[7]}", null), 400, "BAD_TYPE");
+    }
+
+    @Test
+    public void 사업_줄은_문자열도_받고_늘_text_bold_모양이며_굵게_값은_불리언만() {
+        Map<String, Object> m = PrepFormService.buildDraft(PrepFormService.emptyContent(),
+                draft(null, null, "{'biz':{'rows':[{'group':'A','sub':null,'lines':[{'text':'굵게','bold':true},'보통',{'text':'기본'}]}]}}"));
+        String s = PrepFormService.canonical(m);
+        assertTrue(s, s.contains("\"lines\":[{\"bold\":true,\"text\":\"굵게\"},{\"bold\":false,\"text\":\"보통\"},{\"bold\":false,\"text\":\"기본\"}]"));
+        expectTables("{'biz':{'rows':[{'group':'A','sub':null,'lines':[{'text':'x','bold':'true'}]}]}}", 400, "BAD_TYPE");
+        expectTables("{'biz':{'rows':[{'group':'A','sub':null,'lines':[{'text':'x','color':'red'}]}]}}", 400, "UNKNOWN_KEY");
+    }
+
+    @Test
+    public void 종료_뒤_연도에도_값을_저장할_수_있다() {
+        Map<String, Object> m = PrepFormService.buildDraft(PrepFormService.emptyContent(),
+                draft(null, null, "{'years':{'unit':'억원','from':2027,'to':2029,'end':2027,'mmda':{'2028':'10000','2029':'5000'},'income':{'2029':'15'},'notes':[]}}"));
+        String s = PrepFormService.canonical(m);
+        assertTrue(s, s.contains("\"mmda\":{\"2028\":\"10000\",\"2029\":\"5000\"}"));
+        assertTrue(s, s.contains("\"income\":{\"2029\":\"15\"}"));
+    }
+
+    @Test
+    public void 평가표는_칸을_행_열_순으로_정렬해_저장하고_원본_모양_그대로다() {
+        Map<String, Object> m = PrepFormService.buildDraft(PrepFormService.emptyContent(), draft(null, null, SC_OK));
+        String s = PrepFormService.canonical(m);
+        int c1 = s.indexOf("\"text\":\"부문\\n(비고)\"");
+        int c2 = s.indexOf("\"text\":\"항목\"");
+        int c3 = s.indexOf("\"text\":\"계\"");
+        assertTrue(s, c1 > 0 && c1 < c2 && c2 < c3);
+        assertTrue(s, s.contains("\"col_count\":3"));
+        assertTrue(s, s.contains("\"row_count\":3"));
+        assertTrue(s, s.contains("\"total\":100"));
+        assertTrue(s, s.contains("\"source\":{\"attach_id\":7,\"file\":\"공고.hwpx\",\"table\":1}"));
+    }
+
+    @Test
+    public void 평가표_저장은_같은_입력이면_같은_문자열이고_칸이_없으면_null이다() {
+        String a = PrepFormService.canonical(PrepFormService.buildDraft(PrepFormService.emptyContent(), draft(null, null, SC_OK)));
+        String b = PrepFormService.canonical(PrepFormService.buildDraft(PrepFormService.emptyContent(), draft(null, null, SC_OK)));
+        assertEquals(a, b);
+        Map<String, Object> none = PrepFormService.buildDraft(PrepFormService.emptyContent(),
+                draft(null, null, "{'scoring':{'row_count':1,'col_count':1,'cells':[]}}"));
+        assertEquals(PrepFormService.canonical(PrepFormService.emptyContent()), PrepFormService.canonical(none));
+        Map<String, Object> absent = PrepFormService.buildDraft(PrepFormService.emptyContent(), draft(null, null, "{'years':null}"));
+        assertNull(((Map<?, ?>) absent.get("tables")).get("scoring"));
+    }
+
+    @Test
+    public void 평가표_범위_밖_병합_겹침_크기_초과는_거절한다() {
+        // rs 가 표 밖
+        ApiException r = expectTables("{'scoring':{'row_count':2,'col_count':2,'cells':[{'r':1,'c':0,'rs':2,'cs':1,'text':'x'}]}}", 400, "BAD_SCORING");
+        assertEquals("scoring", ((Map<?, ?>) r.getDetailObject()).get("key"));
+        // cs 가 표 밖
+        expectTables("{'scoring':{'row_count':2,'col_count':2,'cells':[{'r':0,'c':1,'rs':1,'cs':2,'text':'x'}]}}", 400, "BAD_SCORING");
+        // rs 0·음수 위치
+        expectTables("{'scoring':{'row_count':2,'col_count':2,'cells':[{'r':0,'c':0,'rs':0,'cs':1,'text':'x'}]}}", 400, "BAD_SCORING");
+        expectTables("{'scoring':{'row_count':2,'col_count':2,'cells':[{'r':-1,'c':0,'rs':1,'cs':1,'text':'x'}]}}", 400, "BAD_SCORING");
+        // 겹침
+        expectTables("{'scoring':{'row_count':2,'col_count':2,'cells':[{'r':0,'c':0,'rs':2,'cs':1,'text':'x'},{'r':1,'c':0,'rs':1,'cs':1,'text':'y'}]}}", 400, "BAD_SCORING");
+        // 행·열 상한
+        expectTables("{'scoring':{'row_count':201,'col_count':2,'cells':[{'r':0,'c':0,'rs':1,'cs':1,'text':'x'}]}}", 400, "BAD_SCORING");
+        expectTables("{'scoring':{'row_count':2,'col_count':13,'cells':[{'r':0,'c':0,'rs':1,'cs':1,'text':'x'}]}}", 400, "BAD_SCORING");
+        expectTables("{'scoring':{'row_count':0,'col_count':2,'cells':[]}}", 400, "BAD_SCORING");
+        // 칸 수가 격자보다 많음
+        expectTables("{'scoring':{'row_count':1,'col_count':1,'cells':[{'r':0,'c':0,'rs':1,'cs':1,'text':'x'},{'r':0,'c':0,'rs':1,'cs':1,'text':'y'}]}}", 400, "TOO_MANY");
+    }
+
+    @Test
+    public void 평가표_칸_글자는_500자_개인정보_형_모르는_키를_검사한다() {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < 501; i++) {
+            b.append('가');
+        }
+        ApiException e = expectTables("{'scoring':{'row_count':1,'col_count':1,'cells':[{'r':0,'c':0,'rs':1,'cs':1,'text':'" + b + "'}]}}", 400, "BAD_VALUE");
+        assertEquals("scoring", ((Map<?, ?>) e.getDetailObject()).get("key"));
+        ApiException p = expectTables("{'scoring':{'row_count':1,'col_count':1,'cells':[{'r':0,'c':0,'rs':1,'cs':1,'text':'900101-1234567'}]}}", 422, "PII_DETECTED");
+        assertTrue(!String.valueOf(p.getDetailObject()).contains("900101"));
+        expectTables("{'scoring':{'row_count':1,'col_count':1,'cells':[{'r':0,'c':0,'rs':1,'cs':1,'text':7}]}}", 400, "BAD_TYPE");
+        expectTables("{'scoring':{'row_count':1,'col_count':1,'cells':[{'r':0,'c':0,'rs':1,'cs':1,'text':'x','bold':true}]}}", 400, "UNKNOWN_KEY");
+        expectTables("{'scoring':{'row_count':1,'col_count':1,'cells':[{'r':0,'c':0,'rs':'1','cs':1,'text':'x'}]}}", 400, "BAD_TYPE");
+        expectTables("{'scoring':{'row_count':1,'col_count':1,'foo':1,'cells':[]}}", 400, "UNKNOWN_KEY");
+        expectTables("{'scoring':{'row_count':1,'col_count':1,'source':{'table':99},'cells':[{'r':0,'c':0,'rs':1,'cs':1,'text':'x'}]}}", 400, "BAD_SCORING");
+    }
+
+    @Test
+    public void 옛_v2_본문을_올리면_새_칸이_빈_채로_생기고_문자열_줄이_v3_모양이_된다() throws Exception {
+        Map<String, Object> old = OM.readValue(("{'v':1,'form':'INST_SUMMARY','tpl_ver':2,'fields':{'bid_kind':{'val':'금고','note':null}},"
+                + "'lists':{'overview':['a'],'mmda_basis':['기준'],'competition':[],'effect':[]},"
+                + "'tables':{'biz':{'src':null,'dropped':0,'rows':[{'group':'A','sub':null,'lines':['줄']}]},'fund':{'rows':[]},'years':null}}").replace('\'', '"'),
+                new com.fasterxml.jackson.core.type.TypeReference<LinkedHashMap<String, Object>>() { });
+        Map<String, Object> up = PrepFormService.upgrade(old);
+        String s = PrepFormService.canonical(up);
+        assertTrue(s, s.contains("\"tpl_ver\":3"));
+        assertTrue(s, s.contains("\"head_title\":{\"note\":null,\"val\":null}"));
+        assertTrue(s, s.contains("\"scoring\":null"));
+        assertTrue(s, s.contains("\"mmda_basis\":[{\"note\":null,\"text\":\"기준\"}]"));
+        assertTrue(s, s.contains("\"lines\":[{\"bold\":false,\"text\":\"줄\"}]"));
+        // 다시 올려도 같다(멱등)
+        assertEquals(s, PrepFormService.canonical(PrepFormService.upgrade(up)));
+        // 올린 본문을 그대로 편집 저장하면 같은 정규 문자열
+        assertTrue(s.contains("\"overview\":[\"a\"]"));
+    }
+
+    @Test
+    public void 빈_양식은_직함과_평가표_칸을_갖는다() {
+        Map<String, Object> e = PrepFormService.emptyContent();
+        assertTrue(((Map<?, ?>) e.get("fields")).containsKey("head_title"));
+        assertTrue(((Map<?, ?>) e.get("tables")).containsKey("scoring"));
+        assertEquals(3, com.kbstar.kgi.ggreport.web.docout.InstSummaryTpl.TPL_VER);
+    }
+
     @Test
     public void 씨앗_글자는_200자로_자르고_제어문자를_빼고_개인정보는_표식으로_거른다() {
         StringBuilder b = new StringBuilder();

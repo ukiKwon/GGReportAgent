@@ -180,7 +180,7 @@ public class PrepFormService {
         try {
             doc = InstSummaryDocBuilder.build(content, v.getRenderVer(), !confirmed);
         } catch (IllegalArgumentException e) {
-            throw coded(409, "RENDER_UNSUPPORTED", "저장된 연도 범위를 문서로 만들 수 없습니다.");
+            throw coded(409, "RENDER_UNSUPPORTED", "저장된 연도 범위 또는 평가 기준표를 문서로 만들 수 없습니다.");
         }
         byte[] bytes = DocxKit.render(doc, DocxKit.Footer.pageNumberOnly());
         return new DocOut(bytes, text(content.path("fields").path("inst_name").path("val")), verNo);
@@ -470,7 +470,10 @@ public class PrepFormService {
         return f.getCurVer() > 0 ? upgrade(parseMap(loadVer(bid, f.getCurVer()).getContentJson())) : emptyContent();
     }
 
-    /** 옛 칸 지도(TPL_VER 1 등)로 저장된 판을 새 칸 지도로 올린다 — 새로 생긴 LIST 칸은 빈 목록. 저장된 옛 판 문자열·해시는 건드리지 않는다. */
+    /**
+     * 옛 칸 지도(TPL_VER 1·2)로 저장된 판을 새 칸 지도(3)로 올린다 — 새로 생긴 LIST 칸은 빈 목록, head_title 은 빈 칸, tables.scoring 은 null,
+     * mmda_basis 의 문자열 줄은 {text, note:null}, biz 의 문자열 줄은 {text, bold:false}. 저장된 옛 판 문자열·해시는 건드리지 않는다(읽은 사본만 올린다).
+     */
     @SuppressWarnings("unchecked")
     static Map<String, Object> upgrade(Map<String, Object> m) {
         m.put("tpl_ver", InstSummaryTpl.TPL_VER);
@@ -484,7 +487,61 @@ public class PrepFormService {
                 ((Map<String, Object>) ls).put(k.getKey(), new ArrayList<Object>());
             }
         }
+        normalizeLines(m);
+        Object fs = m.get("fields");
+        if (fs instanceof Map) {
+            for (InstSummaryTpl.Key k : InstSummaryTpl.keysOf(InstSummaryTpl.Kind.TEXT)) {
+                if (!((Map<String, Object>) fs).containsKey(k.getKey())) {
+                    ((Map<String, Object>) fs).put(k.getKey(), textMap(null, null));
+                }
+            }
+        }
+        Object ts = m.get("tables");
+        if (ts instanceof Map && !((Map<String, Object>) ts).containsKey("scoring")) {
+            ((Map<String, Object>) ts).put("scoring", null);
+        }
         return m;
+    }
+
+    /** mmda_basis·biz 줄의 문자열을 v3 모양({text,note}·{text,bold})으로 — 이미 객체인 줄은 그대로. */
+    @SuppressWarnings("unchecked")
+    static void normalizeLines(Map<String, Object> m) {
+        Object ls = m.get("lists");
+        if (ls instanceof Map && ((Map<String, Object>) ls).get("mmda_basis") instanceof List) {
+            List<Object> out = new ArrayList<Object>();
+            for (Object o : (List<Object>) ((Map<String, Object>) ls).get("mmda_basis")) {
+                if (o instanceof String) {
+                    Map<String, Object> line = new LinkedHashMap<String, Object>();
+                    line.put("text", o);
+                    line.put("note", null);
+                    out.add(line);
+                } else {
+                    out.add(o);
+                }
+            }
+            ((Map<String, Object>) ls).put("mmda_basis", out);
+        }
+        Object ts = m.get("tables");
+        Object biz = ts instanceof Map ? ((Map<String, Object>) ts).get("biz") : null;
+        Object rows = biz instanceof Map ? ((Map<String, Object>) biz).get("rows") : null;
+        if (rows instanceof List) {
+            for (Object r : (List<Object>) rows) {
+                if (r instanceof Map && ((Map<String, Object>) r).get("lines") instanceof List) {
+                    List<Object> out = new ArrayList<Object>();
+                    for (Object o : (List<Object>) ((Map<String, Object>) r).get("lines")) {
+                        if (o instanceof String) {
+                            Map<String, Object> line = new LinkedHashMap<String, Object>();
+                            line.put("text", o);
+                            line.put("bold", Boolean.FALSE);
+                            out.add(line);
+                        } else {
+                            out.add(o);
+                        }
+                    }
+                    ((Map<String, Object>) r).put("lines", out);
+                }
+            }
+        }
     }
 
     /**
@@ -549,7 +606,7 @@ public class PrepFormService {
         int cur = f == null ? 0 : f.getCurVer();
         boolean confirmed = f != null && f.getConfirmedVer() != null;
         PrepFormVer v = cur > 0 ? forms.selectVer(bid, InstSummaryTpl.FORM_CD, cur) : null;
-        JsonNode content = v == null ? null : withListDefaults(parse(v.getContentJson()));
+        JsonNode content = v == null ? null : JSON.valueToTree(upgrade(parseMap(v.getContentJson())));   // 옛 판도 v3 모양으로 읽는다(저장본은 그대로)
         Map<String, Fact> now = content != null || confirmed ? prefill.snapshot(p.getInstitutionId()) : null;
         List<String> stale = new ArrayList<String>();
         List<String> missingSrc = new ArrayList<String>();
@@ -791,6 +848,7 @@ public class PrepFormService {
                 tables.put("years", y);
             }
         }
+        normalizeLines(next);   // 씨앗 줄(문자열)을 v3 줄 모양으로
     }
 
     @SuppressWarnings("unchecked")
@@ -850,6 +908,7 @@ public class PrepFormService {
         fund.put("rows", new ArrayList<Object>());
         tables.put("fund", fund);
         tables.put("years", null);
+        tables.put("scoring", null);
         root.put("tables", tables);
         return root;
     }
@@ -936,7 +995,11 @@ public class PrepFormService {
                 throw unknownKeys(unknown);
             }
             for (InstSummaryTpl.Key k : InstSummaryTpl.keysOf(InstSummaryTpl.Kind.LIST)) {
-                lists.put(k.getKey(), strictList(lin.get(k.getKey()), k.getMaxItems(), k.getMaxLen(), k.getLabel(), k.getKey()));
+                if ("mmda_basis".equals(k.getKey())) {
+                    lists.put(k.getKey(), noteLines(lin.get(k.getKey()), k.getMaxItems(), k.getMaxLen(), k.getLabel(), k.getKey()));
+                } else {
+                    lists.put(k.getKey(), strictList(lin.get(k.getKey()), k.getMaxItems(), k.getMaxLen(), k.getLabel(), k.getKey()));
+                }
             }
         }
         // tables
@@ -960,6 +1023,7 @@ public class PrepFormService {
             ((Map<String, Object>) tables.get("biz")).put("rows", bizRows(tin.get("biz")));
             tables.put("years", years(tin.get("years")));
             ((Map<String, Object>) tables.get("fund")).put("rows", fundRows(tin.get("fund")));
+            tables.put("scoring", scoring(tin.get("scoring")));
         }
         // 본문에 없는 편집 칸은 빈 값이다(전체 교체). 단 biz 의 출처·뺀 개수는 서버 것을 그대로 둔다 — 클라이언트 값은 받지 않는다.
         Map<String, Object> bizOut = (Map<String, Object>) tables.get("biz");
@@ -993,10 +1057,215 @@ public class PrepFormService {
             Map<String, Object> row = new LinkedHashMap<String, Object>();
             row.put("group", group);
             row.put("sub", sub);
-            row.put("lines", strictList(r.get("lines"), 5, 200, "사업 내용", "biz"));
+            row.put("lines", bizLines(r.get("lines")));
             rows.add(row);
         }
         return rows;
+    }
+
+    private static final Set<String> BIZ_LINE_PROPS = new HashSet<String>(Arrays.asList("text", "bold"));
+    private static final Set<String> NOTE_LINE_PROPS = new HashSet<String>(Arrays.asList("text", "note"));
+    private static final Set<String> SCORING_PROPS = new HashSet<String>(Arrays.asList("cells", "row_count", "col_count", "total", "source"));
+    private static final Set<String> SCORING_CELL_PROPS = new HashSet<String>(Arrays.asList("r", "c", "rs", "cs", "text"));
+    private static final Set<String> SCORING_SRC_PROPS = new HashSet<String>(Arrays.asList("attach_id", "file", "table"));
+
+    /** 사업 내용 줄 — 문자열(굵게 아님) 또는 {text, bold}. 저장 모양은 늘 {text, bold:boolean}. 최대 5줄·줄당 200자, 빈 글자 줄은 뺀다. */
+    private static List<Object> bizLines(JsonNode n) {
+        List<Object> out = new ArrayList<Object>();
+        if (n == null || n.isNull()) {
+            return out;
+        }
+        requireArray(n, "biz");
+        if (n.size() > 5) {
+            throw tooMany("biz");
+        }
+        for (JsonNode e : n) {
+            if (e == null || e.isNull()) {
+                throw badType("biz");
+            }
+            boolean bold = false;
+            String t;
+            if (e.isObject()) {
+                requireOnly(e, BIZ_LINE_PROPS);
+                JsonNode b = e.get("bold");
+                if (b != null && !b.isNull()) {
+                    if (!b.isBoolean()) {
+                        throw badType("biz");
+                    }
+                    bold = b.asBoolean();
+                }
+                t = text(strictText(e.get("text"), "biz"), 200, "사업 내용", false, "biz");
+            } else {
+                t = text(strictText(e, "biz"), 200, "사업 내용", false, "biz");
+            }
+            oneLine(t, "biz");
+            if (t != null) {
+                Map<String, Object> line = new LinkedHashMap<String, Object>();
+                line.put("text", t);
+                line.put("bold", bold);
+                out.add(line);
+            }
+        }
+        return out;
+    }
+
+    /** 서술 줄 + 각주(MMDA 산정 기준) — 문자열 또는 {text, note}. 저장 모양은 늘 {text, note|null}. 글자가 빈 줄은 각주째 뺀다. */
+    private static List<Object> noteLines(JsonNode n, int maxItems, int maxLen, String label, String key) {
+        List<Object> out = new ArrayList<Object>();
+        if (n == null || n.isNull()) {
+            return out;
+        }
+        requireArray(n, key);
+        if (n.size() > maxItems) {
+            throw tooMany(key);
+        }
+        for (JsonNode e : n) {
+            if (e == null || e.isNull()) {
+                throw badType(key);
+            }
+            String t;
+            String note = null;
+            if (e.isObject()) {
+                requireOnly(e, NOTE_LINE_PROPS);
+                t = text(strictText(e.get("text"), key), maxLen, label, false, key);
+                note = text(strictText(e.get("note"), key), 300, "각주", false, key);
+            } else {
+                t = text(strictText(e, key), maxLen, label, false, key);
+            }
+            oneLine(t, key);
+            oneLine(note, key);
+            if (t != null) {
+                Map<String, Object> line = new LinkedHashMap<String, Object>();
+                line.put("text", t);
+                line.put("note", note);
+                out.add(line);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 2쪽 평가 기준표 — {cells:[{r,c,rs,cs,text}], row_count, col_count, total, source:{attach_id,file,table}}. null 이면 2쪽 없음.
+     * 행 1~200·열 1~12·칸 글자 ≤500(줄바꿈 허용·개인정보 검사)·r/c ≥0·rs/cs ≥1·범위 안·겹침 없음. 격자에 빈 자리가 있어도 된다(Word 가 채운다).
+     * 위반은 400 BAD_SCORING(key=scoring) 또는 BAD_TYPE·TOO_MANY·UNKNOWN_KEY. 저장 모양은 칸을 (r,c) 순으로 정렬한다.
+     */
+    private static Map<String, Object> scoring(JsonNode n) {
+        if (n == null || n.isNull()) {
+            return null;
+        }
+        requireObject(n, "scoring");
+        requireOnly(n, SCORING_PROPS);
+        int rn = strictInt(n.get("row_count"), "scoring");
+        int cn = strictInt(n.get("col_count"), "scoring");
+        if (rn < 1 || rn > InstSummaryTpl.MAX_SCORING_ROWS || cn < 1 || cn > InstSummaryTpl.MAX_SCORING_COLS) {
+            throw badScoring("평가 기준표는 행 1~" + InstSummaryTpl.MAX_SCORING_ROWS + "·열 1~" + InstSummaryTpl.MAX_SCORING_COLS + " 범위여야 합니다.");
+        }
+        JsonNode arr = n.get("cells");
+        requireArray(arr, "scoring");
+        if (arr.size() > rn * cn) {
+            throw tooMany("scoring");
+        }
+        boolean[][] occ = new boolean[rn][cn];
+        List<int[]> pos = new ArrayList<int[]>();
+        List<String> txt = new ArrayList<String>();
+        for (JsonNode c : arr) {
+            requireObject(c, "scoring");
+            requireOnly(c, SCORING_CELL_PROPS);
+            int r = strictInt(c.get("r"), "scoring");
+            int k = strictInt(c.get("c"), "scoring");
+            int rs = strictInt(c.get("rs"), "scoring");
+            int cs = strictInt(c.get("cs"), "scoring");
+            if (r < 0 || k < 0 || rs < 1 || cs < 1 || r + rs > rn || k + cs > cn) {
+                throw badScoring("평가 기준표 칸의 위치·병합 범위가 표 밖입니다.");
+            }
+            for (int i = r; i < r + rs; i++) {
+                for (int j = k; j < k + cs; j++) {
+                    if (occ[i][j]) {
+                        throw badScoring("평가 기준표의 칸이 서로 겹칩니다.");
+                    }
+                    occ[i][j] = true;
+                }
+            }
+            String t = text(strictText(c.get("text"), "scoring"), InstSummaryTpl.MAX_SCORING_CELL, "평가 기준표 칸", false, "scoring");
+            pos.add(new int[]{r, k, rs, cs});
+            txt.add(t == null ? "" : t);
+        }
+        Integer total = null;
+        JsonNode tn = n.get("total");
+        if (tn != null && !tn.isNull()) {
+            int t = strictInt(tn, "scoring");
+            if (t < 0 || t > 100000) {
+                throw badScoring("합계 값이 범위를 벗어났습니다.");
+            }
+            total = Integer.valueOf(t);
+        }
+        Map<String, Object> source = null;
+        JsonNode sn = n.get("source");
+        if (sn != null && !sn.isNull()) {
+            requireObject(sn, "scoring");
+            requireOnly(sn, SCORING_SRC_PROPS);
+            JsonNode an = sn.get("attach_id");
+            Long attach = null;
+            if (an != null && !an.isNull()) {
+                if (!an.isIntegralNumber() || !an.canConvertToLong() || an.asLong() < 0) {
+                    throw badType("scoring");
+                }
+                attach = Long.valueOf(an.asLong());
+            }
+            String file = text(strictText(sn.get("file"), "scoring"), 200, "원본 파일명", false, "scoring");
+            oneLine(file, "scoring");
+            Integer table = null;
+            JsonNode tb = sn.get("table");
+            if (tb != null && !tb.isNull()) {
+                int ti = strictInt(tb, "scoring");
+                if (ti < 0 || ti > InstSummaryTpl.MAX_SCORING_TABLE_INDEX) {
+                    throw badScoring("원본 표 번호가 범위를 벗어났습니다.");
+                }
+                table = Integer.valueOf(ti);
+            }
+            source = new LinkedHashMap<String, Object>();
+            source.put("attach_id", attach);
+            source.put("file", file);
+            source.put("table", table);
+        }
+        List<Integer> order = new ArrayList<Integer>();
+        for (int i = 0; i < pos.size(); i++) {
+            order.add(i);
+        }
+        final List<int[]> fpos = pos;
+        java.util.Collections.sort(order, new java.util.Comparator<Integer>() {
+            @Override
+            public int compare(Integer a, Integer b) {
+                int[] x = fpos.get(a.intValue());
+                int[] y = fpos.get(b.intValue());
+                return x[0] != y[0] ? Integer.compare(x[0], y[0]) : Integer.compare(x[1], y[1]);
+            }
+        });
+        List<Object> cells = new ArrayList<Object>();
+        for (Integer i : order) {
+            int[] p = pos.get(i.intValue());
+            Map<String, Object> cell = new LinkedHashMap<String, Object>();
+            cell.put("r", p[0]);
+            cell.put("c", p[1]);
+            cell.put("rs", p[2]);
+            cell.put("cs", p[3]);
+            cell.put("text", txt.get(i.intValue()));
+            cells.add(cell);
+        }
+        if (cells.isEmpty()) {
+            return null;   // 칸이 없는 표는 2쪽 없음과 같다
+        }
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        out.put("cells", cells);
+        out.put("row_count", rn);
+        out.put("col_count", cn);
+        out.put("total", total);
+        out.put("source", source);
+        return out;
+    }
+
+    private static ApiException badScoring(String msg) {
+        return coded(400, "BAD_SCORING", msg, "key", "scoring");
     }
 
     private static List<Object> fundRows(JsonNode n) {
@@ -1282,22 +1551,6 @@ public class PrepFormService {
         } catch (IOException e) {
             throw new ApiException(500, "저장된 양식을 읽을 수 없습니다.");
         }
-    }
-
-    /** 보기용 — 옛 판에 없는 LIST 칸을 빈 배열로 채운다(저장본 문자열·해시는 그대로). */
-    private static JsonNode withListDefaults(JsonNode c) {
-        if (c instanceof com.fasterxml.jackson.databind.node.ObjectNode) {
-            com.fasterxml.jackson.databind.node.ObjectNode root = (com.fasterxml.jackson.databind.node.ObjectNode) c;
-            JsonNode ls = root.path("lists");
-            com.fasterxml.jackson.databind.node.ObjectNode lo = ls.isObject()
-                    ? (com.fasterxml.jackson.databind.node.ObjectNode) ls : root.putObject("lists");
-            for (InstSummaryTpl.Key k : InstSummaryTpl.keysOf(InstSummaryTpl.Kind.LIST)) {
-                if (!lo.has(k.getKey())) {
-                    lo.putArray(k.getKey());
-                }
-            }
-        }
-        return c;
     }
 
     private static Map<String, Object> parseMap(String json) {

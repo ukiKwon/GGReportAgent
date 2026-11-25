@@ -8,18 +8,21 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 기관 정보 요약 양식(049) 저장 내용(정규 JSON) → 출력 모델. 1쪽만 만든다(2쪽 평가표는 S4: TPL_VER 3·RENDER_VER 3 이후).
- * RENDER_VER 1 = 기대효과 없음, 2 = '기타 사항'에 '우리 회사 기대효과' 소제목+목록(비면 소제목도 생략, 사용자 11-23 Q-2026-11-09-01). 1 판도 계속 출력한다.
+ * 기관 정보 요약 양식(049) 저장 내용(정규 JSON) → 출력 모델.
+ * RENDER_VER 1 = 기대효과 없음, 2 = '기타 사항'에 '우리 회사 기대효과' 소제목+목록(비면 소제목도 생략, 사용자 11-23 Q-2026-11-09-01). 1·2 판은 1쪽만, 옛 조립 그대로 계속 출력한다.
+ * RENDER_VER 3 = 샘플 두 쪽(NEXT 113 ④): 연도 표 종료 뒤 칸 값 출력·자금수익 굵게, 현황 표 첫 칸 머리=head_title(기본 '기관장'), 예산 운영 방식 표 머리 줄,
+ * '※ 조직현황 :', MMDA 산정 기준 '·' 들여 쓰기와 서술 줄 각주(표 뒤 주석이 번호를 이어받음), 사업 줄 굵게, '현 거래 은행' 자동 줄 제외,
+ * 2쪽(tables.scoring 이 있으면 쪽 나눔 뒤 평가 기준표).
  * 모든 글자는 {@link DocModel.Run} 문자열로만 넣는다 — URL·하이퍼링크·필드 코드가 없다(렌더러는 setStringValue 만 쓴다).
  * 확정본은 저장된 판의 {@code RENDER_VER} 로 그 판의 JSON 에서 매번 다시 만든다 — 렌더러를 고치면 옛 판 분기를 남기고 RENDER_VER 를 올린다.
  */
 public final class InstSummaryDocBuilder {
 
-    public static final int RENDER_VER = 2;
+    public static final int RENDER_VER = 3;
 
     /** 이 서버가 출력할 수 있는 저장 판의 RENDER_VER — 옛 판 분기를 남긴다(확정본이 막히지 않게). */
     public static boolean supports(int renderVer) {
-        return renderVer == 1 || renderVer == 2;
+        return renderVer >= 1 && renderVer <= RENDER_VER;
     }
 
     private static final String DASH_EMPTY = "—";
@@ -53,17 +56,21 @@ public final class InstSummaryDocBuilder {
         blocks.add(DocModel.Para.of(DocModel.Bullet.NONE, 0, DocModel.Run.bold("■ [" + inst + "] 입찰 관련 주요내용")));
 
         List<List<DocModel.Cell>> rows = new ArrayList<List<DocModel.Cell>>();
-        rows.add(Arrays.asList(DocModel.Cell.header("추진 배경").withSpan(1, 3), DocModel.Cell.of(background(content, inst))));
-        rows.add(Collections.singletonList(DocModel.Cell.of(bizBlocks(content))));
-        rows.add(Collections.singletonList(DocModel.Cell.of(fundBlocks(content))));
+        boolean v3 = renderVer >= 3;
+        rows.add(Arrays.asList(DocModel.Cell.header("추진 배경").withSpan(1, 3), DocModel.Cell.of(background(content, inst, v3))));
+        rows.add(Collections.singletonList(DocModel.Cell.of(bizBlocks(content, v3))));
+        rows.add(Collections.singletonList(DocModel.Cell.of(fundBlocks(content, v3))));
         rows.add(Arrays.asList(DocModel.Cell.header("기타 사항"), DocModel.Cell.of(etcBlocks(content, renderVer))));
         blocks.add(new DocModel.Table(2, new double[]{14, 86}, rows, 0, false));
+        if (v3) {
+            blocks.addAll(scoringBlocks(content, inst, bidKind));
+        }
         return new DocModel(blocks);
     }
 
     // ── 추진 배경 ───────────────────────────────────────────────────────
 
-    private static List<DocModel.Block> background(JsonNode c, String inst) {
+    private static List<DocModel.Block> background(JsonNode c, String inst, boolean v3) {
         List<DocModel.Block> b = new ArrayList<DocModel.Block>();
         b.add(DocModel.Para.bullet(DocModel.Bullet.DASH, inst + " 현황"));
         for (String line : list(c, "overview")) {
@@ -72,7 +79,11 @@ public final class InstSummaryDocBuilder {
         b.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, "기관 주요 현황"));
         List<DocModel.Cell> head = new ArrayList<DocModel.Cell>();
         List<DocModel.Cell> val = new ArrayList<DocModel.Cell>();
-        String[][] cols = {{"기관장", fact(c, "head_name")}, {"예산", fact(c, "budget")}, {"임직원 수", fact(c, "staff")},
+        String headTitle = "기관장";
+        if (v3 && fact(c, "head_title") != null) {
+            headTitle = fact(c, "head_title");
+        }
+        String[][] cols = {{headTitle, fact(c, "head_name")}, {"예산", fact(c, "budget")}, {"임직원 수", fact(c, "staff")},
                 {"주무기관", fact(c, "supervisor")}, {"기관 형태", fact(c, "inst_type")}, {"소재지", fact(c, "address")}};
         for (String[] col : cols) {
             head.add(DocModel.Cell.header(col[0]));
@@ -81,14 +92,14 @@ public final class InstSummaryDocBuilder {
         b.add(new DocModel.Table(6, null, Arrays.asList(head, val), 1, true));
         String org = fact(c, "org_note");
         if (org != null) {
-            b.add(DocModel.Para.plain("※ 조직현황 " + org));
+            b.add(DocModel.Para.plain(v3 ? "※ 조직현황 : " + org : "※ 조직현황 " + org));
         }
         return b;
     }
 
     // ── 기관 주요 사업 ──────────────────────────────────────────────────
 
-    private static List<DocModel.Block> bizBlocks(JsonNode c) {
+    private static List<DocModel.Block> bizBlocks(JsonNode c, boolean v3) {
         List<DocModel.Block> b = new ArrayList<DocModel.Block>();
         b.add(DocModel.Para.bullet(DocModel.Bullet.DASH, "기관 주요 사업"));
         JsonNode bizRows = c.path("tables").path("biz").path("rows");
@@ -112,6 +123,14 @@ public final class InstSummaryDocBuilder {
                 String sub = text(r.path("sub"));
                 List<DocModel.Block> lines = new ArrayList<DocModel.Block>();
                 for (JsonNode l : r.path("lines")) {
+                    if (v3 && l.isObject()) {   // v3 줄 = {text, bold}
+                        String bt = text(l.path("text"));
+                        if (bt != null) {
+                            lines.add(DocModel.Para.of(DocModel.Bullet.DASH, 0,
+                                    l.path("bold").asBoolean(false) ? DocModel.Run.bold(bt) : DocModel.Run.of(bt)));
+                        }
+                        continue;
+                    }
                     String t = text(l);
                     if (t != null) {
                         lines.add(DocModel.Para.bullet(DocModel.Bullet.DASH, t));
@@ -139,13 +158,16 @@ public final class InstSummaryDocBuilder {
 
     // ── 운영자금 관련 고려사항 ──────────────────────────────────────────
 
-    private static List<DocModel.Block> fundBlocks(JsonNode c) {
+    private static List<DocModel.Block> fundBlocks(JsonNode c, boolean v3) {
         List<DocModel.Block> b = new ArrayList<DocModel.Block>();
         b.add(DocModel.Para.bullet(DocModel.Bullet.DASH, "운영자금 관련 고려사항"));
         b.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, "예산 운영 방식"));
         JsonNode fundRows = c.path("tables").path("fund").path("rows");
         if (fundRows.isArray() && fundRows.size() > 0) {
             List<List<DocModel.Cell>> rows = new ArrayList<List<DocModel.Cell>>();
+            if (v3) {
+                rows.add(Arrays.asList(DocModel.Cell.header("구분"), DocModel.Cell.header("내용")));
+            }
             for (JsonNode r : fundRows) {
                 List<DocModel.Block> lines = new ArrayList<DocModel.Block>();
                 for (JsonNode l : r.path("lines")) {
@@ -164,29 +186,49 @@ public final class InstSummaryDocBuilder {
                 }
                 rows.add(Arrays.asList(DocModel.Cell.text(orEmpty(text(r.path("kind")))), DocModel.Cell.of(lines)));
             }
-            b.add(new DocModel.Table(2, new double[]{20, 80}, rows, 0, true));
+            b.add(new DocModel.Table(2, new double[]{20, 80}, rows, v3 ? 1 : 0, true));
         }
         b.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, "MMDA 예상 평잔 산정 기준"));
-        for (String line : list(c, "mmda_basis")) {
-            b.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, line));
+        int no = 0;
+        if (v3) {
+            // 한 단계 들여 쓴 '·' 줄 — DocxKit 에 '·' 글머리가 없어 전각 공백 + '· ' 를 글자로 넣는다. 서술 줄마다 각주 0~1개, 그 줄 바로 아래 '주n)'.
+            for (JsonNode l : c.path("lists").path("mmda_basis")) {
+                String t = l.isObject() ? text(l.path("text")) : text(l);
+                if (t == null) {
+                    continue;
+                }
+                b.add(DocModel.Para.plain("　· " + t));
+                String note = l.isObject() ? text(l.path("note")) : null;
+                if (note != null) {
+                    no++;
+                    b.add(footnote(no, note));
+                }
+            }
+        } else {
+            for (String line : list(c, "mmda_basis")) {
+                b.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, line));
+            }
         }
         JsonNode years = c.path("tables").path("years");
         if (years.isObject()) {
-            b.add(yearsTable(years));
-            int no = 0;
+            b.add(yearsTable(years, v3));
             for (JsonNode note : years.path("notes")) {
                 String t = text(note);
                 if (t != null) {
                     no++;
-                    b.add(new DocModel.Para(Collections.singletonList(DocModel.Run.of("주" + no + ") " + t)),
-                            DocModel.Bullet.NONE, 0, 9, DocModel.Align.LEFT));
+                    b.add(footnote(no, t));
                 }
             }
         }
         return b;
     }
 
-    private static DocModel.Table yearsTable(JsonNode y) {
+    private static DocModel.Para footnote(int no, String t) {
+        return new DocModel.Para(Collections.singletonList(DocModel.Run.of("주" + no + ") " + t)),
+                DocModel.Bullet.NONE, 0, 9, DocModel.Align.LEFT);
+    }
+
+    private static DocModel.Table yearsTable(JsonNode y, boolean v3) {
         int from = y.path("from").asInt();
         int to = y.path("to").asInt();
         int n = Groups.yearColumns(from, to);   // 1~10열 밖이면 IllegalArgumentException
@@ -197,7 +239,7 @@ public final class InstSummaryDocBuilder {
         List<DocModel.Cell> income = new ArrayList<DocModel.Cell>();
         head.add(DocModel.Cell.header("구분(" + orEmpty(text(y.path("unit"))) + ")"));
         mmda.add(DocModel.Cell.text("MMDA 연평잔"));
-        income.add(DocModel.Cell.text("자금수익"));
+        income.add(v3 ? boldCell("자금수익", DocModel.Align.LEFT) : DocModel.Cell.text("자금수익"));
         for (int yr = from; yr <= to; yr++) {
             String key = String.valueOf(yr);
             if (end != null && yr == end.intValue()) {
@@ -208,6 +250,15 @@ public final class InstSummaryDocBuilder {
                 head.add(DocModel.Cell.header(key));
             }
             boolean after = end != null && yr > end.intValue();
+            if (v3) {   // 종료 뒤 연도 칸에도 값을 쓰고 빗금은 '협약 뒤' 표시로만 둔다. 자금수익 줄은 굵게(샘플).
+                String mv = text(y.path("mmda").path(key));
+                String iv = text(y.path("income").path(key));
+                mmda.add(valueCell(mv, after));
+                income.add(new DocModel.Cell(Collections.<DocModel.Block>singletonList(
+                        DocModel.Para.of(DocModel.Bullet.NONE, 0, DocModel.Run.bold(iv == null ? "" : iv))),
+                        1, 1, false, after ? DocModel.Shade.HATCH : DocModel.Shade.NONE, DocModel.Align.RIGHT));
+                continue;
+            }
             mmda.add(valueCell(after ? null : text(y.path("mmda").path(key)), after));
             income.add(valueCell(after ? null : text(y.path("income").path(key)), after));
         }
@@ -217,6 +268,11 @@ public final class InstSummaryDocBuilder {
             w[i] = 84.0 / n;
         }
         return new DocModel.Table(1 + n, w, Arrays.asList(head, mmda, income), 1, true);
+    }
+
+    private static DocModel.Cell boldCell(String t, DocModel.Align align) {
+        return new DocModel.Cell(Collections.<DocModel.Block>singletonList(DocModel.Para.of(DocModel.Bullet.NONE, 0, DocModel.Run.bold(t))),
+                1, 1, false, DocModel.Shade.NONE, align);
     }
 
     private static DocModel.Cell valueCell(String v, boolean hatch) {
@@ -230,7 +286,7 @@ public final class InstSummaryDocBuilder {
         List<DocModel.Block> b = new ArrayList<DocModel.Block>();
         b.add(DocModel.Para.bullet(DocModel.Bullet.DASH, "경쟁은행 동향 및 중점 제안 사항"));
         String bank = fact(c, "current_bank");
-        if (bank != null) {
+        if (bank != null && renderVer < 3) {   // v3: 자동 '현 거래 은행' 줄은 Word 에서 뺀다(값은 저장·화면 참고용으로 유지)
             b.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, "현 거래 은행: " + bank));
         }
         for (String line : list(c, "competition")) {
@@ -244,6 +300,101 @@ public final class InstSummaryDocBuilder {
                     b.add(DocModel.Para.bullet(DocModel.Bullet.CIRCLE_O, line));
                 }
             }
+        }
+        return b;
+    }
+
+    // ── 2쪽 평가 기준표(v3) ─────────────────────────────────────────────
+
+    private static final String[] TOTAL_LABELS = {"계", "합계", "총점", "총계"};
+
+    /**
+     * tables.scoring 이 있고 칸이 하나 이상이면 [쪽 나눔 + 제목 + ■ 소제목 + 병합 표(+합계 줄)]. 없으면 빈 목록(1쪽만).
+     * 칸 범위·겹침이 어긋나면 IllegalArgumentException(호출부가 409 RENDER_UNSUPPORTED). 격자에서 비는 자리는 빈 칸으로 채운다.
+     * 머리 줄 수 = 첫 행 칸의 세로 병합(≤2) 또는 가로 병합이 있고 표가 3행 이상이면 2, 아니면 1(행이 하나면 0) — 쪽마다 반복·음영.
+     */
+    private static List<DocModel.Block> scoringBlocks(JsonNode c, String inst, String bidKind) {
+        JsonNode s = c.path("tables").path("scoring");
+        JsonNode cells = s.path("cells");
+        if (!s.isObject() || !cells.isArray() || cells.size() == 0) {
+            return Collections.emptyList();
+        }
+        int rn = s.path("row_count").asInt(0);
+        int cn = s.path("col_count").asInt(0);
+        if (rn < 1 || rn > InstSummaryTpl.MAX_SCORING_ROWS || cn < 1 || cn > InstSummaryTpl.MAX_SCORING_COLS) {
+            throw new IllegalArgumentException("scoring size");
+        }
+        int[][] owner = new int[rn][cn];   // 칸 번호 + 1, 0 = 빈 자리
+        int[] cr = new int[cells.size()];
+        int[] cc = new int[cells.size()];
+        int[] rs = new int[cells.size()];
+        int[] cs = new int[cells.size()];
+        String[] tx = new String[cells.size()];
+        for (int i = 0; i < cells.size(); i++) {
+            JsonNode n = cells.get(i);
+            cr[i] = n.path("r").asInt(-1);
+            cc[i] = n.path("c").asInt(-1);
+            rs[i] = n.path("rs").asInt(1);
+            cs[i] = n.path("cs").asInt(1);
+            tx[i] = orEmpty(text(n.path("text")));
+            if (cr[i] < 0 || cc[i] < 0 || rs[i] < 1 || cs[i] < 1 || cr[i] + rs[i] > rn || cc[i] + cs[i] > cn) {
+                throw new IllegalArgumentException("scoring cell range");
+            }
+            for (int r = cr[i]; r < cr[i] + rs[i]; r++) {
+                for (int k = cc[i]; k < cc[i] + cs[i]; k++) {
+                    if (owner[r][k] != 0) {
+                        throw new IllegalArgumentException("scoring cells overlap");
+                    }
+                    owner[r][k] = i + 1;
+                }
+            }
+        }
+        int headRows = rn == 1 ? 0 : 1;
+        if (rn >= 2) {
+            for (int i = 0; i < cr.length; i++) {
+                if (cr[i] == 0 && (rs[i] == 2 || (cs[i] > 1 && rn > 2))) {
+                    headRows = 2;
+                }
+            }
+        }
+        List<List<DocModel.Cell>> rows = new ArrayList<List<DocModel.Cell>>();
+        boolean hasTotalRow = false;
+        for (int r = 0; r < rn; r++) {
+            List<DocModel.Cell> row = new ArrayList<DocModel.Cell>();
+            for (int k = 0; k < cn; k++) {
+                int o = owner[r][k];
+                if (o == 0) {
+                    row.add(DocModel.Cell.text(""));   // 원본에 없는 자리 — 격자를 채운다
+                    continue;
+                }
+                int i = o - 1;
+                if (cr[i] != r || cc[i] != k) {
+                    continue;   // 다른 칸의 병합 자리
+                }
+                DocModel.Cell cell = r < headRows ? DocModel.Cell.header(tx[i]) : DocModel.Cell.text(tx[i]);
+                row.add(cell.withSpan(cs[i], rs[i]));
+                for (String label : TOTAL_LABELS) {
+                    if (label.equals(tx[i].trim())) {
+                        hasTotalRow = true;
+                    }
+                }
+            }
+            rows.add(row);
+        }
+        List<DocModel.Block> b = new ArrayList<DocModel.Block>();
+        b.add(new DocModel.PageBreak());
+        StringBuilder title = new StringBuilder("참고자료 2. 「").append(inst).append("」");
+        if (!bidKind.isEmpty()) {
+            title.append(' ').append(bidKind);
+        }
+        title.append(" 평가 기준표");
+        b.add(new DocModel.Heading(title.toString(), 14));
+        b.add(DocModel.Para.of(DocModel.Bullet.NONE, 0, DocModel.Run.bold("■ 평가 항목 및 배점 기준")));
+        b.add(new DocModel.Table(cn, null, rows, headRows, true));
+        JsonNode total = s.path("total");
+        if (total.isIntegralNumber() && !hasTotalRow) {   // 표에 '계·합계' 줄이 없을 때만 합계 줄을 덧붙인다
+            b.add(new DocModel.Para(Collections.singletonList(DocModel.Run.bold("합계 " + total.asInt() + "점")),
+                    DocModel.Bullet.NONE, 0, DocModel.Para.DEFAULT_PT, DocModel.Align.RIGHT));
         }
         return b;
     }
