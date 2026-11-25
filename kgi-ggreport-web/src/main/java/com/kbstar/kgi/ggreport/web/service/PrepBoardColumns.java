@@ -90,6 +90,14 @@ final class PrepBoardColumns {
         return raw == null || !raw.matches(CODE) ? null : BY_CD.get(raw);
     }
 
+    /**
+     * 공고 칸(NOTICE)의 '확인' — 값(공고 상태)은 읽기 전용 그대로지만, 담당 영업이 "누락·미확인 없이 확인했다"(DONE)와 그 취소(NONE)는 적는다.
+     * 누가·언제 확인했는지 이력으로 남기려는 것(사용자 11-25). 진행·대상 아님은 받지 않는다.
+     */
+    static boolean confirmable(Col c) {
+        return c != null && NOTICE.equals(c.kind);
+    }
+
     /** 감사 칸(BID_PREP_ACT.TASK_CD)용 — 형식 밖이면 null(경로 원문을 저장하지 않는다). */
     static String auditTask(String raw) {
         return raw != null && raw.matches(CODE) ? AUDIT_PREFIX + raw : null;

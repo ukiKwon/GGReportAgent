@@ -353,14 +353,45 @@ public class PrepBoardApiTest {
     }
 
     @Test
-    public void D15_자동_칸과_공고_칸은_409_NOT_MANUAL이다() throws Exception {
+    public void D15_자동_칸은_409_NOT_MANUAL이다() throws Exception {
         String bid = opened(INST);
-        for (String c : new String[]{"INST_ANALYSIS", "NOTICE_CHECK", "PROPOSAL"}) {
+        for (String c : new String[]{"INST_ANALYSIS", "PROPOSAL"}) {
             MvcResult r = check(MEMBER2, bid, c, mark("DONE", 0));
             assertEquals(c, 409, r.getResponse().getStatus());
             assertEquals("NOT_MANUAL", json(r).path("detail").path("code").asText());
         }
         assertEquals(0, checkRows(bid));
+    }
+
+    @Test
+    public void D15b_공고_칸은_확인과_취소만_적고_목록에_확인한_날과_사람이_실린다() throws Exception {
+        String bid = opened(INST);
+        // 진행·대상 아님은 받지 않는다
+        for (String mk : new String[]{"IN_PROGRESS", "NA"}) {
+            MvcResult bad = check(MEMBER2, bid, "NOTICE_CHECK", mark(mk, 0));
+            assertEquals(mk, 400, bad.getResponse().getStatus());
+            assertEquals("BAD_MARK", json(bad).path("detail").path("code").asText());
+        }
+        assertEquals(0, checkRows(bid));
+        // 확인 전: 예전과 같이 mark_cd 없음
+        JsonNode before = row(json(list(MEMBER2, "scope=mine", "refresh")), bid).path("cells").path("NOTICE_CHECK");
+        assertTrue(before.path("mark_cd").isNull());
+        assertEquals(0, before.path("rev_no").asInt());
+        // 확인
+        MvcResult ok = check(MEMBER2, bid, "NOTICE_CHECK", mark("DONE", 0));
+        assertEquals(200, ok.getResponse().getStatus());
+        assertTrue(json(ok).path("saved").asBoolean());
+        assertEquals(1, checkRows(bid));
+        JsonNode after = row(json(list(MEMBER2, "scope=mine", "refresh")), bid).path("cells").path("NOTICE_CHECK");
+        assertEquals("DONE", after.path("mark_cd").asText());
+        assertEquals(1, after.path("rev_no").asInt());
+        assertFalse(after.path("confirmed_on").isNull());
+        assertFalse(after.path("by_name").isNull());
+        assertEquals("NOTICE", after.path("source").asText());   // 공고 상태 값은 그대로 읽기 전용
+        // 취소 — 이력은 남고(2줄) 목록은 다시 확인 전
+        assertEquals(200, check(MEMBER2, bid, "NOTICE_CHECK", mark("NONE", 1)).getResponse().getStatus());
+        assertEquals(2, checkRows(bid));
+        assertTrue(row(json(list(MEMBER2, "scope=mine", "refresh")), bid).path("cells").path("NOTICE_CHECK").path("mark_cd").isNull());
     }
 
     @Test

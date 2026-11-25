@@ -1358,7 +1358,16 @@
     if (!S.nextAsk) return;
     S.nextAsk = false;
     const box = el('pp-modal'); box.style.display = 'none'; box.innerHTML = '';
-    if (go) { stepBy(1); return; }
+    if (go) {
+      // 2단계 입찰공고확인: 누락·미확인이 없으면 넘어가면서 '확인'을 적는다(사용자 11-25 — 누가·언제 확인했는지 이력). 표의 칸 체크와 같은 주소.
+      const c = stepCtx();
+      if (c && c.pt.noticeConfirmDue) {
+        const ni = noticeInfo(c.v, c.row);
+        if (c.pt.noticeConfirmDue(S.stepIdx, c.v, c.row, S.boardLoading ? 'loading' : 'none', ni)) onMark('NOTICE_CHECK', 'DONE');
+      }
+      stepBy(1);
+      return;
+    }
     const b = el('pp-case').querySelector('[data-act="ts-next"]'); if (b) b.focus();
   }
   // 단계 본문의 이동 단추 → 다른 메뉴 화면

@@ -317,7 +317,7 @@ public class PrepBoardService {
             Map<String, Object> cells = new LinkedHashMap<String, Object>();
             for (PrepBoardColumns.Col c : PrepBoardColumns.ALL) {
                 if (PrepBoardColumns.NOTICE.equals(c.kind)) {
-                    cells.put(c.cd, noticeCell(notice.get(p.getInstitutionId()), noticeNames));
+                    cells.put(c.cd, noticeCell(notice.get(p.getInstitutionId()), noticeNames, ck.get(c.cd), hideNames));
                 } else if (PrepBoardColumns.AUTO.equals(c.kind)) {
                     cells.put(c.cd, autoCell(c.cd, p, ts, st, designFinal.contains(bid)));
                 } else {
@@ -380,10 +380,15 @@ public class PrepBoardService {
     }
 
     /** 공고 상태 기록(037) 값 그대로 — 읽기 전용(사용자 ②). 기록 없으면 코드 null. */
-    private static Map<String, Object> noticeCell(Map<String, Object> n, Map<String, String> names) {
+    private static Map<String, Object> noticeCell(Map<String, Object> n, Map<String, String> names, PrepBoardCheck ck, boolean hideName) {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         String code = n == null ? null : (String) n.get("status_cd");
-        m.put("mark_cd", null);
+        // 담당 영업의 '확인'(사용자 11-25): 확인했으면 mark_cd DONE + 확인한 날·사람, 아니면 예전처럼 null. rev_no 는 다음 저장의 base_rev.
+        boolean confirmed = ck != null && DONE.equals(ck.getMarkCd());
+        m.put("mark_cd", confirmed ? DONE : null);
+        m.put("rev_no", ck == null ? 0 : ck.getRevNo());
+        m.put("confirmed_on", confirmed ? ck.getMarkDate() : null);
+        m.put("by_name", confirmed && !hideName ? ck.getActorName() : null);
         m.put("marked_on", n == null ? null : kstDate((String) n.get("handled_at")));
         m.put("source", PrepBoardColumns.NOTICE);
         m.put("notice_status_cd", code);
@@ -452,10 +457,14 @@ public class PrepBoardService {
         if (col == null) {
             throw ApiException.notFound("board column not found");
         }
-        if (!col.editable()) {
+        boolean confirmOnly = PrepBoardColumns.confirmable(col);   // 공고 칸: '확인'(DONE)·취소(NONE)만(사용자 11-25 — 확인 이력)
+        if (!col.editable() && !confirmOnly) {
             throw coded(409, "NOT_MANUAL", "시스템 기록으로 채워지는 칸이라 직접 체크할 수 없습니다.");
         }
         String mark = in == null || in.getMarkCd() == null ? "" : in.getMarkCd().trim();
+        if (confirmOnly && !DONE.equals(mark) && !NONE.equals(mark)) {
+            throw coded(400, "BAD_MARK", "공고 확인 칸은 확인(완료)과 확인 취소만 적을 수 있습니다.");
+        }
         if (!MARKS.contains(mark)) {
             throw coded(400, "BAD_MARK", "표시는 완료·진행·대상 아님·시작 전 중 하나여야 합니다.");
         }

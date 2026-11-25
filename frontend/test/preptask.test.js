@@ -22,7 +22,7 @@ function row(o) {
   return Object.assign({ bid_case_id: 'B1', institution_name: '청주시', state_cd: 'IN_PROGRESS', state_name: '사전준비 중', ended: false,
     assignee_names: ['김영업'], can_view: true, can_check: true, is_mine: true,
     cells: {
-      NOTICE_CHECK: { notice_status_name: '공고 확인' },
+      NOTICE_CHECK: { notice_status_name: '공고 확인', mark_cd: 'DONE', rev_no: 1, by_name: '김영업', confirmed_on: '2026-11-24' },   // 담당이 확인을 적은 상태(11-25)
       INST_ANALYSIS: { mark_cd: 'DONE', marked_on: '2026-11-20', by_name: '시스템' },
       FIN_COMMITTEE: { mark_cd: 'IN_PROGRESS', marked_on: '2026-11-21', by_name: '김영업', rev_no: 3 },
       BOARD_SECRETARIAT: { mark_cd: 'DONE', marked_on: '2026-11-22', by_name: '김영업' },
@@ -125,7 +125,7 @@ test('stepState: 과제 단계는 과제 상태, 손 칸은 표의 값, 묶음�
   assert.deepStrictEqual(st('FIN_COMMITTEE'), { glyph: 'prog', text: '진행', cnt: '', closed: false });
   assert.deepStrictEqual(st('BIZ_COMMITTEE'), { glyph: '', text: '시작 전', cnt: '', closed: false });
   assert.deepStrictEqual(st('BOARD'), { glyph: 'prog', text: '완료 1/3', cnt: '완료 1/3', closed: false });
-  assert.strictEqual(st('NOTICE_CHECK').text, '공고 확인');
+  assert.strictEqual(st('NOTICE_CHECK').text, '공고 확인, 확인 완료');
   // 묶음이 전부 완료·대상 아님이면 닫힘
   const r2 = row({ cells: { BOARD_SECRETARIAT: { mark_cd: 'DONE' }, BOARD_AUDIT: { mark_cd: 'NA' }, BOARD_COMPLIANCE: { mark_cd: 'DONE' } } });
   assert.strictEqual(pt.stepState(pt.STEPS[idxOf('BOARD')], v, r2, MARKS).closed, true);
@@ -148,7 +148,7 @@ test('phaseModel·phaseEntryIdx: 구간 숫자와 구간 단추가 데려갈 단
   const v = view('IN_PROGRESS');
   const pm = pt.phaseModel(v, row(), MARKS, idxOf('FIN_COMMITTEE'));
   assert.deepStrictEqual(pm.map(function (p) { return [p.key, p.no, p.done, p.total, p.current]; }),
-    [['bid', 1, 1, 8, true], ['prep', 2, 0, 5, false], ['agree', 3, 0, 10, false]]);   // bid: 9단계 중 입찰공고확인 제외 8, 끝난 것 = 담당자 지정
+    [['bid', 1, 2, 9, true], ['prep', 2, 0, 5, false], ['agree', 3, 0, 10, false]]);   // bid 9단계, 끝난 것 = 담당자 지정·입찰공고확인
   assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('agree', v, row(), MARKS)].id, 'RESULT');
   assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('bid', v, row(), MARKS)].id, 'INST_ANALYSIS');
   assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('prep', v, row(), MARKS)].id, 'PROPOSAL');
@@ -363,7 +363,7 @@ test('제안서 단계: 입찰 자료확인 구간에 안 끝난 단계가 있�
   assert.deepStrictEqual(pt.openBefore(v, null, MARKS), [], '표의 줄이 없으면 알리지 않는다');
   assert.ok(pt.bodyHtml(model(v, idxOf('PROPOSAL'), { row: null })).indexOf('아직 안 끝난 단계') < 0);
   const done = TASKS.map(function (t) { return Object.assign({}, t, { state: 'DONE' }); });
-  const cells = {};
+  const cells = { NOTICE_CHECK: { mark_cd: 'DONE', rev_no: 1 } };
   ['FIN_COMMITTEE', 'BIZ_COMMITTEE', 'BOARD_SECRETARIAT', 'BOARD_AUDIT', 'BOARD_COMPLIANCE'].forEach(function (c) { cells[c] = { mark_cd: c === 'BOARD_AUDIT' ? 'NA' : 'DONE' }; });
   assert.deepStrictEqual(pt.openBefore(view('IN_PROGRESS', { tasks: done }), row({ cells: cells }), MARKS), []);
   assert.ok(pt.bodyHtml(model(view('CANCELLED'), idxOf('PROPOSAL'))).indexOf('아직 안 끝난 단계') < 0);
@@ -389,28 +389,46 @@ test('noticeGaps·noticeOk: 누락·미확인 항목과 단계 완료 판정', f
   assert.deepStrictEqual(pt.noticeGaps({ unknown: true }, {}), ['입찰 예정일 미상']);
   assert.deepStrictEqual(pt.noticeGaps({ check: true }, { unhandled: true }), ['공고일 확인 필요', '예정일이 지났는데 공고 상태 기록이 없음']);
   const s = pt.STEPS[1], v = view('IN_PROGRESS');
-  const ok = row({ cells: { NOTICE_CHECK: { notice_status_name: '공고 확인', notice_ok: true } } });
+  const ok = row();   // 확인을 적은 줄
+  const todo = row({ cells: { NOTICE_CHECK: { notice_status_name: '공고 확인', notice_ok: true } } });   // 누락은 없지만 아직 확인 전
   const gap = row({ cells: { NOTICE_CHECK: { notice_status_name: '공고 확인', notice_ok: false } } });
   assert.deepStrictEqual(pt.stepState(s, v, ok, MARKS), { glyph: 'done', text: '공고 확인, 확인 완료', cnt: '', closed: true });
   assert.strictEqual(pt.stepState(s, v, gap, MARKS).closed, false);
   assert.strictEqual(pt.stepState(s, v, gap, MARKS).text, '공고 확인, 확인 필요');
-  assert.strictEqual(pt.stepState(s, v, row(), MARKS).glyph, '', '판정을 모르면 상태 없음');
-  // 판정이 있으면 구간 숫자에 들어가고, 확인 필요면 '지금 할 단계'가 된다
+  assert.deepStrictEqual(pt.stepState(s, v, todo, MARKS), { glyph: '', text: '공고 확인, 확인 전', cnt: '', closed: false });
+  // 표의 줄이 있으면 구간 숫자에 들어가고, 확인 전이면 '지금 할 단계'가 된다
   assert.strictEqual(pt.phaseModel(v, ok, MARKS, 0)[0].total, 9);
-  assert.strictEqual(pt.phaseModel(v, row(), MARKS, 0)[0].total, 8);
+  assert.strictEqual(pt.phaseModel(v, null, MARKS, 0)[0].total, 8, '줄을 못 받았으면 세지 않는다');
+  assert.strictEqual(pt.STEPS[pt.defaultIdx(v, todo, MARKS)].id, 'NOTICE_CHECK');
+  // [다음]에서 확인을 적을 때: 누락 없음 + 담당 + 아직 확인 전
+  assert.strictEqual(pt.noticeConfirmDue(1, v, todo, 'none', { state: 'ok', gaps: [] }), true);
+  assert.strictEqual(pt.noticeConfirmDue(1, v, todo, 'none', { state: 'ok', gaps: ['공고 링크 없음'] }), false);
+  assert.strictEqual(pt.noticeConfirmDue(1, v, ok, 'none', { state: 'ok', gaps: [] }), false, '이미 확인함');
+  assert.strictEqual(pt.noticeConfirmDue(1, v, row({ can_check: false, cells: todo.cells }), 'none', { state: 'ok', gaps: [] }), false, '담당이 아님');
+  assert.strictEqual(pt.noticeConfirmDue(1, v, todo, 'none', { state: 'none', gaps: [] }), false);
+  assert.strictEqual(pt.noticeConfirmDue(2, v, todo, 'none', { state: 'ok', gaps: [] }), false, '다른 단계');
   assert.strictEqual(pt.STEPS[pt.defaultIdx(v, gap, MARKS)].id, 'NOTICE_CHECK');
   assert.strictEqual(pt.STEPS[pt.defaultIdx(v, ok, MARKS)].id, 'INST_ANALYSIS');
 });
 
 test('bodyHtml 입찰공고확인: 기관정보 내용(읽기 전용)·누락 목록·고칠 화면 세 곳 안내', function () {
-  const g = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', html: '<div class="db-sec">공고 진행</div>', gaps: ['공고 링크 없음'] } }));
-  assert.ok(g.indexOf('확인이 필요한 항목 1건') > 0 && g.indexOf('<li>공고 링크 없음</li>') > 0);
+  const todoRow = row({ cells: { NOTICE_CHECK: { notice_status_name: '공고 확인' } } });   // 아직 확인 전
+  const g = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { row: todoRow, notice: { state: 'ok', html: '<div class="db-sec">공고 진행</div>', gaps: ['공고 링크 없음'] } }));
+  assert.ok(g.indexOf('확인이 필요한 항목 1건') > 0 && g.indexOf('<li>공고 링크 없음</li>') > 0 && g.indexOf(pt.T.noticeGapsNo) > 0);
   assert.ok(g.indexOf('<div class="ts-notice"><div class="db-sec">공고 진행</div></div>') > 0);
   assert.strictEqual((g.match(/data-act="go-nav"/g) || []).length, 3);
   assert.ok(/data-nav="board">입찰 현황판</.test(g) && /data-nav="map">지역별 공고현황</.test(g) && /data-nav="notice">입찰 공고 현황</.test(g));
   assert.ok(!/data-act="mark"/.test(g), '이 단계에서는 고치지 않는다');
-  const ok = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', html: '', gaps: [] } }));
-  assert.ok(ok.indexOf(pt.T.noticeOk) > 0 && ok.indexOf('확인이 필요한 항목') < 0);
+  const ok = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { row: todoRow, notice: { state: 'ok', html: '', gaps: [] } }));
+  assert.ok(ok.indexOf('누락되거나 미확인인 항목이 없습니다. [다음]을 누르면') > 0 && ok.indexOf('확인이 필요한 항목') < 0);
+  const viewer = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { row: row({ can_check: false, cells: todoRow.cells }), notice: { state: 'ok', html: '', gaps: [] } }));
+  assert.ok(viewer.indexOf(pt.T.noticeOkView) > 0, '담당이 아니면 기록은 담당이 남긴다고 알린다');
+  // 확인을 적은 뒤: 누가·언제 + [확인 취소](담당만)
+  const done = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', html: '', gaps: [] } }));
+  assert.ok(done.indexOf('확인 완료') > 0 && done.indexOf('김영업 2026-11-24') > 0 && done.indexOf(pt.T.noticeOk) < 0);
+  assert.ok(/data-act="mark" data-col="NOTICE_CHECK" data-mk="NONE">확인 취소</.test(done));
+  assert.ok(!/확인 취소/.test(pt.bodyHtml(model(view('IN_PROGRESS'), 1, { row: row({ can_check: false }), notice: { state: 'ok', html: '', gaps: [] } }))));
+  assert.ok(/c\.pt\.noticeConfirmDue\(S\.stepIdx, c\.v, c\.row, [^)]*\)\) onMark\('NOTICE_CHECK', 'DONE'\);/.test(PREP_SRC), '[다음] 확인에서 기록한다');
   const none = pt.bodyHtml(model(view('IN_PROGRESS'), 1));
   assert.ok(none.indexOf(pt.T.noticeNoRec) > 0);
   assert.ok(/function noticeInfo\(v, row\) \{/.test(PREP_SRC) && PREP_SRC.indexOf("button>/g, '').replace(") > 0, '실은 내용에서 단추를 걷는다');

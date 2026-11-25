@@ -123,7 +123,11 @@
     nextOk: '확인',
     noticeGuide: '이 화면에서는 고치지 않습니다. 고칠 것이 있으면 아래 화면 중 한 곳에서 고친 뒤 돌아오세요.',
     noticeNav: [['board', '입찰 현황판'], ['map', '지역별 공고현황'], ['notice', '입찰 공고 현황']],
-    noticeOk: '누락되거나 미확인인 항목이 없습니다. [다음]으로 넘어가면 됩니다.',
+    noticeOk: '누락되거나 미확인인 항목이 없습니다. [다음]을 누르면 \'확인 완료\'로 기록됩니다(누가·언제 확인했는지 남습니다).',
+    noticeOkView: '누락되거나 미확인인 항목이 없습니다. 확인 기록은 이 기관의 담당 영업이 [다음]을 누를 때 남습니다.',
+    noticeGapsNo: '이 항목들이 남아 있으면 [다음]으로 넘어가도 확인으로 기록되지 않습니다.',
+    noticeUndo: '확인 취소',
+    stNoticeTodo: '확인 전',
     noticeGapsHead: function (n) { return '확인이 필요한 항목 ' + n + '건'; },
     noticeNoRec: '이 기관의 입찰 공고 자료를 찾지 못했습니다. 입찰 공고 현황에서 기관을 확인하세요.',
     noticeLoading: '입찰 공고 자료를 불러오는 중…',
@@ -170,8 +174,14 @@
     const c = row && row.cells && row.cells.NOTICE_CHECK;
     return c && typeof c.notice_ok === 'boolean' ? c.notice_ok : undefined;
   };
-  // 판정을 모르는 입찰공고확인 단계는 '지금 할 단계'·구간 숫자·안내에서 뺀다(읽기만 하던 때와 같게).
-  function skipNotice(s, row) { return s.kind === 'notice' && pt.noticeOk(row) === undefined; }
+  // 표의 그 줄을 못 받았으면 입찰공고확인 단계를 '지금 할 단계'·구간 숫자·안내에서 뺀다(확인했는지 알 수 없다).
+  function skipNotice(s, row) { return s.kind === 'notice' && !row; }
+  // [다음]을 누를 때 '확인'을 적어야 하는가 — 입찰공고확인 단계이고, 체크할 수 있는 담당이고, 누락·미확인이 없고, 아직 확인 전일 때만.
+  pt.noticeConfirmDue = function (idx, view, row, rowState, notice) {
+    const s = pt.STEPS[pt.clampIdx(idx)];
+    if (s.kind !== 'notice' || !notice || notice.state !== 'ok' || (notice.gaps || []).length) return false;
+    return pt.markGate(view, row, rowState).can && pt.cellState(row, s.cd).mark !== 'DONE';
+  };
   // 공고 자료(dashboard.js의 항목 it)에서 누락·미확인 항목 이름을 뽑는다. o: { hasLink, unhandled(예정일이 지났는데 공고 상태 기록이 없음) }
   pt.noticeGaps = function (it, o) {
     const x = o || {};
@@ -203,11 +213,12 @@
       else { out.glyph = 'done'; out.text = T.stDone; out.closed = true; }
     } else if (s.kind === 'notice') {
       // 입찰 공고 자료에 누락·미확인이 없으면 완료(사용자 11-25). 판정(notice_ok)은 prep.js가 공고 자료를 보고 그 줄에 적어 둔다 — 모르면 상태 없음.
+      // 완료 = 담당 영업이 [다음]으로 확인을 적은 것(서버 칸 mark DONE — 누가·언제 이력). 누락·미확인이 있으면 '확인 필요'.
       const ok = pt.noticeOk(row);
-      const nm = pt.cellState(row, s.cd, marks).notice;
-      if (ok === true) { out.glyph = 'done'; out.closed = true; out.text = (nm ? nm + ', ' : '') + T.stNoticeOk; }
+      const cs = pt.cellState(row, s.cd, marks), nm = cs.notice;
+      if (cs.mark === 'DONE') { out.glyph = 'done'; out.closed = true; out.text = (nm ? nm + ', ' : '') + T.stNoticeOk; }
       else if (ok === false) out.text = (nm ? nm + ', ' : '') + T.stNoticeGap;
-      else out.text = nm;
+      else out.text = (nm ? nm + ', ' : '') + T.stNoticeTodo;
     } else if (s.kind === 'group') {
       const g = pt.groupCount(row, s);
       out.cnt = '완료 ' + g.done + '/' + g.total;
@@ -469,11 +480,21 @@
       // 기관정보 팝업과 같은 내용을 읽기 전용으로(m.notice = { state: 'ok'|'none'|'loading', html, gaps } — prep.js가 dashboard.js로 만든다)
       const ni = m.notice || {};
       h += '<dl class="ts-facts"><div><dt>공고 상태</dt><dd>' + esc(pt.cellState(m.row, s.cd, m.marks).notice || '없음') + '</dd></div></dl>';
+      // 확인 기록(누가·언제) — 서버 칸의 mark DONE. 확인 취소는 체크할 수 있는 담당만.
+      const nc = pt.cellState(m.row, s.cd, m.marks);
+      const craw = m.row && m.row.cells && m.row.cells[s.cd] ? m.row.cells[s.cd] : {};
+      const done = nc.mark === 'DONE';
+      if (done) {
+        h += '<div class="ts-markrow" data-col="' + esc(s.cd) + '"><span class="ts-cell">' + pb.glyphSvg('done') + '<span>' + esc(T.stNoticeOk) + '</span></span>' +
+          '<span class="ts-last">' + esc([nc.by, pb.fullDate(craw.confirmed_on) || nc.date].filter(Boolean).join(' ')) + '</span>' +
+          (gate.can ? '<button type="button" data-act="mark" data-col="' + esc(s.cd) + '" data-mk="NONE"' + ((m.markBusy || {})[s.cd] ? ' aria-disabled="true"' : '') + '>' + esc(T.noticeUndo) + '</button>' : '') + '</div>';
+      }
       if (ni.state === 'ok') {
         const gaps = Array.isArray(ni.gaps) ? ni.gaps : [];
         h += gaps.length
-          ? '<div class="ts-gaps" role="note"><b>' + esc(T.noticeGapsHead(gaps.length)) + '</b><ul>' + gaps.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join('') + '</ul></div>'
-          : '<p class="ts-okline" role="note">' + esc(T.noticeOk) + '</p>';
+          ? '<div class="ts-gaps" role="note"><b>' + esc(T.noticeGapsHead(gaps.length)) + '</b><ul>' + gaps.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join('') + '</ul>' +
+            (done ? '' : '<p>' + esc(T.noticeGapsNo) + '</p>') + '</div>'
+          : (done ? '' : '<p class="ts-okline" role="note">' + esc(gate.can ? T.noticeOk : T.noticeOkView) + '</p>');
         h += '<div class="ts-notice">' + str(ni.html) + '</div>';   // dashboard.js가 이스케이프해 만든 마크업
       } else {
         h += note(ni.state === 'loading' ? T.noticeLoading : T.noticeNoRec);
