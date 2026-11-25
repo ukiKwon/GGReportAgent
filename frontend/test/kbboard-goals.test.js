@@ -573,7 +573,7 @@ test('알림 문구(#hb-flash): 넣었습니다 / 바꿨습니다 / 뺐습니다
 // ── 소스 구조(보안·접근성·배선) ──────────────────────────────────────────
 test('DOM 코드 구조: 서버 글은 textContent·esc로, 쓰기는 영업부서 버튼만 / 메뉴·대화창 접근성 / 포커스 되돌림', function () {
   const k = src('js/kbboard.js');
-  assert.ok(/function flash\(msg, act\) \{[\s\S]*?const f = \$\('hb-flash'\); if \(f\) f\.textContent = msg \|\| '';/.test(k));          // 알림 문장은 textContent(버튼은 고정 마크업 kbb.seeWatchHtml)
+  assert.ok(/function flash\(msg, act, kind\) \{[\s\S]*?const f = \$\('hb-flash'\); if \(f\) f\.textContent = msg \|\| '';/.test(k));          // 알림 문장은 textContent(버튼은 고정 마크업 kbb.seeWatchHtml)
   assert.ok(/function say\(msg, isErr, act\)[\s\S]*?renderBanner\(\);[\s\S]*?flash\(isErr \? '' : msg, act\)/.test(k));
   assert.ok(k.indexOf("el.innerHTML = t && st.err ? esc(st.err) : t;") > 0);                                                       // 오류 줄은 esc
   assert.ok(k.indexOf("pk.textContent = m.pickText") > 0 && k.indexOf("nt.textContent = m.note") > 0 && k.indexOf("why.textContent = s.why") > 0);

@@ -919,17 +919,19 @@
     const nx = r.nextDate
       ? '<b class="hb-nx">' + esc(r.nextDate.slice(0, 7)) + '</b><span class="hb-q">' + esc(kbb.NEXT_SRC[r.next.src] || '') + '</span>' + (r.movable ? '<span class="hb-q">2년 안</span>' : '')
       : '<span class="mut" title="' + esc(UNK) + '">일정 모름</span><span class="sr-only">' + esc(UNK) + '</span>';
-    const memo = r.memo ? '<td class="mut" title="' + esc(r.memo) + '">' + esc(r.memo) + '</td>' : '<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">메모 없음</span></td>';
-    let act = '', pre = '';
+    let act = '', pre = '', memoBtn = '';   // memoBtn = [메모 고치기…] — 메모 칸 안 메모 글 뒤에 붙인다(design 11-25 P2-1 안 A)
     if (r.movable) {
       if (o.canEdit && !r.pend) act = '<button type="button" class="hb-tag" data-act="togoal" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="dialog" aria-label="' + esc(r.name) + ' 목표로 옮기기">목표로 옮기기…</button>';
     } else pre = '<span class="sr-only">목표로 옮길 시기 아님</span>';
     // [메모 고치기…]: 구분 메뉴·[수정하기…]에서 메모 입구가 빠진 뒤 관심 줄의 입구(qa P2-1). 조건은 예전 메뉴의 canMemo와 같다 — 고칠 수 있는 계정·결재 중 아님(관심 줄은 canValueEdit이 늘 참).
-    if (o.canEdit && !r.pend && (typeof o.canTag !== 'function' || o.canTag(r))) act += '<button type="button" class="hb-tag" data-act="memo" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="dialog" aria-label="' + esc(r.name) + ' 메모 고치기">메모 고치기…</button>';
+    if (o.canEdit && !r.pend && (typeof o.canTag !== 'function' || o.canTag(r))) memoBtn = '<button type="button" class="hb-tag hb-memo-go" data-act="memo" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="dialog" aria-label="' + esc(r.name) + ' 메모 고치기">메모 고치기…</button>';
     // [관심에서 빼기…]: 움직일 수 없는 관심 줄은 고를 수 없어(tc.pickable) 구분 메뉴가 빠진 뒤 입구가 없어진다 — 줄 안 단추로(사용자 11-25). 결재 없음, openCancel 창을 연다. 무거운 동작이라 맨 오른쪽(design 11-25 P3-4).
     if (o.canEdit && !r.pend && r.canCancel) act += '<button type="button" class="hb-tag" data-act="unwatch" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="dialog" aria-label="' + esc(r.name) + ' 내 관심에서 빼기">관심에서 빼기…</button>';
     if (act) act = '<div class="hb-wacts">' + act + '</div>';
     act = pre + act;
+    const memoTx = r.memo ? '<span class="hb-memotx" title="' + esc(r.memo) + '">' + esc(r.memo) + '</span>' : '<span class="hb-memotx"><span aria-hidden="true">—</span><span class="sr-only">메모 없음</span></span>';
+    const memo = memoBtn ? '<td class="mut"><div class="hb-memocell">' + memoTx + memoBtn + '</div></td>'
+      : (r.memo ? '<td class="mut" title="' + esc(r.memo) + '">' + esc(r.memo) + '</td>' : '<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">메모 없음</span></td>');
     return '<tr' + tc.rowClass(r, o) + '>' + (o.selCol ? tc.ckCellHtml(r, o) : '') + '<th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + '<td>' + nx + '</td>' + kbb.bankCellHtml(r.bank) + memo + '<td>' + act + '</td></tr>';
   };
 
@@ -1016,7 +1018,7 @@
   kbb.filteredNoneHtml = function () { return '<p class="db-state">조건에 맞는 기관이 없습니다. <button type="button" id="hb-fclear2">필터 지우기</button></p>'; };
   // 관심 탭이 비었을 때(규격 5절). 편집 가능 계정에는 [관심 기관 추가].
   kbb.watchEmptyHtml = function (v) {
-    return '<h3 class="hb-eh">내 관심 기관이 없습니다</h3><p>이번에는 놓쳤지만 다음 입찰 때 가져올 기관을 넣어 두면, 다음 협약 종료가 2년 안으로 들어올 때 [목표로 옮기기]가 뜹니다. 내 관심은 나만 넣고 뺄 수 있습니다.</p>' +
+    return '<h3 class="hb-eh">내 관심 기관이 없습니다</h3><p>이번에는 놓쳤지만 다음 입찰 때 가져올 기관을 넣어 두면, 다음 협약 종료가 2년 안으로 들어올 때 [목표로 옮기기…]가 뜹니다. 내 관심은 나만 넣고 뺄 수 있습니다.</p>' +
       (v.canEdit ? '<p><button type="button" class="hb-tag add" id="hb-watch-add2" data-act="addwatch">관심 기관 추가</button></p>' : '');
   };
   kbb.goalFootHtml = function (nAll) {
@@ -1109,7 +1111,7 @@
     return which === 'WATCH' ? '이미 내 관심 기관으로 설정되어 있습니다.' : '이미 목표 기관으로 설정되어 있습니다' + (Number(year) ? '(' + Number(year) + ' 목표)' : '') + '.';
   };
   kbb.dupHint = function (which) {
-    return which === 'WATCH' ? '목표로 넣으려면 내 관심 탭에서 [목표로 옮기기]를 누르세요.' : '내 관심으로 옮기려면 목표 표의 구분 메뉴에서 [내 관심으로…]를 누르세요.';
+    return which === 'WATCH' ? '목표로 넣으려면 내 관심 탭에서 [목표로 옮기기…]를 누르세요.' : '내 관심으로 옮기려면 목표 표에서 그 줄을 고른 뒤 아래 띠의 [수정하기…] → \'빼기·옮기기\' 칸에서 고르세요.';
   };
   kbb.dupLinkHtml = function (which) {
     return which === 'WATCH' ? '<button type="button" class="hb-tag" id="hb-a-see" data-see="watch">내 관심 탭에서 보기</button>' : '<button type="button" class="hb-tag" id="hb-a-see" data-see="goal">목표 표에서 보기</button>';
@@ -1498,7 +1500,7 @@
     if (s === 200) return { kind: 'nochange', msg: '바뀐 내용이 없습니다.' };
     const dd = d && typeof d === 'object' ? d : {}, lat = dd.latest && typeof dd.latest === 'object' ? dd.latest : null;
     // 내 관심 → 목표 옮기기에서 같은 해 팀 목표와 겹친 경우: '넣지'가 아니라 '옮기지', 다음 행동(관심에서 빼기)까지 말한다. 서버는 내 관심을 지우지 않는다.
-    if (s === 409 && p.code === 'DUP_TARGET' && op === 'move') return { kind: 'dup', code: p.code, msg: '옮기지 못했습니다 — 이미 ' + (c.year || '') + ' 목표에 있는 기관입니다. 내 관심에서 빼려면 [내 관심에서 빼기…]를 쓰세요.' };
+    if (s === 409 && p.code === 'DUP_TARGET' && op === 'move') return { kind: 'dup', code: p.code, msg: '옮기지 못했습니다 — 이미 ' + (c.year || '') + ' 목표에 있는 기관입니다. 내 관심에서 빼려면 [관심에서 빼기…]를 쓰세요.' };
     if (s === 409 && p.code === 'DUP_TARGET') return { kind: 'dup', code: p.code, msg: '넣지 못했습니다 — 이미 ' + (c.year || '') + ' 목표에 있는 기관입니다.' };
     if (s === 409 && p.code === 'LIMIT') return { kind: 'limit', code: p.code, msg: msg || '이 기관의 목표 기록이 더 늘릴 수 없는 한도에 닿았습니다.' };
     // 관심은 사람별(NEXT 117): 서버는 관심 쪽 ALREADY_GOAL을 더 내지 않는다(팀 목표가 있어도 내 관심을 넣을 수 있다). ALREADY_WATCH = 내가 이미 넣은 관심(고정 문장 + 내 기록 번호만 쓴다 — 서버 글을 그대로 내보이지 않는다).
@@ -1967,8 +1969,9 @@
   }
 
   // act === 'watch'이면 알림 옆에 [관심 탭에서 보기]. 문장은 textContent, 버튼은 고정 마크업. 알림 띠(#hb-note)는 문장이 있을 때만 보인다(숨겼다 켜는 것은 예전 .db-flash:empty와 같은 패턴).
-  function flash(msg, act) {
-    const n = $('hb-note'); if (n) n.hidden = !msg;   // 띠를 먼저 보이게 한 뒤 글을 넣는다(role=status가 보이는 상태에서 바뀐 글을 읽도록, qa 11-19 P3-3)
+  // kind === 'info'이면 '안내' 변형: ✓ 아이콘 없이 글자만(꺼진 단추를 눌렀을 때 이유 — 성공처럼 보이지 않게, design 11-25 P2-2). 다른 호출은 kind 없이 그대로.
+  function flash(msg, act, kind) {
+    const n = $('hb-note'); if (n) { n.hidden = !msg; n.classList.toggle('info', kind === 'info'); }   // 띠를 먼저 보이게 한 뒤 글을 넣는다(role=status가 보이는 상태에서 바뀐 글을 읽도록, qa 11-19 P3-3)
     const f = $('hb-flash'); if (f) f.textContent = msg || '';
     const a = $('hb-flash-act'); if (a) a.innerHTML = msg && act === 'watch' ? kbb.seeWatchHtml() : '';
     if (a && msg && act && act !== 'watch') a.innerHTML = tc.actHtml(act);   // NEXT 105: 결재함에서 보기·넘어온 기관만 보기(고정 마크업)
@@ -2730,7 +2733,7 @@
   function prepClick() {
     const s = prepState();
     if (s.hidden || gs.prepBusy) return;
-    if (!s.on) { flash(s.why); return; }   // 꺼짐: 아무것도 실행하지 않고 이유만 상태 줄에
+    if (!s.on) { flash(s.why, '', 'info'); return; }   // 꺼짐: 아무것도 실행하지 않고 이유만 상태 줄에
     if (s.open) { if (!openPrepOf(s.e.id)) flash(prepFailMsg(s.e.id, '이 기관의 사전준비 건을 열지 못했습니다. 메뉴의 [영업 추진 준비 › 제안 준비 현황]에서 여세요.')); return; }
     if (!root.dlg || !root.dlg.confirm) return;
     const e = s.e, lines = [e.name + tc.eul(e.name) + ' 제안 대상으로 확정합니다.', dash.PREP_BODY2];   // 상세 팝업의 확인 상자와 같은 문구(dashboard.js 한 곳)

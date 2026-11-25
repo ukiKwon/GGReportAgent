@@ -98,7 +98,9 @@ test('B 배선: 툴바 마크업·위치·페인트·꺼짐 클릭·확인 상�
   assert.ok(K.indexOf("b.setAttribute('aria-disabled', !s.on || gs.prepBusy ? 'true' : 'false');") > 0 && K.indexOf("if (s.open) b.removeAttribute('aria-haspopup'); else b.setAttribute('aria-haspopup', 'dialog');") > 0);
   assert.ok(K.indexOf("b.title = s.why;") > 0 && K.indexOf("wy.textContent !== s.why") > 0);
   // 꺼짐을 누르면 아무것도 실행하지 않고 이유만 상태 줄에
-  assert.ok(K.indexOf("if (!s.on) { flash(s.why); return; }") > 0 && K.indexOf("case 'hb-prep': prepClick(btn); break;") > 0);
+  assert.ok(K.indexOf("if (!s.on) { flash(s.why, '', 'info'); return; }") > 0 && K.indexOf("n.classList.toggle('info', kind === 'info')") > 0
+    && src('index.html').indexOf('.hb-note.info .hb-note-ck { display:none; }') > 0 && K.indexOf('#hb-ours-btn { height:32px') < 0
+    && src('index.html').indexOf('#hb-ours-btn { height:32px;') > 0 && src('index.html').indexOf('.tc-ba .tc-termgo, .tc-ba select { box-sizing:border-box; height:29px; }') > 0 && K.indexOf("case 'hb-prep': prepClick(btn); break;") > 0);
   // 확인 상자: 제목 '제안 사전준비 — {지역} {기관명}', 실행 [확정하고 이동], 취소가 첫 포커스(focusGo 없음)
   assert.ok(K.indexOf("title: '제안 사전준비 — ' + s.nm, text: lines.join('\\n'), go: dash.PREP_CONFIRM_GO, cancel: '취소'") > 0 && K.indexOf('focusGo') < 0);
   assert.ok(K.indexOf('dash.PREP_BODY2') > 0 && K.indexOf('if (s.early) lines.push(dash.PREP_BODY3);') > 0);
@@ -132,7 +134,9 @@ test('C [관심에서 빼기…] 단추와 구분 메뉴 호출부: 메뉴에는
   assert.ok(css.indexOf('.hb-wacts { display:flex; flex-wrap:wrap; gap:4px 6px; align-items:center; }') > 0);
   const w = kbbMod.watchRowHtml(wrow({ movable: 2027, canCancel: true, nextDate: '2027-06-30', next: { src: 'contract' } }), { canEdit: true });   // 순서 [목표로 옮기기…] → [메모 고치기…] → [관심에서 빼기…], 한 묶음
   assert.ok(w.indexOf('<div class="hb-wacts">') > 0 && w.indexOf('>목표로 옮기기…</button>') > 0);
-  assert.ok(w.indexOf('data-act="togoal"') < w.indexOf('data-act="memo"') && w.indexOf('data-act="memo"') < w.indexOf('data-act="unwatch"'));
+  assert.ok(w.indexOf('data-act="togoal"') < w.indexOf('data-act="unwatch"'));   // 동작 칸은 둘 — [목표로 옮기기…] → [관심에서 빼기…]
+  assert.ok(w.indexOf('data-act="memo"') > 0 && w.indexOf('data-act="memo"') < w.indexOf('data-act="togoal"'));   // P2-1 안 A: [메모 고치기…]는 메모 칸 안(동작 칸보다 앞)
+  assert.ok(w.slice(w.indexOf('<div class="hb-wacts">')).indexOf('data-act="memo"') < 0);
   assert.ok(w.indexOf('</div></td></tr>') > w.indexOf('data-act="unwatch"'));
 });
 
@@ -183,7 +187,13 @@ const wrow = function (o) { return Object.assign({ id: 'W1', key: 'k', fkey: 'id
 
 test('P2-1 관심 줄 [메모 고치기…]: 고칠 수 있는 계정·결재 중 아님일 때만, 클릭은 openMemo', function () {
   const h = kbbMod.watchRowHtml(wrow(), { canEdit: true });
-  assert.ok(h.indexOf('class="hb-tag" data-act="memo" data-inst="W1" data-key="id:W1" aria-haspopup="dialog" aria-label="행 메모 고치기">메모 고치기…</button>') > 0);
+  assert.ok(h.indexOf('class="hb-tag hb-memo-go" data-act="memo" data-inst="W1" data-key="id:W1" aria-haspopup="dialog" aria-label="행 메모 고치기">메모 고치기…</button>') > 0);
+  assert.ok(h.indexOf('<td class="mut"><div class="hb-memocell"><span class="hb-memotx">') > 0);   // 메모 칸 안, 메모 글 뒤
+  const hm = kbbMod.watchRowHtml(wrow({ memo: '메모글' }), { canEdit: true });
+  assert.ok(hm.indexOf('<span class="hb-memotx" title="메모글">메모글</span><button type="button" class="hb-tag hb-memo-go"') > 0);
+  const css = src('index.html');
+  assert.ok(css.indexOf('.hb-memocell .hb-memo-go { flex:none; min-height:24px; margin-left:6px; }') > 0);
+  assert.ok(css.indexOf('@media (min-width:1440px) { .hb-tt col.c-act { width:230px; } }') > 0);
   assert.ok(kbbMod.watchRowHtml(wrow(), { canEdit: false }).indexOf('data-act="memo"') < 0);
   assert.ok(kbbMod.watchRowHtml(wrow({ pend: true }), { canEdit: true }).indexOf('data-act="memo"') < 0);
   assert.ok(kbbMod.watchRowHtml(wrow(), { canEdit: true, canTag: function () { return false; } }).indexOf('data-act="memo"') < 0);   // canValueEdit 거짓이면 없음

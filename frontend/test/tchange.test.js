@@ -166,7 +166,7 @@ test('항목·검사: 누르면 칸마다 알린다(동작·연도·고친 내�
   assert.deepStrictEqual(v0.items, [{ uid: 1, f: 'op', msg: '동작을 고르세요.' }]);
   tc.setOp(A, 'EDIT');
   assert.strictEqual(A.year, 2026); assert.strictEqual(A.tag, 'RETAIN');
-  assert.deepStrictEqual(tc.validate([A], { mode: 'DIRECT' }).items, [{ uid: 1, f: 'edit', msg: '고친 내용이 없습니다. 칸을 바꾸거나 이 기관을 목록에서 제외하세요.' }]);
+  assert.deepStrictEqual(tc.validate([A], { mode: 'DIRECT' }).items, [{ uid: 1, f: 'edit', msg: '고친 내용이 없습니다. 칸을 바꾸거나 이 기관을 이번 수정에서 빼세요.' }]);
   A.tag = 'NEW';
   assert.strictEqual(tc.validate([A], { mode: 'DIRECT' }).ok, true);
   tc.setOp(A, 'CANCEL');
@@ -213,12 +213,12 @@ test('오류 문장 표(5-2): 항목 오류는 항목 상자 문장 + 위 한 �
   const err = function (status, detail) { return tc.errorOf({ status: status, body: detail === undefined ? null : { detail: detail } }, items); };
   const a = err(409, { code: 'CHANGE_PENDING', message: 'x', item_no: 2 });
   assert.strictEqual(a.kind, 'item'); assert.strictEqual(a.top, '2번째 수원시를 확인하세요.'); assert.strictEqual(a.refresh, true);
-  assert.deepStrictEqual(a.item, { uid: 2, f: 'op', msg: '방금 다른 결재 요청에 들어가 잠겼습니다. 이 기관을 목록에서 제외하고 다시 올려 주세요.' });
+  assert.deepStrictEqual(a.item, { uid: 2, f: 'op', msg: '방금 다른 결재 요청에 들어가 잠겼습니다. 이 기관을 이번 수정에서 빼고 다시 올려 주세요.' });
   const b = err(409, { code: 'STALE', message: '다른 사람이 먼저 고쳤습니다.', item_no: 1 });
   assert.strictEqual(b.top, '1번째 종로구청을 확인하세요.'); assert.strictEqual(b.refresh, true);
   assert.strictEqual(b.item.msg, '다른 사람이 먼저 고쳤습니다. 최신 기록으로 다시 읽었으니 이전·이후를 확인하고 다시 올려 주세요.');
   const c = err(409, { code: 'ALREADY_CANCELLED', item_no: 1 });
-  assert.strictEqual(c.item.msg, '이미 목표에서 빠진 기관입니다. 목록에서 제외해 주세요.'); assert.strictEqual(c.refresh, false);
+  assert.strictEqual(c.item.msg, '이미 목표에서 빠진 기관입니다. 이번 수정에서 빼 주세요.'); assert.strictEqual(c.refresh, false);
   assert.strictEqual(err(409, { code: 'DUP_TARGET', message: '이미 목표 기관으로 설정되어 있습니다.', item_no: 1 }).item.msg, '이미 목표 기관으로 설정되어 있습니다.');
   assert.strictEqual(err(400, { code: 'BAD_VALUE', message: '동작을 목록에서 골라 주세요.', item_no: 1 }).item.msg, '동작을 목록에서 골라 주세요.');
   assert.strictEqual(err(404, { code: 'NOT_FOUND', message: 'x', item_no: 1 }).item.msg, '기관을 찾지 못했습니다.');   // 영문 서버 문구는 내보이지 않는다
@@ -236,11 +236,11 @@ test('오류 문장 표(5-2): 항목 오류는 항목 상자 문장 + 위 한 �
   // 관심은 사람별(NEXT 117): 남의 관심 403 NOT_WATCH_OWNER·내 관심 중복 409 ALREADY_WATCH
   const o1 = err(403, { code: 'NOT_WATCH_OWNER', message: '다른 사람의 관심 기관은 바꿀 수 없습니다.', item_no: 2 });
   assert.strictEqual(o1.kind, 'item'); assert.strictEqual(o1.top, '2번째 수원시를 확인하세요.'); assert.strictEqual(o1.refresh, true);
-  assert.strictEqual(o1.item.msg, '다른 사람의 관심 기관은 바꿀 수 없습니다. 내 관심 기관만 올릴 수 있으니 목록에서 제외해 주세요.');
+  assert.strictEqual(o1.item.msg, '다른 사람의 관심 기관은 바꿀 수 없습니다. 내 관심 기관만 올릴 수 있으니 이번 수정에서 빼 주세요.');
   const o2 = err(403, { code: 'NOT_WATCH_OWNER', message: '다른 사람의 관심 기관은 바꿀 수 없습니다.' });   // 항목 번호 없음 → '영업부서만' 문장이 아니다
   assert.strictEqual(o2.kind, 'top'); assert.strictEqual(o2.refresh, true); assert.ok(o2.top.indexOf('다른 사람의 관심 기관은 바꿀 수 없습니다.') === 0 && o2.top.indexOf('영업부서') < 0);
   const o3 = err(409, { code: 'ALREADY_WATCH', message: '이미 관심 기관입니다.', item_no: 1 });
-  assert.strictEqual(o3.item.msg, '이미 내 관심 기관에 들어 있습니다. 목록에서 제외해 주세요.'); assert.strictEqual(o3.refresh, false);
+  assert.strictEqual(o3.item.msg, '이미 내 관심 기관에 들어 있습니다. 이번 수정에서 빼 주세요.'); assert.strictEqual(o3.refresh, false);
 });
 
 test('결과 문장: 결재 요청(잠김 안내)·바로 반영, 응답의 mode를 따른다', function () {
@@ -353,12 +353,13 @@ test('일괄 요청 창 마크업: 제목·단추·안내·사유 칸·항목(�
   assert.ok(h.indexOf('id="tc-cancel">취소</button><button type="button" id="tc-go" class="dlg-go">결재 요청</button>') > 0);
   assert.ok(h.indexOf('영업팀장이 결재합니다. 결재가 끝날 때까지') > 0);
   assert.ok(h.indexOf('<textarea id="tc-reason" rows="3" maxlength="200" aria-describedby="tc-rh tc-rc tc-re"></textarea>') > 0 && h.indexOf('id="tc-rc" class="mono">0/200') > 0);
-  assert.ok(h.indexOf('<select id="tc-i1-op" data-uid="1" data-f="op"><option value="">동작 고르기</option><option value="CANCEL" selected>목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option></select>') > 0);   // 목표 고치기는 목록에 없다(NEXT 114)
+  assert.ok(h.indexOf('<select id="tc-i1-op" data-uid="1" data-f="op"><option value="">빼기·옮기기 고르기</option><option value="CANCEL" selected>목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option></select>') > 0);   // 목표 고치기는 목록에 없다(NEXT 114)
   assert.ok(h.indexOf('목표 고치기') < 0 && h.indexOf('value="NEXT"') < 0);   // 입찰 종료 줄이 아니면 '다음 회차 목표로'도 없다
   assert.ok(h.indexOf('<span class="fix">목표로 옮기기</span>') > 0 && h.indexOf('<span class="fix">목표에 넣기</span>') > 0);   // 관심 줄·넣기는 동작 고정
   assert.ok(h.indexOf('tc-i2-op') < 0 && h.indexOf('tc-i3-op') < 0);
   assert.ok(h.indexOf('id="tc-i1-e"') > 0 && h.indexOf('id="tc-i2-e"') > 0 && h.indexOf('id="tc-i3-e"') > 0);
-  assert.ok(h.indexOf('class="tc-x" data-uid="1" aria-label="종로구청 목록에서 제외">목록에서 제외</button>') > 0);
+  assert.ok(h.indexOf('class="tc-x" data-uid="1" aria-label="종로구청 이번 수정에서 빼기">이번 수정에서 빼기</button>') > 0);
+  assert.ok(h.indexOf('목록에서 제외') < 0);
   assert.ok(h.indexOf('tc-allop') < 0);   // 동작을 고를 수 있는 줄이 하나뿐이면 '모두' 칸은 없다
   const B = tc.newItem(7, tc.entryOfRow(mk({ id: 'B', targetNo: 2 })));
   assert.ok(tc.dialogHtml({ mode: 'APPROVAL', role: '영업팀', reason: '', items: [A, B] }, OPT).indexOf('<select id="tc-allop"><option value="">동작 한꺼번에 정하기</option>') > 0);
@@ -398,7 +399,7 @@ test('항목의 이전/이후: 동작별 칸(EDIT 연도·구분·메모, CANCEL
   const N = tc.addItem(5, { id: 'N', name: 'n', regionName: 'r', year: 2027, tag: 'NEW', tagName: '신규유치 도전', memo: '메모' });
   const nh = tc.afterBlockHtml(N, OPT);
   assert.ok(nh.indexOf('<dd>목표·관심 아님</dd>') > 0 && nh.indexOf('<span class="mono">2027</span> 목표 · 신규유치 도전<span class="tc-memo">메모: 메모</span>') > 0);
-  assert.ok(tc.afterBlockHtml(tc.newItem(6, snapA()), OPT).indexOf('동작을 고르면 이어서 정합니다.') > 0);
+  assert.ok(tc.afterBlockHtml(tc.newItem(6, snapA()), OPT).indexOf('빼기나 옮기기를 고르면 이어서 정합니다.') > 0);
 });
 
 test('결재함 카드 표(6-6): 이전/이후·강조·메모 줄·주의 줄·이스케이프', function () {
@@ -681,16 +682,16 @@ test('NEXT 114 일괄 창 두 갈래: 수정 창(사유·동작·연도 칸 없�
   assert.ok(h.indexOf('<span class="fix">바로 반영</span>') > 0 && h.indexOf('data-f="tag"') > 0 && h.indexOf('data-f="memo"') > 0);
   assert.ok(tc.editDialogHtml({ items: [A] }, OPT).indexOf('tc-alltag') < 0);   // 한 곳이면 '모두' 칸 없음
   assert.strictEqual(tc.editTitle(3), '고른 기관 수정 — 3곳');
-  // 두 칸 세그먼트(11-25): 「구분·메모·개시일 고치기(바로 반영)」/「빼기·옮기기(결재 요청)」 — 라디오 name=tc-mode 2개, 켜진 첫 칸이 기본
+  // 두 칸 세그먼트(11-25): 「구분·메모 고치기(바로 반영)」/「빼기·옮기기(결재 요청)」 — 라디오 name=tc-mode 2개, 켜진 첫 칸이 기본
   assert.strictEqual((h.match(/<input type="radio" name="tc-mode"/g) || []).length, 2);
   assert.ok(h.indexOf('<fieldset class="tc-mode"><legend class="sr-only">무엇을 고칠지 고르세요</legend>') > 0);
-  assert.ok(h.indexOf('<input type="radio" name="tc-mode" value="edit" checked><span>구분·메모·개시일 고치기</span><small>바로 반영</small>') > 0);
+  assert.ok(h.indexOf('<input type="radio" name="tc-mode" value="edit" checked><span>구분·메모 고치기</span><small>바로 반영</small>') > 0);
   assert.ok(h.indexOf('<input type="radio" name="tc-mode" value="approval"><span>빼기·옮기기</span><small>결재 요청</small>') > 0);
   assert.ok(h.indexOf('disabled') < 0);
   // 꺼진 칸: disabled + label 안 small이 이유로 바뀌고, 같은 이유가 sr 문장에도 있다
   const avOff = { edit: { on: false, why: '관심 기관이 섞여 있어 고칠 수 없습니다.' }, approval: { on: true, why: '' } };
   const ho = tc.editDialogHtml({ kind: 'approval', items: [tc.newItem(1, snapA())], mode: 'APPROVAL', role: '영업팀', avail: avOff, n: 1 }, OPT);
-  assert.ok(ho.indexOf('data-kind="approval"') > 0 && ho.indexOf('<label class="off"><input type="radio" name="tc-mode" value="edit" disabled><span>구분·메모·개시일 고치기</span><small>관심 기관이 섞여 있어 고칠 수 없습니다.</small></label>') > 0);
+  assert.ok(ho.indexOf('data-kind="approval"') > 0 && ho.indexOf('<label class="off"><input type="radio" name="tc-mode" value="edit" disabled><span>구분·메모 고치기</span><small>관심 기관이 섞여 있어 고칠 수 없습니다.</small></label>') > 0);
   assert.ok(ho.indexOf('<input type="radio" name="tc-mode" value="approval" checked>') > 0 && ho.indexOf('tc-mode-why2') < 0);   // P3-5: 남의 칸 이유를 읽지 않게 sr 문장·describedby 없음(이유는 label 안 small)
   // 결재 칸 본문 = 지금의 dialogHtml 본문(사유 칸·동작 고르기), 보내기 글자·안내도 그쪽 것
   assert.ok(ho.indexOf('id="tc-reason"') > 0 && ho.indexOf('id="tc-i1-op"') > 0 && ho.indexOf('class="dlg-go">결재 요청</button>') > 0 && ho.indexOf('영업팀장이 결재합니다.') > 0);
@@ -707,7 +708,7 @@ test('NEXT 114 일괄 창 두 갈래: 수정 창(사유·동작·연도 칸 없�
   assert.ok(ht.indexOf('class="tc-termgo" data-uid="1" data-inst="A" aria-haspopup="dialog" aria-label="종로구청 협약 개시일 적기">협약 개시일 적기…</button><span class="tc-memo">달성 판정일 2027-01-01(추정)</span>') > 0);
   assert.ok(h.indexOf('tc-termgo') < 0);
   // 아무것도 안 바꾼 항목은 기존 문장(연도 검사는 지금 값 그대로라 걸리지 않는다)
-  assert.deepStrictEqual(tc.validate([A], { mode: 'DIRECT' }).items, [{ uid: 1, f: 'edit', msg: '고친 내용이 없습니다. 칸을 바꾸거나 이 기관을 목록에서 제외하세요.' }]);
+  assert.deepStrictEqual(tc.validate([A], { mode: 'DIRECT' }).items, [{ uid: 1, f: 'edit', msg: '고친 내용이 없습니다. 칸을 바꾸거나 이 기관을 이번 수정에서 빼세요.' }]);
   A.memo = '새 메모'; assert.strictEqual(tc.validate([A], { mode: 'DIRECT' }).ok, true);
   // 결과·알림 문장
   assert.deepStrictEqual(tc.resultOf({ mode: 'DIRECT', direct_basis: 'VALUE_EDIT', applied: 2 }, 2, 'edit'), { mode: 'DIRECT', n: 2, text: '목표 기관 2곳의 구분·메모를 수정했습니다. 결재 없이 반영되고 기록에 남습니다.' });

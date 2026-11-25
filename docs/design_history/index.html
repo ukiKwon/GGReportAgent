@@ -2272,7 +2272,14 @@
   <p style="font-size:12px">툴바 [협약 중인 기관][제안 사전준비][목표 기관 추가]. [제안 사전준비](테두리 단추, 32px)는 기관을 하나 고를 때만 켜지고, 꺼져 있으면 이유를 말한다. 누르면 '제안 사전준비 — {지역} {기관}' 확인 상자 → [확정하고 이동] → 제안 준비 현황의 그 기관 화면. 공고 전이면 평문 한 줄만. 줄에는 '시작 전' 글자만. 담당자만 볼 수 있는 진행 중 건은 이동하지 않고 '{담당자} 담당으로 진행 중이라 상세를 볼 수 없습니다'.</p>
   <p style="font-size:12px">사전준비 화면: [담당자 지정] → 담당자 1~10명 고르고 [사전준비 시작] → 결재 없이 바로 시작, 영업팀장(팀장이 직접 시작하면 영업부장)에게 알림. 이미 올라간 옛 개설 신청은 그대로 끝까지 처리.</p>
   <p style="font-size:12px">구분 칩 메뉴 = '자동 제안' 한 줄 + 구분 3개. 나머지는 고른 기관 띠 [수정하기…] 창 맨 위 두 칸 — '구분·메모·개시일 고치기(바로 반영)' / '빼기·옮기기(결재 요청)'. 관심 줄에는 [목표로 옮기기…][메모 고치기…][관심에서 빼기…]. 구분을 바꾸면 그 줄이 골라지고 띠에 '구분을 바꾼 {기관}을 골라 두었습니다'. 현황판 밖 화면은 [입찰 현황판에서 열기](목표 기관이면 칩, 아니면 '목표 기관이 아닙니다…' 한 줄).</p>
-  <p class="legend-note">숫자: 구분 메뉴 최대 8 → 4항목, 확정 입구 5곳 → 2곳(툴바·현황판 상세 팝업), 결재 2번 → 1번(목표 기관 추가). #hb-prep 꺼짐은 opacity 대신 글자 --muted(8.7:1)·테두리 --line(현황판 블록 opacity 금지 관례, DESIGN.md 94). 새 색 0. 협약 개시일 일괄 저장은 다음 단계 — 지금은 [수정하기…] 줄마다 [협약 개시일 적기…]. 그림은 8080 재기동(서버 포함) 뒤 추가.</p>
+  <p class="legend-note">숫자: 구분 메뉴 최대 8 → 4항목, 확정 입구 5곳 → 2곳(툴바·현황판 상세 팝업), 결재 2번 → 1번(목표 기관 추가). #hb-prep 꺼짐은 opacity 대신 글자 --muted(8.7:1)·테두리 --line(현황판 블록 opacity 금지 관례, DESIGN.md 94). 새 색 0. 협약 개시일 일괄 저장은 다음 단계 — 지금은 [수정하기…] 줄마다 [협약 개시일 적기…].</p>
+  <p><img src="../../handoff/agents/history/2026-11-25_111_hbprep/01_toolbar_prep_off.png" alt="후: 툴바 [협약 중인 기관 27곳] 옆 [제안 사전준비]가 회색 글자·옅은 테두리로 꺼져 있고 오른쪽에 파란 [목표 기관 추가]" style="max-width:100%;border:1px solid #c8ced6"></p>
+  <p><img src="../../handoff/agents/history/2026-11-25_111_hbprep/02_one_selected_prep_on_band.png" alt="후(켜짐 모양은 재현): 영천시청 한 줄을 고르면 [제안 사전준비]가 진한 글자·테두리로 켜지고 아래 띠 오른쪽 끝에 [수정하기…]" style="max-width:100%;border:1px solid #c8ced6"></p>
+  <p><img src="../../handoff/agents/history/2026-11-25_111_hbprep/03_prep_confirm_dialog.png" alt="후: '제안 사전준비 — 경북 영천시청' 확인 상자, 담당자를 정하면 사전준비가 시작된다는 안내와 [취소][확정하고 이동]" style="max-width:100%;border:1px solid #c8ced6"></p>
+  <p><img src="../../handoff/agents/history/2026-11-25_111_hbprep/04_kind_chip_menu.png" alt="후: 구분 칩 메뉴 — 자동 제안 한 줄과 구분 3개만" style="max-width:100%;border:1px solid #c8ced6"></p>
+  <p><img src="../../handoff/agents/history/2026-11-25_111_hbprep/05a_edit_dialog_direct.png" alt="후: [수정하기…] 창 두 칸 중 바로 반영 칸 — 구분·메모를 바로 고침" style="max-width:100%;border:1px solid #c8ced6"></p>
+  <p><img src="../../handoff/agents/history/2026-11-25_111_hbprep/05b_edit_dialog_approval.png" alt="후: 같은 창의 결재 요청 칸 — 사유 입력칸과 빼기·옮기기 고르기" style="max-width:100%;border:1px solid #c8ced6"></p>
+  <p class="legend-note">그림: 8080 2e51e4ff, CSS 폭 1280px(브라우저 확대 90%라 PNG는 1152px). 켜짐 모양은 실제 데이터에 켜질 기관이 없어 aria-disabled만 바꿔 재현.</p>
 </div></div></div>
 </div>
 </section>

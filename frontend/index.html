@@ -2338,7 +2338,7 @@
   .db-soon-tag { margin-left:8px; font-size:12px; font-weight:400; color:var(--muted); border:1px solid var(--line-strong); border-radius:var(--r); padding:0 5px;
                  background:repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 12%, transparent) 0 2px, transparent 2px 4px); vertical-align:middle; }
   /* 11-17 c54 — 제안 진행 줄·도구 줄·정렬·입찰 종료·관심 탭·주의 상자·협약 중인 기관 버튼. 새 hex·새 변수 없음(design-reviewer a3ab5c5a 6-12) */
-  #hb-ours-btn { font-size:12px; padding:4px 12px; }
+  #hb-ours-btn { height:32px; font-size:12px; padding:0 12px; }   /* 툴바 높이 32px(design 11-25 P3-1) */
   #hb-ours-btn b { font:400 12px var(--mono); color:var(--fg); }
   .hb-band { grid-template-rows:auto auto; }
   .hb-stgs { grid-column:1 / -1; display:grid; grid-template-columns:88px repeat(5, minmax(0,1fr)); gap:6px; align-items:center; min-height:36px; padding:0 16px; border-top:1px solid var(--line); }
@@ -2479,8 +2479,15 @@
   .tc-mode input { position:absolute; width:1px; height:1px; margin:0; padding:0; border:0; overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); }   /* 동그라미는 숨기고(낭독·키보드는 그대로) label 전체를 누른다 */
   .tc-mode > label > span { font-size:13px; }
   .tc-mode small { font-size:12px; color:var(--muted); }
-  .tc-ba .tc-termgo { height:24px; padding:0 8px; font-size:12px; }
-  .hb-wacts { display:flex; flex-wrap:wrap; gap:4px 6px; align-items:center; }   /* 관심 줄 동작 묶음: [목표로 옮기기…][메모 고치기…][관심에서 빼기…] */
+  .tc-ba .tc-termgo, .tc-ba select { box-sizing:border-box; height:29px; }   /* 같은 줄 select(12px 글자 + 위아래 5px + 테두리 ≈ 29px)와 높이를 맞춘다(design 11-25 P3-2) */
+  .tc-ba .tc-termgo { padding:0 8px; font-size:12px; }
+  .hb-wacts { display:flex; flex-wrap:wrap; gap:4px 6px; align-items:center; }   /* 관심 줄 동작 묶음: [목표로 옮기기…][관심에서 빼기…] (메모 고치기는 메모 칸 안, design 11-25 P2-1 안 A) */
+  .hb-memocell { display:flex; align-items:center; min-width:0; }
+  .hb-memocell .hb-memotx { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hb-memocell .hb-memo-go { flex:none; min-height:24px; margin-left:6px; }
+  .hb-note.info .hb-note-ck { display:none; }   /* 안내 변형(꺼진 단추의 이유): 성공 ✓ 없이 글자 --fg만. 새 색 없음 */
+  .hb-note.info { border-color:var(--line-strong); background:var(--panel); }
+  @media (min-width:1440px) { .hb-tt col.c-act { width:230px; } }
   .tc-items { list-style:none; margin:0; padding:0; }
   .tc-item { margin:0 0 8px; padding:10px 12px; border:1px solid var(--line); border-radius:var(--r); }
   .tc-item.bad { border-color:var(--red); outline:1px solid var(--red); outline-offset:-2px; }   /* 오류 테두리는 outline으로(현황판 구간은 box-shadow 금지) */

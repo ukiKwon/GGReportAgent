@@ -167,7 +167,7 @@
         const s = it.snap;
         if (!Number(it.year)) { bad(it, 'year', '목표 연도를 고르세요.'); return; }
         if (str(it.memo).trim().length > tc.MEMO_MAX) { bad(it, 'memo', '메모는 ' + tc.MEMO_MAX + '자 이내로 적으세요.'); return; }
-        if (Number(it.year) === Number(s.year) && it.tag === s.tagCd && str(it.memo).trim() === str(s.memo).trim()) bad(it, 'edit', '고친 내용이 없습니다. 칸을 바꾸거나 이 기관을 목록에서 제외하세요.');
+        if (Number(it.year) === Number(s.year) && it.tag === s.tagCd && str(it.memo).trim() === str(s.memo).trim()) bad(it, 'edit', '고친 내용이 없습니다. 칸을 바꾸거나 이 기관을 이번 수정에서 빼세요.');
       } else if (it.op === 'NEXT') {
         if (!Number(it.year)) bad(it, 'year', '목표 연도를 고르세요.');
       } else if (it.op === 'CANCEL') {
@@ -204,11 +204,11 @@
   // ── 결과·오류 문장(규격 5-2·5-3·6-3) ──────────────────────────────────
   const NET_MSG = '서버에 연결되지 않아 올리지 못했습니다. 연결을 확인하고 다시 누르세요.';
   const ITEM_MSG = {
-    pending: '방금 다른 결재 요청에 들어가 잠겼습니다. 이 기관을 목록에서 제외하고 다시 올려 주세요.',
+    pending: '방금 다른 결재 요청에 들어가 잠겼습니다. 이 기관을 이번 수정에서 빼고 다시 올려 주세요.',
     stale: '다른 사람이 먼저 고쳤습니다. 최신 기록으로 다시 읽었으니 이전·이후를 확인하고 다시 올려 주세요.',
-    cancelled: '이미 목표에서 빠진 기관입니다. 목록에서 제외해 주세요.',
-    notOwner: '다른 사람의 관심 기관은 바꿀 수 없습니다. 내 관심 기관만 올릴 수 있으니 목록에서 제외해 주세요.',   // 403 NOT_WATCH_OWNER(관심은 사람별, NEXT 117)
-    alreadyWatch: '이미 내 관심 기관에 들어 있습니다. 목록에서 제외해 주세요.' };   // 409 ALREADY_WATCH(목표→관심 결재를 올릴 때)
+    cancelled: '이미 목표에서 빠진 기관입니다. 이번 수정에서 빼 주세요.',
+    notOwner: '다른 사람의 관심 기관은 바꿀 수 없습니다. 내 관심 기관만 올릴 수 있으니 이번 수정에서 빼 주세요.',   // 403 NOT_WATCH_OWNER(관심은 사람별, NEXT 117)
+    alreadyWatch: '이미 내 관심 기관에 들어 있습니다. 이번 수정에서 빼 주세요.' };   // 409 ALREADY_WATCH(목표→관심 결재를 올릴 때)
   function fallback(s) { return '올리지 못했습니다(오류 ' + s + '). 다시 시도하세요.'; }
   // x = { status, body } → { kind:'item'|'field'|'top', top, item:{uid,f,msg}|null, msg, refresh }
   tc.errorOf = function (x, items) {
@@ -387,7 +387,7 @@
     } else if (it.op === 'TO_GOAL') {
       dd = '<label for="' + id('y') + '">목표 연도</label><select id="' + id('y') + '"' + u + ' data-f="year">' + yearOpts(yearsFor(it, o.years), it.year, true) + '</select>';
     } else {
-      dd = '<span class="tc-memo">동작을 고르면 이어서 정합니다.</span>';
+      dd = '<span class="tc-memo">빼기나 옮기기를 고르면 이어서 정합니다.</span>';
     }
     // 결재 요청 칸 줄에도 [협약 개시일 적기…] — 지난해 목표처럼 바로 반영 칸이 꺼진 줄도 입구가 있게(qa P2-2). 넣는 줄(ADD)은 제외.
     const judge = it.op !== 'ADD' && o.terms && has(o.terms, it.id) ? o.terms[it.id] : null;
@@ -397,10 +397,10 @@
   tc.itemHtml = function (it, n, o) {
     const hid = 'tc-i' + it.uid + '-h', u = ' data-uid="' + it.uid + '"';
     const opCtl = tc.isFixed(it) ? '<span class="fix">' + esc(tc.opLong(it.op)) + '</span>'
-      : '<label class="sr-only" for="tc-i' + it.uid + '-op">' + esc(it.name) + ' 동작</label><select id="tc-i' + it.uid + '-op"' + u + ' data-f="op"><option value=""' + (it.op ? '' : ' selected') + '>동작 고르기</option>' +
+      : '<label class="sr-only" for="tc-i' + it.uid + '-op">' + esc(it.name) + ' 동작</label><select id="tc-i' + it.uid + '-op"' + u + ' data-f="op"><option value=""' + (it.op ? '' : ' selected') + '>빼기·옮기기 고르기</option>' +
         (it.snap && it.snap.closed || it.op === 'NEXT' ? ['CANCEL', 'TO_WATCH', 'NEXT'] : ['CANCEL', 'TO_WATCH']).map(function (op) { return '<option value="' + op + '"' + (it.op === op ? ' selected' : '') + '>' + esc(tc.opLong(op)) + '</option>'; }).join('') + '</select>';   // 목표 고치기(EDIT)는 목록에 없다 — 구분·메모는 결재 없이 따로 고친다(NEXT 114)
     return '<li class="tc-item" role="group" aria-labelledby="' + hid + '"' + u + '><div class="tc-ih"><span class="no">' + Number(n) + '</span><span class="nm" id="' + hid + '"><span class="rg">' + esc(it.regionName) + '</span>' + esc(it.name) + '</span>' + opCtl +
-      '<button type="button" class="tc-x"' + u + ' aria-label="' + esc(it.name) + ' 목록에서 제외">목록에서 제외</button></div>' + tc.afterBlockHtml(it, o) + '<p class="dlg-ferr" id="tc-i' + it.uid + '-e"></p></li>';
+      '<button type="button" class="tc-x"' + u + ' aria-label="' + esc(it.name) + ' 이번 수정에서 빼기">이번 수정에서 빼기</button></div>' + tc.afterBlockHtml(it, o) + '<p class="dlg-ferr" id="tc-i' + it.uid + '-e"></p></li>';
   };
   // m = { mode, items, reason, role }, o = { years, tags, reasons }. 덮개는 body 직계로 붙이고 dlg.open으로 연다.
   function reasonBoxHtml(m) {   // 사유 칸(결재 요청일 때만)
@@ -433,10 +433,10 @@
       '<label for="' + id('m') + '">메모</label><input id="' + id('m') + '"' + u + ' data-f="memo" maxlength="' + tc.MEMO_MAX + '" size="20" value="' + esc(it.memo) + '">' +
       (judge !== null ? '<button type="button" class="tc-termgo"' + u + ' data-inst="' + esc(it.id) + '" aria-haspopup="dialog" aria-label="' + esc(it.name) + ' 협약 개시일 적기">협약 개시일 적기…</button>' + (judge ? '<span class="tc-memo">' + esc(judge) + '</span>' : '') : '');
     return '<li class="tc-item" role="group" aria-labelledby="' + hid + '"' + u + '><div class="tc-ih"><span class="no">' + Number(n) + '</span><span class="nm" id="' + hid + '"><span class="rg">' + esc(it.regionName) + '</span>' + esc(it.name) + '</span>' +
-      '<span class="fix">바로 반영</span><button type="button" class="tc-x"' + u + ' aria-label="' + esc(it.name) + ' 목록에서 제외">목록에서 제외</button></div>' +
+      '<span class="fix">바로 반영</span><button type="button" class="tc-x"' + u + ' aria-label="' + esc(it.name) + ' 이번 수정에서 빼기">이번 수정에서 빼기</button></div>' +
       '<dl class="tc-ba"><dt>이전</dt><dd>' + tc.beforeHtml(it) + '</dd><dt>이후</dt><dd>' + dd + '</dd></dl><p class="dlg-ferr" id="tc-i' + it.uid + '-e"></p></li>';
   };
-  // 두 칸 세그먼트(사용자 11-25): 「구분·메모·개시일 고치기(바로 반영)」/「빼기·옮기기(결재 요청)」. 지금 고른 쪽만 보낸다.
+  // 두 칸 세그먼트(사용자 11-25): 「구분·메모 고치기(바로 반영)」/「빼기·옮기기(결재 요청)」. 지금 고른 쪽만 보낸다.
   // 두 칸이 켜지는 조건(문장 포함)은 고른 줄로 정한다. s = 고른 줄 묶음({ids,by}), c = { canBulk: 구분·메모를 바로 고칠 수 있는 계정/서버, hasMode: 결재·바로 반영 모드가 있음, year: 올해 }
   tc.modeAvail = function (s, c) {
     c = c || {};
@@ -457,7 +457,7 @@
         '<span>' + esc(label) + '</span><small>' + esc(x.on ? small : x.why) + '</small></label>';
     };
     return '<fieldset class="tc-mode"><legend class="sr-only">무엇을 고칠지 고르세요</legend>' +
-      one('edit', '구분·메모·개시일 고치기', '바로 반영', av.edit) + one('approval', '빼기·옮기기', '결재 요청', av.approval) + '</fieldset>';
+      one('edit', '구분·메모 고치기', '바로 반영', av.edit) + one('approval', '빼기·옮기기', '결재 요청', av.approval) + '</fieldset>';
   }
   // 지금 고른 쪽 본문(.dlg-body 안쪽) — 칸을 바꿔 오가면 이 조각만 다시 그린다(입력값은 항목 모델에 남아 있다)
   tc.modeBodyHtml = function (m, o) {

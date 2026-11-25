@@ -170,7 +170,7 @@ test('관심 기관 줄: 다음 협약 종료 출처 순서(약정 → 행안부
   assert.ok(t.indexOf('<caption class="sr-only">내 관심 기관 1곳 중 1곳 보임, 다음 협약 종료 오름차순</caption>') > 0);
   const em = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: kbb.laneWindow(TODAY, 2026), rows: [], out: [], canEdit: true, total: 0 });
   assert.ok(em.indexOf('관심 기관이 없습니다') > 0 && em.indexOf('id="hb-watch-add2"') > 0);
-  assert.ok(em.indexOf('(') < 0 && em.indexOf('넣어 두면, 다음 협약 종료가 2년 안으로 들어올 때 [목표로 옮기기]가 뜹니다. 내 관심은 나만 넣고 뺄 수 있습니다.</p>') > 0);   // 괄호 없이 두 문장(P3-1)
+  assert.ok(em.indexOf('(') < 0 && em.indexOf('넣어 두면, 다음 협약 종료가 2년 안으로 들어올 때 [목표로 옮기기…]가 뜹니다. 내 관심은 나만 넣고 뺄 수 있습니다.</p>') > 0);   // 괄호 없이 두 문장(P3-1)
   assert.ok(kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: kbb.laneWindow(TODAY, 2026), rows: [], out: [], canEdit: false, total: 0 }).indexOf('<button') < 0);
 });
 
@@ -203,7 +203,7 @@ test('409 4종과 201 warning: ALREADY_WATCH(내 관심) 고정 문장·NOT_WATC
   assert.strictEqual(kbb.outcome(r(409, { code: 'ALREADY_GOAL' }), 'move').kind, 'stale');
   const w = kbb.outcome(r(409, { code: 'ALREADY_WATCH', latest: { target_no: 4, rev_no: 1, kind_cd: 'WATCH' } }), 'add');
   assert.deepStrictEqual([w.kind, w.which, w.latest], ['already', 'WATCH', { targetNo: 4, revNo: 1 }]);
-  assert.strictEqual(w.msg, '이미 내 관심 기관으로 설정되어 있습니다. 목표로 넣으려면 내 관심 탭에서 [목표로 옮기기]를 누르세요.');
+  assert.strictEqual(w.msg, '이미 내 관심 기관으로 설정되어 있습니다. 목표로 넣으려면 내 관심 탭에서 [목표로 옮기기…]를 누르세요.');
   // 목표→관심 옮기기 중 ALREADY_WATCH(내 관심에 이미 있음)는 방금 누른 버튼을 되풀이하지 않고 다음 행동을 말한다
   const wm = kbb.outcome(r(409, { code: 'ALREADY_WATCH', message: '<img>', latest: { target_no: 4, rev_no: 1, kind_cd: 'WATCH' } }), 'move');
   assert.deepStrictEqual([wm.kind, wm.which], ['already', 'WATCH']);
@@ -282,7 +282,7 @@ test('사람별 관심 후속(qa a79fb1e8): takenFor(넣을 곳 기준 한 곳)�
   // P3-2: 관심 → 목표 옮기기 중 DUP_TARGET, 일반 넣기는 예전 문구 그대로
   const dd = { status: 409, body: { detail: { code: 'DUP_TARGET', message: '<img>' } } };
   const mv = kbb.outcome(dd, 'move', { year: 2027 });
-  assert.deepStrictEqual([mv.kind, mv.msg], ['dup', '옮기지 못했습니다 — 이미 2027 목표에 있는 기관입니다. 내 관심에서 빼려면 [내 관심에서 빼기…]를 쓰세요.']);
+  assert.deepStrictEqual([mv.kind, mv.msg], ['dup', '옮기지 못했습니다 — 이미 2027 목표에 있는 기관입니다. 내 관심에서 빼려면 [관심에서 빼기…]를 쓰세요.']);
   assert.strictEqual(kbb.outcome(dd, 'add', { year: 2027 }).msg, '넣지 못했습니다 — 이미 2027 목표에 있는 기관입니다.');
   // 빼기 흐름(화면 코드 고정): 관심 줄이면 unwatch(본문 없음), 사유 목록이 비어도 관심 줄은 창이 열린다, nochange면 닫고 목록만 다시, 첫 포커스는 [취소]
   const k = src('js/kbboard.js');
@@ -346,7 +346,7 @@ test('추가 창: 넣을 곳(목표·관심) 라디오, 관심이면 연도 줄 
   assert.ok(html.indexOf('· 이미 내 관심 기관') > 0 && html.indexOf('· 이미 2027 목표') > 0 && html.indexOf('· 올해 입찰 종료') > 0);
   assert.strictEqual(kbb.dupText('GOAL', 2027), '이미 목표 기관으로 설정되어 있습니다(2027 목표).');
   assert.strictEqual(kbb.dupText('WATCH'), '이미 내 관심 기관으로 설정되어 있습니다.');
-  assert.ok(kbb.dupLinkHtml('WATCH').indexOf('>내 관심 탭에서 보기<') > 0 && kbb.dupHint('GOAL') === '내 관심으로 옮기려면 목표 표의 구분 메뉴에서 [내 관심으로…]를 누르세요.' && kbb.dupLinkHtml('GOAL').indexOf('목표 표에서 보기') > 0);
+  assert.ok(kbb.dupLinkHtml('WATCH').indexOf('>내 관심 탭에서 보기<') > 0 && kbb.dupHint('GOAL') === '내 관심으로 옮기려면 목표 표에서 그 줄을 고른 뒤 아래 띠의 [수정하기…] → \'빼기·옮기기\' 칸에서 고르세요.' && kbb.dupLinkHtml('GOAL').indexOf('목표 표에서 보기') > 0);
   assert.deepStrictEqual(kbb.addState({ inst: { id: 'I1' }, tag: 'NEW', kind: 'WATCH' }), { canGo: true, why: '' });                             // 관심은 연도가 필요 없다
   assert.deepStrictEqual(kbb.addState({ inst: { id: 'I1' }, tag: 'NEW', year: 2026, closedBlock: true }), { canGo: false, why: '올해 입찰이 끝나 올해 목표로는 넣을 수 없습니다.' });
   const list = [rec('I1', '광진구청'), rec('I2', '광진복지원')];

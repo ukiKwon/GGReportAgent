@@ -208,11 +208,11 @@ test('H. 4-4 결과 알림: 띠 아래 순서·상태 영역 밖 버튼·옮긴 
   const k = src('js/kbboard.js'), html = src('index.html');
   assert.ok(k.indexOf('<div class="hb-note" id="hb-note" hidden>') > 0 && k.indexOf('<div id="hb-flash" class="db-flash" role="status"></div><span id="hb-flash-act"></span></div>') > 0);   // 버튼은 status 바깥 형제
   assert.ok(k.indexOf('<div class="hb-top">') < k.indexOf('id="hb-err"') && k.indexOf('id="hb-err"') < k.indexOf('class="hb-band" id="hb-band"') && k.indexOf('class="hb-band" id="hb-band"') < k.indexOf('id="hb-note"') && k.indexOf('id="hb-note"') < k.indexOf('id="hb-goals"'));   // 제목 → 오류 → 띠 → 알림 → 표(qa P3-4)
-  assert.ok(/function flash\(msg, act\) \{\s*const n = \$\('hb-note'\); if \(n\) n\.hidden = !msg;[\s\S]*?textContent = msg \|\| ''/.test(k));   // hidden 먼저, 글은 그 뒤(P3-3)
+  assert.ok(/function flash\(msg, act, kind\) \{\s*const n = \$\('hb-note'\); if \(n\) \{ n\.hidden = !msg;[\s\S]*?textContent = msg \|\| ''/.test(k));   // hidden 먼저, 글은 그 뒤(P3-3)
   assert.ok(/kbb\.unmount = function \(\) \{[\s\S]*?gs\.just = null; gs\.focusNext = null; gs\.seeInst = '';/.test(k));   // P3-2
   assert.ok(/kbb\.onProfileChange = function \(\) \{[\s\S]*?gs\.just = null; gs\.seeInst = '';[\s\S]*?dash\.clearGoals\(\)/.test(k) && /kbb\.onProfileChange = function \(\) \{[\s\S]*?gs\.focusNext = null;/.test(k));
   assert.strictEqual(kbb.seeWatchHtml(), '<button type="button" class="hb-tag" id="hb-see-watch" data-see="watch">내 관심 탭에서 보기</button>');
-  assert.ok(/function flash\(msg, act\) \{[\s\S]*?\$\('hb-flash-act'\)[\s\S]*?msg && act === 'watch' \? kbb\.seeWatchHtml\(\) : ''/.test(k));
+  assert.ok(/function flash\(msg, act, kind\) \{[\s\S]*?\$\('hb-flash-act'\)[\s\S]*?msg && act === 'watch' \? kbb\.seeWatchHtml\(\) : ''/.test(k));
   assert.ok(/gs\.focusNext = \{ inst: r\.id, reveal: true \};\s*if \(toWatch && !noWatchNow\(\)\) \{ gs\.focusNext = \{ note: true \}; gs\.just = \{ tab: 'watch' \}; gs\.seeInst = r\.id; \}/.test(k));   // 목표→관심: 탭은 그대로
   assert.ok(/say\(kbb\.flashMoved\(r\.name, toWatch \? 'WATCH' : 'GOAL', m\.year\)[^\n]*, false, toWatch && !noWatchNow\(\) \? 'watch' : ''\)/.test(k));
   assert.ok(/if \(f\.note\) \{[^}]*\$\('hb-see-watch'\)[^}]*\$\('hb-add'\)[\s\S]*?return;\s*\}/.test(k));                                  // 포커스: [관심 탭에서 보기], 없으면 [목표 기관 추가]
