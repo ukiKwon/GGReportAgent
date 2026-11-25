@@ -61,6 +61,12 @@ public interface PrepMapper {
     int markOpened(@Param("bidCaseId") String bidCaseId, @Param("reqId") Long reqId,
                    @Param("by") String by, @Param("now") String now);
 
+    /** 사전준비 시작용 건 잠금(FOR UPDATE) — 트랜잭션의 첫 읽기로 쓴다(뒤의 일관 읽기가 잠금 뒤 최신 값을 보게). 없으면 null. */
+    BidPrep lockPrep(@Param("bidCaseId") String bidCaseId);
+
+    /** CONFIRMED → IN_PROGRESS(사전준비 시작, 결재 없음 — 사용자 11-25). OPENED_BY/AT 을 채운다(재확정 차단·끝난 건 범위 판정이 쓴다). */
+    int markStarted(@Param("bidCaseId") String bidCaseId, @Param("by") String by, @Param("now") String now);
+
     /** OPEN_PENDING ∧ OPEN_REQ_ID=reqId → CONFIRMED(개설 반려·회수). */
     int endOpen(@Param("bidCaseId") String bidCaseId, @Param("reqId") Long reqId,
                 @Param("by") String by, @Param("now") String now);

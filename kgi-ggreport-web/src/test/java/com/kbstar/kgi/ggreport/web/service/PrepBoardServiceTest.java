@@ -183,10 +183,10 @@ public class PrepBoardServiceTest {
     }
 
     @Test
-    public void U8_목록_감사_대상은_응답_행_중_WRITABLE_WRITING_건뿐이다() {
+    public void U8_목록_감사_대상은_사전준비가_시작된_건이다() {
         Map<String, Object> out = new java.util.LinkedHashMap<String, Object>();
         List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>();
-        for (String[] r : new String[][]{{"A", "WRITABLE"}, {"B", "IN_PROGRESS"}, {"C", "WRITING"}, {"D", "CANCELLED"}, {"E", "CONFIRMED"}}) {
+        for (String[] r : new String[][]{{"A", "WRITABLE"}, {"B", "IN_PROGRESS"}, {"C", "WRITING"}, {"D", "CANCELLED"}, {"E", "CONFIRMED"}, {"F", "OPEN_PENDING"}, {"G", "APPROVAL_PENDING"}}) {
             Map<String, Object> m = new java.util.LinkedHashMap<String, Object>();
             m.put("bid_case_id", r[0]);
             m.put("state_cd", r[1]);
@@ -194,10 +194,18 @@ public class PrepBoardServiceTest {
         }
         out.put("rows", rows);
         List<String[]> got = PrepBoardService.auditRows(out);
-        assertEquals(2, got.size());
+        // 시작 이후 상태(WRITABLE·IN_PROGRESS·WRITING·APPROVAL_PENDING)만 남고 CANCELLED·CONFIRMED·OPEN_PENDING 은 빠진다
+        assertEquals(4, got.size());
         assertEquals("A", got.get(0)[0]);
         assertEquals("WRITABLE", got.get(0)[1]);
-        assertEquals("C", got.get(1)[0]);
+        assertEquals("B", got.get(1)[0]);
+        assertEquals("IN_PROGRESS", got.get(1)[1]);
+        assertEquals("C", got.get(2)[0]);
+        assertEquals("G", got.get(3)[0]);
+        assertEquals("APPROVAL_PENDING", got.get(3)[1]);
+        for (String[] g : got) {
+            assertFalse(g[0], "D".equals(g[0]) || "E".equals(g[0]) || "F".equals(g[0]));
+        }
         assertEquals(0, PrepBoardService.auditRows(null).size());
     }
 

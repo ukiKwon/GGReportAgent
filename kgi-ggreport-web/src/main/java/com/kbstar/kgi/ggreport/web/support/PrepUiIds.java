@@ -22,13 +22,26 @@ public final class PrepUiIds {
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "open", "refresh", "confirm", "unconfirm", "open_request", "withdraw", "check", "uncheck",
             "plan_request", "start_writing", "history_open", "cancel_prep", "approve", "reject", "cancel_request",
-            "attach_upload", "attach_download", "attach_void", "t3_set", "t3_clear", "open_prep", "nobid_continue")));
+            "attach_upload", "attach_download", "attach_void", "t3_set", "t3_clear", "open_prep", "nobid_continue", "open_start")));
 
     /** [제안 확정] 감사용 화면 — 입찰 현황판만(NEXT 114). */
     public static final Set<String> CONFIRM_SCREENS = Collections.unmodifiableSet(new HashSet<String>(Collections.singletonList("bid_board")));
     public static final String CONFIRM_BUTTON = "confirm";
 
+    /** [사전준비 시작] 감사용 — prep_detail/open_start 만 유효(security 11-25 하). */
+    public static final String START_SCREEN = "prep_detail";
+    public static final String START_BUTTON = "open_start";
+
     private PrepUiIds() {
+    }
+
+    /** [사전준비 시작] 전용 — 화면 prep_detail, 버튼 open_start 일 때만 그 값, 아니면 UNKNOWN·ui_valid=false. 거절(400)은 하지 않는다(forConfirm 과 같은 이유). */
+    public static BoardUiIds.Ui forStart(HttpServletRequest req) {
+        String s = clean(req.getHeader(BoardUiIds.H_SCREEN));
+        String b = clean(req.getHeader(BoardUiIds.H_BUTTON));
+        boolean sv = START_SCREEN.equals(s);
+        boolean bv = START_BUTTON.equals(b);
+        return new BoardUiIds.Ui(sv ? s : BoardUiIds.UNKNOWN, bv ? b : BoardUiIds.UNKNOWN, sv && bv);
     }
 
     /**

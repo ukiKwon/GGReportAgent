@@ -57,6 +57,17 @@
     naT4: '해당 없음 — RFP가 등록되지 않은 기관입니다.',
     na: '해당 없음',
     openOnlySales: '개설 신청은 영업팀·영업팀장이 합니다.',
+    startOnlyOwner: '담당자 지정은 제안을 확정한 사람이나 그 팀 영업팀장이 합니다.',
+    tasksLaterStart: '담당자를 지정하면 준비 과제가 열립니다.',
+    startModalNote: '담당자를 정하면 결재 없이 바로 사전준비가 시작되고, 영업팀장(팀장이 직접 시작하면 영업부장)에게 알림이 갑니다.',
+    okPrepStart: function (res) {
+      const n = res && res.notified_count != null && isFinite(Number(res.notified_count)) ? Number(res.notified_count) : -1;
+      return '사전준비를 시작했습니다. ' + (n >= 0 ? '알림 ' + n + '건을 보냈습니다.' : '알림을 보냈습니다.') +
+        (res && res.can_view === false ? ' 담당자가 아니어서 이 건의 상세는 볼 수 없습니다.' : '');
+    },
+    errNotGoal: '목표 기관만 사전준비를 시작할 수 있습니다. 이 기관이 목표 대상인지 확인하세요.',
+    errNotify: '알림을 받을 영업팀장을 찾지 못했습니다. 결재선(팀장) 지정을 확인하세요.',
+    errStartOwner: '담당자 지정은 제안을 확정한 사람이나 그 팀 영업팀장만 할 수 있습니다.',
     openPending: '개설 신청이 승인을 기다리고 있습니다.',
     planPending: '영업부장 사전준비 승인을 기다리고 있습니다. 회수는 [결재함 › 내가 올린 요청]에서 합니다.',
     planNoStart: '사전준비 승인을 받으면 켜집니다.',
@@ -85,7 +96,7 @@
     generic: '처리하지 못했습니다. 화면을 새로 고친 뒤 다시 하세요.',
     pii: '의견(사유)에 개인정보로 보이는 내용이 있습니다. 그 부분을 지우고 다시 올리세요.',
     // 성공 문구(행위 이름과 결과 이름을 맞춘다)
-    okConfirm: function (name) { return name + prep.josa(name, '을', '를') + ' 제안 확정했습니다. 다음은 [개설 신청]입니다.'; },
+    okConfirm: function (name) { return name + prep.josa(name, '을', '를') + ' 제안 확정했습니다. 담당자를 정하면 사전준비가 시작됩니다.'; },
     okRevived: '확정을 취소했던 건을 다시 확정했습니다.',
     okOpen: '개설 신청을 올렸습니다. 승인되면 지명한 담당자에게 준비 과제가 열립니다.',
     okCheck: function (n) { return '\'' + n + '\'를 완료로 표시했습니다.'; },
@@ -148,6 +159,12 @@
     FILE_MISSING: { text: '파일이 서버에 없습니다. 시스템 관리자에게 알리세요.', after: 'keep' },
   };
   prep.ERR_BY_CODE = ERR_BY_CODE;
+
+  // 결재 없는 시작 흐름인가 — 서버가 can_start_prep를 주고 개설 신청 스위치가 꺼져 있을 때만(옛 흐름이면 false).
+  prep.isNewStartFlow = function (viewer) {
+    const vw = viewer || {};
+    return !vw.can_request_open && vw.can_start_prep !== undefined;
+  };
 
   function esc(s) { return logic.esc(s == null ? '' : s); }
   function str(v) { return v == null ? '' : String(v); }
@@ -294,7 +311,7 @@
   prep.popConfirmHtml = function (name) {
     return '<div class="pop-confirm" role="group" aria-label="제안 확정 확인">' +
       '<div>' + esc(name) + esc(prep.josa(name, '을', '를')) + ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안 준비 현황]에 이 기관의 준비 건이 생깁니다. ' +
-      '개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</div>' +
+      '담당자 지정 전까지 확정한 사람·영업팀장이 취소할 수 있습니다.</div>' +
       '<div class="tm-actions"><button type="button" data-pp-pop="cancel">취소</button>' +
       '<button type="button" class="pp-next-btn" data-pp-pop="go">확정하기</button></div>' +
       '<div class="ap-err" id="pop-prep-err" role="alert"></div></div>';
@@ -436,7 +453,9 @@
   prep.nextLine = function (view) {
     const v = view || {};
     switch (v.state_cd) {
-      case 'CONFIRMED': return '개설 신청을 올리면 영업팀장이 담당자를 승인합니다.';
+      case 'CONFIRMED':
+        if (prep.isNewStartFlow(v.viewer)) return '담당자를 지정하면 결재 없이 사전준비가 시작됩니다.';
+        return '개설 신청을 올리면 영업팀장이 담당자를 승인합니다.';
       case 'OPEN_PENDING': return '영업팀장의 개설 승인을 기다립니다.';
       case 'IN_PROGRESS': {
         const miss = prep.missingNames(v);
@@ -673,9 +692,12 @@
       case 'CONFIRMED': {
         // 반려·회수로 끝난 지난 신청이 권한자에게 보이면 그 지명자·의견을 참고용으로 그린다(요약 줄은 caseHtml이 그린다).
         const ro = v.open_request && v.open_request.status !== 'PENDING' ? nomineeLines(v) : '';
-        return '<div class="pp-end"><div class="pp-end-row">' + (vw.can_request_open
-          ? btn('open-request-open', '개설 신청', { cls: 'pp-next-btn' })
-          : '<span class="pp-why">' + esc(T.openOnlySales) + '</span>') + '</div>' +
+        const newFlow = prep.isNewStartFlow(vw);   // 서버가 can_start_prep를 주면 결재 없는 시작 흐름
+        return '<div class="pp-end"><div class="pp-end-row">' + (vw.can_start_prep
+          ? btn('prep-start-open', '담당자 지정', { cls: 'pp-next-btn' })
+          : vw.can_request_open
+            ? btn('open-request-open', '개설 신청', { cls: 'pp-next-btn' })
+            : '<span class="pp-why">' + esc(newFlow ? T.startOnlyOwner : T.openOnlySales) + '</span>') + '</div>' +
           (ro ? '<div class="pp-why">지난 신청 내용(참고)</div><div class="pp-why">' + ro + '</div>' : '') + '</div>';
       }
       case 'OPEN_PENDING': {
@@ -784,7 +806,7 @@
       if (TASK_STATES.indexOf(v.state_cd) >= 0 && !vw.is_assignee) h += '<p class="pp-next">' + esc(T.readonly) + '</p>';
       h += '<ol class="pp-tasks" aria-label="준비 과제">' + models.map(function (t) { return prep.taskItemHtml(t, m); }).join('') + '</ol>';
     } else if (v.state_cd === 'CONFIRMED' || v.state_cd === 'OPEN_PENDING') {
-      h += '<p class="wf-empty">' + esc(T.tasksLater) + '</p>';
+      h += '<p class="wf-empty">' + esc(prep.isNewStartFlow(vw) ? T.tasksLaterStart : T.tasksLater) + '</p>';
     }
     return h + prep.endHtml(v, { confirm: m.confirm, withdrawing: m.withdrawing });
   };
@@ -794,13 +816,13 @@
   // info: { name, assignees(명), writing, fileName, meEmp }
   prep.modalTitle = function (kind, info) {
     const i = info || {};
-    if (kind === 'open') return '개설 신청 — ' + str(i.name);
+    if (kind === 'open') return (i.direct ? '담당자 지정 — ' : '개설 신청 — ') + str(i.name);
     if (kind === 'unconfirm') return '제안 확정 취소 — ' + str(i.name);
     if (kind === 'abort') return '사전준비 중단 — ' + str(i.name);
     return '파일 무효 처리 — ' + str(i.fileName);
   };
-  prep.modalGoLabel = function (kind) {
-    return { open: '개설 신청 올리기', unconfirm: '확정 취소하기', abort: '중단하기', 'void': '무효 처리하기' }[kind] || '확인';
+  prep.modalGoLabel = function (kind, direct) {
+    return { open: direct ? '사전준비 시작' : '개설 신청 올리기', unconfirm: '확정 취소하기', abort: '중단하기', 'void': '무효 처리하기' }[kind] || '확인';
   };
   prep.modalCancelLabel = function (kind) { return kind === 'open' ? '취소' : '닫기'; };
 
@@ -826,12 +848,14 @@
           '<div class="tm-picks" id="pp-open-picks">' + prep.openPicksHtml(m, i.meEmp) + '</div>' +
           '<p class="tm-note" id="pp-max-note"' + (n >= prep.MAX ? '' : ' hidden') + '>' + esc(tm.T.maxNote) + '</p>';
       }
-      return nobidWarnBlock(i.nobidWarn) + '<p class="tm-note">담당자로 일할 사람을 1~10명 지명합니다. 승인되면 지명한 사람이 담당자가 되고 준비 과제가 열립니다. 신청자나 지명자에 영업팀장이 있으면 영업부장이 승인합니다.</p>' +
-        '<fieldset class="tm-fs"><legend>담당자 지명</legend>' + inner + '</fieldset>' +
+      return nobidWarnBlock(i.nobidWarn) + (m.direct
+        ? '<p class="tm-note">' + esc(T.startModalNote) + ' 담당자는 1~10명 지정합니다.</p>'
+        : '<p class="tm-note">담당자로 일할 사람을 1~10명 지명합니다. 승인되면 지명한 사람이 담당자가 되고 준비 과제가 열립니다. 신청자나 지명자에 영업팀장이 있으면 영업부장이 승인합니다.</p>') +
+        '<fieldset class="tm-fs"><legend>' + (m.direct ? '담당자 지정' : '담당자 지명') + '</legend>' + inner + '</fieldset>' +
         reasonBlock(m, '의견 (선택)', '의견에는 주민등록번호·카드번호 같은 개인정보를 적지 마세요.');
     }
     if (kind === 'unconfirm') {
-      return '<p class="tm-note">개설 신청 전이라 담당자·과제 기록은 없습니다. 다시 확정하면 같은 건이 되살아납니다.</p>' +
+      return '<p class="tm-note">담당자 지정 전이라 담당자·과제 기록은 없습니다. 다시 확정하면 같은 건이 되살아납니다.</p>' +
         reasonBlock(m, '취소 사유 (필수)', '사유에는 개인정보를 적지 마세요.');
     }
     if (kind === 'abort') {
@@ -851,10 +875,10 @@
   };
 
   prep.modalHtml = function (m, info) {
-    const go = prep.modalGoLabel(m.kind);
+    const go = prep.modalGoLabel(m.kind, !!m.direct);
     const goCls = m.kind === 'abort' ? ' class="pp-danger"' : (m.kind === 'open' ? ' class="pp-next-btn"' : '');
     return '<div class="modal-box tm-modal-box" role="dialog" aria-modal="true" aria-labelledby="pp-m-title">' +
-      '<h3 id="pp-m-title">' + esc(prep.modalTitle(m.kind, info)) + '</h3>' +
+      '<h3 id="pp-m-title">' + esc(prep.modalTitle(m.kind, Object.assign({}, info, { direct: !!m.direct }))) + '</h3>' +
       '<div class="modal-scroll tm-m-body">' + prep.modalBodyHtml(m, info) + '<div id="pp-m-err" class="ap-err" role="alert"></div></div>' +
       '<div id="pp-m-confirm"></div>' +
       '<div class="tm-m-actions"><span id="pp-m-why" class="tm-why"></span><button type="button" id="pp-m-cancel">' + esc(prep.modalCancelLabel(m.kind)) + '</button>' +
@@ -885,6 +909,17 @@
       const by = tasksByCd(tasks);
       const names = (Array.isArray(d.missing) ? d.missing : []).map(function (cd) { return by[cd] ? str(by[cd].name) : ''; }).filter(Boolean);
       return { text: '아직 끝나지 않은 필수 과제가 있습니다' + (names.length ? ': ' + names.join(', ') + '.' : '.'), after: 'reload', code: code };
+    }
+    if (where === 'prepstart') {
+      const bad = function (text, after) { return { text: text, after: after, code: code }; };
+      if (code === 'NOTIFY_TARGET_NOT_RESOLVED') return bad(p.message || T.errNotify, 'keep');
+      if (code === 'OPEN_APPROVAL_ON') return bad('지금은 개설 결재 방식이 켜져 있어 바로 시작할 수 없습니다. 최신 상태를 다시 불러왔습니다.', 'closeReload');
+      if (code === 'OPEN_APPROVAL_CLOSED') return bad('개설 결재 방식이 닫혀 있습니다. 최신 상태를 다시 불러왔으니 확인한 뒤 다시 하세요.', 'closeReload');
+      if (code === 'OPEN_PENDING') return bad('이 건에는 개설 신청이 이미 올라가 있습니다. 승인을 기다리거나 신청을 회수하세요. 최신 상태를 다시 불러왔습니다.', 'closeReload');
+      if (code === 'NOT_GOAL_TARGET') return bad(T.errNotGoal, 'keep');
+      if (code === 'GOAL_CHANGE_PENDING') return bad('이 기관의 목표 변경 결재가 진행 중입니다. 결재가 끝난 뒤 다시 담당자를 지정하세요.', 'keep');
+      if (code === 'ASSIGNED_ALREADY') return bad('이미 담당자가 지정되어 있습니다. 화면을 다시 불러옵니다.', 'closeReload');
+      if (status === 403) return bad(T.errStartOwner, 'reload');
     }
     if (code === 'OPEN_PENDING') {
       return where === 'unconfirm'
@@ -1519,7 +1554,7 @@
     if (first) first.focus();
     if (kind === 'open') {
       const m = S.modal;
-      req('GET', '/assignment-candidates', undefined, ui('prep_detail', 'open_request')).then(function (list) {
+      req('GET', '/assignment-candidates', undefined, ui('prep_detail', m.direct ? 'open_start' : 'open_request')).then(function (list) {
         if (S.modal !== m) return;
         m.cands = Array.isArray(list) ? list : [];
         m.candState = 'ok';
@@ -1605,8 +1640,13 @@
     if (m.kind === 'open') {
       const body = { emp_nos: m.sel.slice() };
       if (reason) body.comment = reason;
-      doAct(function () { return req('POST', base(S.selected) + '/open-requests', body, ui('prep_detail', 'open_request')); },
-        T.okOpen, { modal: true, focusTitle: true, where: 'open' });
+      if (m.direct) {
+        doAct(function () { return req('POST', base(S.selected) + '/prep/start', body, ui('prep_detail', 'open_start')); },
+          T.okPrepStart, { modal: true, focusTitle: true, where: 'prepstart' });
+      } else {
+        doAct(function () { return req('POST', base(S.selected) + '/open-requests', body, ui('prep_detail', 'open_request')); },
+          T.okOpen, { modal: true, focusTitle: true, where: 'open' });
+      }
     } else if (m.kind === 'unconfirm') {
       doAct(function () { return req('POST', base(S.selected) + '/unconfirm', { reason: reason }, ui('prep_detail', 'unconfirm')); },
         T.okUnconfirm, { modal: true, focusTitle: true, where: 'unconfirm' });
@@ -1781,6 +1821,7 @@
       case 'unconfirm-open': openModal('unconfirm'); return;
       case 'abort-open': openModal('abort'); return;
       case 'open-request-open': openModal('open'); return;
+      case 'prep-start-open': openModal('open', { direct: true }); return;
       case 'upload': onUploadPick(); return;
       case 'download': onDownload(t.getAttribute('data-attach')); return;
       case 'setconfirm': onSetConfirmed(t.getAttribute('data-attach')); return;

@@ -11,7 +11,7 @@
   const notify = {};
 
   const KIND_CLASS = { '결재요청': 'approval', '결재알림': 'approval', '결재결과': 'handoff',
-    '되물음': 'risk', '이관': 'handoff', '쪽지': 'note' };
+    '되물음': 'risk', '이관': 'handoff', '쪽지': 'note', '사전준비알림': 'handoff' };
 
   // 쪽지의 link 값 → 이동할 화면. (옛 제안서 워크플로의 '결재요청'은 link가 없지만 같은 결재함으로 간다.)
   const DESTINATIONS = {

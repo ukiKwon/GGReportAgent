@@ -3,8 +3,10 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.AppTest;
+import com.kbstar.kgi.ggreport.web.support.PrepOpenApprovalSwitch;
 import com.kbstar.kgi.ggreport.web.support.TestGoals;
 import com.kbstar.kgi.ggreport.web.support.Times;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -52,7 +54,11 @@ public class PrepBoardApiTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private PrepOpenApprovalSwitch openApproval;
     private final ObjectMapper om = new ObjectMapper();
+
+    @Before public void 옛_개설_신청_켜기() { openApproval.setForTest(true); }   // 옛 흐름·남은 대기 건 처리를 본다 — 새 흐름은 PrepStartApiTest
+    @After public void 옛_개설_신청_끄기() { openApproval.setForTest(false); }
 
     @Before
     public void 올해_목표_바탕() {   // NEXT 114 — 제안 확정은 올해 목표 기관만. 시험 트랜잭션 안이라 끝나면 롤백된다
@@ -507,15 +513,16 @@ public class PrepBoardApiTest {
     }
 
     @Test
-    public void D29_결재_끝난_건이_표에_실리면_목록_감사에_건마다_한_줄이_같은_시각_화면_버튼으로_남고_다른_상태는_남지_않는다() throws Exception {
+    public void D29_사전준비가_시작된_건이_표에_실리면_목록_감사에_건마다_한_줄이_같은_시각_화면_버튼으로_남는다() throws Exception {
         String done = opened(INST);
         setState(done, "WRITABLE");
-        String other = opened("dobong");   // IN_PROGRESS — 건 줄 없음
+        String other = opened("dobong");   // IN_PROGRESS — 11-25 패치 B 로 건 줄이 남는다(이전에는 없었다)
         assertEquals(200, list(MEMBER, null, "open").getResponse().getStatus());
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_LIST_ROW' AND OUTCOME='OK'"
                 + " AND STATE_CD='WRITABLE' AND TASK_CD IS NULL AND ACTOR_EMP_NO=? AND SCREEN_ID='prep_dashboard' AND BUTTON_ID='open'"
                 + " AND UI_VALID=1", done, MEMBER));
-        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_LIST_ROW'", other));
+        assertEquals("IN_PROGRESS 도 건 줄이 남는다(패치 B)", 1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_LIST_ROW'"
+                + " AND OUTCOME='OK' AND STATE_CD='IN_PROGRESS' AND ACTOR_EMP_NO=?", other, MEMBER));
         assertEquals("요약 줄은 그대로 한 줄", 1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST' AND BID_CASE_ID='NONE' AND ACTOR_EMP_NO=?", MEMBER));
         assertEquals("건 줄은 요약 줄과 같은 LOGGED_AT", 1, count("SELECT COUNT(*) FROM BID_PREP_ACT a WHERE a.ACTION_CD='DASH_LIST_ROW' AND a.BID_CASE_ID=?"
                 + " AND a.LOGGED_AT = (SELECT b.LOGGED_AT FROM BID_PREP_ACT b WHERE b.ACTION_CD='DASH_LIST' AND b.BID_CASE_ID='NONE' AND b.ACTOR_EMP_NO=?)", done, MEMBER));

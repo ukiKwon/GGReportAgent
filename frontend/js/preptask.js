@@ -307,7 +307,8 @@
     const all = Array.isArray(v.tasks) ? v.tasks : [];
     const by = prep.tasksByCd(all);
     const mine = (s.tasks || []).filter(function (cd) { return !!by[cd]; });
-    if (!all.length) return (s.tasks || []).length && pb.PRE_OPEN_STATES.indexOf(str(v.state_cd)) >= 0 ? note(prep.T.tasksLater) : '';
+    if (!all.length) return (s.tasks || []).length && pb.PRE_OPEN_STATES.indexOf(str(v.state_cd)) >= 0
+      ? note(prep.isNewStartFlow(v.viewer) ? prep.T.tasksLaterStart : prep.T.tasksLater) : '';
     if (!mine.length) return '';
     const vw = v.viewer || {};
     let h = '';

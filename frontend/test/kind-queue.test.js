@@ -106,7 +106,7 @@ test('띠·소묶음 문구: 선정 결과 대기로 통일, 소묶음 제목, �
 });
 
 test('소스: 목록 소묶음·옵션 id 접두·showWait·키보드 대상', () => {
-  const s = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8');
+  const s = fs.readFileSync(path.join(ROOT, 'js/dashboard.js'), 'utf8').replace(/\r\n/g, '\n');   // 체크아웃 줄 끝(CRLF)과 무관하게
   assert.ok(s.includes('id="db-g0w"') && s.includes('id="db-nwlb" tabindex="0" aria-labelledby="db-g0w"') && s.includes("optionsFor(ntWait, 'db-w-')") && s.includes("optionsFor(ntOpen, 'db-n-')"));
   assert.ok(/case 'db-nb-wait': showWait\(\); break;/.test(s));
   const sw = (s.match(/function showWait\(\) \{[\s\S]*?\n  \}\n/) || [''])[0];

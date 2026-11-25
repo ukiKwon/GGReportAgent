@@ -55,9 +55,9 @@ public class PrepBoardService {
     public static final String ACT_CHECK = "DASH_CHECK";
     public static final String ACT_SAME = "DASH_CHECK_SAME";
     public static final String ACT_LIST_ROW = "DASH_LIST_ROW";   // 목록에 실린 결재 끝난 건마다 한 줄(planner 11-23 P3-3) — 요약 줄과 같은 LOGGED_AT
-    /** 목록 감사에 건 번호를 남기는 상태 — 사전준비 승인(결재)이 끝난 건. 사용자 불변 규칙 "결재 끝난 건의 모든 행위는 누가·어느 화면·어느 버튼". */
+    /** 목록 감사에 건 번호를 남기는 상태 — 사전준비가 시작된 건(목표 기관 결재를 거쳐 담당이 정해진 건, 11-25 planner 0057 ①). 사용자 불변 규칙 "결재 끝난 건의 모든 행위는 누가·어느 화면·어느 버튼". */
     public static final Set<String> AUDIT_ROW_STATES = Collections.unmodifiableSet(new HashSet<String>(
-            Arrays.asList(PrepService.WRITABLE, PrepService.WRITING)));
+            Arrays.asList(PrepService.IN_PROGRESS, PrepService.APPROVAL_PENDING, PrepService.WRITABLE, PrepService.WRITING)));
     /**
      * 대시보드 손 체크 허용 상태 — 개설 승인 이후(진행·결재 대기·작성 가능·작성 중)만(NEXT 102 팀 결정 A, planner 11-23 밤).
      * 승인 전(CONFIRMED·OPEN_PENDING)은 담당 배정이 아직 없어 체크 주체가 없으므로 읽기 전용, 취소·중단도 막힌다. 허용 목록이라 모르는 상태는 409.
@@ -69,7 +69,7 @@ public class PrepBoardService {
     public static final String SCOPE_MINE = "mine", SCOPE_TEAM = "team", SCOPE_DEPT = "dept";
     static final List<String> SCOPES = Collections.unmodifiableList(Arrays.asList(SCOPE_MINE, SCOPE_TEAM, SCOPE_DEPT));
     /**
-     * 팀·부서 작업에 실리는 상태 — 팀장 결재(개설 승인)가 끝난 건(사용자 11-24). 허용 목록이라 모르는 상태는 빠진다.
+     * 팀·부서 작업에 실리는 상태 — 사전준비가 시작된 건(옛 개설 승인 또는 11-25 결재 없는 시작, 사용자 11-24). 허용 목록이라 모르는 상태는 빠진다.
      * CHECK_STATES 와 값은 같지만 뜻이 달라 따로 둔다(체크 허용 ≠ 열람 범위) — 한쪽을 바꿀 때 다른 쪽을 따라 바꾸지 말 것.
      */
     static final Set<String> SCOPE_OPENED_STATES = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(

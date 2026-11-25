@@ -13,7 +13,7 @@ function rec(n) { return { name: n, region: '11', type: '지자체', contractEnd
 
 test('1·2 popupHtml: #dm-edit 없음, 순서 [이전?] → h2 → 주 동작 → .dm-sep → ×, 주 동작이 없으면 .dm-sep도 없다', function () {
   const it = dash.itemForRec(rec('가람시청'), TODAY);
-  const a = dash.popupHtml(it, { act: 'confirm', role: '영업팀', today: TODAY, nameId: 'dm-name' });
+  const a = dash.popupHtml(it, { act: 'confirm', role: '영업팀', today: TODAY, nameId: 'dm-name', board: true });   // 확정 단추는 현황판 팝업(board)만(11-25)
   assert.ok(a.bar.indexOf('id="dm-edit"') < 0 && a.bar.indexOf('id="dm-back"') < 0 && a.bar.indexOf('<div class="dm-bar">') === 0);
   assert.ok(a.bar.indexOf('id="dm-name"') < a.bar.indexOf('id="db-cf"') && a.bar.indexOf('id="db-cf"') < a.bar.indexOf('class="dm-sep"') && a.bar.indexOf('class="dm-sep"') < a.bar.indexOf('id="dm-close"'));
   assert.ok(a.body.indexOf('<div class="db-sec-h"><h3>기관 정보</h3><button type="button" id="dm-info-edit" class="db-sec-act">기관 정보 수정</button></div>') > 0);

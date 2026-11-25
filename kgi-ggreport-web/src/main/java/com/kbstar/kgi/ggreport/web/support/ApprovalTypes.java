@@ -21,7 +21,7 @@ public final class ApprovalTypes {
     public static final String PERM_REQUEST = "PERM_REQUEST";
     public static final String ASSIGNEE_CHANGE = "ASSIGNEE_CHANGE";
     public static final String BOARD_SUBMIT = "BOARD_SUBMIT";
-    /** 사전준비 개설 신청(NEXT 70) — 승인되면 지명자가 담당자로 배정되고 사전준비가 시작된다. */
+    /** 사전준비 개설 신청(NEXT 70) — 11-25부터 새 상신 없음(PrepOpenApprovalSwitch), 남은 건만 처리. 승인되면 지명자가 담당자로 배정되고 사전준비가 시작된다. */
     public static final String BID_OPEN = "BID_OPEN";
     /** 사전준비 승인(NEXT 70) — 영업부장 고정. 진행 현황 5번 게이트(기획승인)와는 별개 승인이다(사용자 11-11 ①, 이름 구분 11-13). */
     public static final String PREP_APPROVAL = "PREP_APPROVAL";

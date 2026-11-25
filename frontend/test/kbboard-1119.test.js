@@ -220,7 +220,7 @@ test('H. 4-4 결과 알림: 띠 아래 순서·상태 영역 밖 버튼·옮긴 
   assert.ok(/restoreFocus\(sc, keepKey\);\s*applyFocusNext\(\);\s*applyJust\(\);/.test(k));
   assert.ok(/function applyJust\(\) \{[\s\S]*?gs\.st === 'loading'\) return;[\s\S]*?classList\.add\('hb-just'\);[\s\S]*?setTimeout\(function \(\) \{ el\.classList\.remove\('hb-just'\); \}, 4000\)/.test(k));
   assert.ok(/else if \(btn\.id === 'hb-see-watch'\) seeWatch\(\);/.test(k) && /function seeWatch\(\) \{[\s\S]*?showRow\('watch', gs\.seeInst \|\| '', 0\);/.test(k));
-  assert.ok(k.indexOf('confirm(') < 0 && /textContent = msg \|\| ''/.test(k));                                                          // 서버 글은 textContent
+  assert.ok(!/(^|[^.\w])confirm\(/.test(k) && /textContent = msg \|\| ''/.test(k));                                                          // 서버 글은 textContent
   const a = html.indexOf('/* 국민은행 상태 현황판(kbboard.js) 시작'), b = html.indexOf('/* 국민은행 상태 현황판 끝 */');
   const css = html.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
   assert.ok(/\.hb-note \{[^}]*border:1px solid color-mix\(in srgb, var\(--blue\) 55%, var\(--line\)\)[^}]*background:color-mix\(in srgb, var\(--blue\) 8%, var\(--panel\)\)/.test(css) && /\.hb-note\[hidden\] \{ display:none; \}/.test(css));

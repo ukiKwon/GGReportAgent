@@ -40,12 +40,12 @@ test('paneHtml 옵션: 기본은 현황판 그대로(id=db-name), nameId·tailHt
   assert.ok(dm.indexOf('id="db-map"') < 0 && dm.indexOf('id="dm-close"') > 0);
   assert.ok(dm.indexOf('<p id="tail">T</p></div><div class="db-act">') > 0);
   assert.ok(dash.actHtml(it, { act: 'wait' }).indexOf('확인하는 중입니다') > 0);
-  assert.ok(dash.actHtml(it, { act: 'unavailable', mapHtml: 'X' }).indexOf('서버에 연결되면 [제안 확정]을 쓸 수 있습니다.') >= 0);
+  assert.ok(dash.actHtml(it, { act: 'unavailable', mapHtml: 'X' }).indexOf('서버에 연결되면 [제안 사전준비]를 쓸 수 있습니다.') >= 0);
 });
 
-test('popupHtml(11-19 저녁 4-4): 머리 줄 [주버튼] ┃ [×] 순서, 본문엔 .db-act 없음, 확인 상자는 note·그동안 [제안 확정] 비활성, 현황판 paneHtml은 그대로', function () {
+test('popupHtml(11-19 저녁 4-4·11-25): 머리 줄 [주버튼] ┃ [×] 순서, 본문엔 .db-act 없음, 확인 상자는 note·그동안 [제안 사전준비] 비활성(현황판 팝업만), 현황판 밖 팝업은 [입찰 현황판에서 열기]', function () {
   const it = dash.itemForRec(rec('가람시청', '11', 40), TODAY);
-  const o = { act: 'confirm', role: '영업팀', today: TODAY, nameId: 'dm-name' };
+  const o = { act: 'confirm', role: '영업팀', today: TODAY, nameId: 'dm-name', board: true };
   const a = dash.popupHtml(it, o);
   assert.ok(a.bar.indexOf('<div class="dm-bar">') === 0 && a.bar.indexOf('id="dm-name"') > 0);
   assert.ok(a.bar.indexOf('id="dm-edit"') < 0 && a.bar.indexOf('id="db-cf"') < a.bar.indexOf('class="dm-sep"') && a.bar.indexOf('class="dm-sep"') < a.bar.indexOf('id="dm-close"'));   // 주 동작 → 구분선 → ×(편집은 기관 정보 절로 옮김, 11-19)
@@ -53,14 +53,17 @@ test('popupHtml(11-19 저녁 4-4): 머리 줄 [주버튼] ┃ [×] 순서, 본�
   assert.ok(a.body.indexOf('db-act') < 0 && a.body.indexOf('id="dm-name"') < 0 && a.body.indexOf('<p class="db-sub">') > 0 && a.note === '');
   const c = dash.popupHtml(it, Object.assign({}, o, { confirm: true }));
   assert.ok(c.bar.indexOf('id="db-cf" disabled') > 0 && c.note.indexOf('id="dm-confirm"') > 0 && c.note.indexOf('id="db-do"') > 0 && c.note.indexOf('id="db-cancel"') > 0);
-  assert.ok(c.note.indexOf('id="db-cf"') < 0);   // 확인 상자 안에는 [제안 확정]이 없다(머리 줄에만)
+  assert.ok(c.note.indexOf('id="db-cf"') < 0);   // 확인 상자 안에는 [제안 사전준비]가 없다(머리 줄에만)
+  assert.ok(c.note.indexOf('id="db-do">확정하고 이동</button>') > 0);
   const early = dash.popupHtml(it, Object.assign({}, o, { confirm: true, early: true }));
-  assert.ok(early.note.indexOf('db-confirm dm-confirm early') > 0 && early.note.indexOf('계속 진행') > 0);
+  assert.ok(early.note.indexOf('class="db-confirm dm-confirm"') > 0 && early.note.indexOf('아직 입찰 공고 전인 기관입니다. 공고가 나면 일정을 다시 확인하세요.') > 0 && early.note.indexOf('계속 진행') < 0 && early.note.indexOf('early') < 0);
+  const off = dash.popupHtml(it, { act: 'confirm', role: '영업팀', today: TODAY, nameId: 'dm-name', goal: true });   // 지도 팝업·포털 상세 등 현황판 밖
+  assert.ok(off.bar.indexOf('id="db-cf"') < 0 && off.bar.indexOf('id="db-board"') > 0 && off.bar.indexOf('목표 기관</span>') > 0 && off.bar.indexOf('id="db-board"') < off.bar.indexOf('class="dm-sep"') && off.note === '');
   const op = dash.popupHtml(it, { act: 'open', today: TODAY });
   assert.ok(op.bar.indexOf('id="db-open"') < op.bar.indexOf('id="dm-close"') && op.note.indexOf('이미 제안 확정되어 사전준비가 진행 중입니다.') > 0);
   const ro = dash.popupHtml(it, { act: 'none', role: '디자이너', readOnly: true, today: TODAY });
   assert.ok(ro.bar.indexOf('dm-edit') < 0 && ro.bar.indexOf('db-next') < 0 && ro.bar.indexOf('id="dm-close"') > 0);
-  assert.ok(dash.paneHtml(it, { act: 'confirm', today: TODAY }).indexOf('<div class="db-act"><div class="db-act-row"><button type="button" class="db-next" id="db-cf">제안 확정</button>') > 0);   // 현황판 안쪽 칸은 그대로
+  assert.ok(dash.paneHtml(it, { act: 'confirm', today: TODAY }).indexOf('<div class="db-act"><div class="db-act-row"><button type="button" id="db-board" aria-label="가람시청 입찰 현황판에서 열기">입찰 현황판에서 열기</button>') > 0);   // 입찰 공고 현황 안쪽 칸: 확정 대신 현황판으로(11-25)
   const s = read('js/dashboard.js');
   assert.ok(/bar\.innerHTML = parts\.bar; nt\.innerHTML = parts\.note; pane\.innerHTML = parts\.body;/.test(s) && s.indexOf("m.el.querySelector('#db-do')") > 0);
 });
@@ -73,7 +76,7 @@ test('핵심 절 동등성: 모달 상세 = 현황판 상세(제목 id만 다름
 });
 
 test('confirmFail: 상태별 문구(권한 401/403·그 밖) — 현황판과 지도 팝업 공용, [object Object] 없음', function () {
-  assert.ok(dash.confirmFail({ r: { status: 403 }, body: null }).msg.indexOf('제안 확정 권한이 없습니다(403)') >= 0);
+  assert.ok(dash.confirmFail({ r: { status: 403 }, body: null }).msg.indexOf('제안 사전준비를 시작할 권한이 없습니다(403). 로그인 사번과 권한을 확인하세요.') >= 0);
   const f = dash.confirmFail({ r: { status: 500 }, body: null });
   assert.strictEqual(f.again, false);
   assert.ok(f.msg.indexOf('제안 확정하지 못했습니다(500)') >= 0 && f.msg.indexOf('[object') < 0);
@@ -217,7 +220,7 @@ test('postConfirm(대비 경로): 화면·버튼 머리글을 싣는다 — 현�
 
 test('dashboard.js: 두 [확정]은 직접 fetch하지 않고 postConfirm으로 화면 id를 넘긴다', function () {
   const src = read('js/dashboard.js');
-  assert.ok(src.indexOf("dash.postConfirm(id, 'bid_notice')") >= 0);   // 입찰 공고 현황의 감사 화면 이름(11-16, 서버 허용 목록에 반영됨)
+  assert.ok(src.indexOf("dash.postConfirm(id, 'bid_notice')") < 0);   // 입찰 공고 현황의 확정은 없어졌다(11-25) — 현황판 밖은 [입찰 현황판에서 열기]
   assert.ok(src.indexOf("dash.postConfirm(id, m.screen)") >= 0);
   const rest = src.replace(/dash\.postConfirm = function[\s\S]*?\r?\n  };\r?\n/, '');
   assert.ok(rest.length < src.length, 'postConfirm 본문을 걸러냈다');

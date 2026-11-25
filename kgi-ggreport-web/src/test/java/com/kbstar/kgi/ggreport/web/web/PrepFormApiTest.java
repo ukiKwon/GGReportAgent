@@ -3,7 +3,9 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.AppTest;
+import com.kbstar.kgi.ggreport.web.support.PrepOpenApprovalSwitch;
 import com.kbstar.kgi.ggreport.web.support.TestGoals;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -48,7 +50,11 @@ public class PrepFormApiTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private PrepOpenApprovalSwitch openApproval;
     private final ObjectMapper om = new ObjectMapper();
+
+    @Before public void 옛_개설_신청_켜기() { openApproval.setForTest(true); }   // 옛 흐름·남은 대기 건 처리를 본다 — 새 흐름은 PrepStartApiTest
+    @After public void 옛_개설_신청_끄기() { openApproval.setForTest(false); }
 
     @Before
     public void 올해_목표_바탕() {   // NEXT 114 — 제안 확정은 올해 목표 기관만. 시험 트랜잭션 안이라 끝나면 롤백된다

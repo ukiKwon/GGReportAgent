@@ -315,10 +315,11 @@ test('goalRowHtml: 지연 행(late·지연 칩·마감 D-n·준비 단계 막대
   assert.ok(h.indexOf('<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">설명회 기록 없음</span></td>') > 0);   // 설명회 열은 1단계에 '—'
   assert.ok(h.indexOf('<td class="ln"><div class="hb-lane" aria-hidden="true">') > 0 && h.indexOf('class="w hot"') > 0);
   assert.strictEqual((h.match(/<td/g) || []).length, 6);                                                      // th 1 + td 6 = 7열
-  // 지연이 아니면 class 없음, 단계 기록이 없고 [제안 확정]이 가능하면 단계 칸에 [제안 확정]
+  // 지연이 아니면 class 없음, 단계 기록이 없고 제안 사전준비가 가능하면 단계 칸에 '시작 전' 글자만(줄마다 있던 [제안 확정] 단추는 11-25에 없앴다)
   const ok = rowHtml(kbb.goalRow(tgt('IF', 'NEW'), mkCtx()));
   assert.ok(ok.indexOf('<tr><th scope="row">') === 0 && ok.indexOf('hb-late') < 0);
-  assert.ok(ok.indexOf('<span class="hb-stg"><button type="button" class="hb-confirm" data-key="11|바" data-act="confirm" aria-haspopup="dialog" aria-label="바 제안 확정">제안 확정</button></span>') > 0);
+  assert.ok(ok.indexOf('<span class="hb-stg"><span class="mut">시작 전</span><span class="sr-only">제안 사전준비 시작 전</span></span>') > 0);
+  assert.ok(ok.indexOf('hb-confirm') < 0 && ok.indexOf('제안 확정') < 0);
   // 공고 전은 '공고 전', 진행 자료 없음은 —
   assert.ok(rowHtml(kbb.goalRow(tgt('IB', 'NEW'), mkCtx({ actOf: function () { return 'later'; } }))).indexOf('<span class="mut">공고 전</span>') > 0);
   const un = rowHtml(kbb.goalRow(tgt('IB', 'NEW'), mkCtx({ actOf: function () { return 'unavailable'; } })));
@@ -429,16 +430,17 @@ test('goalTableHtml: 표 구조(caption·colgroup·머리 7열·월 머리), 상
   assert.ok(ft.indexOf('<span>전국 공고 진행 중 <b>13</b>곳</span><button type="button" id="hb-to-notice">입찰 공고 현황에서 보기</button>') > 0);
 });
 
-test('menuHtml: 자동 제안 설명 줄 + 구분 라디오(현재 값 체크) + 구분선 + 목표에서 빼기(영업부서만)', function () {
+test('menuHtml(11-25): 자동 제안 머리(aria-describedby) + 구분 라디오(현재 값 체크)만 — 빼기·옮기기 항목·구분선 없음, 메뉴 이름은 구분 고르기', function () {
   const r = { tagCd: 'RETAIN' };
   const tags = [{ code: 'RETAIN', name: '재유치 도전' }, { code: 'NEW', name: '신규유치 도전' }];
   const h = kbb.menuHtml(r, { tags: tags, def: { tag: 'RETAIN', why: 'kb' }, canCancel: true });
-  assert.ok(h.indexOf('<div class="hb-menu" role="menu" aria-label="목표 기관 동작"><div class="mh">자동 제안: 재유치 도전 — 지금 국민은행 협약 중</div>') === 0);
+  assert.ok(h.indexOf('<div class="hb-menu" role="menu" aria-label="구분 고르기" aria-describedby="hb-menu-sug"><div class="mh" id="hb-menu-sug">자동 제안: 재유치 도전 — 지금 국민은행 협약 중</div>') === 0);
   assert.ok(h.indexOf('role="menuitemradio" aria-checked="true" data-tag="RETAIN" tabindex="-1"><span>재유치 도전</span><svg class="ck"') > 0);
   assert.ok(h.indexOf('role="menuitemradio" aria-checked="false" data-tag="NEW"') > 0);
-  assert.ok(h.indexOf('<div class="ms" role="separator"></div><button type="button" role="menuitem" data-cmd="cancel" tabindex="-1">목표에서 빼기…</button>') > 0);
+  assert.ok(h.indexOf('목표에서 빼기') < 0 && h.indexOf('role="menuitem"') < 0 && h.indexOf('role="separator"') < 0 && h.indexOf('data-cmd') < 0);   // role="menuitem" 0개
+  assert.strictEqual((h.match(/role="menuitemradio"/g) || []).length, 2);
   const nc = kbb.menuHtml(r, { tags: tags, def: {}, canCancel: false });
-  assert.ok(nc.indexOf('class="mh"') < 0 && nc.indexOf('목표에서 빼기') < 0 && nc.indexOf('role="separator"') < 0);
+  assert.ok(nc.indexOf('class="mh"') < 0 && nc.indexOf('aria-describedby') < 0 && nc.indexOf('목표에서 빼기') < 0 && nc.indexOf('role="separator"') < 0);   // 자동 제안이 없으면 머리도 describedby도 없다
 });
 
 // ── 대화창 ───────────────────────────────────────────────────────────
@@ -575,7 +577,7 @@ test('DOM 코드 구조: 서버 글은 textContent·esc로, 쓰기는 영업부�
   assert.ok(/function say\(msg, isErr, act\)[\s\S]*?renderBanner\(\);[\s\S]*?flash\(isErr \? '' : msg, act\)/.test(k));
   assert.ok(k.indexOf("el.innerHTML = t && st.err ? esc(st.err) : t;") > 0);                                                       // 오류 줄은 esc
   assert.ok(k.indexOf("pk.textContent = m.pickText") > 0 && k.indexOf("nt.textContent = m.note") > 0 && k.indexOf("why.textContent = s.why") > 0);
-  assert.ok(k.indexOf('confirm(') < 0 && k.indexOf('alert(') < 0);                                                                 // confirm() 금지(인라인 확인·안내만)
+  assert.ok(!/(^|[^.\w])confirm\(/.test(k) && k.indexOf('alert(') < 0);                                                              // confirm() 금지(인라인 확인·안내만)
   // 메뉴: ↑↓·Home·End·Esc(칩으로 포커스)·Tab 닫기, 바깥 누름·스크롤에 닫기
   assert.ok(/ev\.key === 'ArrowDown'[\s\S]*?ev\.key === 'ArrowUp'[\s\S]*?ev\.key === 'Escape'[\s\S]*?closeMenu\(true\)[\s\S]*?ev\.key === 'Tab'/.test(k));
   assert.ok(k.indexOf("btn.setAttribute('aria-expanded', 'true')") > 0 && k.indexOf("m.btn.setAttribute('aria-expanded', 'false')") > 0);

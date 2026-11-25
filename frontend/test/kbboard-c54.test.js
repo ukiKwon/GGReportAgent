@@ -93,14 +93,14 @@ test('입찰 종료 줄: 마감까지 칸 \'입찰 종료\'+근거(title·sr), 1
   assert.deepStrictEqual(kbb.closedOf({ basis_cd: 'CONTRACT_DECIDED', basis_date: '<img>' }), { cd: 'CONTRACT_DECIDED', date: '' });
   assert.strictEqual(kbb.basisText({ cd: 'NOTICE_NO_BID', date: '2026-09-30' }), '입찰 공고 현황 2026-09-30 입찰 없음');
   assert.strictEqual(kbb.basisText({ cd: 'CONTRACT_DECIDED', date: '2027-01-01' }), '금고 약정 2027-01-01 시작 약정이 이미 정해져 있음');
-  // 구분 메뉴: 목표 줄은 [관심 기관으로…], 입찰 종료 줄은 [다음 회차 목표로…]도(12개월 칸이 숨는 폭에서도), 관심 줄은 '관심에서 빼기…'
+  // 구분 메뉴(사용자 11-25): 목표·관심 줄 모두 구분 고르기만 — 옮기기·빼기 항목은 없고 메뉴 이름은 '구분 고르기'.
+  // 빼기·옮기기는 띠 [수정하기…] 창의 결재 칸(입찰 종료 줄의 [다음 회차 목표로]도 동작 목록에 있다), 관심 줄 빼기는 줄 안 [관심에서 빼기…] 단추
   const tags = [{ code: 'RETAIN', name: '재유치 도전' }];
   const m1 = kbb.menuHtml(r, { tags: tags, def: {}, canCancel: true, canMove: true });
-  assert.ok(m1.indexOf('data-cmd="towatch" tabindex="-1">내 관심으로…</button><button type="button" role="menuitem" data-cmd="tonext" tabindex="-1">다음 회차 목표로…</button>') > 0);
-  assert.ok(kbb.menuHtml({ tagCd: 'RETAIN' }, { tags: tags, def: {}, canCancel: true, canMove: true }).indexOf('data-cmd="tonext"') < 0);
-  assert.ok(kbb.menuHtml({ tagCd: 'RETAIN', kind: 'WATCH' }, { tags: tags, def: {}, canCancel: true, cancelText: '내 관심에서 빼기…' }).indexOf('data-cmd="cancel" tabindex="-1">내 관심에서 빼기…</button>') > 0);
-  assert.ok(kbb.menuHtml({ tagCd: 'RETAIN', kind: 'WATCH' }, { tags: tags, def: {}, canCancel: true }).indexOf('role="menu" aria-label="내 관심 기관 동작"') > 0);   // 관심 줄 메뉴 이름(P3-1)
-  assert.ok(m1.indexOf('role="menu" aria-label="목표 기관 동작"') > 0);
+  assert.ok(m1.indexOf('data-cmd') < 0 && m1.indexOf('role="menuitem"') < 0 && m1.indexOf('data-tag="RETAIN"') > 0);
+  const m2 = kbb.menuHtml({ tagCd: 'RETAIN', kind: 'WATCH' }, { tags: tags, def: {}, canCancel: true, cancelText: '내 관심에서 빼기…' });
+  assert.ok(m2.indexOf('data-cmd') < 0 && m2.indexOf('내 관심에서 빼기') < 0);
+  assert.ok(m1.indexOf('role="menu" aria-label="구분 고르기"') > 0 && m2.indexOf('role="menu" aria-label="구분 고르기"') > 0);
   // 화면만 아는 근거(기관 자료의 다음 입찰이 올해 뒤로 넘어감): 판정은 그대로, 마감까지 칸 title만
   const far = kbb.goalRow(tgt('ID', 'NEW'), mkCtx({ byInst: { ID: rec('ID', '라', { contractEnd: '2029-05-01', confirmed: true, lastBid: '2026-01-01' }) } }));
   assert.strictEqual(far.closed, null);
@@ -147,10 +147,14 @@ test('관심 기관 줄: 다음 협약 종료 출처 순서(약정 → 행안부
   assert.deepStrictEqual([w.kind, w.nextDate, w.next.src, w.movable, w.targetYear], ['WATCH', '2028-12-31', 'contract', 2028, null]);
   const h = kbb.watchRowHtml(w, { canEdit: true });
   assert.ok(h.indexOf('<b class="hb-nx">2028-12</b><span class="hb-q">약정</span><span class="hb-q">2년 안</span>') > 0);
-  assert.ok(h.indexOf('data-act="togoal"') > 0 && h.indexOf('>목표로 옮기기</button>') > 0 && h.indexOf('<b>') < 0);       // 메모는 이스케이프
+  assert.ok(h.indexOf('data-act="togoal"') > 0 && h.indexOf('>목표로 옮기기…</button>') > 0 && h.indexOf('<b>') < 0);       // 메모는 이스케이프
   assert.strictEqual((h.match(/<td/g) || []).length, 5);                                                                   // th 1 + td 5 = 6열
   assert.ok(kbb.watchRowHtml(w, { canEdit: false }).indexOf('hb-tag" data-act="togoal"') < 0);
-  const far = kbb.goalRow({ institution_id: 'I3', institution_name: '삼', kind_cd: 'WATCH', target_no: 1, rev_no: 1, tag_cd: 'NEW', next_term_to: '2031-12-31' }, ctx);
+  // 사용자 11-25: 관심 줄 빼기는 구분 메뉴가 아니라 줄 안 단추(동작 칸, [목표로 옮기기] 뒤) — 움직일 수 없는 관심 줄은 고를 수 없어 입구가 이것뿐이다
+  assert.ok(h.indexOf('class="hb-tag" data-act="unwatch" data-inst="I1" data-key="') > 0 && h.indexOf('aria-haspopup="dialog" aria-label="행 내 관심에서 빼기">관심에서 빼기…</button>') > 0);
+  assert.ok(h.indexOf('data-act="togoal"') < h.indexOf('data-act="unwatch"'));
+  assert.ok(kbb.watchRowHtml(w, { canEdit: false }).indexOf('unwatch') < 0 && kbb.watchRowHtml(Object.assign({}, w, { pend: true }), { canEdit: true }).indexOf('unwatch') < 0 && kbb.watchRowHtml(Object.assign({}, w, { canCancel: false }), { canEdit: true }).indexOf('unwatch') < 0);
+  const far =kbb.goalRow({ institution_id: 'I3', institution_name: '삼', kind_cd: 'WATCH', target_no: 1, rev_no: 1, tag_cd: 'NEW', next_term_to: '2031-12-31' }, ctx);
   assert.strictEqual(far.movable, 0);
   const fh = kbb.watchRowHtml(far, { canEdit: true });
   assert.ok(fh.indexOf('togoal') < 0 && fh.indexOf('목표로 옮길 시기 아님') > 0 && fh.indexOf('2년 안') < 0);
@@ -395,7 +399,7 @@ test('소스 구조: 새 버튼 id·역할, 보안(서버 글 textContent·esc, 
   assert.ok(k.indexOf("e.key === 'ArrowLeft' || e.key === 'ArrowRight'") > 0 && k.indexOf("role=\"tab\"") > 0);                          // 탭 ←/→
   assert.ok(/qTimer = setTimeout\(function \(\) \{[\s\S]*?\}, 150\)/.test(k));                                                            // 검색 디바운스 150ms
   assert.ok(k.indexOf("if (sig === gs.tbSig && tb.firstChild)") > 0);                                                                     // 검색 입력 중에는 도구 줄을 다시 만들지 않는다(한글 조합)
-  assert.ok(k.indexOf('aria-live') < 0 && k.indexOf('confirm(') < 0 && k.indexOf('alert(') < 0);
+  assert.ok(k.indexOf('aria-live') < 0 && !/(^|[^.\w])confirm\(/.test(k) && k.indexOf('alert(') < 0);   // 브라우저 confirm() 금지 — 공통 root.dlg.confirm은 허용(11-25)
   assert.ok(k.indexOf("if (r.kind === 'WATCH') delete b.target_year;") > 0);                                                             // 관심은 연도를 보내면 400(구분·메모 바로 저장 본문 kbb.valueBody 한 곳, NEXT 114)
   assert.ok(k.indexOf("body = watch ? { kind_cd: 'WATCH', tag_cd: m.tag, memo: memo } : { target_year: eff.year") > 0 || k.indexOf("{ kind_cd: 'WATCH', tag_cd: m.tag, memo: memo }") > 0);
   assert.ok(k.indexOf('m.warn = { mode: \'block\', basis: o.basis') > 0);                                                                  // 409 근거는 코드·날짜로 만든 고정 문장
@@ -456,7 +460,7 @@ test('옛 서버(watch_items 없음): 관심 줄 0·예외 없음, 관심 탭·[
   assert.ok(wb.indexOf('hb-w-watch') < 0 && wb.indexOf('id="hb-w-next">2027 목표로 넣기') > 0);
   const k = src('js/kbboard.js');
   assert.ok(k.indexOf('function noWatchNow() { return gs.st === \'ok\' && !!gs.data && !Array.isArray(gs.data.watch_items); }') > 0);
-  assert.ok(k.indexOf("canMove: r.kind !== 'WATCH' && !noWatchNow()") > 0 && k.indexOf("if (noWatch && gs.tab === 'watch') gs.tab = 'goal';") > 0);
+  assert.ok(k.indexOf("if (noWatch && gs.tab === 'watch') gs.tab = 'goal';") > 0 && k.indexOf('noWatch: noWatchNow()') > 0);   // 구분 메뉴는 구분만이라 canMove 인자가 없다(11-25) — 입찰 종료 줄 단추의 noWatch는 그대로
 });
 
 test('도구 줄·검색·배선 구조(qa P1-1·P2-2·P3-3~P3-5, design P2-1): 건수 노드 유지, 조합 중 미룸, 타이머는 현재 값, 새 줄 거르기 풀기, 다른 해 줄 보기', function () {

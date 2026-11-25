@@ -90,6 +90,7 @@ test('destination: 결재 알림은 받은 결재로, 결과는 내가 올린 �
 test('kindClass: 결재 알림·결과 종류도 색을 가진다', function () {
   assert.strictEqual(notify.kindClass('결재알림'), 'approval');
   assert.strictEqual(notify.kindClass('결재결과'), 'handoff');
+  assert.strictEqual(notify.kindClass('사전준비알림'), 'handoff');
 });
 
 test('autoReadsOnClick: 개인 쪽지만 누르면 읽힌다(단체 읽음은 소속 전체가 공유)', function () {

@@ -84,6 +84,18 @@
      WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = 'OPEN_PENDING' AND OPEN_REQ_ID = #{reqId}
   </update>
 
+  <select id="lockPrep" resultType="BidPrep" flushCache="true">
+    SELECT BID_CASE_ID, INSTITUTION_ID, STATE_CD, CONFIRMED_BY, CONFIRMED_AT, OPEN_REQ_ID, PLAN_REQ_ID,
+           OPENED_BY, OPENED_AT, WRITE_BY, WRITE_AT, UPDATED_BY, UPDATED_AT
+      FROM BID_PREP WHERE BID_CASE_ID = #{bidCaseId} FOR UPDATE
+  </select>
+
+  <update id="markStarted">
+    UPDATE BID_PREP SET STATE_CD = 'IN_PROGRESS', OPENED_BY = #{by}, OPENED_AT = #{now},
+           UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = 'CONFIRMED'
+  </update>
+
   <update id="endOpen">
     UPDATE BID_PREP SET STATE_CD = 'CONFIRMED', UPDATED_BY = #{by}, UPDATED_AT = #{now}
      WHERE BID_CASE_ID = #{bidCaseId} AND STATE_CD = 'OPEN_PENDING' AND OPEN_REQ_ID = #{reqId}

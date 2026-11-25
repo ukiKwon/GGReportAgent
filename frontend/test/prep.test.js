@@ -454,7 +454,7 @@ test('popConfirmHtml: 확인 줄 문구와 조사, 기관명 이스케이프', f
   assert.strictEqual(prep.popConfirmHtml('<script>x</script>').indexOf('<script>'), -1);
   assert.strictEqual(prep.josa('노원구청', '을', '를'), '을');
   assert.strictEqual(prep.josa('한국도로공사', '을', '를'), '를');
-  assert.strictEqual(prep.T.okConfirm('노원구청'), '노원구청을 제안 확정했습니다. 다음은 [개설 신청]입니다.');
+  assert.strictEqual(prep.T.okConfirm('노원구청'), '노원구청을 제안 확정했습니다. 담당자를 정하면 사전준비가 시작됩니다.');
 });
 
 // ── 목록 ──
@@ -619,6 +619,66 @@ test('modalState·modalHtml: 개설 신청(1~10명)·확정 취소·중단(빨�
   assert.ok(un.indexOf('다시 확정하면 같은 건이 되살아납니다.') > 0 && un.indexOf('pp-danger') < 0 && un.indexOf('확정 취소하기') > 0);
   const vd = prep.modalHtml({ kind: 'void', reason: '' }, { fileName: 'a.xlsx' });
   assert.ok(vd.indexOf('파일 무효 처리 — a.xlsx') > 0 && vd.indexOf('기록은 남습니다.') > 0 && vd.indexOf('무효 처리하기') > 0);
+});
+
+// ── 사전준비 시작(결재 없는 담당자 지정) ──
+test('담당자 지정(can_start_prep): [담당자 지정] 단추·옛 [개설 신청]·권한 없음 문구·안내 줄', function () {
+  const c = caseOf(viewOf('CONFIRMED', { tasks: [], viewer: { can_unconfirm: true, can_start_prep: true, can_request_open: false } }));
+  assert.ok(c.indexOf('data-act="prep-start-open"') > 0 && c.indexOf('>담당자 지정<') > 0 && c.indexOf('open-request-open') < 0);
+  assert.ok(c.indexOf('담당자를 지정하면 준비 과제가 열립니다.') > 0 && c.indexOf('담당자를 지정하면 결재 없이 사전준비가 시작됩니다.') > 0);
+  assert.ok(caseOf(viewOf('CONFIRMED', { tasks: [], viewer: { can_start_prep: false } })).indexOf(prep.T.startOnlyOwner) > 0);
+  // 옛 흐름(스위치 켬): can_start_prep 없음 + can_request_open → [개설 신청] 그대로
+  const old = caseOf(viewOf('CONFIRMED', { tasks: [], viewer: { can_request_open: true } }));
+  assert.ok(old.indexOf('data-act="open-request-open"') > 0 && old.indexOf('prep-start-open') < 0);
+  assert.strictEqual(prep.nextLine({ state_cd: 'CONFIRMED', viewer: { can_start_prep: true } }), '담당자를 지정하면 결재 없이 사전준비가 시작됩니다.');
+  assert.ok(prep.popConfirmHtml('노원구청').indexOf('담당자 지정 전까지 확정한 사람·영업팀장이 취소할 수 있습니다.') > 0);
+  // 스위치 켬({can_start_prep:false, can_request_open:true}): 안내 줄·과제 자리·권한 안내 모두 옛 문구
+  const sw = { can_start_prep: false, can_request_open: true };
+  assert.strictEqual(prep.isNewStartFlow(sw), false);
+  assert.strictEqual(prep.isNewStartFlow({ can_start_prep: false }), true);
+  assert.strictEqual(prep.isNewStartFlow({}), false);
+  assert.strictEqual(prep.nextLine({ state_cd: 'CONFIRMED', viewer: sw }), '개설 신청을 올리면 영업팀장이 담당자를 승인합니다.');
+  const swc = caseOf(viewOf('CONFIRMED', { tasks: [], viewer: sw }));
+  assert.ok(swc.indexOf('data-act="open-request-open"') > 0 && swc.indexOf('prep-start-open') < 0);
+  assert.ok(swc.indexOf(prep.T.tasksLater) > 0 && swc.indexOf(prep.T.tasksLaterStart) < 0);
+  const swo = caseOf(viewOf('CONFIRMED', { tasks: [], viewer: { can_start_prep: false, can_request_open: false, can_unconfirm: true } }));
+  assert.ok(swo.indexOf(prep.T.startOnlyOwner) > 0);
+});
+
+test('담당자 지정 모달: 제목·안내·실행 단추, 승인 팀장 칸 없음 / 옛 [개설 신청] 모달은 그대로', function () {
+  const m = { kind: 'open', direct: true, reason: '', sel: ['1'], q: '', candState: 'ok', cands: [{ emp_no: '1', name: '김영업', position_title: '대리', role: '영업팀' }] };
+  const h = prep.modalHtml(m, { name: '노원구청', meEmp: '9' });
+  assert.ok(h.indexOf('담당자 지정 — 노원구청') > 0 && h.indexOf('>사전준비 시작<') > 0 && h.indexOf('개설 신청 올리기') < 0);
+  assert.ok(h.indexOf('담당자를 정하면 결재 없이 바로 사전준비가 시작되고, 영업팀장(팀장이 직접 시작하면 영업부장)에게 알림이 갑니다.') > 0);
+  assert.strictEqual(prep.modalState(m, false).canGo, true);
+  assert.strictEqual(prep.modalGoLabel('open'), '개설 신청 올리기');
+  assert.strictEqual(prep.modalGoLabel('open', true), '사전준비 시작');
+});
+
+test('errorInfo(prepstart): 시작 오류 문구, 서버 message는 그대로 넘기고 모달 안에 머문다', function () {
+  const e = function (status, detail) { return prep.errorInfo(status, detail, [], 'prepstart'); };
+  const n = e(409, { code: 'NOTIFY_TARGET_NOT_RESOLVED', message: '서버 문구' });
+  assert.strictEqual(n.text, '서버 문구');
+  assert.strictEqual(n.after, 'keep');
+  assert.strictEqual(e(409, { code: 'NOTIFY_TARGET_NOT_RESOLVED' }).text, prep.T.errNotify);
+  assert.ok(e(409, { code: 'NOT_GOAL_TARGET', message: 'x' }).text.indexOf('목표 기관만 사전준비를 시작할 수 있습니다') === 0);
+  assert.strictEqual(e(409, { code: 'OPEN_APPROVAL_ON' }).after, 'closeReload');
+  assert.strictEqual(e(409, { code: 'OPEN_APPROVAL_CLOSED' }).after, 'closeReload');
+  assert.strictEqual(e(409, { code: 'OPEN_PENDING' }).after, 'closeReload');
+  assert.strictEqual(e(409, { code: 'GOAL_CHANGE_PENDING' }).after, 'keep');
+  assert.strictEqual(e(409, { code: 'GOAL_CHANGE_PENDING', message: '서버 문구' }).text, '이 기관의 목표 변경 결재가 진행 중입니다. 결재가 끝난 뒤 다시 담당자를 지정하세요.');
+  const aa = e(409, { code: 'ASSIGNED_ALREADY', message: '서버 문구' });
+  assert.strictEqual(aa.text, '이미 담당자가 지정되어 있습니다. 화면을 다시 불러옵니다.');
+  assert.strictEqual(aa.after, 'closeReload');
+  const sc = e(409, { code: 'STATE_CHANGED' });
+  assert.ok(sc.text.indexOf('그사이 다른 사람이 이 건의 상태를 바꿨습니다') === 0);
+  assert.strictEqual(sc.after, 'closeReload');
+  assert.strictEqual(e(403, {}).text, prep.T.errStartOwner);
+  assert.strictEqual(e(400, { message: '담당자는 1~10명입니다.' }).text, '담당자는 1~10명입니다.');
+  assert.strictEqual(prep.T.okPrepStart({ can_view: true, notified_count: 2 }), '사전준비를 시작했습니다. 알림 2건을 보냈습니다.');
+  assert.strictEqual(prep.T.okPrepStart({ can_view: true }), '사전준비를 시작했습니다. 알림을 보냈습니다.');
+  assert.strictEqual(prep.T.okPrepStart({ can_view: true, notified_count: 0 }), '사전준비를 시작했습니다. 알림 0건을 보냈습니다.');
+  assert.ok(prep.T.okPrepStart({ can_view: false, notified_count: 1 }).indexOf('담당자가 아니어서 이 건의 상세는 볼 수 없습니다.') > 0);
 });
 
 test('gateOf: 서버 없음 → 로그인 → 권한 순', function () {

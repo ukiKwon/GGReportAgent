@@ -3,6 +3,7 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kbstar.kgi.ggreport.web.AppTest;
+import com.kbstar.kgi.ggreport.web.support.PrepOpenApprovalSwitch;
 import com.kbstar.kgi.ggreport.web.support.TestGoals;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import org.junit.After;
@@ -22,6 +23,7 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
@@ -42,7 +44,11 @@ public class PrepRollbackApiTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private PrepOpenApprovalSwitch openApproval;
     private final ObjectMapper om = new ObjectMapper();
+
+    @Before public void 옛_개설_신청_켜기() { openApproval.setForTest(true); }   // 옛 흐름·남은 대기 건 처리를 본다 — 새 흐름은 PrepStartApiTest·아래 감사 롤백 시험
+    @After public void 옛_개설_신청_끄기() { openApproval.setForTest(false); }
 
     private final List<String> bids = new ArrayList<>();
     private final List<Long> reqs = new ArrayList<>();
@@ -141,6 +147,43 @@ public class PrepRollbackApiTest {
         assertEquals("실패 시도는 따로 한 줄", 1,
                 count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='OPEN_APPROVE' AND OUTCOME='BLOCKED'"
                         + " AND ACTOR_EMP_NO=? AND STATE_CD='OPEN_PENDING' AND SCREEN_ID='UNKNOWN'", bid, LEAD));
+    }
+
+    /**
+     * security 11-25 ③ — 사전준비 시작의 성공 감사 줄(BID_PREP_ACT OK)을 서비스가 같은 트랜잭션에서 쓰므로, 그 줄이 실패하면 시작 전체가 되돌아간다.
+     * 감사 줄 실패는 임시 CHECK 제약(OPEN_START 의 OK 줄만 거부)으로 만든다 — 제약은 finally 에서 반드시 지운다.
+     */
+    @Test
+    public void 시작의_성공_감사_줄이_실패하면_상태_배정_과제_이력_쪽지가_모두_되돌아가고_실패_줄만_남는다() throws Exception {
+        openApproval.setForTest(false);   // 새 흐름(결재 없는 시작)
+        MvcResult c = postJson("/preps", MEMBER, "{\"institution_id\":\"" + INST + "\"}");
+        assertEquals(c.getResponse().getContentAsString(), 201, c.getResponse().getStatus());
+        String bid = json(c).path("bid_case_id").asText();
+        bids.add(bid);
+        jdbc.execute("ALTER TABLE BID_PREP_ACT ADD CONSTRAINT TMP_NO_START_OK CHECK (NOT (ACTION_CD = 'OPEN_START' AND OUTCOME = 'OK'))");
+        int status;
+        try {
+            try {
+                status = mockMvc.perform(post("/bidcases/" + bid + "/prep/start").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"emp_nos\":[\"" + MEMBER2 + "\"]}").header("X-Emp-No", MEMBER)
+                        .header("X-Screen-Id", "prep_detail").header("X-Button-Id", "open_start")).andReturn().getResponse().getStatus();
+            } catch (Exception e) {
+                status = 500;   // 처리기가 없어 예외가 그대로 올라온 경우도 500 으로 본다
+            }
+        } finally {
+            jdbc.execute("ALTER TABLE BID_PREP_ACT DROP CONSTRAINT TMP_NO_START_OK");
+        }
+        assertTrue("감사 줄 실패는 5xx(fail-closed)", status >= 500);
+        assertEquals("CONFIRMED", jdbc.queryForObject("SELECT STATE_CD FROM BID_PREP WHERE BID_CASE_ID=?", String.class, bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=?", bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGN_CASE WHERE BID_CASE_ID=?", bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_TASK WHERE BID_CASE_ID=?", bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='OPEN_START'", bid));
+        assertEquals("시작 알림 쪽지도 함께 되돌아간다", 0,
+                count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND CREATED_AT >= ?", startedAt));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='OPEN_START' AND OUTCOME='OK'", bid));
+        assertEquals("실패는 따로 ERROR 한 줄", 1,
+                count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='OPEN_START' AND OUTCOME='ERROR' AND ACTOR_EMP_NO=?", bid, MEMBER));
     }
 
     @Test

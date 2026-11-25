@@ -418,10 +418,13 @@
     return dash.proposeGate(rec, o) === 'confirm' && dash.proposeGate(rec, Object.assign({}, o, { goals: null })) === 'later';
   };
   // 버튼이 없을 때 db-why 한 줄(actHtml이 쓴다)
-  dash.EARLY_WHY = '올해 목표 기관이라 공고 전에도 영업부서가 제안 확정할 수 있습니다.';
-  dash.EARLY_ASK = '아직 공고 확인 전입니다. 계속 진행하시겠습니까?';   // 확정 확인 상자 안 굵은 경고(11-19 4-3). 버튼은 '계속 진행'
+  dash.EARLY_WHY = '올해 목표 기관이라 공고 전에도 제안 사전준비를 시작할 수 있습니다.';
+  // 확정 확인 상자 문구(사용자 11-25): 굵은 경고·[계속 진행] 분기는 없앴다 — 공고 전이면 평문 한 줄(본문 3)만 더한다. 한 곳에서 정해 현황판 툴바·상세 팝업이 같은 말을 쓴다.
+  dash.PREP_CONFIRM_GO = '확정하고 이동';
+  dash.PREP_BODY2 = '확정하면 [영업 추진 준비 › 제안 준비 현황]의 이 기관 화면으로 넘어갑니다. 그 화면에서 담당자를 정하면 사전준비가 시작되고, 영업팀장(팀장이 직접 시작하면 영업부장)에게 알림이 갑니다.';
+  dash.PREP_BODY3 = '아직 입찰 공고 전인 기관입니다. 공고가 나면 일정을 다시 확인하세요.';
   dash.CONFIRM_WHY = {
-    later: '입찰 공고가 나면 [제안 확정]을 쓸 수 있습니다.',
+    later: '입찰 공고가 나면 [제안 사전준비]를 쓸 수 있습니다.',
     closed: '이번 회차 공고가 끝났습니다.',
     past: "접수 기간이 지난 것으로 봅니다. 아직 접수 중이면 공고 상태를 '공고 진행 중'으로 기록하세요.",
     nobid: "이번 회차는 '입찰 없음'으로 닫혔습니다.",
@@ -806,7 +809,7 @@
   };
 
   dash.blankHtml = function () {
-    return '<div class="db-blank">왼쪽 목록에서 기관을 고르세요. 기관 정보가 여기에 보이고, 공고가 난 기관이면 [제안 확정] 버튼도 보입니다.</div>';
+    return '<div class="db-blank">왼쪽 목록에서 기관을 고르세요. 기관 정보가 여기에 보입니다. 제안 사전준비는 [입찰 현황판]에서 시작합니다.</div>';
   };
 
   function lastProcNote(rec) {
@@ -1022,24 +1025,34 @@
     const map = c.mapHtml !== undefined ? c.mapHtml : '<button type="button" id="db-map">지역별 공고현황에서 보기</button>';
     // 개원 확인 필요 기관은 입찰 대상이 아니라 [제안 확정]을 두지 않는다 — 운영 상태를 확인해 바꾸는 창으로 보낸다(NEXT 72, 기획 결정).
     if (c.act === 'opencheck') return '<div class="db-act-row"><span class="db-why">개원했는지 확인하고 출처와 함께 운영 상태를 바꾸세요.</span><button type="button" id="db-edit">기관 정보 수정</button></div>';
-    if (c.act === 'wait') return '<div class="db-act-row"><span class="db-why">[제안 확정]을 쓸 수 있는지 확인하는 중입니다.</span>' + map + '</div>';
+    if (c.act === 'wait') return '<div class="db-act-row"><span class="db-why">[제안 사전준비]를 쓸 수 있는지 확인하는 중입니다.</span>' + map + '</div>';
     if (dash.CONFIRM_WHY[c.act]) return '<div class="db-act-row"><span class="db-why">' + dash.CONFIRM_WHY[c.act] + '</span>' + map + '</div>';
-    if (c.act === 'unavailable') return '<div class="db-act-row"><span class="db-why">서버에 연결되면 [제안 확정]을 쓸 수 있습니다.</span>' + map + '</div>';
+    if (c.act === 'unavailable') return '<div class="db-act-row"><span class="db-why">서버에 연결되면 [제안 사전준비]를 쓸 수 있습니다.</span>' + map + '</div>';
     if (c.act === 'open') return '<div class="db-act-row"><button type="button" class="db-next" id="db-open">사전준비 열기</button>' + map + '<span class="db-why">이미 제안 확정되어 사전준비가 진행 중입니다.</span></div>';
     if (c.act === 'confirm') {
-      if (c.confirm) {
-        const early = !!c.early;   // 공고 전 올해 목표 기관: 한 상자 안에서 경고만 더한다(상자를 두 번 띄우지 않는다)
-        return '<div class="db-confirm' + (early ? ' early' : '') + '" role="group" aria-labelledby="db-cf-t"><span id="db-cf-t">' +
-          (early ? '<b class="db-cf-warn">' + esc(dash.EARLY_ASK) + '</b>' : '') + esc(it.name) + dash.josaEul(it.name) +
-          ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안 준비 현황]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
-          '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (early ? '계속 진행' : '확정하기') + '</button><button type="button" id="db-cancel">취소</button></div></div>';
-      }
-      return '<div class="db-act-row"><button type="button" class="db-next" id="db-cf">제안 확정</button>' + map +
+      // 확정(제안 사전준비)은 입찰 현황판에서만 한다(사용자 11-25). 그 밖의 화면은 [입찰 현황판에서 열기](목표 기관이면 앞에 '목표 기관' 칩)
+      if (!c.board) return '<div class="db-act-row">' + boardOpenHtml(it, c) + map + '</div>';
+      if (c.confirm) return confirmBoxHtml(it, c, false);
+      return '<div class="db-act-row"><button type="button" class="db-next" id="db-cf">제안 사전준비</button>' + map +
         (c.early ? '<span class="db-why">' + esc(dash.EARLY_WHY) + '</span>' : '') + '</div>';
     }
-    const noperm = ['영업팀', '영업팀장'].indexOf(c.role || '') < 0 ? '<span class="db-why">제안 확정은 영업팀·영업팀장이 합니다.</span>' : '';
+    const noperm = ['영업팀', '영업팀장'].indexOf(c.role || '') < 0 ? '<span class="db-why">제안 사전준비는 영업팀·영업팀장이 합니다.</span>' : '';
     return '<div class="db-act-row">' + map + noperm + '</div>';
   };
+  // 현황판 밖 화면의 확정 자리(규격 A 표): 목표 기관 칩 + [입찰 현황판에서 열기]. '목표에 넣기…'는 이 화면에서 처리할 경로가 없어 같은 단추로 대신한다(목표에 넣기는 현황판의 [목표 기관 추가] 창에서).
+  const CK_SVG = '<svg class="ck" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M2 5.5l2 2L8 3"/></svg>';
+  function boardOpenHtml(it, c) {
+    return (c.goal ? '<span class="db-goalchip">' + CK_SVG + '목표 기관</span>' : '') +
+      '<button type="button" id="db-board" aria-label="' + esc(it.name) + ' 입찰 현황판에서 열기">입찰 현황판에서 열기</button>' +
+      (c.goal ? '' : '<span class="db-why">목표 기관이 아닙니다. 입찰 현황판의 [목표 기관 추가]로 넣은 뒤 제안 사전준비를 합니다.</span>');
+  }
+  // 확정 확인 상자(현황판 상세 팝업 = popup, 상세 칸 = 아님). 본문 1·2, 공고 전이면 평문 본문 3 — 굵은 경고·[계속 진행]은 없다.
+  function confirmBoxHtml(it, c, popup) {
+    return '<div class="db-confirm' + (popup ? ' dm-confirm' : '') + '"' + (popup ? ' id="dm-confirm"' : '') + ' role="group" aria-labelledby="db-cf-t"' + (c.early ? ' aria-describedby="db-cf-d"' : '') + '><span id="db-cf-t">' +
+      esc(it.name) + dash.josaEul(it.name) + ' 제안 대상으로 확정합니다. ' + esc(dash.PREP_BODY2) + '</span>' +
+      (c.early ? '<span class="db-cf-b" id="db-cf-d">' + esc(dash.PREP_BODY3) + '</span>' : '') +
+      '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (c.busy ? '확정하는 중…' : esc(dash.PREP_CONFIRM_GO)) + '</button><button type="button" id="db-cancel">취소</button></div></div>';
+  }
 
   // 팝업 머리 줄용: actHtml과 같은 판정을 { main: 주버튼 마크업, why: 이유 글(마크업), confirm: 확정 확인 상자 마크업 }으로 나눈다.
   // 확인 상자가 펼쳐진 동안에는 [제안 확정]을 비활성으로 둔다(상자의 [확정하기]·[취소]만 누를 수 있다). 주버튼이 없으면 main은 빈 글.
@@ -1047,22 +1060,16 @@
     c = c || {};
     const none = { main: '', why: '', confirm: '' };
     if (c.act === 'opencheck') return { main: '', why: '개원했는지 확인하고 출처와 함께 운영 상태를 바꾸세요.', confirm: '' };
-    if (c.act === 'wait') return { main: '', why: '[제안 확정]을 쓸 수 있는지 확인하는 중입니다.', confirm: '' };
+    if (c.act === 'wait') return { main: '', why: '[제안 사전준비]를 쓸 수 있는지 확인하는 중입니다.', confirm: '' };
     if (dash.CONFIRM_WHY[c.act]) return { main: '', why: dash.CONFIRM_WHY[c.act], confirm: '' };
-    if (c.act === 'unavailable') return { main: '', why: '서버에 연결되면 [제안 확정]을 쓸 수 있습니다.', confirm: '' };
+    if (c.act === 'unavailable') return { main: '', why: '서버에 연결되면 [제안 사전준비]를 쓸 수 있습니다.', confirm: '' };
     if (c.act === 'open') return { main: '<button type="button" class="db-next" id="db-open">사전준비 열기</button>', why: '이미 제안 확정되어 사전준비가 진행 중입니다.', confirm: '' };
     if (c.act === 'confirm') {
-      if (c.confirm) {
-        const early = !!c.early;
-        return { main: '<button type="button" class="db-next" id="db-cf" disabled>제안 확정</button>', why: '', confirm:
-          '<div class="db-confirm dm-confirm' + (early ? ' early' : '') + '" id="dm-confirm" role="group" aria-labelledby="db-cf-t"><span id="db-cf-t">' +
-          (early ? '<b class="db-cf-warn">' + esc(dash.EARLY_ASK) + '</b>' : '') + esc(it.name) + dash.josaEul(it.name) +
-          ' 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안 준비 현황]에 이 기관의 준비 건이 생깁니다. 개설 신청 전까지는 확정한 사람·영업팀장이 취소할 수 있습니다.</span>' +
-          '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (early ? '계속 진행' : '확정하기') + '</button><button type="button" id="db-cancel">취소</button></div></div>' };
-      }
-      return { main: '<button type="button" class="db-next" id="db-cf">제안 확정</button>', why: c.early ? esc(dash.EARLY_WHY) : '', confirm: '' };
+      if (!c.board) return { main: boardOpenHtml(it, c), why: '', confirm: '' };   // 현황판 밖(지도 팝업·포털 상세): 확정 없이 현황판으로 안내
+      if (c.confirm) return { main: '<button type="button" class="db-next" id="db-cf" disabled>제안 사전준비</button>', why: '', confirm: confirmBoxHtml(it, c, true) };
+      return { main: '<button type="button" class="db-next" id="db-cf">제안 사전준비</button>', why: c.early ? esc(dash.EARLY_WHY) : '', confirm: '' };
     }
-    return ['영업팀', '영업팀장'].indexOf(c.role || '') < 0 ? { main: '', why: '제안 확정은 영업팀·영업팀장이 합니다.', confirm: '' } : none;
+    return ['영업팀', '영업팀장'].indexOf(c.role || '') < 0 ? { main: '', why: '제안 사전준비는 영업팀·영업팀장이 합니다.', confirm: '' } : none;
   };
 
   // ── DOM ───────────────────────────────────────────────────────────
@@ -1117,8 +1124,8 @@
     let t = st.err;
     if (!t && !serverMode()) {
       t = (root.location && root.location.protocol === 'file:')
-        ? '서버에 연결되지 않은 파일 모드입니다. 내장 자료만 보여 주며 진행 건수와 [제안 확정]은 쓸 수 없습니다.'
-        : '서버의 기관 정보를 불러오지 못해 내장 자료만 보여 줍니다. 제안 진행 표시와 [제안 확정]은 쓸 수 없습니다. <button type="button" id="db-reload">다시 불러오기</button>';
+        ? '서버에 연결되지 않은 파일 모드입니다. 내장 자료만 보여 주며 진행 건수와 [제안 사전준비]는 쓸 수 없습니다.'
+        : '서버의 기관 정보를 불러오지 못해 내장 자료만 보여 줍니다. 제안 진행 표시와 [제안 사전준비]는 쓸 수 없습니다. <button type="button" id="db-reload">다시 불러오기</button>';
     }
     el.innerHTML = t && st.err ? esc(st.err) : t;
     el.setAttribute('role', st.err || (root.location && root.location.protocol !== 'file:') ? 'alert' : 'status');
@@ -1256,7 +1263,7 @@
     const keep = a0 && a0.id && el.contains && el.contains(a0) ? { id: a0.id, s: a0.selectionStart, e: a0.selectionEnd } : null;
     recSync(it);
     st.comp = false; st.compLater = false;   // 상세를 통째로 다시 그리면 조합도 끊긴다 — 미룬 다시 그리기 표시를 남기지 않는다
-    el.innerHTML = dash.paneHtml(it, { act: act, early: act === 'confirm' && dash.proposeEarly(it.rec, gateOpts()), confirm: st.confirm && act === 'confirm', busy: st.busy,
+    el.innerHTML = dash.paneHtml(it, { act: act, goal: dash.isGoalRec(it.rec, { year: goalSt.year, ids: goalSt.ids }), early: act === 'confirm' && dash.proposeEarly(it.rec, gateOpts()), confirm: st.confirm && act === 'confirm', busy: st.busy,
       kb: dash.kbEntry(it.rec, root.KB_VERIFIED), next: dash.kbEntry(it.rec, root.KB_NEXT), role: ctx.role, today: todayDate(), headHtml: headSection(it),
       recordHtml: ie.isOpenCheck(it.rec) ? '' : recViewHtml(boardRc), bank: dash.isViewOnly() ? dash.lockBank(bankView(it.rec)) : bankView(it.rec) });
     if (st.confirm && act === 'confirm') { const b = $('db-do'); if (b) b.focus(); }
@@ -1525,11 +1532,20 @@
 
   function goPrep(prep) {
     const P = root.prep, A = root.app;
+    if (prep && prep.can_view === false) return false;   // 열람 규칙: 사전준비 시작 뒤 영업팀원은 담당자만 본다 — 못 보는 건으로 보내지 않는다
     if (!P || !A || !A.openNavItem || !P.SOON_ID) return false;
     A.openNavItem(P.SOON_ID);
     if (P.openCase && prep) P.openCase(prep.bid_case_id || prep.bidCaseId);
     return true;
   }
+
+  // 열 수 없는 건(can_view === false)의 이유 문구. 담당자 이름은 호출부가 textContent/esc 경로로 쓴다. can_view가 false가 아니면 fallback.
+  function prepNoViewMsg(p, fallback) {
+    if (!(p && p.can_view === false)) return fallback;
+    const names = (Array.isArray(p.assignee_names) ? p.assignee_names : []).filter(Boolean).join(', ') || '다른 담당자';
+    return names + ' 담당으로 사전준비가 진행 중이라 상세를 볼 수 없습니다. 영업팀장·영업부장에게 문의하세요.';
+  }
+  dash.prepNoViewMsg = prepNoViewMsg;
 
   // [확정] POST 공용. prep.js가 있으면 그 요청 경로(화면 머리글·캐시 무효화)를 쓰고, 없으면 같은 머리글을 직접 달아 보낸다.
   // 반환은 confirmFail이 받는 { r:{ok,status}, body } 모양. 네트워크 실패는 던진다.
@@ -1555,32 +1571,19 @@
     if (e.code === 'PREP_ALREADY_ACTIVE') return { again: true, msg: '' };
     const known = root.prep && root.prep.ERR_BY_CODE && root.prep.ERR_BY_CODE[e.code];
     const msg = (known && (known.message || known.text)) || e.message ||
-      ((x.r.status === 401 || x.r.status === 403) ? '제안 확정 권한이 없습니다(' + x.r.status + '). 로그인 사번과 권한을 확인하세요.'
+      ((x.r.status === 401 || x.r.status === 403) ? '제안 사전준비를 시작할 권한이 없습니다(' + x.r.status + '). 로그인 사번과 권한을 확인하세요.'
         : '제안 확정하지 못했습니다(' + x.r.status + '). 잠시 뒤 다시 시도하세요.');
     return { again: false, msg: String(msg) };
   };
-  function doConfirm() {
-    const it = st.sel ? findItem(st.sel) : null;
-    const id = it && it.rec.institutionId;
-    if (!it || !id || st.busy) return;
-    st.busy = true; renderPane();
-    dash.postConfirm(id, 'bid_notice')   // 입찰 공고 현황의 [제안 확정] — 감사 기록의 화면 이름(서버 허용 목록에 반영됨)
-      .then(function (x) {
-        st.busy = false; st.confirm = false;
-        if (x.r.ok) {
-          flash(it.name + dash.josaEul(it.name) + ' 제안 확정했습니다. 다음은 [개설 신청]입니다.', false);
-          return loadProgress().then(function () {
-            const made = activeFor(it.rec);
-            if (!goPrep(made || x.body)) renderPane();
-          });
-        }
-        const f = dash.confirmFail(x);
-        if (f.again) return loadProgress();   // 버튼이 [사전준비 열기]로 바뀐다
-        flash(f.msg, true);
-        renderPane();
-      })
-      .catch(function () { st.busy = false; flash('서버에 연결하지 못했습니다. 서버가 켜져 있는지 확인하세요.', true); renderPane(); });
-  }
+  dash.goPrep = goPrep;   // 입찰 현황판의 [제안 사전준비]가 확정 뒤·이미 진행 중일 때 그 기관의 사전준비 화면으로 간다
+  // 입찰 공고 현황의 [제안 확정]은 없앴다(사용자 11-25: 확정은 입찰 현황판에서만). 이 화면과 지도 팝업·포털 상세는 [입찰 현황판에서 열기]로 현황판의 그 기관 줄로 데려간다.
+  dash.openBoard = function (rec) {
+    const A = root.app, N = root.nav, K = root.kbboard;
+    if (!A || !A.openNavItem || !N || !N.DASH_ID) return false;
+    const ok = !!A.openNavItem(N.DASH_ID);
+    if (ok && K && K.revealGoal && rec && rec.institutionId) K.revealGoal(rec.institutionId);
+    return ok;
+  };
 
   const SKELETON =
     '<section id="db-root" aria-label="입찰 공고 현황">' +
@@ -1758,10 +1761,8 @@
       case 'bk-edit': { const it = selItem(); if (it && root.app && root.app.openEdit) root.app.openEdit(it.rec, { from: 'bid_notice', focus: 'bank' }); break; }
       case 'bk-retry': { const it = selItem(), b = BC(); if (it && b) b.load(recId(it)); break; }
       case 'db-clear': case 'db-clear-w': st.q = ''; st.region = ''; st.type = ''; fillFilters(); renderList(); { const q = $('db-q'); if (q) q.focus(); } break;
-      case 'db-cf': st.confirm = true; renderPane(); break;
-      case 'db-cancel': st.confirm = false; renderPane(); { const b = $('db-cf'); if (b) b.focus(); } break;
-      case 'db-do': doConfirm(); break;
-      case 'db-open': { const it = findItem(st.sel); const p = it && activeFor(it.rec); if (!goPrep(p)) flash('이 기관의 사전준비 건을 열지 못했습니다. 메뉴의 [영업 추진 준비 › 제안 준비 현황]에서 여세요.', true); break; }
+      case 'db-board': { const it = findItem(st.sel); if (!(it && dash.openBoard(it.rec))) flash('입찰 현황판을 열 수 없습니다. 왼쪽 메뉴의 [입찰 현황판]에서 여세요.', true); break; }   // 확정은 현황판에서만(사용자 11-25) — 이 화면에는 확정 단추가 없다
+      case 'db-open': { const it = findItem(st.sel); const p = it && activeFor(it.rec); if (!goPrep(p)) flash(prepNoViewMsg(p, '이 기관의 사전준비 건을 열지 못했습니다. 메뉴의 [영업 추진 준비 › 제안 준비 현황]에서 여세요.'), true); break; }
       // 눌린 버튼은 다시 그려져 사라진다 — 포커스를 같은 뜻의 새 요소로 돌려 키보드 사용자가 맥락을 잃지 않게 한다.
       case 'db-widen': { setWindow(btn.getAttribute('data-win'), true); const r = host.querySelector('#db-per input:checked'); if (r) r.focus(); break; }
       case 'db-kq-find': { const q = $('db-q'); if (q) { if (q.scrollIntoView) q.scrollIntoView({ block: 'nearest' }); q.focus(); } break; }
@@ -1876,7 +1877,7 @@
     else if (m.noConfirm && act === 'confirm') act = 'noconfirm';   // 협약 성과 화면에서 연 상세: [제안 확정] 없이 이유 글만
     const raw =root.render && root.render.popRawHtml ? root.render.popRawHtml(m.rec) : '';
     const parts = dash.popupHtml(m.it, {
-      act: act, early: act === 'confirm' && dash.proposeEarly(m.rec, gateOpts()), confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
+      act: act, board: m.screen === 'bid_board', goal: dash.isGoalRec(m.rec, { year: goalSt.year, ids: goalSt.ids }), early: act === 'confirm' && dash.proposeEarly(m.rec, gateOpts()), confirm: m.confirm && act === 'confirm', busy: m.busy, kb: dash.kbEntry(m.rec, root.KB_VERIFIED), next: dash.kbEntry(m.rec, root.KB_NEXT), role: ctx.role, today: todayDate(),
       headHtml: root.headcard ? root.headcard.paneSection(m.rec, dmHeadEnv(m)) : undefined,
       recordHtml: ie.isOpenCheck(m.rec) ? '' : recViewHtml(dmRc(m)), bank: m.readOnly ? dash.lockBank(bankView(m.rec)) : bankView(m.rec),
       nameId: 'dm-name', readOnly: m.readOnly, back: dmBackInfo(m), editing: !!m.bankEdit,   // 보기 전용: 머리 줄에는 ×만(주버튼은 act 'none'이라 없다). back = 스택 단계(약정 편집 → 읽기 → 목록)
@@ -1935,11 +1936,13 @@
         if (x.r.ok) {
           m.changed = true;   // 닫을 때 현황판(kbboard)의 준비 중 제안·단계 집계를 다시 받게 한다
           if (goPrep(x.body)) { dash.closeDetail(false); return; }   // 사전준비 화면으로 간다(지도 팝업은 닫는다)
-          dmFlash(m.it.name + dash.josaEul(m.it.name) + ' 제안 확정했습니다. 메뉴의 [영업 추진 준비 › 제안 준비 현황]에서 여세요.', false);
+          dmFlash(m.it.name + dash.josaEul(m.it.name) + ' 제안 확정했습니다. [영업 추진 준비 › 제안 준비 현황]에서 담당자를 정하세요.', false);
           return dmLoadPreps(m).then(function () { dmRender(); });
         }
         const f = dash.confirmFail(x);
-        if (f.again) return dmLoadPreps(m);   // 버튼이 [사전준비 열기]로 바뀐다
+        if (f.again) {   // 이미 진행 중(409 PREP_ALREADY_ACTIVE): 오류 없이 그 건으로 이동한다. 못 열면 버튼이 [사전준비 열기]로 바뀐다
+          return dmLoadPreps(m).then(function () { if (dm.cur !== m) return; const p = dmActives(m); if (p && goPrep(p)) dash.closeDetail(false); else if (p && p.can_view === false) { dmFlash(prepNoViewMsg(p, ''), true); dmRender(); } });
+        }
         dmFlash(f.msg, true);
         dmRender();
       })
@@ -2042,7 +2045,8 @@
       case 'db-cf': m.confirm = true; m.confirmFocus = true; dmRender(); break;
       case 'db-cancel': m.confirm = false; dmRender(); { const b = m.el.querySelector('#db-cf'); if (b) b.focus(); } break;
       case 'db-do': dmDoConfirm(m); break;
-      case 'db-open': { const p = dmActives(m); if (p && goPrep(p)) dash.closeDetail(false); else dmFlash('이 기관의 사전준비 건을 열지 못했습니다. 메뉴의 [영업 추진 준비 › 제안 준비 현황]에서 여세요.', true); break; }
+      case 'db-open': { const p = dmActives(m); if (p && goPrep(p)) dash.closeDetail(false); else dmFlash(prepNoViewMsg(p, '이 기관의 사전준비 건을 열지 못했습니다. 메뉴의 [영업 추진 준비 › 제안 준비 현황]에서 여세요.'), true); break; }
+      case 'db-board': if (dash.openBoard(m.rec)) dash.closeDetail(false); else dmFlash('입찰 현황판을 열 수 없습니다. 왼쪽 메뉴의 [입찰 현황판]에서 여세요.', true); break;   // 현황판 밖 팝업: 확정 없이 현황판으로
       default: break;
     }
   }

@@ -2010,8 +2010,9 @@
   .db-act .db-why { margin-left:auto; }
   .db-confirm { border:1px dashed var(--line-strong); border-radius:var(--r-sm); padding:12px 14px; font-size:13px; line-height:1.5; word-break:keep-all; }
   .db-confirm .db-act-row { margin-top:8px; }
-  .db-confirm .db-cf-warn { display:block; font-weight:700; color:var(--fg); margin-bottom:4px; }   /* 공고 확인 전 확정(11-19 4-3): 굵은 경고 한 줄 */
-  .db-confirm.early { border-style:solid; border-color:var(--orange); background:color-mix(in srgb, var(--orange) 8%, var(--panel)); }
+  .db-confirm .db-cf-b { display:block; margin-top:4px; color:var(--fg); }   /* 공고 전이면 평문 한 줄(굵은 경고·주황 테두리는 11-25에 없앰) */
+  .db-goalchip { display:inline-flex; align-items:center; gap:4px; height:24px; padding:0 8px; font-size:12px; color:var(--fg); background:var(--line); border-radius:var(--r-sm); }   /* 현황판 밖 화면의 '목표 기관' 칩: 틴트 없는 회색 */
+  .db-goalchip .ck { width:10px; height:10px; fill:none; stroke:var(--fg); stroke-width:1.6; }
   .db-blank { flex:1 1 auto; display:flex; align-items:flex-start; justify-content:center; padding:48px 24px 24px; text-align:center; color:var(--muted); font-size:13px; word-break:keep-all; line-height:1.5; }
   .db-state { padding:18px 20px; font-size:13px; color:var(--muted); word-break:keep-all; line-height:1.5; margin:0; }
   .db-state button { margin-top:8px; }
@@ -2126,6 +2127,11 @@
   #hb-add { height:32px; padding:0 14px; font-size:12px; font-weight:700; color:var(--panel); background:var(--accent-color); border:1px solid var(--accent-color); }
   #hb-add:hover { background:color-mix(in srgb, var(--accent-color) 86%, black); border-color:color-mix(in srgb, var(--accent-color) 86%, black); }
   #hb-add:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  /* [제안 사전준비](사용자 11-25 B): 채운 버튼이 아닌 테두리 버튼 — 채운 예외 4곳에 넣지 않는다. aria-disabled라 꺼져도 Tab으로 닿아 이유를 듣는다 */
+  #hb-prep { height:32px; padding:0 14px; font-size:12px; }
+  #hb-prep[aria-disabled="true"] { color:var(--muted); border-color:var(--line); cursor:default; }   /* 꺼짐은 opacity 대신 muted 글자(현황판 블록 opacity 금지 규칙) */
+  #hb-prep[aria-disabled="true"]:hover { background:var(--panel); border-color:var(--line); }
+  .hb-top #hb-prep[hidden] { display:none; }
   /* 11-17 c51 목표 기관 중심 — 요약 띠(.hb-band) + 목표 표(.hb-tp, 12개월 일정이 마지막 열) + 접힌 협약 구획(#hb-ours). design-reviewer 11-17 acfdd5da 6-B */
   .hb-band { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)) minmax(0,1.5fr); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
   .hb-k { min-width:0; min-height:84px; padding:12px 16px; border-left:1px solid var(--line); display:flex; flex-direction:column; gap:4px; }
@@ -2184,7 +2190,6 @@
   .hb-bank .r { margin-left:3px; font-size:12px; color:var(--muted); }
   .hb-stg { display:flex; align-items:center; gap:6px; min-width:0; }
   .hb-stg .lb { min-width:0; overflow:hidden; text-overflow:ellipsis; }
-  .hb-stg .hb-confirm { font-size:12px; padding:3px 10px; min-height:28px; }
   .hb-stg .why { font-size:12px; color:var(--muted); white-space:nowrap; }
   .hb-pg { flex:none; display:inline-block; width:30px; height:4px; border-radius:2px; background:var(--line-strong); overflow:hidden; }
   .hb-pg i { display:block; height:100%; background:var(--fg); }
@@ -2437,6 +2442,7 @@
   .hb-selbar .n { display:inline-flex; align-items:center; gap:10px; color:var(--fg); font-weight:700; }
   .hb-selbar .n b { font:700 12px var(--mono); }
   .hb-selbar .lim { color:var(--orange); }
+  .hb-selbar .note { color:var(--muted); font-weight:400; }   /* 구분을 바꿔 자동으로 골라 둔 알림: 경고가 아니라 일반 글자색(대비 약 8.5:1) */
   .hb-selbar .sp { flex:1 1 auto; }
   .hb-selbar button { height:32px; padding:0 14px; }
   .hb-selbar button[hidden] { display:none; }
@@ -2447,6 +2453,20 @@
   #tc-dlg .dlg-ferr:empty, #tt-dlg .dlg-ferr:empty { display:none; }
   .tc-sub { display:flex; justify-content:space-between; margin:4px 0 0; font-size:12px; color:var(--muted); }
   .tc-all { display:flex; align-items:center; gap:8px; margin:0 0 12px; font-size:12px; }
+  /* [수정하기…] 창 두 칸 세그먼트(사용자 11-25): 각진 2px·1px 선, 켜진 칸은 포인트 16% 틴트 + 글자 700. 라디오 동그라미는 숨기고 label 전체가 눌림 영역(높이 40px) */
+  .tc-mode { display:flex; margin:0 0 8px; padding:0; border:0; min-width:0; }
+  .tc-mode label { flex:1 1 0; display:flex; flex-direction:column; justify-content:center; gap:0; min-height:40px; padding:4px 12px; cursor:pointer; border:1px solid var(--line-strong); border-radius:2px; background:var(--panel); position:relative; }
+  .tc-mode label + label { margin-left:-1px; }
+  .tc-mode label:has(input:checked) { background:color-mix(in srgb, var(--accent-color) 16%, var(--panel)); z-index:1; }
+  .tc-mode label:has(input:checked) > span { color:var(--fg); font-weight:700; }
+  .tc-mode label:has(input:focus-visible) { outline:2px solid var(--accent-color); outline-offset:1px; z-index:2; }
+  .tc-mode label.off { cursor:default; color:var(--muted); }
+  .tc-mode label.off > span { color:var(--muted); }
+  .tc-mode input { position:absolute; width:1px; height:1px; margin:0; padding:0; border:0; overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); }   /* 동그라미는 숨기고(낭독·키보드는 그대로) label 전체를 누른다 */
+  .tc-mode > label > span { font-size:13px; }
+  .tc-mode small { font-size:12px; color:var(--muted); }
+  .tc-ba .tc-termgo { height:24px; padding:0 8px; font-size:12px; }
+  .hb-wacts { display:flex; flex-wrap:wrap; gap:4px 6px; align-items:center; }   /* 관심 줄 동작 묶음: [목표로 옮기기…][메모 고치기…][관심에서 빼기…] */
   .tc-items { list-style:none; margin:0; padding:0; }
   .tc-item { margin:0 0 8px; padding:10px 12px; border:1px solid var(--line); border-radius:var(--r); }
   .tc-item.bad { border-color:var(--red); outline:1px solid var(--red); outline-offset:-2px; }   /* 오류 테두리는 outline으로(현황판 구간은 box-shadow 금지) */

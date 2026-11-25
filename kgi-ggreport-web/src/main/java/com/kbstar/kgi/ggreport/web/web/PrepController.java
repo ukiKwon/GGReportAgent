@@ -149,6 +149,18 @@ public class PrepController {
         return run(req, bidCaseId, "OPEN_REQUEST", null, me -> approvals.submitBidOpen(bidCaseId, body, actor));
     }
 
+    /**
+     * 사전준비 시작(결재 없는 담당자 지정, 사용자 11-25 NEXT 114) — CONFIRMED → IN_PROGRESS, 팀장 알림. 감사 행위 OPEN_START(화면 prep_detail·버튼 open_start 만 유효).
+     * 성공 감사 줄은 서비스가 같은 트랜잭션에서 쓴다(감사가 실패하면 시작 전체가 되돌아가 500). 여기서는 실패 줄만 남긴다.
+     */
+    @PostMapping("/bidcases/{bidCaseId}/prep/start")
+    public Map<String, Object> start(@PathVariable String bidCaseId, @RequestBody PrepIn.Open body,
+                                     HttpServletRequest req) {
+        Actor actor = Actor.of(req);
+        BoardUiIds.Ui ui = PrepUiIds.forStart(req);
+        return run(req, bidCaseId, "OPEN_START", null, null, ui, true, me -> prep.start(me, actor, bidCaseId, body, ui));
+    }
+
     /** 상세(6) — PrepView + nobid_notice(입찰 없음 알림, 048). 비담당은 404. 접근 이력 DETAIL 끝에 nobid=Y|N|-(읽기 실패) 만 붙인다. */
     @GetMapping("/bidcases/{bidCaseId}/prep")
     public Map<String, Object> detail(@PathVariable String bidCaseId, HttpServletRequest req) {
@@ -343,8 +355,16 @@ public class PrepController {
     /** 첨부 번호(attachId)를 아는 행위용 — 감사 표에 번호를 남긴다(파일 이름은 남기지 않는다). 올리기처럼 번호가 결과에서 나오면 결과의 attach_id 를 쓴다. */
     private <T> T run(HttpServletRequest req, String bid, String action, String taskCd, Long attachId,
                       Function<SysUser, T> fn) {
+        return run(req, bid, action, taskCd, attachId, PrepUiIds.of(req), false, fn);
+    }
+
+    /**
+     * 공통 본체. okInService=true 면 성공(OK) 감사 줄을 서비스가 같은 트랜잭션에서 이미 썼으므로 여기서는 쓰지 않는다(사전준비 시작 — security 11-25).
+     * 실패 줄(DENIED·HIDDEN·BLOCKED·INVALID·ERROR)은 어느 경우든 여기서 따로 커밋해 남긴다. ui 는 서비스에 넘기는 것과 같은 값을 쓴다.
+     */
+    private <T> T run(HttpServletRequest req, String bid, String action, String taskCd, Long attachId,
+                      BoardUiIds.Ui ui, boolean okInService, Function<SysUser, T> fn) {
         Actor actor = Actor.of(req);
-        BoardUiIds.Ui ui = PrepUiIds.of(req);
         String auditBid = caseKey(bid);   // 경로 원문이 형식 밖이면 NONE — 감사 칸에 자유 문구를 넣지 않는다(security 11-15)
         SysUser me;
         try {
@@ -382,11 +402,13 @@ public class PrepController {
             Object v = ((Map<?, ?>) out).get("attach_id");
             aid = v instanceof Long ? (Long) v : null;
         }
-        try {
-            audit.record(bid, action, "OK", before, taskCd, aid, actor, ui);
-        } catch (RuntimeException e) {
-            logSuccessAuditFailure(action, bid, e);
-            throw e;
+        if (!okInService) {
+            try {
+                audit.record(bid, action, "OK", before, taskCd, aid, actor, ui);
+            } catch (RuntimeException e) {
+                logSuccessAuditFailure(action, bid, e);
+                throw e;
+            }
         }
         req.setAttribute(AccessLogInterceptor.DETAIL, "prep case=" + bid + " state=" + before + " code=" + action);
         return out;

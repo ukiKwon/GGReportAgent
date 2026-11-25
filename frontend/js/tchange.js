@@ -62,7 +62,7 @@
   // 구분·메모 한꺼번에 수정 창(결재 없음, 규격 6-4A)
   tc.EDIT_GO = '수정하기';
   tc.EDIT_HINT = '결재 없이 바로 반영합니다. 바꾼 사람·시각은 기록에 남습니다.';
-  tc.editTitle = function (n) { return '구분·메모 수정 — ' + n + '곳'; };
+  tc.editTitle = function (n) { return '고른 기관 수정 — ' + n + '곳'; };
   tc.eun = function (w) { return jong(w) > 0 ? '은' : '는'; };
   tc.memoFlash = function (name, memo) {
     return str(name) + (str(memo).trim() ? ' 메모를 저장했습니다. 결재 없이 반영되고 기록에 남습니다.' : ' 메모를 지웠습니다. 기록에 남습니다.');
@@ -311,7 +311,7 @@
     return '<td class="ck"><label><input type="checkbox" data-pick="' + esc(r.id) + '" aria-label="' + esc(r.regionName) + ' ' + esc(r.name) + ' 고르기"' + (on ? ' checked' : '') + '></label></td>';
   };
   tc.selbarHtml = function () {   // 바닥 띠(#hb-ts와 #hb-tf 사이). 1곳 이상 골랐을 때만 보인다
-    // 왼쪽부터 숫자 문장·선택 지우기 | [수정하기…](고른 줄이 전부 목표일 때만). 결재 동작은 줄의 구분 메뉴에서 한다(사용자 11-25)
+    // 왼쪽부터 숫자 문장·선택 지우기 | [수정하기…](오른쪽 끝, 두 칸 중 하나라도 켜질 때). 결재 요청(빼기·옮기기)도 이 창의 두 번째 칸에서 한다(사용자 11-25)
     return '<div class="hb-selbar" id="hb-selbar" role="region" aria-label="고른 기관" hidden><span class="n" id="hb-seln" role="status"></span>' +
       '<button type="button" id="hb-selclr" class="lnk">선택 지우기</button><span class="sp"></span>' +
       '<button type="button" id="hb-seledit" aria-haspopup="dialog" hidden>수정하기…</button>' +
@@ -319,14 +319,17 @@
   };
   // 숫자 문장(role=status). 20곳 한도 같은 짧은 알림은 같은 자리에서 읽힌다.
   // kinds = { goal, watch }(없으면 '고른 기관 n곳'), off = 이 화면 밖에 고른 줄 수(규격 6-1)
-  tc.selStatusHtml = function (n, msg, kinds, off) {
+  // note = 일반색 알림(경고 아님, 사용자 11-25 D '구분을 바꾼 {기관}을 골라 두었습니다') — msg(한도 경고 .lim)가 있으면 msg가 이긴다.
+  tc.autoPickNote = function (name) { return '구분을 바꾼 ' + str(name) + tc.eul(name) + ' 골라 두었습니다'; };
+  tc.selStatusHtml = function (n, msg, kinds, off, note) {
     n = Number(n); off = Number(off) || 0;
     const g = kinds ? Number(kinds.goal) || 0 : 0, w = kinds ? Number(kinds.watch) || 0 : 0;
     const lab = g && w || !kinds ? '기관' : (w ? '관심 기관' : '목표 기관');
     const mix = g && w ? '(목표 ' + g + '·관심 ' + w + ')' : '';
-    const sr = msg ? msg : (kinds ? lab + ' ' + n + '곳 고름' + mix + (off > 0 ? ', 이 화면 밖 ' + off + '곳 포함' : '') : n + '곳 고름');
+    const nt = !msg && note ? str(note) : '';
+    const sr = msg ? msg : (nt ? nt + '. ' : '') + (kinds ? lab + ' ' + n + '곳 고름' + mix + (off > 0 ? ', 이 화면 밖 ' + off + '곳 포함' : '') : n + '곳 고름');
     return '<span class="sr-only">' + esc(sr) + '</span><span aria-hidden="true">고른 ' + lab + ' <b>' + n + '</b>곳' + mix + (off > 0 ? ' · 이 화면 밖 ' + off + '곳' : '') + '</span>' +
-      (msg ? '<span class="lim" aria-hidden="true">' + esc(msg) + '</span>' : '');
+      (msg ? '<span class="lim" aria-hidden="true">' + esc(msg) + '</span>' : '') + (nt ? '<span class="note" aria-hidden="true">' + esc(nt) + '</span>' : '');
   };
   // 결재 중인 줄의 구분 칸: 쓰기 자격자는 눌러 보는 칩(버튼), 그 밖은 글자 칩(span). 구분 이름은 title·sr로만
   tc.pendCellHtml = function (r, o) {
@@ -386,7 +389,10 @@
     } else {
       dd = '<span class="tc-memo">동작을 고르면 이어서 정합니다.</span>';
     }
-    return '<dl class="tc-ba"><dt>이전</dt><dd>' + tc.beforeHtml(it) + '</dd><dt>이후</dt><dd>' + dd + '</dd></dl>';
+    // 결재 요청 칸 줄에도 [협약 개시일 적기…] — 지난해 목표처럼 바로 반영 칸이 꺼진 줄도 입구가 있게(qa P2-2). 넣는 줄(ADD)은 제외.
+    const judge = it.op !== 'ADD' && o.terms && has(o.terms, it.id) ? o.terms[it.id] : null;
+    const tg = judge !== null ? '<button type="button" class="tc-termgo"' + u + ' data-inst="' + esc(it.id) + '" aria-haspopup="dialog" aria-label="' + esc(it.name) + ' 협약 개시일 적기">협약 개시일 적기…</button>' + (judge ? '<span class="tc-memo">' + esc(judge) + '</span>' : '') : '';
+    return '<dl class="tc-ba"><dt>이전</dt><dd>' + tc.beforeHtml(it) + '</dd><dt>이후</dt><dd>' + dd + tg + '</dd></dl>';
   };
   tc.itemHtml = function (it, n, o) {
     const hid = 'tc-i' + it.uid + '-h', u = ' data-uid="' + it.uid + '"';
@@ -397,13 +403,18 @@
       '<button type="button" class="tc-x"' + u + ' aria-label="' + esc(it.name) + ' 목록에서 제외">목록에서 제외</button></div>' + tc.afterBlockHtml(it, o) + '<p class="dlg-ferr" id="tc-i' + it.uid + '-e"></p></li>';
   };
   // m = { mode, items, reason, role }, o = { years, tags, reasons }. 덮개는 body 직계로 붙이고 dlg.open으로 연다.
-  tc.dialogHtml = function (m, o) {
-    const approval = m.mode === 'APPROVAL', items = m.items || [];
-    const reasonBox = approval ? '<div class="dlg-f"><label for="tc-reason">사유<span class="dlg-req" aria-hidden="true">*</span><span class="sr-only"> (필수)</span></label>' +
+  function reasonBoxHtml(m) {   // 사유 칸(결재 요청일 때만)
+    return m.mode === 'APPROVAL' ? '<div class="dlg-f"><label for="tc-reason">사유<span class="dlg-req" aria-hidden="true">*</span><span class="sr-only"> (필수)</span></label>' +
       '<textarea id="tc-reason" rows="3" maxlength="' + tc.REASON_MAX + '" aria-describedby="tc-rh tc-rc tc-re">' + esc(m.reason || '') + '</textarea>' +
       '<p class="tc-sub"><span id="tc-rh">결재자가 읽습니다. 개인정보를 적지 마세요.</span><span id="tc-rc" class="mono">' + str(m.reason).length + '/' + tc.REASON_MAX + '</span></p><p class="dlg-ferr" id="tc-re"></p></div>' : '';
-    const free = items.filter(function (x) { return !tc.isFixed(x); });
-    const allop = free.length >= 2 && free.some(function (x) { return !x.op; }) ?'<div class="tc-all"><label for="tc-allop">고른 목표 줄 모두</label><select id="tc-allop"><option value="">동작 한꺼번에 정하기</option><option value="CANCEL">목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option></select></div>' : '';
+  }
+  function allopHtml(items) {   // 동작 한꺼번에 정하기
+    const free = (items || []).filter(function (x) { return !tc.isFixed(x); });
+    return free.length >= 2 && free.some(function (x) { return !x.op; }) ? '<div class="tc-all"><label for="tc-allop">고른 목표 줄 모두</label><select id="tc-allop"><option value="">동작 한꺼번에 정하기</option><option value="CANCEL">목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option></select></div>' : '';
+  }
+  tc.dialogHtml = function (m, o) {
+    const approval = m.mode === 'APPROVAL', items = m.items || [];
+    const reasonBox = reasonBoxHtml(m), allop = allopHtml(items);
     return '<div id="tc-dlg" class="modal-overlay" style="display:none" data-kind="approval"><div class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="tc-t">' +
       '<header class="dlg-bar"><h2 class="dlg-t" id="tc-t" tabindex="-1">' + esc(tc.dlgTitle(m.mode, items.length)) + '</h2><div class="dlg-acts"><button type="button" id="tc-cancel">취소</button><button type="button" id="tc-go" class="dlg-go">' + esc(tc.GO_TEXT[approval ? 'APPROVAL' : 'DIRECT']) + '</button></div></header>' +
       '<div class="dlg-note"><p class="dlg-hint">' + esc(tc.dlgHint(m.mode, m.role)) + '</p><p class="dlg-err" id="tc-err" role="alert"></p></div>' +
@@ -416,20 +427,56 @@
   tc.editItemHtml = function (it, n, o) {
     o = o || {};
     const hid = 'tc-i' + it.uid + '-h', u = ' data-uid="' + it.uid + '"', id = function (k) { return 'tc-i' + it.uid + '-' + k; };
+    // o.terms = { 기관id: 달성 판정일 글 } — 협약 개시일을 적을 수 있는 줄에만 [협약 개시일 적기…](구분 메뉴에서 옮겨 온 입구, 누르면 개시일 창이 열린다)
+    const judge = o.terms && has(o.terms, it.id) ? o.terms[it.id] : null;
     const dd = '<label for="' + id('t') + '">구분</label><select id="' + id('t') + '"' + u + ' data-f="tag">' + tagOpts(o.tags, it.tag) + '</select>' +
-      '<label for="' + id('m') + '">메모</label><input id="' + id('m') + '"' + u + ' data-f="memo" maxlength="' + tc.MEMO_MAX + '" size="20" value="' + esc(it.memo) + '">';
+      '<label for="' + id('m') + '">메모</label><input id="' + id('m') + '"' + u + ' data-f="memo" maxlength="' + tc.MEMO_MAX + '" size="20" value="' + esc(it.memo) + '">' +
+      (judge !== null ? '<button type="button" class="tc-termgo"' + u + ' data-inst="' + esc(it.id) + '" aria-haspopup="dialog" aria-label="' + esc(it.name) + ' 협약 개시일 적기">협약 개시일 적기…</button>' + (judge ? '<span class="tc-memo">' + esc(judge) + '</span>' : '') : '');
     return '<li class="tc-item" role="group" aria-labelledby="' + hid + '"' + u + '><div class="tc-ih"><span class="no">' + Number(n) + '</span><span class="nm" id="' + hid + '"><span class="rg">' + esc(it.regionName) + '</span>' + esc(it.name) + '</span>' +
-      '<span class="fix">구분·메모 수정</span><button type="button" class="tc-x"' + u + ' aria-label="' + esc(it.name) + ' 목록에서 제외">목록에서 제외</button></div>' +
+      '<span class="fix">바로 반영</span><button type="button" class="tc-x"' + u + ' aria-label="' + esc(it.name) + ' 목록에서 제외">목록에서 제외</button></div>' +
       '<dl class="tc-ba"><dt>이전</dt><dd>' + tc.beforeHtml(it) + '</dd><dt>이후</dt><dd>' + dd + '</dd></dl><p class="dlg-ferr" id="tc-i' + it.uid + '-e"></p></li>';
   };
-  // m = { items }, o = { tags }
-  tc.editDialogHtml = function (m, o) {
+  // 두 칸 세그먼트(사용자 11-25): 「구분·메모·개시일 고치기(바로 반영)」/「빼기·옮기기(결재 요청)」. 지금 고른 쪽만 보낸다.
+  // 두 칸이 켜지는 조건(문장 포함)은 고른 줄로 정한다. s = 고른 줄 묶음({ids,by}), c = { canBulk: 구분·메모를 바로 고칠 수 있는 계정/서버, hasMode: 결재·바로 반영 모드가 있음, year: 올해 }
+  tc.modeAvail = function (s, c) {
+    c = c || {};
+    const n = tc.selCount(s), k = tc.kindCounts(s);
+    const e = { on: true, why: '' }, a = { on: true, why: '' };
+    if (!n) { e.on = a.on = false; e.why = a.why = '고른 기관이 없습니다.'; return { edit: e, approval: a }; }
+    if (k.watch > 0) { e.on = false; e.why = '관심 기관이 섞여 있어 고칠 수 없습니다.'; }
+    else if (tc.pastCount(s, c.year) > 0) { e.on = false; e.why = '지난해 목표가 있어 고칠 수 없습니다.'; }
+    else if (!c.canBulk) { e.on = false; e.why = '이 계정은 구분·메모를 바로 고칠 수 없습니다.'; }
+    const acts = s.ids.some(function (id) { const x = s.by[id]; return x.kind !== 'WATCH' || Number(x.moveYear) > 0; });
+    if (!c.hasMode) { a.on = false; a.why = '결재 요청을 올릴 수 없습니다.'; }
+    else if (!acts) { a.on = false; a.why = '고른 줄에 빼기·옮기기를 할 수 있는 기관이 없습니다.'; }
+    return { edit: e, approval: a };
+  };
+  function segHtml(kind, av) {
+    const one = function (v, label, small, x) {
+      return '<label' + (x.on ? '' : ' class="off"') + '><input type="radio" name="tc-mode" value="' + v + '"' + (kind === v ? ' checked' : '') + (x.on ? '' : ' disabled') + '>' +
+        '<span>' + esc(label) + '</span><small>' + esc(x.on ? small : x.why) + '</small></label>';
+    };
+    return '<fieldset class="tc-mode"><legend class="sr-only">무엇을 고칠지 고르세요</legend>' +
+      one('edit', '구분·메모·개시일 고치기', '바로 반영', av.edit) + one('approval', '빼기·옮기기', '결재 요청', av.approval) + '</fieldset>';
+  }
+  // 지금 고른 쪽 본문(.dlg-body 안쪽) — 칸을 바꿔 오가면 이 조각만 다시 그린다(입력값은 항목 모델에 남아 있다)
+  tc.modeBodyHtml = function (m, o) {
     const items = m.items || [];
+    if (m.kind === 'approval') return reasonBoxHtml(m) + allopHtml(items) + '<ol class="tc-items" id="tc-items">' + items.map(function (it, i) { return tc.itemHtml(it, i + 1, o); }).join('') + '</ol>';
     const all = items.length >= 2 ? '<div class="tc-all"><label for="tc-alltag">고른 목표 줄 모두</label><select id="tc-alltag"><option value="">구분 한꺼번에 정하기</option>' + tagOpts(o && o.tags, '') + '</select></div>' : '';
-    return '<div id="tc-dlg" class="modal-overlay" style="display:none" data-kind="edit"><div class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="tc-t">' +
-      '<header class="dlg-bar"><h2 class="dlg-t" id="tc-t" tabindex="-1">' + esc(tc.editTitle(items.length)) + '</h2><div class="dlg-acts"><button type="button" id="tc-cancel">취소</button><button type="button" id="tc-go" class="dlg-go">' + esc(tc.EDIT_GO) + '</button></div></header>' +
-      '<div class="dlg-note"><p class="dlg-hint">' + esc(tc.EDIT_HINT) + '</p><p class="dlg-err" id="tc-err" role="alert"></p></div>' +
-      '<div class="dlg-body">' + all + '<ol class="tc-items" id="tc-items">' + items.map(function (it, i) { return tc.editItemHtml(it, i + 1, o); }).join('') + '</ol></div></div></div>';
+    return all + '<ol class="tc-items" id="tc-items">' + items.map(function (it, i) { return tc.editItemHtml(it, i + 1, o); }).join('') + '</ol>';
+  };
+  tc.modeHint = function (m) { return m.kind === 'approval' ? tc.dlgHint(m.mode, m.role) : tc.EDIT_HINT; };
+  tc.modeGo = function (m) { return m.kind === 'approval' ? tc.GO_TEXT[m.mode === 'APPROVAL' ? 'APPROVAL' : 'DIRECT'] : tc.EDIT_GO; };
+  // m = { kind:'edit'|'approval'(기본 edit), items(지금 고른 쪽 항목), mode(결재 쪽 'APPROVAL'|'DIRECT'), role, reason, n(고른 곳 수, 기본 items 수), avail(tc.modeAvail 결과, 기본 둘 다 켜짐) }, o = { tags, years, reasons, terms }
+  tc.editDialogHtml = function (m, o) {
+    const kind = m.kind === 'approval' ? 'approval' : 'edit', items = m.items || [];
+    const av = m.avail || { edit: { on: true, why: '' }, approval: { on: true, why: '' } };
+    const mm = { kind: kind, items: items, mode: m.mode || 'DIRECT', role: m.role, reason: m.reason };
+    return '<div id="tc-dlg" class="modal-overlay" style="display:none" data-kind="' + kind + '"><div class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="tc-t">' +
+      '<header class="dlg-bar"><h2 class="dlg-t" id="tc-t" tabindex="-1">' + esc(tc.editTitle(m.n != null ? m.n : items.length)) + '</h2><div class="dlg-acts"><button type="button" id="tc-cancel">취소</button><button type="button" id="tc-go" class="dlg-go">' + esc(tc.modeGo(mm)) + '</button></div></header>' +
+      '<div class="dlg-note">' + segHtml(kind, av) + '<p class="dlg-hint" id="tc-hint">' + esc(tc.modeHint(mm)) + '</p><p class="dlg-err" id="tc-err" role="alert"></p></div>' +
+      '<div class="dlg-body">' + tc.modeBodyHtml(mm, o) + '</div></div></div>';
   };
   // 메모 창(규격 6-3): 협약 개시일 창(tt-*)과 같은 뼈대, 결재 없이 바로 저장. r = 줄 모델
   tc.memoDialogHtml = function (r) {

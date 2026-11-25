@@ -18,6 +18,8 @@ import com.kbstar.kgi.ggreport.web.mapper.BidCaseMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.support.ApprovalTypes;
+import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
+import com.kbstar.kgi.ggreport.web.support.PrepOpenApprovalSwitch;
 import com.kbstar.kgi.ggreport.web.support.Ranks;
 import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
@@ -35,12 +37,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * 제안서 사전준비(NEXT 70, 024) — 제안 확정 → 개설 신청·승인 → 과제 체크 → 사전준비 승인 → 작성하기.
+ * 제안서 사전준비(NEXT 70, 024) — 제안 확정 → 사전준비 시작(담당자 지정, 결재 없음 — 11-25. 옛 개설 신청·승인은 남은 건만) → 과제 체크 → 사전준비 승인 → 작성하기.
  *
  * <p>상태 7개: CONFIRMED(확정됨) · OPEN_PENDING(개설 대기) · IN_PROGRESS(진행) · APPROVAL_PENDING(사전준비 승인 중) ·
  * WRITABLE(작성 가능) · WRITING(작성 중) · CANCELLED(확정 취소·중단). '사전준비 승인 가능'은 저장하지 않고 필수 과제 완료로 파생한다.
@@ -81,6 +84,12 @@ public class PrepService {
     private static final String NOT_GOAL_MSG = "올해 목표 기관만 제안 확정할 수 있습니다. 먼저 이 기관을 올해 목표 기관으로 넣어 주세요(결재가 끝나면 입찰 현황판에서 확정할 수 있습니다).";
     private static final String GOAL_PENDING_MSG = "이 기관은 목표 기관 결재가 진행 중입니다. 결재가 끝난 뒤 입찰 현황판에서 제안 확정해 주세요.";
 
+    /** 사전준비 시작(결재 없는 담당자 지정, 사용자 11-25 NEXT 114) — 이력 이벤트·감사 행위 코드(062 코드표 '사전준비 시작'). */
+    static final String OPEN_START = "OPEN_START";
+    /** 시작 알림 쪽지 종류 — 결재가 아니므로 '결재알림'과 다른 종류(결재 쪽지 끄기 스위치의 영향을 받지 않는다). */
+    static final String KIND_START_NOTICE = "사전준비알림";
+    private static final String NOTIFY_TARGET_MSG = "알림을 받을 영업팀장을 찾지 못했습니다. 결재선(팀장) 지정을 확인하세요.";
+
     private static final Map<String, String> STATE_NAMES = stateNames();
 
     /** 결재 요청에 묶인 사유 — 그 요청의 신청자·영업팀장·영업부장만(사용자 결정 2026-11-11 개설 신청 규칙을 사전준비 승인으로 넓힘, NEXT 70). */
@@ -115,11 +124,18 @@ public class PrepService {
     private final BidCaseMapper bidCases;
     private final BidCaseCommandService commands;
     private final ApprovalDeputyService deputies;
+    private final NotificationCommandService notes;
+    private final PrepOpenApprovalSwitch openApproval;
+    private final PrepAudit audit;
 
     public PrepService(PrepMapper mapper, BidAssignmentService assignments, BidAssignmentMapper assignMapper,
                        SysUserMapper users, ApprovalRequestMapper requests, BidCaseMapper bidCases,
-                       BidCaseCommandService commands, ApprovalDeputyService deputies) {
+                       BidCaseCommandService commands, ApprovalDeputyService deputies,
+                       NotificationCommandService notes, PrepOpenApprovalSwitch openApproval, PrepAudit audit) {
         this.deputies = deputies;
+        this.notes = notes;
+        this.openApproval = openApproval;
+        this.audit = audit;
         this.mapper = mapper;
         this.assignments = assignments;
         this.assignMapper = assignMapper;
@@ -417,6 +433,9 @@ public class PrepService {
     @Transactional(readOnly = true)
     public OpenPlan planOpen(String bidCaseId, List<String> empNos, String comment, String approverPick, SysUser me) {
         requireSales(me);   // 역할 검사가 건 조회(404)보다 먼저 — 없는 건과 있는 건을 403 으로 구분하지 못하게(security F4)
+        if (!openApproval.isOn()) {   // 사용자 11-25(NEXT 114): 새 개설 신청 없음 — 이미 올라간 건의 결재·회수는 그대로(applyOpen·afterOpenEnded)
+            throw coded(409, "OPEN_APPROVAL_CLOSED", "개설 신청(팀장 결재)은 없어졌습니다. 담당자를 지정하면 바로 사전준비가 시작됩니다.");
+        }
         BidPrep p = require(bidCaseId);
         if (OPEN_PENDING.equals(p.getStateCd())) {
             throw coded(409, "OPEN_PENDING", "이미 개설 신청이 진행 중입니다.");
@@ -452,6 +471,128 @@ public class PrepService {
             throw coded(409, "OPEN_PENDING", "이미 개설 신청이 진행 중이거나 상태가 바뀌었습니다.");
         }
         log(plan.getBidCaseId(), "OPEN_SUBMIT", CONFIRMED, OPEN_PENDING, null, reqId, null, me, actor);
+    }
+
+    // ── 사전준비 시작(결재 없는 담당자 지정, 사용자 11-25 NEXT 114) ─────────────
+
+    /**
+     * 사전준비 시작 — CONFIRMED → IN_PROGRESS. 결재 없이 확정한 사람(또는 확정자의 같은 팀 영업팀장)이 담당자 1~10명을 정하면 바로 시작하고,
+     * 확정자의 같은 팀 영업팀장에게 알림 쪽지를 보낸다(시작한 사람·확정자·지명자에 팀장이 있으면 영업부장에게도 — 옛 결재자 규칙과 같은 대상).
+     * 순서: 역할(403) → 스위치(409) → 건 잠금(404) → 상태(409 OPEN_PENDING·STATE_CHANGED) → 권한(403 확정자·확정자의 같은 팀 팀장) → 기관 잠금 →
+     * 목표 조건(409 NOT_GOAL_TARGET·GOAL_CHANGE_PENDING — 소급하지 않은 목표 밖 옛 확정 건이 결재 없이 시작되지 않게) → 지명(400) → 의견(400/422)
+     * → 알림 받을 사람(409 NOTIFY_TARGET_NOT_RESOLVED, fail-closed — 결재를 대신하는 감독 장치가 소리 없이 빠지지 않게)
+     * → 전이·배정·과제·이력·알림·성공 감사 줄(한 트랜잭션, 하나라도 실패하면 모두 되돌아간다).
+     * ⚠️ 첫 DB 읽기는 잠금 읽기(lockPrep)다 — 이 위에 일반 SELECT 를 끼우지 않는다(MySQL RR 첫 일관 읽기, confirm 의 qa P3-8 과 같은 이유).
+     * ⚠️ X-Emp-No 자기신고 위의 업무 규칙이다(사칭 방지 아님). 오류 문구에 사번·이름·기관명을 싣지 않는다.
+     * 성공 감사 줄(BID_PREP_ACT OK)은 여기서 같은 트랜잭션으로 쓴다(PrepAudit 16–17 선례) — 컨트롤러는 실패 줄만 남긴다.
+     */
+    @Transactional
+    public Map<String, Object> start(SysUser me, Actor actor, String bidCaseId, PrepIn.Open in, BoardUiIds.Ui ui) {
+        requireSales(me);
+        if (openApproval.isOn()) {
+            throw coded(409, "OPEN_APPROVAL_ON", "지금은 개설 신청(팀장 결재)으로 사전준비를 시작합니다.");
+        }
+        BidPrep p = bidCaseId == null || bidCaseId.isEmpty() || bidCaseId.length() > 64 ? null : mapper.lockPrep(bidCaseId);
+        if (p == null) {
+            throw ApiException.notFound("prep not found");
+        }
+        if (OPEN_PENDING.equals(p.getStateCd())) {
+            throw coded(409, "OPEN_PENDING", "개설 신청(결재)이 진행 중입니다. 결재가 끝나거나 회수된 뒤 다시 하세요.");
+        }
+        if (!CONFIRMED.equals(p.getStateCd())) {
+            throw stateChanged();   // 상태가 맞지 않으면 기관을 잠그기 전에 끝낸다(잠금 순서 BID_PREP→INSTITUTIONS 가 되살리기와 엇갈리지 않게)
+        }
+        if (!hasStartAuthority(me, p)) {
+            throw new ApiException(403, "확정한 사람 또는 그 팀의 영업팀장만 사전준비를 시작할 수 있습니다.");
+        }
+        if (mapper.lockInstitution(p.getInstitutionId()) == null) {
+            throw ApiException.notFound("prep not found");
+        }
+        requireGoalTarget(p.getInstitutionId());
+        List<String> targets = assignments.validateTargets(in == null ? null : in.getEmpNos());
+        String note = BoardMaterialService.checkedText(in == null ? null : in.getComment(), 200, "의견", false);
+        Set<String> notifyTo = startNotifyTargets(me, p, targets);   // 못 정하면 409 — 쓰기 전에 끝낸다
+        String now = Times.nowIso();
+        requireTransit(mapper.markStarted(bidCaseId, me.getEmpNo(), now));
+        int verified = BoardMaterialService.verified(actor);
+        assignments.assignInitial(bidCaseId, targets, me.getEmpNo(), verified, null);   // 머리 행이 이미 있으면 409 ASSIGNED_ALREADY(롤백)
+        for (BidPrepTask def : mapper.selectEnabledDefs()) {
+            mapper.insertTask(bidCaseId, def);
+        }
+        log(bidCaseId, OPEN_START, CONFIRMED, IN_PROGRESS, null, null, note, me, actor);   // 의견은 사유 칸 — 공개 범위는 canSeeReason(팀장·부장)
+        sendStartNotice(me, bidCaseId, targets, notifyTo);
+        audit.record(bidCaseId, OPEN_START, "OK", CONFIRMED, null, actor, ui);   // 같은 트랜잭션 — 감사 줄이 실패하면 시작 전체가 되돌아간다(500)
+        Map<String, Object> out = stateOut(bidCaseId, IN_PROGRESS);
+        out.put("assignee_count", targets.size());
+        out.put("notified_count", notifyTo.size());
+        out.put("can_view", isLead(me) || targets.contains(me.getEmpNo()));   // 시작한 영업팀원이 담당이 아니면 상세는 404(기존 열람 규칙)
+        return out;
+    }
+
+    /**
+     * 시작 알림을 받을 사람 — 확정자의 같은 팀 영업팀장(수동 지정 결재선의 같은 팀 팀장만, 다른 팀 팀장으로 넘기지 않음)
+     * + 시작한 사람·확정자·지명자 중 영업팀장이 있으면 영업부장(옛 결재자 규칙). 시작한 본인은 뺀다.
+     * 하나도 못 정하면 409 NOTIFY_TARGET_NOT_RESOLVED(사번·이름을 싣지 않는다).
+     */
+    private Set<String> startNotifyTargets(SysUser me, BidPrep p, List<String> targets) {
+        SysUser confirmer = p.getConfirmedBy() == null ? null : users.selectByEmpNo(p.getConfirmedBy());
+        boolean leadInvolved = isLead(me) || (confirmer != null && isLead(confirmer));
+        for (String e : targets) {
+            SysUser u = users.selectByEmpNo(e);
+            if (u != null && isLead(u)) {
+                leadInvolved = true;
+            }
+        }
+        Set<String> to = new LinkedHashSet<>();
+        if (confirmer != null && !isLead(confirmer)) {
+            SysUser lead = assignments.sameTeamLead(confirmer);
+            if (lead != null) {
+                to.add(lead.getEmpNo());
+            }
+        }
+        if (leadInvolved) {
+            try {
+                to.add(assignments.resolveApprover(me, true).getEmpNo());
+            } catch (ApiException e) {
+                // 영업부장을 정하지 못하면 그 몫만 건너뛴다 — 아래에서 받을 사람이 하나도 없을 때만 막는다
+            }
+        }
+        to.remove(me.getEmpNo());
+        if (to.isEmpty()) {
+            throw coded(409, "NOTIFY_TARGET_NOT_RESOLVED", NOTIFY_TARGET_MSG);
+        }
+        return to;
+    }
+
+    private void sendStartNotice(SysUser me, String bid, List<String> targets, Set<String> to) {
+        String inst = mapper.selectInstitutionNameByBid(bid);
+        String body = "[사전준비 시작] " + me.getName() + "님이 '" + (inst == null ? "" : inst)
+                + "' 제안 사전준비를 시작했습니다(담당자 " + targets.size() + "명). 제안 준비 현황에서 확인하세요.";
+        for (String emp : to) {
+            notes.create(emp, KIND_START_NOTICE, body, null, null, null, null, me.getName());   // institution_id 를 싣지 않는다(타임라인에 섞이지 않게)
+        }
+    }
+
+    /**
+     * 사전준비 시작 권한(상태 무관, security 11-25 ①) — 영업팀·영업팀장 중 확정한 사람 본인, 또는 확정자의 같은 팀 영업팀장
+     * (sameTeamLead(확정자) 가 나). 다른 팀 팀장·영업부장·디자이너는 없다. 확정자가 영업팀장이면 본인만(다른 팀장 불가).
+     */
+    boolean hasStartAuthority(SysUser me, BidPrep p) {
+        if (!isSales(me)) {
+            return false;
+        }
+        if (me.getEmpNo().equals(p.getConfirmedBy())) {
+            return true;
+        }
+        if (!isLead(me) || p.getConfirmedBy() == null) {
+            return false;
+        }
+        SysUser confirmer = users.selectByEmpNo(p.getConfirmedBy());
+        if (confirmer == null || isLead(confirmer)) {
+            return false;
+        }
+        SysUser lead = assignments.sameTeamLead(confirmer);
+        return lead != null && lead.getEmpNo().equals(me.getEmpNo());
     }
 
     /** 개설 신청이 반려·회수로 끝났을 때 — OPEN_PENDING(그 요청)이면 CONFIRMED 로 되돌린다. 이미 다른 상태면 아무것도 하지 않는다. */
@@ -1119,7 +1260,8 @@ public class PrepService {
         viewer.put("is_head", head);
         viewer.put("can_confirm", false);   // 이미 확정된 건이다
         viewer.put("can_unconfirm", canUnconfirm(me, p));   // 입찰 없음 알림(PrepNobidService)과 같은 함수(security 11-19 중-1)
-        viewer.put("can_request_open", CONFIRMED.equals(p.getStateCd()) && isSales(me));
+        viewer.put("can_request_open", CONFIRMED.equals(p.getStateCd()) && isSales(me) && openApproval.isOn());   // 옛 흐름(스위치 켬)만
+        viewer.put("can_start_prep", CONFIRMED.equals(p.getStateCd()) && !openApproval.isOn() && hasStartAuthority(me, p));   // 사용자 11-25
         viewer.put("can_withdraw_open", openRequester);
         viewer.put("can_request_plan_approval", assignee && IN_PROGRESS.equals(p.getStateCd()) && ev.ready);
         viewer.put("can_start_writing", assignee && WRITABLE.equals(p.getStateCd()) && ev.ready);

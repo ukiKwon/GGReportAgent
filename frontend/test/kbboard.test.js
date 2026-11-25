@@ -328,8 +328,9 @@ test('actHtml(동작 칸): open·confirm·wait·공고 끝남·접수 기간 지
   const o = { name: '하남시청', key: '41|하남시청', badge: { cls: 'pp-ok', text: '확정됨' } };
   assert.strictEqual(kbb.actHtml('open', o), '<span class="wf-badge pp-ok">확정됨</span>');
   assert.ok(kbb.actHtml('open', {}).indexOf('사전준비 중') >= 0);
-  const c = kbb.actHtml('confirm', o);
-  assert.strictEqual(c, '<button type="button" class="hb-confirm" data-key="41|하남시청" data-act="confirm" aria-haspopup="dialog" aria-label="하남시청 제안 확정">제안 확정</button>');
+  const c = kbb.actHtml('confirm', o);   // 줄마다 있던 [제안 확정] 단추는 없앴다(11-25) — '시작 전' 글자 + 화면 낭독용 문장
+  assert.strictEqual(c, '<span class="mut">시작 전</span><span class="sr-only">제안 사전준비 시작 전</span>');
+  assert.ok(c.indexOf('<button') < 0);
   assert.strictEqual(kbb.actHtml('wait', o), '<span class="why">확인 중…</span>');
   assert.ok(kbb.actHtml('closed', o).indexOf('>공고 끝남</span>') >= 0 && kbb.actHtml('closed', o).indexOf('title="이번 회차 공고가 끝났습니다."') >= 0);
   assert.ok(kbb.actHtml('past', o).indexOf('>접수 기간 지남</span>') >= 0 && kbb.actHtml('past', o).indexOf('title="접수 기간이 지난 것으로 봅니다.') >= 0);
@@ -448,7 +449,7 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   assert.ok(css.indexOf('72%, #fff') < 0 && css.indexOf('#626d81') < 0);                                     // 흰색 쪽 섞기·고정 색 없음(세션 44 요청)
   assert.ok(/\.hb-end\.unk \{[^}]*color:var\(--muted\)/.test(css) && /\.hb-row \.nm \{ font-size:13px;/.test(css));
   assert.ok(/\.hb-row \{[^}]*grid-template-columns:minmax\(0, 1fr\) auto/.test(css));
-  assert.ok(/\.hb-stg \.hb-confirm \{[^}]*min-height:28px/.test(css));
+  assert.ok(css.indexOf('.hb-confirm') < 0);   // 줄 [제안 확정] 단추 CSS는 단추와 함께 없앴다(11-25)
   assert.ok(/\.hb-foot details\[open\] \{ flex-basis:100%;/.test(css));
   // 흐리게 보이기는 opacity 대신 muted(DESIGN) — 전역 disabled 흐림을 되돌리는 opacity:1 만 허용
   assert.ok(/\.hb-row\[aria-disabled=true\][^{]*\{[^}]*color:var\(--muted\)/.test(css) && !/opacity:\s*(0|\.)/.test(css));   // opacity 대신 muted(DESIGN)
@@ -484,9 +485,9 @@ test('배선: 감사 화면 이름(bid_board·bid_notice·map_popover)·현황�
   assert.ok(/function actOf\(rec\) \{\s*if \(kbb\.inProgress\(rec, st\.preps, st\.overview\)\) return 'open';/.test(k));   // 신규 유치 줄: 진행 기록이 있으면 배지(qa P3-4)
   assert.ok(k.indexOf('같은 기관은 한 번만 셉니다') < 0);                                                  // 3번 foot 중복 문구 삭제(design P2-3)
   assert.ok(k.indexOf('제안 진행 단계 구획의 [다시 시도]') < 0 && k.indexOf('오른쪽 제안 진행 단계') < 0);                      // 없어진 구획을 가리키는 문구는 없다(qa 11-17 P3-9)
-  assert.ok(/hb-pretry/.test(k) && k.indexOf('hb-retry') < 0 && k.indexOf('db-retry') < 0 && k.indexOf('hb-open-notice') < 0 && k.indexOf('hb-to-prep') < 0 && k.indexOf('hb-prep') < 0 && k.indexOf('goPrep') < 0);
+  assert.ok(/hb-pretry/.test(k) && k.indexOf('hb-retry') < 0 && k.indexOf('db-retry') < 0 && k.indexOf('hb-open-notice') < 0 && k.indexOf('hb-to-prep') < 0 && k.indexOf('function goPrep') < 0);   // 옛 [사전준비 열기] 링크·자체 goPrep은 없다 — 11-25 툴바 #hb-prep은 dash.goPrep으로 간다
   assert.ok(/fa\.id !== 'dm-name' && fa\.id !== 'dm-box'\) m\.focus = ''/.test(d));                          // 이미 포커스를 옮긴 사용자를 [제안 확정]으로 끌고 가지 않는다(qa P3-6)
-  assert.ok(d.indexOf("dash.postConfirm(id, 'bid_notice')") > 0 && d.indexOf("dash.postConfirm(id, m.screen)") > 0);
+  assert.ok(d.indexOf("dash.postConfirm(id, 'bid_notice')") < 0 && d.indexOf("dash.postConfirm(id, m.screen)") > 0);   // 입찰 공고 현황의 확정 경로는 없어졌다(11-25) — 현황판 팝업(m.screen)·툴바(k의 bid_board)만
   assert.ok(d.indexOf("screen: (opts && opts.screen) || 'map_popover'") > 0);
   assert.strictEqual((k.replace(/\/\/[^\n]*/g, '').match(/'[^'\n]*우리[^'\n]*'/g) || []).length, 0);   // 주석 밖 문자열에 '우리' 없음
   assert.ok(k.indexOf('국민은행 금고 기관') < 0);                                                        // 문구는 '협약 중인 기관'(11-17 사용자 결정)
@@ -500,10 +501,10 @@ test('배선: 감사 화면 이름(bid_board·bid_notice·map_popover)·현황�
   assert.ok(/\$\('hb-oscroll'\)[\s\S]*?keepFocus\([\s\S]*?restoreFocus\(/.test(k));                          // 협약 중인 기관 목록
   assert.ok(/function renderGoals\(\)[\s\S]*?\$\('hb-goals'\)[\s\S]*?keepFocus\(sc\)[\s\S]*?restoreFocus\(sc, keepKey\);\s*applyFocusNext\(\);/.test(k));   // 목표 표: 다시 그린 뒤 같은 버튼으로(그다음 pendingFocus)
   assert.ok(k.indexOf('aria-live') < 0);                                                                  // #hb-g1의 aria-live 제거(design P2-2)
-  // [제안 확정] 버튼은 상세 팝업을 열어 팝업의 [제안 확정]으로 포커스를 옮긴다(목록에서 바로 저장하지 않는다)
-  assert.ok(/classList\.contains\('hb-confirm'\)\) \{ openOurs\(btn, 'confirm'\)/.test(k) && k.indexOf("focus: focus || ''") > 0);
+  // 줄 [제안 확정] 단추는 없어졌다(11-25) — 행 이름은 그대로 상세 팝업을 열고, 팝업의 [제안 사전준비]·툴바 [제안 사전준비]가 확정 입구다
+  assert.ok(k.indexOf("classList.contains('hb-confirm')") < 0 && k.indexOf("focus: focus || ''") > 0);
   assert.ok(d.indexOf("focus: (opts && opts.focus) || ''") > 0 && /m\.focus === 'confirm'[\s\S]*?#db-cf[\s\S]*?cf\.focus\(\)/.test(d));
-  assert.ok(k.indexOf('postConfirm') < 0 && k.indexOf('fetch(\'/preps/') < 0);                           // 현황판은 확정을 직접 보내지 않는다
+  assert.ok(k.indexOf("dash.postConfirm(e.id, 'bid_board')") > 0 && k.indexOf('fetch(\'/preps/') < 0 && k.indexOf("fetch('/preps'") < 0);   // 현황판 툴바는 dash.postConfirm(화면 이름 bid_board)만 쓴다
   assert.ok(/dash\.selectKey = [\s\S]*?st\.q = ''; st\.region = ''; st\.type = ''; fillFilters\(\);[\s\S]*?select\(key, lb\)/.test(d));
   assert.ok(d.indexOf('UNKNOWN으로 남는다') < 0);                                                                // 낡은 이관 주석 정리
   assert.ok(app.indexOf("document.getElementById('plans-root')") > 0 && app.indexOf('root.plans.mount(plansEl)') > 0);   // plans 줄 보존

@@ -460,9 +460,10 @@ test('actionKind(11-19): 목표+공고 전 confirm, 목표+진행 중은 open, �
   assert.strictEqual(dash.actionKind(r, srv, [{ institution_id: 'I1', state_cd: 'CONFIRMED' }], stubPrep, o), 'open');
   assert.strictEqual(dash.actionKind(r, { serverMode: true, role: '영업부장' }, [], stubPrep, o), 'none');
   const it = dash.model([r], TODAY).upcoming[0];
-  const early = dash.actHtml(it, { act: 'confirm', early: true });
-  assert.ok(early.indexOf('id="db-cf"') >= 0 && early.indexOf('올해 목표 기관이라 공고 전에도 영업부서가 제안 확정할 수 있습니다.') >= 0);
-  assert.ok(dash.actHtml(it, { act: 'confirm' }).indexOf('공고 전에도') < 0);   // 일반 confirm에는 안내 없음
+  const early = dash.actHtml(it, { act: 'confirm', early: true, board: true });   // 확정은 현황판(board)에서만 — 그 밖의 화면은 [입찰 현황판에서 열기]
+  assert.ok(early.indexOf('id="db-cf"') >= 0 && early.indexOf('올해 목표 기관이라 공고 전에도 제안 사전준비를 시작할 수 있습니다.') >= 0);
+  assert.ok(dash.actHtml(it, { act: 'confirm', board: true }).indexOf('공고 전에도') < 0);   // 일반 confirm에는 안내 없음
+  assert.ok(dash.actHtml(it, { act: 'confirm', early: true }).indexOf('id="db-cf"') < 0 && dash.actHtml(it, { act: 'confirm', early: true }).indexOf('id="db-board"') >= 0);   // 현황판 밖에는 확정 단추가 없다
 });
 
 test('actionKind(5번째 인자): 기록 받는 중은 wait, 사전준비가 있으면 규칙과 무관하게 open, 안내 문구', function () {
@@ -476,48 +477,74 @@ test('actionKind(5번째 인자): 기록 받는 중은 wait, 사전준비가 있
   assert.strictEqual(dash.actionKind(rec('나', '11', -3, { institutionId: 'I1', receiveTo: plus(5) }), srv, [], stubPrep, o), 'confirm');
   const it = dash.model([r], TODAY).upcoming[0];
   const why = function (k) { return dash.actHtml(it, { act: k }); };
-  assert.ok(why('later').indexOf('입찰 공고가 나면 [제안 확정]을 쓸 수 있습니다.') >= 0 && why('later').indexOf('id="db-cf"') < 0 && why('later').indexOf('id="db-map"') >= 0);
+  assert.ok(why('later').indexOf('입찰 공고가 나면 [제안 사전준비]를 쓸 수 있습니다.') >= 0 && why('later').indexOf('id="db-cf"') < 0 && why('later').indexOf('id="db-map"') >= 0);
   assert.ok(why('closed').indexOf('이번 회차 공고가 끝났습니다.') >= 0);
   assert.ok(why('past').indexOf("접수 기간이 지난 것으로 봅니다. 아직 접수 중이면 공고 상태를 '공고 진행 중'으로 기록하세요.") >= 0 && why('past').indexOf('공고가 나면') < 0 && why('past').indexOf('id="db-cf"') < 0);
   assert.ok(why('nobid').indexOf("이번 회차는 '입찰 없음'으로 닫혔습니다.") >= 0);
   assert.ok(why('delayed').indexOf('공고가 늦어지거나 재공고를 기다리는 중입니다.') >= 0);
-  assert.ok(why('wait').indexOf('[제안 확정]을 쓸 수 있는지 확인하는 중입니다.') >= 0);
+  assert.ok(why('wait').indexOf('[제안 사전준비]를 쓸 수 있는지 확인하는 중입니다.') >= 0);
   const nc = dash.actParts(it, { act: 'noconfirm' });
   assert.strictEqual(nc.main, '');
   assert.strictEqual(nc.why, '협약 성과 화면에서는 제안을 확정하지 않습니다.');
-  assert.ok(dash.blankHtml().indexOf('왼쪽 목록에서 기관을 고르세요. 기관 정보가 여기에 보이고, 공고가 난 기관이면 [제안 확정] 버튼도 보입니다.') >= 0);
+  assert.ok(dash.blankHtml().indexOf('왼쪽 목록에서 기관을 고르세요. 기관 정보가 여기에 보입니다. 제안 사전준비는 [입찰 현황판]에서 시작합니다.') >= 0);
 });
 
 test('actHtml: 서버 없음은 버튼 없이 안내, 권한 밖은 한 줄 안내, 확인 줄은 조사 함수', function () {
   const it = dash.model([rec('부산광역시', '26', 40)], TODAY).upcoming[0];
   const un = dash.actHtml(it, { act: 'unavailable' });
-  assert.ok(un.indexOf('서버에 연결되면 [제안 확정]을 쓸 수 있습니다.') >= 0);
+  assert.ok(un.indexOf('서버에 연결되면 [제안 사전준비]를 쓸 수 있습니다.') >= 0);
   assert.ok(un.indexOf('id="db-cf"') < 0 && un.indexOf('id="db-do"') < 0);
-  assert.ok(dash.actHtml(it, { act: 'confirm' }).indexOf('id="db-cf"') >= 0);
+  assert.ok(dash.actHtml(it, { act: 'confirm', board: true }).indexOf('>제안 사전준비</button>') >= 0 && dash.actHtml(it, { act: 'confirm', board: true }).indexOf('id="db-cf"') >= 0);
   assert.ok(dash.actHtml(it, { act: 'open' }).indexOf('id="db-open"') >= 0);
   const none = dash.actHtml(it, { act: 'none', role: '영업부장' });
-  assert.ok(none.indexOf('제안 확정은 영업팀·영업팀장이 합니다.') >= 0 && none.indexOf('id="db-cf"') < 0);
-  const cf = dash.actHtml(it, { act: 'confirm', confirm: true });
+  assert.ok(none.indexOf('제안 사전준비는 영업팀·영업팀장이 합니다.') >= 0 && none.indexOf('id="db-cf"') < 0);
+  const cf = dash.actHtml(it, { act: 'confirm', confirm: true, board: true });
   assert.ok(cf.indexOf('부산광역시를 제안 대상으로 확정합니다.') >= 0);
   assert.ok(cf.indexOf('id="db-do"') >= 0 && cf.indexOf('id="db-cancel"') >= 0);
 });
 
-test('actHtml(11-19 4-3): 공고 전(early) 확정 확인은 한 상자 안 경고 + [계속 진행], 일반 확인은 그대로', function () {
+test('actHtml(11-25): 확정 확인 상자 = 본문 1·2(+공고 전이면 평문 본문 3), 굵은 경고·[계속 진행]·주황 테두리 없음, [확정하고 이동]', function () {
   const it = dash.model([rec('부산광역시', '26', 40)], TODAY).upcoming[0];
-  const e = dash.actHtml(it, { act: 'confirm', confirm: true, early: true });
-  assert.ok(e.indexOf('class="db-confirm early" role="group" aria-labelledby="db-cf-t"') >= 0);
-  assert.ok(e.indexOf('<span id="db-cf-t"><b class="db-cf-warn">아직 공고 확인 전입니다. 계속 진행하시겠습니까?</b>부산광역시를 제안 대상으로 확정합니다.') >= 0);
-  assert.ok(e.indexOf('id="db-do">계속 진행</button><button type="button" id="db-cancel">취소</button>') >= 0 && e.indexOf('확정하기') < 0);
-  assert.ok(dash.actHtml(it, { act: 'confirm', confirm: true, early: true, busy: true }).indexOf('id="db-do" disabled>계속 진행') >= 0);
-  const n = dash.actHtml(it, { act: 'confirm', confirm: true });
-  assert.ok(n.indexOf('class="db-confirm" role="group"') >= 0 && n.indexOf('db-cf-warn') < 0 && n.indexOf('early') < 0 && n.indexOf('id="db-do">확정하기</button>') >= 0);
-  assert.ok(dash.actHtml(it, { act: 'later', confirm: true, early: true }).indexOf('db-confirm') < 0);          // 관심·다른 해 목표는 act가 later라 상자가 안 열린다
-  const closed = dash.actHtml(it, { act: 'confirm', early: true });                                              // 상자 전: 기존 안내 한 줄 + [제안 확정]
+  const e = dash.actHtml(it, { act: 'confirm', confirm: true, early: true, board: true });
+  assert.ok(e.indexOf('class="db-confirm" role="group" aria-labelledby="db-cf-t" aria-describedby="db-cf-d"') >= 0);
+  assert.ok(e.indexOf('<span id="db-cf-t">부산광역시를 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안 준비 현황]의 이 기관 화면으로 넘어갑니다. 그 화면에서 담당자를 정하면 사전준비가 시작되고, 영업팀장(팀장이 직접 시작하면 영업부장)에게 알림이 갑니다.</span>') >= 0);
+  assert.ok(e.indexOf('<span class="db-cf-b" id="db-cf-d">아직 입찰 공고 전인 기관입니다. 공고가 나면 일정을 다시 확인하세요.</span>') >= 0);
+  assert.ok(e.indexOf('id="db-do">확정하고 이동</button><button type="button" id="db-cancel">취소</button>') >= 0);
+  ['계속 진행', '확정하기', 'db-cf-warn', 'early', '아직 공고 확인 전입니다', '개설 신청', '취소할 수 있습니다'].forEach(function (s) { assert.ok(e.indexOf(s) < 0, s); });
+  assert.ok(dash.actHtml(it, { act: 'confirm', confirm: true, early: true, board: true, busy: true }).indexOf('id="db-do" disabled>확정하는 중…</button>') >= 0);
+  const n = dash.actHtml(it, { act: 'confirm', confirm: true, board: true });   // 공고 후: 본문 3 없음
+  assert.ok(n.indexOf('class="db-confirm" role="group" aria-labelledby="db-cf-t"><span') >= 0 && n.indexOf('db-cf-d') < 0 && n.indexOf('공고 전인 기관') < 0 && n.indexOf('id="db-do">확정하고 이동</button>') >= 0);
+  assert.ok(dash.actHtml(it, { act: 'later', confirm: true, early: true, board: true }).indexOf('db-confirm') < 0);          // 관심·다른 해 목표는 act가 later라 상자가 안 열린다
+  assert.ok(dash.actHtml(it, { act: 'confirm', confirm: true, early: true }).indexOf('db-confirm') < 0);   // 현황판 밖에는 상자 자체가 없다
+  const closed = dash.actHtml(it, { act: 'confirm', early: true, board: true });                          // 상자 전: 안내 한 줄 + [제안 사전준비]
   assert.ok(closed.indexOf('id="db-cf"') >= 0 && closed.indexOf(dash.EARLY_WHY) >= 0 && closed.indexOf('db-cf-warn') < 0);
+  assert.strictEqual(dash.PREP_CONFIRM_GO, '확정하고 이동');
+  assert.strictEqual(dash.EARLY_ASK, undefined);
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert.ok(html.indexOf('.db-confirm .db-cf-warn { display:block; font-weight:700;') > 0 && /\.db-confirm\.early \{ border-style:solid; border-color:var\(--orange\); background:color-mix\(in srgb, var\(--orange\) 8%, var\(--panel\)\); \}/.test(html));
+  assert.ok(html.indexOf('.db-cf-warn') < 0 && html.indexOf('.db-confirm.early') < 0 && html.indexOf('.db-confirm .db-cf-b { display:block;') > 0);
   const k = fs.readFileSync(path.join(ROOT, 'js', 'dashboard.js'), 'utf8');
-  assert.ok(k.indexOf("case 'db-do': doConfirm(); break;") > 0 && k.indexOf("case 'db-do': dmDoConfirm(m); break;") > 0);   // 버튼 id가 같아 클릭·Esc 처리는 그대로
+  assert.ok(k.indexOf('doConfirm') < 0 && k.indexOf("case 'db-do': dmDoConfirm(m); break;") > 0);   // 입찰 공고 현황(상세 칸)의 확정 경로는 없어졌고, 현황판 팝업만 db-do를 처리한다
+  assert.ok(k.indexOf("case 'db-board': { const it = findItem(st.sel); if (!(it && dash.openBoard(it.rec)))") > 0 && k.indexOf("case 'db-board': if (dash.openBoard(m.rec)) dash.closeDetail(false);") > 0);
+});
+
+test('actHtml/actParts(11-25 A): 현황판 밖 화면 = [입찰 현황판에서 열기](목표 기관이면 앞에 칩), 현황판(board)만 [제안 사전준비]', function () {
+  const it = dash.model([rec('부산광역시', '26', 40)], TODAY).upcoming[0];
+  const off = dash.actHtml(it, { act: 'confirm' });
+  assert.ok(off.indexOf('<button type="button" id="db-board" aria-label="부산광역시 입찰 현황판에서 열기">입찰 현황판에서 열기</button><span class="db-why">목표 기관이 아닙니다. 입찰 현황판의 [목표 기관 추가]로 넣은 뒤 제안 사전준비를 합니다.</span>') >= 0 && off.indexOf('db-goalchip') < 0 && off.indexOf('id="db-cf"') < 0);
+  const goal = dash.actHtml(it, { act: 'confirm', goal: true });
+  assert.ok(goal.indexOf('<span class="db-goalchip"><svg class="ck"') >= 0 && goal.indexOf('</svg>목표 기관</span><button type="button" id="db-board"') >= 0);
+  const pOff = dash.actParts(it, { act: 'confirm', goal: true });
+  assert.ok(pOff.main.indexOf('id="db-board"') >= 0 && pOff.main.indexOf('db-goalchip') >= 0 && pOff.confirm === '' && pOff.why === '');
+  const pBoard = dash.actParts(it, { act: 'confirm', board: true });
+  assert.ok(pBoard.main.indexOf('id="db-cf">제안 사전준비</button>') >= 0 && pBoard.main.indexOf('db-board') < 0);
+  const pBox = dash.actParts(it, { act: 'confirm', board: true, confirm: true, early: true });
+  assert.ok(pBox.main.indexOf('id="db-cf" disabled>제안 사전준비</button>') >= 0 && pBox.confirm.indexOf('id="dm-confirm"') >= 0 && pBox.confirm.indexOf('공고 전인 기관') >= 0);
+  assert.ok(dash.actParts(it, { act: 'open' }).main.indexOf('id="db-open"') >= 0);   // 사전준비 중은 [사전준비 열기] 그대로(현황판 밖에서도)
+  assert.ok(dash.actHtml(it, { act: 'confirm', board: true }).indexOf('제안 확정') < 0);   // 단추 이름에 옛 말이 없다
+  const k = fs.readFileSync(path.join(ROOT, 'js', 'dashboard.js'), 'utf8');
+  assert.ok(k.indexOf("board: m.screen === 'bid_board'") > 0 && k.indexOf('dash.openBoard = function (rec)') > 0 && k.indexOf('K.revealGoal(rec.institutionId)') > 0);   // 현황판 상세 팝업만 board
+  const kb = fs.readFileSync(path.join(ROOT, 'js', 'kbboard.js'), 'utf8');
+  assert.ok(kb.indexOf('kbb.revealGoal = function (id)') > 0 && kb.indexOf('if (tc.selCount(gs.sel) === 0 && tc.pickable(r))') > 0);   // 고른 기관이 0곳일 때만 그 줄을 골라 둔다
 });
 
 test('josaEul: 받침 유무', function () {

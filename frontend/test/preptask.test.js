@@ -242,6 +242,9 @@ test('bodyHtml 담당자 지정: 확정 단계면 [개설 신청], 승인 대기
   // 결재 없는 시작(can_start_prep): [담당자 지정], 옛 [개설 신청] 단추는 없다
   const s = pt.bodyHtml(model(view('CONFIRMED', { viewer: { can_start_prep: true, can_request_open: false } }), 0));
   assert.ok(/data-act="prep-start-open"/.test(s) && !/open-request-open/.test(s) && s.indexOf(pt.T.startHint) >= 0);
+  // 스위치 켬({can_start_prep:false, can_request_open:true}): 옛 [개설 신청]과 옛 과제 자리 문구
+  const sw = pt.bodyHtml(model(view('CONFIRMED', { viewer: { can_start_prep: false, can_request_open: true } }), 0));
+  assert.ok(/data-act="open-request-open"/.test(sw) && !/prep-start-open/.test(sw));
 });
 
 test('bodyHtml 과제 단계: 그 단계에 걸린 과제만, 체크 단추는 prep.js 동작 이름 그대로', function () {
