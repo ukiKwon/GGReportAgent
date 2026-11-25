@@ -41,14 +41,14 @@
     scopeDept: '부서 작업',
     scopeNote: '팀 작업·부서 작업에는 개설 승인(팀장 결재)이 끝난 기관만 나옵니다. 개설 전 기관은 내 작업에서 봅니다.',
     teamUnresolved: '상위 결재자(소속 팀장)가 지정되지 않아 팀 작업에 내가 담당한 기관만 나옵니다. 시스템 관리자에게 상위 결재자 지정을 요청하세요.',
-    emptyMine: '내가 제안 확정했거나 담당한 기관이 없습니다. 지역별 공고현황에서 공고가 난 기관을 고르고 [제안 확정]을 누르면 여기에 생깁니다.',
+    emptyMine: '내가 제안 확정했거나 담당한 기관이 없습니다. 입찰 현황판에서 목표 기관을 고르고 [제안 확정]을 누르면 여기에 생깁니다.',
     emptyTeam: '팀에 개설 승인이 끝난 기관이 없습니다. 개설 전 기관은 내 작업에서 봅니다.',
     emptyTeamSolo: '내가 담당한 기관 중 개설 승인이 끝난 곳이 없습니다. 개설 전 기관은 내 작업에서 봅니다.',
     emptyDept: '부서에 개설 승인이 끝난 기관이 없습니다. 개설 전 기관은 내 작업에서 봅니다.',
     seeMine: '내 작업 보기',
     seeTeam: '팀 작업 보기',
     clearQ: '검색 지우기',
-    openMap: '지역별 공고현황 열기',
+    openMap: '입찰 현황판 열기',
     readOnly: '지금 계정이 담당한 기관이 없어 보기만 합니다. 체크는 각 기관의 담당 영업이 합니다.',
     all: '전체',   // headModel이 묶음 이름과 같은 하위 칸 이름으로 쓴다(조회 범위와 무관)
     chipMine: '내 담당',
@@ -276,7 +276,7 @@
     return '기관 <b>' + Number(m.shown) + '</b>곳' + (m.filtered ? ' 중 <b>' + Number(m.total) + '</b>곳' : '');
   };
   // 빈 표 안내 → null(표를 그린다) | { kind, text, actions:[{act,label}] }. f: { q, scope, teamResolved }
-  // act: map(지역별 공고현황) · scope-mine · scope-team(범위 바꿔 다시 불러옴) · clearq(검색어만 지움, 범위 유지)
+  // act: map(입찰 현황판 열기 — act 이름은 옛 것) · scope-mine · scope-team(범위 바꿔 다시 불러옴) · clearq(검색어만 지움, 범위 유지)
   pb.emptyModel = function (total, shown, f) {
     const scope = f && pb.scopeValid(f.scope) ? f.scope : 'mine';
     if (total === 0) {

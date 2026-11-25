@@ -655,6 +655,22 @@ test('담당자 지정 모달: 제목·안내·실행 단추, 승인 팀장 칸 
   assert.strictEqual(prep.modalGoLabel('open', true), '사전준비 시작');
 });
 
+test('담당자 지정 제출이 POST /bidcases/X/prep/start 로 나간다(base()가 이미 /prep — 11-25 qa 404)', function () {
+  // prep.js의 제출부는 내보내지 않아 가짜 요청을 꽂을 수 없다 → 소스에서 주소 조립을 단언한다.
+  const base = /function base\(id\) \{ return '(\/bidcases\/)' \+ encodeURIComponent\(id\) \+ '(\/prep)'; \}/.exec(SRC);
+  assert.ok(base, 'base()는 /bidcases/{id}/prep');
+  const call = /req\('POST', base\(S\.selected\) \+ '([^']*)', body, ui\('prep_detail', 'open_start'\)\)/.exec(SRC);
+  assert.ok(call, '담당자 지정 제출 호출을 찾는다');
+  assert.strictEqual('/bidcases/X' + base[2] + call[1], '/bidcases/X/prep/start');
+  assert.ok(!/base\([^)]*\)\s*\+\s*'\/prep\//.test(SRC), 'base(...) 뒤에 /prep/ 를 또 붙이지 않는다');
+});
+
+test('빈 상태 안내: 제안 확정은 입찰 현황판에서만 — 지역별 공고현황 안내 없음, 단추는 입찰 현황판으로', function () {
+  assert.ok(prep.T.emptyActive.indexOf('입찰 현황판에서') > 0 && prep.T.emptyActive.indexOf('지역별 공고현황') < 0);
+  assert.strictEqual(prep.T.openMap, '입찰 현황판 열기');
+  assert.ok(!/openNavItem\('map'\)/.test(SRC), '지도로 가는 이동 코드가 없다');
+});
+
 test('errorInfo(prepstart): 시작 오류 문구, 서버 message는 그대로 넘기고 모달 안에 머문다', function () {
   const e = function (status, detail) { return prep.errorInfo(status, detail, [], 'prepstart'); };
   const n = e(409, { code: 'NOTIFY_TARGET_NOT_RESOLVED', message: '서버 문구' });

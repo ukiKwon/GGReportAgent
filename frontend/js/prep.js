@@ -40,10 +40,10 @@
     forbidden: function (roleLabel) {
       return '이 화면은 영업팀·영업팀장·영업부장이 쓰는 화면입니다. 지금 계정(' + (roleLabel || '소속 없음') + ')으로는 볼 수 없습니다.';
     },
-    emptyActive: '제안 확정한 기관이 없습니다. 지역별 공고현황에서 공고가 난 기관을 고르고 [제안 확정]을 누르면 여기에 나타납니다.',
+    emptyActive: '제안 확정한 기관이 없습니다. 입찰 현황판에서 목표 기관을 고르고 [제안 확정]을 누르면 여기에 나타납니다.',
     emptyClosed: '취소하거나 중단한 건이 없습니다.',
     emptyQuery: function (q) { return '\'' + q + '\'와 맞는 기관이 없습니다.'; },
-    openMap: '지역별 공고현황 열기',
+    openMap: '입찰 현황판 열기',
     pick: '왼쪽 목록에서 기관을 고르세요. 진행 단계와 준비 과제가 여기에 보입니다.',
     noView: '이 건의 상세를 볼 수 없습니다. 영업팀장·영업부장은 모든 건을, 영업팀은 확정됨 건(승인 대기 중에는 신청자도)을, 그 밖에는 담당자(중단된 건은 옛 담당자)만 볼 수 있습니다.',
     noViewShort: '열람 권한 없음',
@@ -1118,7 +1118,7 @@
   function boardHooks() {
     const role = myRole();
     return { req: req, roleLabel: root.roles ? root.roles.roleLabel(role) : role, openCase: enterCase,
-             openMap: function () { if (root.app && root.app.openNavItem) root.app.openNavItem('map'); } };
+             openMap: function () { goNav('board'); } };   // 이름은 옛 것 — 이제 입찰 현황판으로 간다(제안 확정은 현황판에서만)
   }
   // 표의 기관 이름 → 같은 자리에서 상세. 상세를 여는 요청의 화면 이름은 prep_dashboard.
   function enterCase(bid, name, bd) {
@@ -1557,7 +1557,7 @@
   // 단계 본문의 이동 단추 → 다른 메뉴 화면
   function goNav(name) {
     const N = root.nav || {};
-    const id = { board: N.DASH_ID, map: 'map', notice: N.NOTICE_ID, team: N.TEAM_ID }[name];
+    const id = { board: N.DASH_ID, notice: N.NOTICE_ID, team: N.TEAM_ID }[name];
     if (id && root.app && root.app.openNavItem) root.app.openNavItem(id);
   }
   // [이전]/[다음] — 누른 단추에 포커스를 남긴다(연달아 누를 수 있게). 끝에서 그 단추가 꺼지면 반대 단추로.
@@ -1980,7 +1980,7 @@
           return req('POST', base(S.selected) + '/assignees/change', { add_emp_nos: d.add, remove_emp_nos: d.remove, reason: reason }, ui('prep_detail', 'assignee_change'));
         }, T.okChangeReq, { modal: true, focusTitle: true, where: 'change' });
       } else if (m.direct) {
-        doAct(function () { return req('POST', base(S.selected) + '/prep/start', body, ui('prep_detail', 'open_start')); },
+        doAct(function () { return req('POST', base(S.selected) + '/start', body, ui('prep_detail', 'open_start')); },
           T.okPrepStart, { modal: true, focusTitle: true, where: 'prepstart' });
       } else {
         doAct(function () { return req('POST', base(S.selected) + '/open-requests', body, ui('prep_detail', 'open_request')); },
@@ -2138,7 +2138,7 @@
     const act = t.getAttribute('data-act');
     const cd = t.getAttribute('data-task');
     switch (act) {
-      case 'open-map': if (root.app && root.app.openNavItem) root.app.openNavItem('map'); return;
+      case 'open-map': goNav('board'); return;
       case 'ts-phase': {
         const c = stepCtx(), ph = t.getAttribute('data-ph');
         if (c) selectStep(c.pt.phaseEntryIdx(ph, c.v, c.row, c.marks), '.ts-phase[data-ph="' + ph + '"]');

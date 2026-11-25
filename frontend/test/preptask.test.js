@@ -419,8 +419,8 @@ test('bodyHtml 입찰공고확인: 기관정보 내용(읽기 전용)·누락 �
   const g = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { row: todoRow, notice: { state: 'ok', html: '<div class="db-sec">공고 진행</div>', gaps: ['공고 링크 없음'] } }));
   assert.ok(g.indexOf('확인이 필요한 항목 1건') > 0 && g.indexOf('<li>공고 링크 없음</li>') > 0 && g.indexOf(pt.T.noticeGapsNo) > 0);
   assert.ok(g.indexOf('<div class="ts-notice"><div class="db-sec">공고 진행</div></div>') > 0);
-  assert.strictEqual((g.match(/data-act="go-nav"/g) || []).length, 3);
-  assert.ok(/data-nav="board">입찰 현황판</.test(g) && /data-nav="map">지역별 공고현황</.test(g) && /data-nav="notice">입찰 공고 현황</.test(g));
+  assert.strictEqual((g.match(/data-act="go-nav"/g) || []).length, 2);
+  assert.ok(/data-nav="board">입찰 현황판</.test(g) && /data-nav="notice">입찰 공고 현황</.test(g) && !/data-nav="map"/.test(g) && g.indexOf('지역별 공고현황') < 0);
   assert.ok(!/data-act="mark"/.test(g), '이 단계에서는 고치지 않는다');
   const ok = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { row: todoRow, notice: { state: 'ok', html: '', gaps: [] } }));
   assert.ok(ok.indexOf('누락되거나 미확인인 항목이 없습니다. [다음]을 누르면') > 0 && ok.indexOf('확인이 필요한 항목') < 0);

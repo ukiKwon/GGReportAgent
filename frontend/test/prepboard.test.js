@@ -259,7 +259,7 @@ test('countHtml·emptyModel·readOnlyAll', function () {
   // 빈 결과 6-4: 범위별 문구·단추
   const m0 = pb.emptyModel(0, 0, { scope: 'mine' });
   assert.strictEqual(m0.text, pb.T.emptyMine);
-  assert.strictEqual(acts(m0), 'map:지역별 공고현황 열기|scope-team:팀 작업 보기');
+  assert.strictEqual(acts(m0), 'map:입찰 현황판 열기|scope-team:팀 작업 보기');
   assert.deepStrictEqual(pb.emptyModel(0, 0, {}), m0, '범위를 모르면 내 작업');
   const mt = pb.emptyModel(0, 0, { scope: 'team' });
   assert.strictEqual(mt.text, '팀에 개설 승인이 끝난 기관이 없습니다. 개설 전 기관은 내 작업에서 봅니다.');
@@ -280,7 +280,7 @@ test('countHtml·emptyModel·readOnlyAll', function () {
   assert.strictEqual(pb.emptyModel(5, 0, { q: '진주', scope: 'dept' }).text, '부서 작업에서 \'진주\'와 맞는 기관이 없습니다.');
   assert.strictEqual(pb.emptyModel(5, 0, { q: '북구', scope: 'mine' }).text, '내 작업에서 \'북구\'와 맞는 기관이 없습니다.');
   assert.strictEqual(pb.emptyModel(5, 0, { q: '강남', scope: 'mine' }).text, '내 작업에서 \'강남\'과 맞는 기관이 없습니다.');
-  assert.ok(pb.T.emptyMine.indexOf('[제안 확정]') > 0 && pb.T.openMap === '지역별 공고현황 열기');
+  assert.ok(pb.T.emptyMine.indexOf('[제안 확정]') > 0 && pb.T.openMap === '입찰 현황판 열기' && pb.T.emptyMine.indexOf('입찰 현황판에서') > 0 && pb.T.emptyMine.indexOf('지역별 공고현황') < 0);
   assert.strictEqual(pb.T.all, '전체', 'headModel이 쓰는 T.all은 남긴다');
   assert.strictEqual(pb.readOnlyAll([row({ can_check: false }), row({ can_check: false })]), true);
   assert.strictEqual(pb.readOnlyAll([row({ can_check: false }), row({ can_check: true })]), false);
