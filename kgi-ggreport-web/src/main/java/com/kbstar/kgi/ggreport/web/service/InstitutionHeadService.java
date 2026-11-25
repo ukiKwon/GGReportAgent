@@ -216,6 +216,12 @@ public class InstitutionHeadService {
         return i.getValText();
     }
 
+    /** 경력 현직 — VAL_FLAG=1 이고 끝(VAL_TO)이 비었다. 0·NULL(현직 표시 도입 11-25 이전 행)은 현직 아님(끝이 비면 '미상'). */
+    static boolean isCurrent(InstHeadItem i) {
+        return "CAREER".equals(i.getFieldCd()) && i.getValFlag() != null && i.getValFlag() == 1
+                && (i.getValTo() == null || i.getValTo().trim().isEmpty());
+    }
+
     private static Map<String, Object> sourceMap(InstHeadItem i) {
         Map<String, Object> s = new LinkedHashMap<>();
         s.put("kind", i.getSrcKindCd());
@@ -234,6 +240,9 @@ public class InstitutionHeadService {
         m.put("value", valueOf(i));
         m.put("from", i.getValFrom());
         m.put("to", i.getValTo());
+        if ("CAREER".equals(i.getFieldCd())) {
+            m.put("current", isCurrent(i));   // 경력 항목에만 — 학력 등에는 키가 없다
+        }
         m.put("source", sourceMap(i));
         m.put("origin", i.getOriginCd());
         m.put("created_by", i.getCreatedBy());
@@ -349,6 +358,9 @@ public class InstitutionHeadService {
     /** 칸 종류별 값을 검사해 item 에 채운다(형식 오류 400). 금지 내용 검사는 호출자가 한다. 채운 글자 값을 돌려준다(없으면 null). */
     private static String fillValue(InstHeadItem i, HeadIn.Item in) {
         String f = i.getFieldCd();
+        if (Boolean.TRUE.equals(in.getCurrent()) && !"CAREER".equals(f)) {   // 현직 표시는 경력에만(기획 11-25 — 학력에는 현직 개념이 없다)
+            throw coded(400, "BAD_VALUE", "'지금도 이 자리에 있음'은 경력에만 표시할 수 있습니다.");
+        }
         if ("NAME".equals(f)) {
             i.setValText(HeadText.requireLine("name", in.getValue(), 30, true));
         } else if ("POSITION".equals(f)) {
@@ -367,6 +379,11 @@ public class InstitutionHeadService {
             i.setValFrom(HeadText.requireStart(in.getFrom()));   // 시작 필수, YYYY 또는 YYYY-MM(사용자 11-20 필수·11-24 연도만 허용)
             i.setValTo(HeadText.requirePeriod("to", in.getTo()));
             requireOrder(i);
+            boolean current = Boolean.TRUE.equals(in.getCurrent());
+            if (current && i.getValTo() != null) {   // 현직이면 끝을 비운다(끝이 있으면 현직이 아니다)
+                throw coded(400, "INVALID_DATE", "지금도 이 자리에 있으면 끝을 비워 두세요.");
+            }
+            i.setValFlag(current ? 1 : 0);   // 경력: 1 현직 / 0 아님(끝이 비면 '미상'). NULL 은 현직 표시 도입(11-25) 이전 행 — 현직 아님으로 읽는다
         } else if ("ACTING".equals(f)) {
             Integer flag = in.getFlag();
             if (flag == null || (flag != 0 && flag != 1)) {

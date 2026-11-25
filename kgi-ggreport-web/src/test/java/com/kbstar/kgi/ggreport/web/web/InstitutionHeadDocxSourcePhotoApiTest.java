@@ -87,6 +87,10 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
                 + "\"from\":\"" + from + "\"" + (to == null ? "" : ",\"to\":\"" + to + "\"") + ",\"source\":" + source() + "}";
     }
 
+    private static String currentCareer(long head, String value, String from) {
+        return "{\"head_id\":" + head + ",\"field_cd\":\"CAREER\",\"value\":\"" + value + "\",\"from\":\"" + from + "\",\"current\":true,\"source\":" + source() + "}";
+    }
+
     private static final String[] FORBIDDEN = {"출처", "「", "확인일", "이용 조건", "공공누리", "w:val=\"superscript\"", "vertAlign"};
 
     /** 문서에는 출처·번호·이용 조건 글자가 없다(사용자 11-23: 웹 화면에서만 표기). */
@@ -220,8 +224,9 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
     public void 학력과_경력은_최근_것부터_나오고_날짜_포함이면_내용_뒤_괄호가_붙는다() throws Exception {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
         addItemOk(INST, L1, periodItem(head, "CAREER", "경력옛날A", "2001-01", "2005-12"), 201);
-        addItemOk(INST, L1, periodItem(head, "CAREER", "경력진행중B", "2019-07", null), 201);
+        addItemOk(INST, L1, currentCareer(head, "경력진행중B", "2019-07"), 201);
         addItemOk(INST, L1, periodItem(head, "CAREER", "경력최근C", "2010-03", "2018-12"), 201);
+        addItemOk(INST, L1, periodItem(head, "CAREER", "경력미상D", "2015-01", null), 201);
         addItemOk(INST, L1, periodItem(head, "EDU", "학력먼저E", "1990-03", "1994-02"), 201);
         addItemOk(INST, L1, periodItem(head, "EDU", "학력나중F", "1996-03", "1998-02"), 201);
 
@@ -229,7 +234,8 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         assertEquals(text(r), 200, r.getResponse().getStatus());
         String xml = documentXml(bytes(r));
         assertTrue("현재 진행이 맨 위", xml.indexOf("경력진행중B") < xml.indexOf("경력최근C"));
-        assertTrue(xml.indexOf("경력최근C") < xml.indexOf("경력옛날A"));
+        assertTrue(xml.indexOf("경력최근C") < xml.indexOf("경력미상D") && xml.indexOf("경력미상D") < xml.indexOf("경력옛날A"));
+        assertTrue("끝 모름은 (A ~ 미상)", xml.contains("경력미상D(2015.01 ~ 미상)"));
         assertTrue(xml.indexOf("학력나중F") < xml.indexOf("학력먼저E"));
         assertTrue("진행 중은 (A ~ 현재)", xml.contains("경력진행중B(2019.07 ~ 현재)"));
         assertTrue("괄호 안 연월", xml.contains("경력최근C(2010.03 ~ 2018.12)"));
@@ -238,6 +244,23 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         assertFalse("저장 형식 없음", xml.contains("2019-07") || xml.contains("2010-03"));
         String sum = documentXml(bytes(docx()));   // 요약본(기본): 날짜 없음
         assertTrue(squareLine(sum, "경력최근C") && !sum.contains("2010.03") && !sum.contains("경력최근C("));
+    }
+
+    @Test
+    public void 요약본_Word에는_현직_미상_학력_연도가_한_글자도_없다() throws Exception {
+        long head = addHeadOk(INST, L1, "홍길동", "구청장");
+        addItemOk(INST, L1, currentCareer(head, "가람구청장", "2026-07"), 201);
+        addItemOk(INST, L1, periodItem(head, "CAREER", "가람시 기획관", "2018", null), 201);
+        addItemOk(INST, L1, periodItem(head, "EDU", "가람고등학교 졸업", "2010", null), 201);
+        addItemOk(INST, L1, "{\"head_id\":" + head + ",\"field_cd\":\"EDU\",\"value\":\"나래대학교 졸업\",\"source\":" + source() + "}", 201);
+        MvcResult r = docx();   // 기본 = 요약본
+        assertEquals(text(r), 200, r.getResponse().getStatus());
+        String xml = documentXml(bytes(r));
+        assertFalse(xml.contains("현재") || xml.contains("미상"));
+        for (String v : new String[]{"가람구청장", "가람시 기획관", "가람고등학교 졸업", "나래대학교 졸업"}) {
+            assertTrue(v, squareLine(xml, v + "</w:t>"));   // 내용 바로 뒤에서 run 이 끝난다 = 괄호·날짜 없음
+        }
+        assertFalse("학력·경력 날짜 없음", xml.contains("2010") || xml.contains("2018") || xml.contains("2026.07") || xml.contains("2026-07"));
     }
 
     /** '■' run → 탭 run → 본문 run 순서(디자인 11-25: ■ 뒤 공백 대신 탭). text 는 본문 run 의 앞부분. */

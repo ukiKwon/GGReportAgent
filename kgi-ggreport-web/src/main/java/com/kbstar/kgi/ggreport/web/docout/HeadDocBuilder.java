@@ -22,7 +22,7 @@ import java.util.Set;
  * 기관장 정보 상세({@code InstitutionHeadService.detail} 결과) → 문서 모델(NEXT 100 S1).
  * 사용자 참고 양식(11-20): 쪽 테두리, 가운데·굵게·밑줄 제목 「{기관명} {이름} {직위} Profile」(22pt), 왼쪽 사진·오른쪽 ■ 줄(14pt, 테두리 없는 표),
  * [ 학 력 ]·[ 경 력 ](16pt 굵게). 학력·경력은 표 없이 한 줄씩 '■ 내용'(12pt, ■ 뒤 한 칸, 줄바꿈하면 내어쓰기)이다(사용자 11-24).
- * 기본(요약본)은 날짜가 없고, 날짜 포함 모드는 내용 바로 뒤 괄호에 '(2018.07 ~ 2022.06)'·'(2018)'·'(2018.07 ~ 현재)'·'(2026.01)'을 붙인다 — 확인 안 되는 날짜는 적지 않는다.
+ * 기본(요약본)은 날짜가 없고, 날짜 포함 모드는 내용 바로 뒤 괄호에 '(2018.07 ~ 2022.06)'·'(2018)'·'(2026.07 ~ 현재)'(경력 현직만)·'(2018 ~ 미상)'(끝을 모름)·'(2026.01)'을 붙인다 — 확인 안 되는 날짜는 적지 않는다.
  * 글자 크기는 줄이지 않는다(사용자 11-23). 확정된 칸만 쓰고, 값이 없는 절은 머리째 생략한다.
  * <b>출처·이용 조건·기준일·안내 문구는 문서에 쓰지 않는다</b>(사용자 11-23: 웹 화면에서만). 사진을 못 넣은 사정은 문서가 아니라
  * 응답 머리 X-Head-Photo(included|none|failed)로 알린다 — {@link Built#photoStatus()}.
@@ -499,7 +499,7 @@ public final class HeadDocBuilder {
         return out;
     }
 
-    /** 한 줄 글자('■ ' 제외). 요약본은 내용만, 날짜 포함은 내용 + 괄호(앞 공백 없음) — 사용자 11-24 '마산공업고등학교 졸업(2026.01)'. */
+    /** 한 줄 글자('■ ' 제외). 요약본은 내용만 — '현재'·'미상'·연도·연월·괄호를 한 글자도 붙이지 않는다(사용자 11-24·11-25 재확인). 날짜 포함은 내용 + 괄호(앞 공백 없음) — 사용자 11-24 '마산공업고등학교 졸업(2026.01)'. */
     static String lineText(Map<String, Object> it, boolean withDates) {
         String v = str(it.get("value")).trim();
         return withDates ? v + datesOf(it) : v;
@@ -507,7 +507,8 @@ public final class HeadDocBuilder {
 
     /**
      * 날짜 괄호. 저장값 YYYY / YYYY-MM(-DD) 를 연도 또는 'YYYY.MM'(일은 버림)으로. 형식 밖 값은 '확인 안 됨'으로 보아 적지 않는다.
-     * 둘 다: '(A ~ B)', 같으면 '(A)' · 시작만: '(A ~ 현재)' · 끝만: '(B)' · 둘 다 없음: "".
+     * 둘 다: '(A ~ B)', 같으면 '(A)' · 시작만: 경력 현직이면 '(A ~ 현재)', 그 밖(학력 포함)은 '(A ~ 미상)' · 끝만: '(B)' · 둘 다 없음: "".
+     * 확인하지 않은 '현재'를 주장하지 않는다(기획 11-25 원칙 1) — 현직은 상세의 current=true 인 줄뿐이다.
      */
     private static String datesOf(Map<String, Object> it) {
         String from = dateText(str(it.get("from")));
@@ -516,9 +517,14 @@ public final class HeadDocBuilder {
             return from.equals(to) ? "(" + from + ")" : "(" + from + " ~ " + to + ")";
         }
         if (!from.isEmpty()) {
-            return "(" + from + " ~ 현재)";
+            return "(" + from + (isCurrent(it) ? " ~ 현재)" : " ~ 미상)");
         }
         return to.isEmpty() ? "" : "(" + to + ")";
+    }
+
+    /** 현직 줄 — current 가 참이고 끝이 비었다(끝이 있으면 현직으로 보지 않는다). 학력에는 서버가 current 를 싣지 않는다. */
+    static boolean isCurrent(Map<String, Object> it) {
+        return Boolean.TRUE.equals(it.get("current")) && str(it.get("to")).trim().isEmpty();
     }
 
     private static String dateText(String raw) {
@@ -536,7 +542,7 @@ public final class HeadDocBuilder {
         return s.matches("\\d{4}-\\d{2}-\\d{2}") ? s.replace('-', '.') : ym(s);
     }
 
-    /** 최근 것이 위로 — 끝 연월이 없으면 현재 진행으로 보아 맨 위(시작도 없으면 맨 아래). 키(연도만은 ymKey로 맞춤)·문자열 비교·안정 정렬 모두 headcard.js sortPeriod 와 같다. */
+    /** 최근 것이 위로 — 현직은 맨 위, 끝난 줄은 끝 연월, 끝 미상은 시작 연월로 끝난 줄과 섞고, 날짜가 없으면 맨 아래. 키(연도만은 ymKey로 맞춤)·문자열 비교·안정 정렬 모두 headcard.js sortPeriod 와 같아야 한다. */
     private static List<Map<String, Object>> sortPeriod(List<Map<String, Object>> in) {
         List<Map<String, Object>> out = new ArrayList<Map<String, Object>>(in);
         Collections.sort(out, new Comparator<Map<String, Object>>() {   // Collections.sort 는 안정 정렬
@@ -551,7 +557,17 @@ public final class HeadDocBuilder {
     private static String sortKey(Map<String, Object> it) {
         String from = str(it.get("from")).trim();
         String to = str(it.get("to")).trim();
-        return (!to.isEmpty() ? ymKey(to, true) : (!from.isEmpty() ? "9999-99" : "0000-00")) + "|" + ymKey(from, false);
+        String head;
+        if (isCurrent(it)) {
+            head = "9999-99";              // 현직 — 맨 위, 1장 맞춤에서 가장 늦게 빠진다
+        } else if (!to.isEmpty()) {
+            head = ymKey(to, true);        // 끝난 줄 — 끝 연월
+        } else if (!from.isEmpty()) {
+            head = ymKey(from, false);     // 끝 미상 — 시작 연월로 끝난 줄과 섞는다(빼는 순서도 같다)
+        } else {
+            head = "0000-00";              // 날짜 없음 — 맨 아래, 가장 먼저 빠진다
+        }
+        return head + "|" + ymKey(from, false);
     }
 
     /** 정렬용 — 연도만이면 끝은 YYYY-12, 시작은 YYYY-01 로 맞춘다(headcard.js ym() 과 같은 규칙, 사용자 11-24 연도 허용 · qa a910bf7a P3-1). */
@@ -568,8 +584,8 @@ public final class HeadDocBuilder {
     }
 
     /**
-     * 1장 맞춤에서 뺄 줄 — 표 순서({@link #sortPeriod}, 끝 연월 내림차순)의 맨 아래 줄. 끝이 빈 현직 줄은 맨 위라 마지막까지 남고
-     * (qa 11-23 P2-1: 시작 기준이면 오래전에 시작한 현직이 먼저 빠짐), 날짜가 전혀 없는 줄은 맨 아래라 가장 먼저 빠진다. 같으면 표에서 더 아래 줄.
+     * 1장 맞춤에서 뺄 줄 — 표 순서({@link #sortPeriod})의 맨 아래 줄. 현직 줄(current)은 맨 위라 마지막까지 남고
+     * (qa 11-23 P2-1), 끝 미상 줄은 시작 연월 자리에서 끝난 줄과 같은 순서로 빠지며, 날짜가 전혀 없는 줄은 가장 먼저 빠진다. 같으면 표에서 더 아래 줄.
      */
     static int oldestIndex(List<Map<String, Object>> items) {
         int best = 0;

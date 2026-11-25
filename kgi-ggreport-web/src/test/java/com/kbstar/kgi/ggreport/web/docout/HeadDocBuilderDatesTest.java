@@ -52,10 +52,15 @@ public class HeadDocBuilderDatesTest {
         return d;
     }
 
+    private static Map<String, Object> cur(Map<String, Object> m) {
+        m.put("current", Boolean.TRUE);
+        return m;
+    }
+
     private static Map<String, Object> sample() {
         return detail(
                 new ArrayList<Map<String, Object>>(Arrays.asList(item("마산공업고등학교 졸업", null, "2026-01"), item("행정학석사", "1990-03", "1994-02"))),
-                new ArrayList<Map<String, Object>>(Arrays.asList(item("경력옛날", "2001-01", "2005-12"), item("경력진행", "2018-07", null), item("경력무기간", null, null))));
+                new ArrayList<Map<String, Object>>(Arrays.asList(item("경력옛날", "2001-01", "2005-12"), cur(item("경력진행", "2018-07", null)), item("경력무기간", null, null))));
     }
 
     private static String xml(byte[] docx) throws Exception {
@@ -99,7 +104,11 @@ public class HeadDocBuilderDatesTest {
         assertEquals("둘 다 다름", "A(2018.07 ~ 2022.06)", HeadDocBuilder.lineText(item("A", "2018-07", "2022-06"), true));
         assertEquals("같으면 하나(연도)", "A(2018)", HeadDocBuilder.lineText(item("A", "2018", "2018"), true));
         assertEquals("같으면 하나(연월)", "A(2018.07)", HeadDocBuilder.lineText(item("A", "2018-07", "2018-07"), true));
-        assertEquals("시작만", "A(2018.07 ~ 현재)", HeadDocBuilder.lineText(item("A", "2018-07", null), true));
+        assertEquals("시작만·현직 아님 → 미상", "A(2018.07 ~ 미상)", HeadDocBuilder.lineText(item("A", "2018-07", null), true));
+        assertEquals("시작만·연도·현직 아님", "A(2018 ~ 미상)", HeadDocBuilder.lineText(item("A", "2018", null), true));
+        assertEquals("현직", "A(2026.07 ~ 현재)", HeadDocBuilder.lineText(cur(item("A", "2026-07", null)), true));
+        assertEquals("현직인데 끝이 있으면(옛 행) 끝 그대로", "A(2018 ~ 2020)", HeadDocBuilder.lineText(cur(item("A", "2018", "2020")), true));
+        assertEquals("현직 요약본은 내용만", "A", HeadDocBuilder.lineText(cur(item("A", "2026-07", null)), false));
         assertEquals("끝만 · 괄호 앞 공백 없음", "마산공업고등학교 졸업(2026.01)", HeadDocBuilder.lineText(item("마산공업고등학교 졸업", null, "2026-01"), true));
         assertEquals("둘 다 없음 → 괄호 없음", "A", HeadDocBuilder.lineText(item("A", null, null), true));
         assertEquals("연도만+연월 섞임", "A(2018 ~ 2020.06)", HeadDocBuilder.lineText(item("A", "2018", "2020-06"), true));
@@ -180,5 +189,51 @@ public class HeadDocBuilderDatesTest {
         assertTrue("가장 최근은 남는다", x.contains("가상경력59"));
         assertFalse("가장 오래된 줄은 빠진다", x.contains("가상경력0("));
         assertEquals(0, HeadDocBuilder.buildDoc(detail(new ArrayList<Map<String, Object>>(), manyCareer(3, "")), "서울시 가구청", "2026-11-20", null, true).careerDropped());
+    }
+
+    @Test
+    public void 현직은_맨_위_미상은_시작_연월로_끝난_줄과_섞이고_빼는_순서도_같다() throws Exception {
+        List<Map<String, Object>> career = new ArrayList<Map<String, Object>>(Arrays.asList(
+                item("경력끝2010", "2005-01", "2010-06"), item("경력미상2018", "2018-03", null), cur(item("경력현직1995", "1995-03", null)),
+                item("경력끝2020", "2016-01", "2020-12"), item("경력무기간", null, null)));
+        String x = render(detail(new ArrayList<Map<String, Object>>(Arrays.asList(item("학력시작만", "2010", null))), career), true);
+        assertTrue(x.indexOf("경력현직1995") < x.indexOf("경력끝2020") && x.indexOf("경력끝2020") < x.indexOf("경력미상2018")
+                && x.indexOf("경력미상2018") < x.indexOf("경력끝2010") && x.indexOf("경력끝2010") < x.indexOf("경력무기간"));
+        assertTrue(squareLine(x, "경력현직1995(1995.03 ~ 현재)"));
+        assertTrue(squareLine(x, "경력미상2018(2018.03 ~ 미상)"));
+        assertTrue("학력 시작만은 미상", squareLine(x, "학력시작만(2010 ~ 미상)"));
+        List<Map<String, Object>> l = new ArrayList<Map<String, Object>>(Arrays.asList(
+                cur(item("현", "1995-03", null)), item("끝2020", "2016-01", "2020-12"), item("미상2018", "2018-03", null), item("끝2010", "2005-01", "2010-06")));
+        assertEquals("끝2010 먼저", 3, HeadDocBuilder.oldestIndex(l));
+        l.remove(3);
+        assertEquals("그다음 미상2018", 2, HeadDocBuilder.oldestIndex(l));
+        l.remove(2);
+        assertEquals("현직은 마지막", 1, HeadDocBuilder.oldestIndex(l));
+    }
+
+    @Test
+    public void 요약본은_현직_미상_변경_뒤에도_학력_경력_줄에_날짜_글자가_전혀_없다() throws Exception {
+        List<Map<String, Object>> edu = new ArrayList<Map<String, Object>>(Arrays.asList(
+                item("가람고등학교 졸업", "2010", null),          // 시작만 있는 학력(날짜 포함이면 '(2010 ~ 미상)')
+                item("나래대학교 졸업", null, null)));             // 연도 없는 학력
+        List<Map<String, Object>> career = new ArrayList<Map<String, Object>>(Arrays.asList(
+                cur(item("가람구청장", "2026-07", null)),          // 현직(날짜 포함이면 '(2026.07 ~ 현재)')
+                item("가람시 기획관", "2018", null)));             // 끝 모름(날짜 포함이면 '(2018 ~ 미상)')
+        Map<String, Object> d = detail(edu, career);
+        String x = render(d, false);
+        assertFalse("현재 없음", x.contains("현재"));
+        assertFalse("미상 없음", x.contains("미상"));
+        for (String v : new String[]{"가람고등학교 졸업", "나래대학교 졸업", "가람구청장", "가람시 기획관"}) {
+            java.util.regex.Matcher m = Pattern.compile("<w:t[^>]*>(" + Pattern.quote(v) + "[^<]*)</w:t>").matcher(x);
+            assertTrue(v + " 줄이 있다", m.find());
+            String line = m.group(1);
+            assertEquals(v + " 줄은 내용만(괄호·날짜 없음)", v, line);
+            assertFalse(v + " 줄 안 4자리 연도 없음", Pattern.compile("\\d{4}").matcher(line).find());
+        }
+        assertFalse("문서 전체 저장 형식·표기 형식 날짜 없음", Pattern.compile("\\d{4}[-.]\\d{2}").matcher(x).find()
+                || x.contains("2010") || x.contains("2018") || x.contains("2026"));
+        assertTrue("요약본도 현직이 맨 위", x.indexOf("가람구청장") < x.indexOf("가람시 기획관"));
+        assertTrue("대조: 날짜 포함 모드에는 나온다", squareLine(render(d, true), "가람구청장(2026.07 ~ 현재)")
+                && squareLine(render(d, true), "가람시 기획관(2018 ~ 미상)") && squareLine(render(d, true), "가람고등학교 졸업(2010 ~ 미상)"));
     }
 }

@@ -59,7 +59,8 @@ public class HeadIn {
         public void setSource(Source v) { this.source = v; }
     }
 
-    /** {@code POST /institutions/{id}/head/items} — 칸 입력. 글자 칸은 value, 날짜 칸은 date, 권한대행은 flag(0/1), 학력·경력의 기간은 from·to. */
+    /** {@code POST /institutions/{id}/head/items} — 칸 입력. 글자 칸은 value, 날짜 칸은 date, 권한대행은 flag(0/1), 학력·경력의 기간은 from·to.
+     *  경력만 current(true = 지금도 이 자리에 있음, 끝 to 는 비워야 한다). 생략·false = 현직 아님. 다른 칸에 true 면 400. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Item {
         private Long headId;
@@ -69,6 +70,7 @@ public class HeadIn {
         private String from;
         private String to;
         private Integer flag;
+        private Boolean current;
         private Source source;
 
         public Long getHeadId() { return headId; }
@@ -85,6 +87,8 @@ public class HeadIn {
         public void setTo(String v) { this.to = v; }
         public Integer getFlag() { return flag; }
         public void setFlag(Integer v) { this.flag = v; }
+        public Boolean getCurrent() { return current; }
+        public void setCurrent(Boolean v) { this.current = v; }
         public Source getSource() { return source; }
         public void setSource(Source v) { this.source = v; }
     }

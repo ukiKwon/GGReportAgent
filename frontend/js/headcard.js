@@ -186,12 +186,16 @@
     if (s.checked_on) parts.push('<span class="hc-ck">확인 ' + esc(s.checked_on) + '</span>');
     return '<span class="hc-src">' + parts.join(' · ') + '</span>';
   };
+  // 현직(경력 current:true) 여부. 학력 항목에는 current 키가 없다(서버 계약).
+  function isCur(it) { return !!it && it.current === true; }
+  // 연도 칸 글: 시작=끝이면 한 값, 현직이면 '~현재', 끝을 모르면 '~미상'(사용자 11-25). 날짜가 없으면 ''.
   function period(it) {
     const f = trim(it.from), t = trim(it.to);
-    if (f && t) return f + '~' + t;
-    if (f) return f + '~현재';   // 끝이 없으면 지금 진행 중(Word 와 같은 표기, 사용자 11-20)
-    if (t) return '~' + t;
-    return '';
+    if (!f && !t) return '';
+    if (!f) return '~' + t;   // 시작 없이 끝만 있는 옛 자료(저장은 막힌다)
+    if (isCur(it) && !t) return f + '~현재';
+    if (!t) return f + '~미상';
+    return f === t ? f : f + '~' + t;
   }
   // ── 생년월일(상세 팝업에서만) ──
   hc.BIRTH_MIN = '1920-01-01';
@@ -230,11 +234,14 @@
   };
   // 학력·경력 기간 저장 전 검사 → 안내 글 | ''(통과). 학력은 연도를 확인하지 못하면 둘 다 비워 저장할 수 있다(사용자 11-25).
   // 끝만 있고 시작이 없으면 학력도 막는다. 경력은 시작 필수(서버 HeadText 와 같은 규칙).
-  hc.periodCheck = function (fieldCd, from, to) {
+  // current = 경력 '지금도 이 자리에 있음' 확인란('1' 또는 true). 켜졌는데 끝이 있으면 막는다(서버 INVALID_DATE 와 같은 말).
+  hc.periodCheck = function (fieldCd, from, to, current) {
     const f = trim(from), t = trim(to);
     if (fieldCd === 'EDU' && !f && !t) return '';
-    if (fieldCd === 'EDU' && !f && t) return '끝 연도만 입력할 수 없습니다. 시작 연도도 함께 입력하거나 둘 다 비워 두세요.';
-    return hc.startMonthOk(f) ? '' : '시작은 연도(예: 2018) 또는 연-월(예: 2018-07)로 입력하세요.';
+    if (fieldCd === 'EDU' && !f && t) return '끝만 입력할 수는 없습니다. 시작도 함께 입력하거나 둘 다 비워 두세요.';
+    if (!hc.startMonthOk(f)) return '시작은 연도(예: 2018) 또는 연-월(예: 2018-07)로 입력하세요.';
+    if (fieldCd === 'CAREER' && (current === true || current === '1') && t) return '지금도 이 자리에 있으면 끝을 비워 두세요.';
+    return '';
   };
   // 제출 전 화면 검사 → 안내 글 | ''(통과). 입력값은 문구에 싣지 않는다.
   hc.birthCheck = function (value, today) {
@@ -259,8 +266,13 @@
   };
   // 'YYYY' 와 'YYYY-MM' 이 섞여도 비교되게 연-월로 맞춘다(연도만이면 끝은 12월·시작은 01월로 본다, 사용자 11-24).
   function ym(v, endSide) { const s = trim(v); return /^\d{4}$/.test(s) ? s + (endSide ? '-12' : '-01') : s; }
-  function sortPeriod(list) {   // 최근 것이 위로(끝 연월이 없으면 현재 진행으로 보아 맨 위)
-    const key = function (it) { return (ym(it.to, true) || (trim(it.from) ? '9999-99' : '0000-00')) + '|' + ym(it.from, false); };
+  // 최근 것이 위로. 1차 키: 현직 '9999-99' / 끝 연월 / 끝이 없고 시작이 있으면 시작 연월 / 날짜 없음 '0000-00'. 2차 키: 시작 연월(서버 HeadDocBuilder.sortKey 와 같은 규칙).
+  function sortPeriod(list) {
+    const key = function (it) {
+      const f = trim(it.from), t = trim(it.to);
+      const k1 = isCur(it) ? '9999-99' : (t ? ym(t, true) : (f ? ym(f, false) : '0000-00'));
+      return k1 + '|' + ym(f, false);
+    };
     return (list || []).slice().sort(function (a, b) { const x = key(a), y = key(b); return x < y ? 1 : (x > y ? -1 : 0); });
   }
 
@@ -642,6 +654,7 @@
       if (kind === 'period') {
         if (trim(v.from)) b.from = trim(v.from);
         if (trim(v.to)) b.to = trim(v.to);
+        if (fieldCd === 'CAREER' && (v.current === true || v.current === '1')) b.current = true;   // 경력에만, 꺼졌으면 키를 싣지 않는다
       }
     }
     return b;
@@ -727,16 +740,32 @@
     const box = input.closest ? input.closest('.hc-fld') : null, e = box && box.querySelector('#' + pre + '-e');
     if (e && e.parentNode) e.parentNode.removeChild(e);
   };
+  // 경력 '지금도 이 자리에 있음' 확인란 ↔ 끝 칸. 켜면 끝을 비우고 readonly(disabled 아님 — 포커스 유지)·설명 연결, 끄면 원래대로.
+  hc.applyCurrent = function (to, chk, hint) {
+    if (!to || !chk) return;
+    if (chk.checked) {
+      to.value = ''; to.readOnly = true; to.setAttribute('aria-describedby', 'hc-cur-h');
+      if (hint) hint.hidden = false;
+    } else {
+      to.readOnly = false; to.removeAttribute('aria-describedby');
+      if (hint) hint.hidden = true;
+    }
+  };
   hc.valueRowHtml = function (fieldCd, today, st) {
     const f = hc.fieldOf(fieldCd) || hc.FIELDS[0];
     if (f.kind === 'birth') return birthFieldHtml(today, st);
     if (f.kind === 'flag') return '<label class="hc-lab">권한대행 여부<select name="flag">' + opt('0', '아니오(정식 임명)', true) + opt('1', '예(권한대행)', false) + '</select></label>';
     if (f.kind === 'date') return '<label class="hc-lab">' + esc(f.label) + '<input type="date" name="date" required min="1900-01-01"></label>';
     if (f.kind === 'period') {
-      const edu = f.cd === 'EDU';   // 학력은 연도를 확인하지 못하면 비워 저장(사용자 11-25), 경력은 시작 필수
-      return '<label class="hc-lab wide">' + esc(f.label) + ' 내용(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"></label>' +
-        '<label class="hc-lab">' + (edu ? '시작(연도 또는 연-월, 모르면 비워 두세요)' : '시작(연도 또는 연-월, 필수)') + '<input type="text" name="from" maxlength="7"' + (edu ? '' : ' required') + ' inputmode="numeric" autocomplete="off" placeholder="2018 또는 2018-07"></label>' +
-        '<label class="hc-lab">' + (edu ? '끝(연도 또는 연-월, 모르면 비워 두세요)' : '끝(연도 또는 연-월, 비우면 현재)') + '<input type="text" name="to" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="2022 또는 2022-06"></label>';
+      const edu = f.cd === 'EDU';   // 학력은 연도를 확인하지 못하면 비워 저장(사용자 11-25), 경력은 시작 필수 + 현직 확인란
+      const dsc = edu ? ' aria-describedby="hc-per-h"' : '';
+      const valLab = '<label class="hc-lab wide">' + esc(f.label) + ' 내용(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"></label>';
+      const fromLab = '<label class="hc-lab">' + (edu ? '시작(연도 또는 연-월)' : '시작(연도 또는 연-월, 필수)') + '<input type="text" name="from" maxlength="7"' + (edu ? dsc : ' required') + ' inputmode="numeric" autocomplete="off" placeholder="2018 또는 2018-07"></label>';
+      const toLab = '<label class="hc-lab">끝(연도 또는 연-월, 모르면 비워 두세요)<input type="text" name="to" id="hc-to" maxlength="7"' + dsc + ' inputmode="numeric" autocomplete="off" placeholder="2022 또는 2022-06"></label>';
+      if (edu) return valLab + fromLab + toLab + '<p class="hc-fhint wide" id="hc-per-h">연도를 확인하지 못했으면 시작과 끝을 모두 비워 두세요. 끝만 입력할 수는 없습니다.</p>';
+      return valLab + fromLab + '<div class="hc-fld">' + toLab +
+        '<label class="hc-fhint"><input type="checkbox" name="current" id="hc-cur" value="1"> 지금도 이 자리에 있음</label>' +
+        '<p class="hc-fhint" id="hc-cur-h" hidden>지금도 이 자리에 있어 끝은 비워 두고 저장합니다.</p></div>';
     }
     return '<label class="hc-lab wide">' + esc(f.label) + '(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"' +
       (f.cd === 'NAME' ? ' placeholder="숫자는 쓸 수 없습니다"' : '') + '></label>';
@@ -925,7 +954,7 @@
   function formValues(form) {
     const o = {};
     Array.prototype.forEach.call(form.elements, function (el) {
-      if (el.name && el.type !== 'file') o[el.name] = el.value;
+      if (el.name && el.type !== 'file') o[el.name] = el.type === 'checkbox' ? (el.checked ? '1' : '') : el.value;
     });
     return o;
   }
@@ -1103,7 +1132,7 @@
     const headId = V.data && V.data.head ? V.data.head.head_id : 0;
     if (kind === 'add-item') {
       if (v.field_cd === 'EDU' || v.field_cd === 'CAREER') {   // 경력은 시작 필수(사용자 11-20), 학력은 둘 다 비면 통과(사용자 11-25) — 서버와 같은 검사
-        const bad = hc.periodCheck(v.field_cd, v.from, v.to);
+        const bad = hc.periodCheck(v.field_cd, v.from, v.to, v.current);
         if (bad) { setMsg(bad, true); focusStatus(); return; }
       }
       if (v.field_cd === 'BIRTH_DATE') {   // 제출 전 화면 검사 — 실패하면 요청 없이 칸 아래 오류
@@ -1129,6 +1158,8 @@
       M.field = e.target.value;
       const row = q('#hc-valrow');
       if (row) row.innerHTML = hc.valueRowHtml(M.field, envNow().today);
+    } else if (e.target && e.target.id === 'hc-cur' && M) {
+      hc.applyCurrent(q('#hc-to'), e.target, q('#hc-cur-h'));
     }
   }
   function onMInput(e) { if (e.target && e.target.id === 'hc-birth') hc.clearFieldErr(e.target, 'hc-birth'); }

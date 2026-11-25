@@ -439,7 +439,10 @@ public class HeadDocBuilderLayoutTest {
         assertEquals("시작 없으면 끝으로", 0, HeadDocBuilder.oldestIndex(Arrays.asList(item("a", null, "2005-01"), item("b", "2010-01", null))));
         assertEquals("날짜 없는 줄 먼저", 2, HeadDocBuilder.oldestIndex(Arrays.asList(item("a", "2001-01", null), item("b", "2000-01", null), item("c", null, null))));
         assertEquals("같으면 아래 줄", 1, HeadDocBuilder.oldestIndex(Arrays.asList(item("a", "2000-01", null), item("b", "2000-01", null))));
-        assertEquals("오래전에 시작한 현직(끝 없음)은 남고 끝난 경력이 먼저(qa P2-1)", 1, HeadDocBuilder.oldestIndex(Arrays.asList(item("현 OO위원", "1995-03", null), item("b", "2015-01", "2020-12"))));
+        Map<String, Object> cur = item("현 OO위원", "1995-03", null);
+        cur.put("current", Boolean.TRUE);
+        assertEquals("오래전에 시작한 현직은 남고 끝난 경력이 먼저(qa P2-1)", 1, HeadDocBuilder.oldestIndex(Arrays.asList(cur, item("b", "2015-01", "2020-12"))));
+        assertEquals("현직 아닌 끝 미상은 시작 연월로 섞여 먼저 빠진다", 0, HeadDocBuilder.oldestIndex(Arrays.asList(item("옛 OO위원", "1995-03", null), item("b", "2015-01", "2020-12"))));
     }
 
     @Test
