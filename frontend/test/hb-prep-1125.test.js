@@ -164,26 +164,84 @@ test('C [수정하기…] 두 칸 창 배선: 같은 uid로 두 묶음, 칸 전�
   assert.ok(src('index.html').indexOf('.tc-mode label:has(input:checked) { background:color-mix(in srgb, var(--accent-color) 16%, var(--panel)); z-index:1; }') > 0);
 });
 
-test('D 구분 저장 성공 뒤에만 목표 줄 자동 체크 + 일반색 알림, 한도는 CAP_MSG', function () {
-  const a = K.indexOf('function changeTag(r, code, btn) {'), b = K.indexOf('// ── 목표 줄 구분·메모를 결재 없이 바로 고칠 수 있는가');
+test('D 구분 고르기는 저장하지 않고 대기에 담는다 → 자동 체크 → 띠 문구 → [수정하기…] 미리 채움 → 일괄 저장 → 대기 비움', function () {
+  const kbbD = require('../js/kbboard.js');
+  const a = K.indexOf('  function chipOpts() {'), b = K.indexOf('  // 구분을 고르면 목표 줄은 저장 전 대기에 담고');
   assert.ok(a > 0 && b > a);
-  const f = K.slice(a, b);
-  const savedAt = f.indexOf("if (o.kind === 'saved') {"), pickAt = f.indexOf('const was = tc.isPicked(gs.sel, r), pk = tc.pick(gs.sel, tc.entryOfRow(r));'), loadAt = f.indexOf('loadGoals();', pickAt), elseAt = f.indexOf("} else if (o.kind === 'nochange')");
-  assert.ok(savedAt > 0 && pickAt > savedAt && loadAt > pickAt && elseAt > loadAt);   // 저장 성공 분기 안, loadGoals 앞
-  assert.strictEqual((f.match(/tc\.pick\(/g) || []).length, 1);                        // 실패·nochange·stale 분기에는 고르기가 없다
-  assert.ok(f.indexOf("if (tc.pickable(r) && r.kind !== 'WATCH') {") > 0);              // 관심 줄·결재 중 줄은 체크하지 않는다
-  assert.ok(f.indexOf("gs.selMsg = pk.ok ? '' : pk.msg;") > 0 && f.indexOf('gs.selNote = pk.ok && !was ? tc.autoPickNote(r.name) : \'\';') > 0);   // 한도면 CAP_MSG(경고), 이미 골랐으면 알림 없음
-  // 동작: tc.pick + autoPickNote
-  const s = tc.newSel(), e = { id: 'A', name: '노원구청', targetNo: 1, kind: 'GOAL' };
-  assert.deepStrictEqual(tc.pick(s, e), { ok: true });
-  assert.strictEqual(tc.selCount(s), 1);
-  const full = tc.newSel();
-  for (let i = 0; i < tc.MAX_ITEMS; i += 1) tc.pick(full, { id: 'X' + i, targetNo: 1, kind: 'GOAL' });
-  assert.deepStrictEqual(tc.pick(full, e), { ok: false, msg: tc.CAP_MSG });          // 20곳이 차면 체크하지 않고 CAP_MSG
-  assert.strictEqual(tc.selCount(full), tc.MAX_ITEMS);
-  // 알림은 다음 고르기 조작에서 지운다
+  const TAGS = [{ code: 'RETAIN', name: '재유치 도전' }, { code: 'NEW', name: '신규유치 도전' }];
+  let saved = 0, paints = 0;
+  const gs = { draft: {}, sel: tc.newSel(), selMsg: '', selNote: '', rows: [] };
+  const draftTag = new Function('tc', 'kbb', 'gs', 'canEditNow', 'canValueEdit', '$', 'tagList', 'syncPickDom', 'paintSel', 'document',
+    K.slice(a, b) + '\nreturn draftTag;')(tc, { TAG: {}, tagCellHtml: kbbD.tagCellHtml, saveTarget: function () { saved += 1; } }, gs,
+    function () { return true; }, function () { return true; }, function () { return null; }, function () { return TAGS; }, function () {}, function () { paints += 1; }, undefined);
+  const row = { id: 'G1', name: '노원구청', regionName: '서울', kind: 'GOAL', targetNo: 1, revNo: 4, targetYear: 2026, tagCd: 'RETAIN', tagName: '재유치 도전', memo: '메모', ownerEmpNo: 'E1', fkey: 'id:G1', due: null };
+  // 1. 구분을 고르면 서버 저장 없이 대기만 + 자동 체크
+  draftTag(row, 'NEW');
+  assert.strictEqual(saved, 0);
+  assert.deepStrictEqual(gs.draft.G1, { no: 1, tagCd: 'NEW', tagName: '신규유치 도전' });
+  assert.strictEqual(tc.isPicked(gs.sel, row), true); assert.strictEqual(tc.selCount(gs.sel), 1); assert.ok(paints > 0);
+  // 2. 띠 문구: 대기 건수
+  assert.strictEqual(tc.draftCount(gs.draft, gs.sel), 1);
+  assert.ok(tc.selStatusHtml(1, '', tc.kindCounts(gs.sel), 0, tc.autoPickNote(tc.draftCount(gs.draft, gs.sel))).indexOf('구분 바뀜 1곳 — [수정하기…]로 저장') > 0);
+  // 3. 칩: 새 구분 + 점선 클래스 + '바뀜' 꼬리표(색만으로 구분하지 않음) + 저장된 값 sr 안내
+  const h = kbbD.tagCellHtml(row, { canEdit: true, canTag: function () { return true; }, drafts: gs.draft });
+  assert.ok(h.indexOf('class="hb-tag draft"') > 0 && h.indexOf('<span class="sr-only">바뀔 구분: </span>신규유치 도전') > 0);
+  assert.ok(h.indexOf('<span class="hb-q hb-dft">바뀜</span>') > 0 && h.indexOf('지금 저장된 구분은 재유치 도전') > 0);
+  assert.ok(kbbD.tagCellHtml(row, { canEdit: true, canTag: function () { return true; } }).indexOf('draft') < 0);   // 대기가 없으면 예전 마크업
+  assert.ok(kbbD.tagCellHtml(Object.assign({}, row, { kind: 'WATCH' }), { canEdit: true, drafts: gs.draft }).indexOf('draft') < 0);   // 같은 기관 관심 줄에는 새지 않는다
+  // 4. [수정하기…] 창: 대기 값으로 미리 채움, 이전은 원래 값
+  const it = tc.newItem(1, gs.sel.by.G1); tc.setOp(it, 'EDIT', { tag: (tc.draftOf(gs.draft, gs.sel.by.G1) || {}).tagCd });
+  assert.strictEqual(it.tag, 'NEW');
+  const eh = tc.editItemHtml(it, 1, { tags: TAGS });
+  assert.ok(eh.indexOf('<option value="NEW" selected>신규유치 도전</option>') > 0 && eh.indexOf('<dd>') > 0 && tc.beforeHtml(it).indexOf('재유치 도전') > 0);
+  assert.strictEqual(tc.validate([it], { mode: 'DIRECT' }).ok, true);
+  // 5. 일괄 저장 본문: 연도·메모·주 담당은 지금 값 그대로, 구분만 대기 값
+  assert.deepStrictEqual(tc.buildBody([it], { mode: 'DIRECT' }), { items: [{ institution_id: 'G1', op_cd: 'EDIT', target_no: 1, base_rev_no: 4, target_year: 2026, tag_cd: 'NEW', memo: '메모', owner_emp_no: 'E1' }] });
+  // 6. 원래 구분으로 되돌리면 대기만 지운다(고른 줄은 그대로)
+  draftTag(row, 'RETAIN');
+  assert.strictEqual(gs.draft.G1, undefined); assert.strictEqual(tc.isPicked(gs.sel, row), true);
+  // 7. 고르기 해제 → 대기 버림 / 저장 성공 뒤 선택 지움 → 대기 비움
+  draftTag(row, 'NEW'); tc.unpickRow(gs.sel, 'G1', 1);
+  assert.deepStrictEqual(tc.pruneDrafts(gs.draft, gs.sel), ['G1']); assert.deepStrictEqual(gs.draft, {});
+  draftTag(row, 'NEW'); tc.clearSel(gs.sel);
+  assert.deepStrictEqual(tc.pruneDrafts(gs.draft, gs.sel), ['G1']); assert.deepStrictEqual(gs.draft, {});
+  // 8. 20곳이 차면 대기를 만들지 않고 CAP_MSG
+  for (let i = 0; i < tc.MAX_ITEMS; i += 1) tc.pick(gs.sel, { id: 'X' + i, targetNo: 1, kind: 'GOAL', tagCd: 'RETAIN' });
+  draftTag(row, 'NEW');
+  assert.deepStrictEqual(gs.draft, {}); assert.strictEqual(gs.selMsg, tc.CAP_MSG);
+  // 9. 결재 중 줄은 대기를 만들지 않는다
+  const g2 = tc.newSel(); gs.sel = g2; gs.selMsg = '';
+  draftTag(Object.assign({}, row, { id: 'P1', pend: true }), 'NEW');
+  assert.deepStrictEqual(gs.draft, {}); assert.strictEqual(tc.selCount(gs.sel), 0);
+  // 서버가 이미 그 값이 되면(다른 사람이 고침) 대기는 저절로 사라진다
+  tc.pick(gs.sel, tc.entryOfRow(row)); tc.setDraft(gs.draft, row, 'NEW', '신규유치 도전'); gs.sel.by.G1.tagCd = 'NEW';
+  assert.strictEqual(tc.draftCount(gs.draft, gs.sel), 0);
+  // 배선(소스): changeTag는 목표 줄 + 모드 있음이면 draftTag로, 관심 줄·옛 서버만 바로 저장(saveTarget 1곳), 자동 체크 블록 없음
+  const cs = K.indexOf('function changeTag(r, code, btn) {'), ce = K.indexOf('// ── 목표 줄 구분·메모를 결재 없이 바로 고칠 수 있는가');
+  const f = K.slice(cs, ce);
+  assert.ok(cs > 0 && ce > cs);
+  assert.ok(/function changeTag\(r, code, btn\) \{\n    if \(gs\.busy \|\| !canEditNow\(\) \|\| !canValueEdit\(r\)\) return;[^\n]*\n    if \(r\.kind !== 'WATCH' && goalMode\(\)\) \{ draftTag\(r, code\); return; \}/.test(f));
+  assert.strictEqual((f.match(/kbb\.saveTarget\(/g) || []).length, 1);
+  assert.ok(f.indexOf('kbb.BTN.tag') > 0 && f.indexOf('tc.pick(') < 0 && f.indexOf('autoPickNote') < 0);
+  assert.ok(K.slice(a, b).indexOf('saveTarget') < 0 && K.slice(a, b).indexOf('loadGoals') < 0);   // 대기 경로는 저장·다시 읽기를 하지 않는다
+  assert.ok(K.indexOf("tc.setOp(it, 'EDIT', { tag: (tc.draftOf(gs.draft, gs.sel.by[id]) || {}).tagCd });") > 0);   // 창 미리 채움
+  assert.ok(K.indexOf("d.kind === 'edit' ? tc.BTN.values : undefined") > 0);   // 일괄 저장 감사 이름 save_target_values
+  const sc = K.indexOf('function submitChange(d) {'), fe = K.indexOf('function finishChange(d, body) {'), fx = K.indexOf('// 추가 창 → 일괄 요청 창(APPROVAL)');
+  assert.ok(sc > 0 && fe > sc && fx > fe);
+  assert.ok(K.slice(sc, fe).indexOf('draft') < 0);   // 실패 경로는 대기·선택을 건드리지 않는다
+  assert.ok(/tc\.clearSel\(gs\.sel\); gs\.selMsg = ''; gs\.selNote = '';\n    dropDraftChips\(\);/.test(K.slice(fe, fx)));   // 성공하면 대기 비움
+  assert.ok(K.indexOf("dropDraftChips();\n    syncPickDom(); paintSel();\n    const f = $('hb-pickall')") > 0);   // 선택 지우기 → 칩 원래 값
+  assert.ok(K.indexOf("dn > 0 ? tc.autoPickNote(dn) : gs.selNote") > 0);
+  assert.ok(K.indexOf("window.addEventListener('beforeunload', onBeforeUnload, opt)") > 0);   // 브라우저 닫기·새로고침 경고(P6)
+  // CSS: 점선 + accent, 꼬리표는 굵게(그림자·새 hex 없음)
+  const css = src('index.html');
+  assert.ok(css.indexOf(".hb-tag.draft { border-style:dashed; border-color:var(--accent-color); }") > 0 && css.indexOf('.hb-q.hb-dft { color:var(--fg); font-weight:700; }') > 0);
+  assert.ok(css.indexOf('.hb-selbar .note { color:var(--muted); font-weight:400; }') > 0);
+  // 알림은 다음 고르기 조작에서 지운다(옛 동작 유지) / 20곳 한도
   assert.ok(K.indexOf("gs.selNote = '';   // 구분 저장 뒤 자동으로 골라 둔 알림은 다음 고르기 조작에서 지운다") > 0 && K.indexOf("tc.clearSel(gs.sel); gs.selMsg = ''; gs.selNote = '';") > 0);
-  assert.ok(src('index.html').indexOf('.hb-selbar .note { color:var(--muted); font-weight:400; }') > 0);
+  const full = tc.newSel();
+  for (let i = 0; i < tc.MAX_ITEMS; i += 1) tc.pick(full, { id: 'Y' + i, targetNo: 1, kind: 'GOAL' });
+  assert.deepStrictEqual(tc.pick(full, { id: 'A', targetNo: 1, kind: 'GOAL' }), { ok: false, msg: tc.CAP_MSG });
 });
 
 test('E [수정하기…]는 띠 오른쪽 끝 유지(.sp 다음 마지막 단추)', function () {

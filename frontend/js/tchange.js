@@ -127,6 +127,21 @@
     return dropped;
   };
 
+  // ── 구분 바뀜 대기(저장 전, 사용자 11-25): d = { 기관 id: { no: 목표 번호, tagCd, tagName } }. 고른 줄에만 둔다(고르기를 풀면 같이 버린다).
+  const liveDraft = function (d, s, id) { const x = d && has(d, id) ? d[id] : null; return !!x && has(s.by, id) && Number(s.by[id].targetNo) === x.no && s.by[id].tagCd !== x.tagCd; };
+  tc.draftOf = function (d, r) { const x = d && r && has(d, r.id) ? d[r.id] : null; return x && x.no === Number(r.targetNo) ? x : null; };
+  tc.setDraft = function (d, r, code, name) {   // 원래 구분으로 되돌리면 대기를 지운다(false)
+    if (!code || code === r.tagCd) { if (tc.draftOf(d, r)) delete d[r.id]; return false; }
+    d[r.id] = { no: Number(r.targetNo), tagCd: code, tagName: str(name || code) };
+    return true;
+  };
+  tc.draftCount = function (d, s) { return ((s && s.ids) || []).filter(function (id) { return liveDraft(d, s, id); }).length; };
+  tc.pruneDrafts = function (d, s) {   // 고르기가 풀렸거나 서버 값과 같아진 대기를 버리고 버린 기관 id 목록을 돌려준다
+    const out = [];
+    Object.keys(d || {}).forEach(function (id) { if (!liveDraft(d, s, id)) { delete d[id]; out.push(id); } });
+    return out;
+  };
+
   // ── 일괄 요청 창의 항목 ─────────────────────────────────────────────
   tc.isFixed = function (it) { return !!it.add || !!(it.snap && it.snap.kind === 'WATCH'); };   // 동작이 정해진 항목: 넣기(ADD)·관심 줄(TO_GOAL)
   tc.newItem = function (uid, snap) {
@@ -319,8 +334,8 @@
   };
   // 숫자 문장(role=status). 20곳 한도 같은 짧은 알림은 같은 자리에서 읽힌다.
   // kinds = { goal, watch }(없으면 '고른 기관 n곳'), off = 이 화면 밖에 고른 줄 수(규격 6-1)
-  // note = 일반색 알림(경고 아님, 사용자 11-25 D '구분을 바꾼 {기관}을 골라 두었습니다') — msg(한도 경고 .lim)가 있으면 msg가 이긴다.
-  tc.autoPickNote = function (name) { return '구분을 바꾼 ' + str(name) + tc.eul(name) + ' 골라 두었습니다'; };
+  // note = 일반색 알림(경고 아님) — 저장 전 구분 바뀜 건수 — msg(한도 경고 .lim)가 있으면 msg가 이긴다.
+  tc.autoPickNote = function (n) { return '구분 바뀜 ' + Number(n) + '곳 — [수정하기…]로 저장'; };   // 저장 전 대기 건수(사용자 11-25)
   tc.selStatusHtml = function (n, msg, kinds, off, note) {
     n = Number(n); off = Number(off) || 0;
     const g = kinds ? Number(kinds.goal) || 0 : 0, w = kinds ? Number(kinds.watch) || 0 : 0;

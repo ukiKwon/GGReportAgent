@@ -859,16 +859,21 @@
         : '<span class="hb-tag ro">목표 아님</span>') + '</td>';
     }
     if (r.pend) return tc.pendCellHtml(r, { canEdit: o.canEdit });   // 결재 중: 구분 칩·메뉴 대신 잠금 칩(NEXT 105 6-2)
-    const nm = esc(r.tagName || r.tagCd);
+    const canChip = o.canEdit && (typeof o.canTag !== 'function' || o.canTag(r));   // 구분을 고칠 수 없는 줄(지난해 목표·바로 반영 아님)은 빈 메뉴 대신 읽기 전용 칩(qa P2-3)
+    const dr = canChip && o.drafts && r.kind !== 'WATCH' ? tc.draftOf(o.drafts, r) : null;
+    const dv = dr && dr.tagCd !== r.tagCd ? dr : null;   // 저장 전 '바뀔 구분'
+    const nm = esc(dv ? dv.tagName : (r.tagName || r.tagCd));
     // 넣은 사람·고친 사람·메모는 서버 글 — 전부 이스케이프. 사번 확인 안 된 기록은 '확인됨'처럼 보이지 않게 '사번 자기신고'를 밝힌다.
     const tip = [r.memo ? '메모: ' + r.memo : '', r.firstEditor ? '넣은 사람 ' + r.firstEditor : '',
       r.editorName ? '마지막 고침 ' + r.editorName + (r.empVerified ? '' : '(사번 자기신고)') + (r.savedAt ? ' ' + r.savedAt.slice(0, 16).replace('T', ' ') : '') : ''].concat(tc.rowTips(r)).filter(Boolean).join(' · ');
     const prev = r.tagCd === 'NEW' && r.prevYear ? (r.carried ? '' : '<span class="hb-q hb-prev" title="되찾기 후보 — 예전에 국민은행 금고였던 기관(마지막 ' + r.prevYear + '년)">되찾기</span>') + (r.carried ? '' : '<span class="sr-only"> 되찾기 후보, 예전 국민은행 금고, 마지막 ' + r.prevYear + '년</span>') : '';   // 이월 줄은 rowTips 문장이 같은 말을 읽어 준다(두 번 읽지 않게)
-    const chip = o.canEdit && (typeof o.canTag !== 'function' || o.canTag(r))   // 구분을 고칠 수 없는 줄(지난해 목표·바로 반영 아님)은 빈 메뉴 대신 읽기 전용 칩(qa P2-3)
-      ? '<button type="button" class="hb-tag" data-act="tag" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="menu" aria-expanded="false"><span class="sr-only">구분: </span>' + nm + CHEV + '</button>'
+    const chip = canChip
+      ? '<button type="button" class="hb-tag' + (dv ? ' draft' : '') + '" data-act="tag" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="menu" aria-expanded="false"><span class="sr-only">' + (dv ? '바뀔 구분: ' : '구분: ') + '</span>' + nm + CHEV + '</button>'
       : '<span class="hb-tag ro"><span class="sr-only">구분: </span>' + nm + '</span>';
-    return '<td' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' + chip + (r.carried ? '<span class="hb-q">이월</span>' : '') + prev + (tip ? '<span class="sr-only">. ' + esc(tip) + '</span>' : '') + '</td>';
+    const dtail = dv ? '<span class="hb-q hb-dft">바뀜</span><span class="sr-only">. 저장 전입니다. 지금 저장된 구분은 ' + esc(r.tagName || r.tagCd) + '</span>' : '';
+    return '<td' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' + chip + dtail + (r.carried ? '<span class="hb-q">이월</span>' : '') + prev + (tip ? '<span class="sr-only">. ' + esc(tip) + '</span>' : '') + '</td>';
   }
+  kbb.tagCellHtml = tagCellHtml;
   function stageCellHtml(r) {
     const late = r.late ? '<span class="hb-late">지연</span>' : '';
     if (r.stage >= 0) {
@@ -987,7 +992,7 @@
     else if (v.st === 'denied') body = msg('<p class="db-state">' + esc(v.code === 401 ? M.login : M.denied) + '</p>');
     else if (v.st === 'error') body = msg('<p class="db-state">' + kbb.goalErrHtml(v.code) + '</p>');
     else {
-      const o = { win: win, canEdit: !!v.canEdit, noWatch: !!v.noWatch, selCol: sel, picked: v.picked || null, canTag: v.canTag || null };   // canTag(r) = 구분을 고칠 수 있는 줄인가(없으면 canEdit만 본다)
+      const o = { win: win, canEdit: !!v.canEdit, noWatch: !!v.noWatch, selCol: sel, picked: v.picked || null, canTag: v.canTag || null, drafts: v.drafts || null };   // canTag(r) = 구분을 고칠 수 있는 줄인가(없으면 canEdit만 본다)
       const outN = v.out ? v.out.length : 0, none = !v.rows.length && !outN;
       if (watch) {
         body = v.rows.length ? '<tbody>' + v.rows.map(function (r) { return kbb.watchRowHtml(r, o); }).join('') + '</tbody>'
@@ -1540,6 +1545,7 @@
     tab: 'goal', f: { q: '', tag: '', status: '', kind: '', stage: -1 }, sort: { goal: { key: 'due', dir: 'asc' }, watch: { key: 'next', dir: 'asc' } }, tbSig: '', just: null, seeInst: '' };
   let host = null, ac = null, LIST = [], ALL = null, OURS = [], G = null, BYID = {}, seq = 0, offNr = null, menu = null, dlg = null, pop = null, popInert = [], qTimer = null;
   gs.sel = tc.newSel(); gs.selMsg = ''; gs.carryTried = false; gs.carryTok = 0; gs.justIds = null;   // NEXT 105: 고른 줄·알림·자동 이월 한 번만·일괄 반영 강조
+  gs.draft = {};   // 구분 바뀜 대기(저장 전) — 기관 id → { no, tagCd, tagName }
   let chd = null, trm = null, pnd = null, mmd = null;   // 일괄 요청 창·협약 개시일 창·결재 진행 중 창·메모 창(공통 .dlg, dlg.js)
   let prepDenied403 = false;   // /preps·/workflow/overview가 둘 다 403으로 확정된 계정 — 화면을 열 때마다 다시 부르지 않는다(계정이 바뀌면 onProfileChange가 푼다, design 11-17 7절)
   const U = dash.util;
@@ -1844,6 +1850,7 @@
     const mode = ok ? tc.modeOf(gs.data) : null;   // NEXT 105: DIRECT·APPROVAL이면 고르기 열 + 바닥 띠. 옛 서버·보기 전용은 null
     if (ok) tc.reconcile(gs.sel, rows, wrows, Number(gs.data.year));   // 잠겼거나 사라진 줄은 고른 것에서 빼고 남은 줄의 기록 번호는 제자리 갱신
     if (ok && !mode && tc.selCount(gs.sel)) tc.clearSel(gs.sel);   // 응답이 ok이고 모드가 없다고 확정됐을 때만 비운다 — 로딩·오류 중에는 고른 줄을 지킨다(STALE 뒤 새 기록 번호로 갱신)
+    if (ok) tc.pruneDrafts(gs.draft, gs.sel);
     const watch = gs.tab === 'watch', canEdit = ok && !!gs.data.can_edit;
     const total = watch ? wrows.length : rows.length + out.length, f = gs.f, sorted = gs.sort[watch ? 'watch' : 'goal'];
     const fx = watch ? Object.assign({}, f, { stage: -1, kind: '' }) : f;   // 단계·종류는 목표 탭에만 있다
@@ -1854,7 +1861,7 @@
     ts.setAttribute('role', 'tabpanel');
     if (ok) ts.setAttribute('aria-labelledby', 'hb-tab-' + gs.tab); else ts.removeAttribute('aria-labelledby');   // 도구 줄(탭)이 있을 때만 — 없는 id를 가리키지 않는다(qa 11-17 P3-4)
     ts.innerHTML = kbb.goalTableHtml({ st: gs.st, code: gs.code, year: goalYear(), win: win, tab: gs.tab, rows: dRows, out: dOut, canEdit: canEdit, prep: ps.state, prepCode: prepCode,
-      sort: sorted, total: total, filtered: total > 0 && kbb.filterOn(fx), noWatch: noWatch, nGoal: rows.length, nOut: out.length, selCol: !!mode, picked: tc.pickedMap(gs.sel), canTag: canValueEdit });
+      sort: sorted, total: total, filtered: total > 0 && kbb.filterOn(fx), noWatch: noWatch, nGoal: rows.length, nOut: out.length, selCol: !!mode, picked: tc.pickedMap(gs.sel), drafts: gs.draft, canTag: canValueEdit });
     paintToolbar({ tab: gs.tab, nGoal: rows.length, nWatch: wrows.length, f: f, stageName: f.stage >= 0 ? (dash.STAGES[f.stage] || {}).label : '', shown: dRows.length + dOut.length, total: total, canEdit: canEdit, loaded: ok, noWatch: noWatch });
     const band = $('hb-band');
     if (band) {
@@ -2049,6 +2056,8 @@
     // 구분 칩 메뉴 = 구분 고르기만(사용자 11-25). 나머지 동작은 띠 [수정하기…] 창(바로 반영/결재 요청)과 관심 줄 [관심에서 빼기…] 단추가 맡는다.
     wrap.innerHTML = kbb.menuHtml(r, { tags: canValueEdit(r) ? tagList() : [], def: kbb.fitTag(kbb.defaultTag(r.rec, gs.sum[r.id], tagOpts()), tagList()) });
     const el = wrap.firstChild;
+    const dv0 = tc.draftOf(gs.draft, r);   // 대기 중이면 그 구분에 체크 표시(menuHtml 호출 줄은 그대로 — 시험이 문자열로 고정)
+    if (dv0) Array.prototype.forEach.call(el.querySelectorAll('[data-tag]'), function (b) { b.setAttribute('aria-checked', b.getAttribute('data-tag') === dv0.tagCd ? 'true' : 'false'); });
     document.body.appendChild(el);
     const b = btn.getBoundingClientRect(), mw = el.offsetWidth, mh = el.offsetHeight;
     el.style.left = Math.max(8, Math.min(b.left, window.innerWidth - mw - 8)) + 'px';
@@ -2074,17 +2083,49 @@
       if (!it) return;
       const code = it.getAttribute('data-tag');
       if (!code) return;
-      if (code === r.tagCd) { closeMenu(true); return; }
+      const dv = tc.draftOf(gs.draft, r);
+      if (code === (dv ? dv.tagCd : r.tagCd)) { closeMenu(true); return; }   // 지금 보이는 구분을 다시 고르면 닫기만(대기 중이면 대기된 구분 기준)
       closeMenu(true);
-      changeTag(r, code, btn);   // 구분은 목표·관심 모두 바로 저장한다(NEXT 114 — 예전엔 결재 모드의 목표 줄만 결재 창)
+      changeTag(r, code, btn);   // 목표 줄은 저장 전 대기(띠 [수정하기…]로 저장), 관심 줄은 바로 저장한다(사용자 11-25)
     });
     menu = m;
     const first = el.querySelector('button[aria-checked="true"]') || el.querySelector('button');
     if (first) first.focus();
   }
-  // 구분을 고르면 바로 저장한다(되돌리기 쉬움, 감사 버튼 이름 change_target_tag). 저장 중에는 칩에 aria-busy.
+  // ── 구분 바뀜 대기(저장 전, 사용자 11-25): 목표 줄에서 구분을 고르면 서버에 저장하지 않고 gs.draft에 담는다.
+  function chipOpts() { return { canEdit: canEditNow(), canTag: canValueEdit, drafts: gs.draft }; }
+  // 그 줄의 구분 칸(<td>)만 다시 그린다 — 표 전체를 다시 그리지 않아 체크박스·스크롤이 유지된다. 칩에 포커스가 있었으면 새 칩으로 되돌린다.
+  function refreshChip(id) {
+    const sc = $('hb-ts');
+    if (!sc) return;
+    const r = (gs.rows || []).filter(function (x) { return x.id === id && !x.out && x.kind !== 'WATCH'; })[0];
+    if (!r) return;
+    const find = function () { const bs = sc.querySelectorAll('button.hb-tag[data-act="tag"]'); for (let i = 0; i < bs.length; i += 1) { if (bs[i].getAttribute('data-inst') === id) return bs[i]; } return null; };
+    const b = find(), td = b && b.closest ? b.closest('td') : null;
+    if (!td) return;
+    const focused = typeof document !== 'undefined' && td.contains(document.activeElement);
+    td.outerHTML = kbb.tagCellHtml(r, chipOpts());
+    if (focused) { const nb = find(); if (nb && nb.focus) nb.focus(); }
+  }
+  function dropDraftChips() { tc.pruneDrafts(gs.draft, gs.sel).forEach(function (id) { refreshChip(id); }); }   // 고르기가 풀린 줄의 대기를 버리고 칩을 원래 값으로
+  function draftTag(r, code) {
+    const had = !!tc.draftOf(gs.draft, r);
+    if (code === r.tagCd) {   // 원래 구분으로 되돌림: 대기만 지운다(고른 줄은 그대로)
+      if (had) { tc.setDraft(gs.draft, r, code); refreshChip(r.id); paintSel(); }
+      return;
+    }
+    if (!tc.pickable(r)) return;   // 결재 중 줄 등은 대기를 만들지 않는다
+    const pk = tc.pick(gs.sel, tc.entryOfRow(r));   // 자동으로 고른다(이미 골랐으면 그대로)
+    if (!pk.ok) { gs.selMsg = pk.msg; paintSel(); return; }   // 20곳 한도·같은 기관 두 번: 대기를 만들지 않고 띠에 알린다
+    gs.selMsg = ''; gs.selNote = '';
+    const t = tagList().filter(function (z) { return z.code === code; })[0];
+    tc.setDraft(gs.draft, r, code, t ? t.name : (kbb.TAG[code] || code));
+    syncPickDom(); refreshChip(r.id); paintSel();   // 띠 #hb-selbar가 올라오고 '구분 바뀜 n곳' 문구가 보인다
+  }
+  // 구분을 고르면 목표 줄은 저장 전 대기에 담고(띠 [수정하기…]로 저장), 관심 줄은 바로 저장한다(감사 버튼 이름 change_target_tag). 저장 중에는 칩에 aria-busy.
   function changeTag(r, code, btn) {
     if (gs.busy || !canEditNow() || !canValueEdit(r)) return;   // 지난해 목표는 저장을 시도하지 않는다(qa P2-1)
+    if (r.kind !== 'WATCH' && goalMode()) { draftTag(r, code); return; }   // 띠가 없는 옛 서버(모드 없음)는 아래 바로 저장으로
     gs.busy = true;
     btn.setAttribute('aria-busy', 'true');
     const body = kbb.valueBody(r, { tag_cd: code });   // 연도·주 담당·메모는 지금 값 그대로(빠지면 서버가 지운다/403)
@@ -2097,12 +2138,6 @@
         const t = tagList().filter(function (z) { return z.code === code; })[0];
         say(kbb.flashTag(r.name, t ? t.name : (kbb.TAG[code] || code)), false);
         gs.just = { inst: r.id };   // 바뀐 줄 잠깐 강조(.hb-just)
-        // 구분을 바꾼 목표 줄은 자동으로 고른다(사용자 11-25 D) — 저장이 성공한 뒤에만. 이미 골라 두었으면 그대로, 20곳이 차면 고르지 않고 한도 안내.
-        if (tc.pickable(r) && r.kind !== 'WATCH') {
-          const was = tc.isPicked(gs.sel, r), pk = tc.pick(gs.sel, tc.entryOfRow(r));
-          gs.selMsg = pk.ok ? '' : pk.msg;
-          gs.selNote = pk.ok && !was ? tc.autoPickNote(r.name) : '';
-        }
         loadGoals();
       } else if (o.kind === 'nochange') say(o.msg, false);
       else if (x && x.status === 0) say('서버에 연결되지 않아 구분을 바꾸지 못했습니다. 연결을 확인하고 다시 고르세요.', true);
@@ -2776,7 +2811,8 @@
     if (!mode || n === 0) { bar.hidden = true; if (stEl) { stEl.innerHTML = ''; stEl.hbH = ''; } return; }
     bar.hidden = false;   // 먼저 보이게 한 뒤 글을 넣는다(role=status가 보이는 상태에서 바뀐 글을 읽도록, 규격 5-6)
     const kinds = tc.kindCounts(gs.sel), off = n - pickRows().filter(function (r) { return tc.isPicked(gs.sel, r); }).length;   // off = 탭·연도·거르기 때문에 지금 화면에 없는 고른 줄
-    const h = tc.selStatusHtml(n, gs.selMsg, kinds, off, gs.selNote);
+    const dn = tc.draftCount(gs.draft, gs.sel);   // 저장 전 구분 바뀜 곳 수 — 있으면 일반색 알림으로 띠에 늘 보인다(저장하거나 되돌리면 사라진다)
+    const h = tc.selStatusHtml(n, gs.selMsg, kinds, off, dn > 0 ? tc.autoPickNote(dn) : gs.selNote);
     if (stEl && stEl.hbH !== h) { stEl.innerHTML = h; stEl.hbH = h; }
     const ed = $('hb-seledit'); if (ed) { const av = modeAvail(); ed.hidden = !(av.edit.on || av.approval.on); }   // 두 칸(바로 반영·결재 요청) 중 하나라도 켜지면 보인다(사용자 11-25)
   }
@@ -2792,6 +2828,7 @@
         if (t.checked) { const res = tc.pick(gs.sel, tc.entryOfRow(r)); if (!res.ok) gs.selMsg = res.msg; }
         else tc.unpickRow(gs.sel, r.id, r.targetNo);
       });
+      dropDraftChips();
       syncPickDom(); paintSel();
       return;
     }
@@ -2799,10 +2836,12 @@
     if (!r) { t.checked = false; return; }
     if (t.checked) { const res = tc.pick(gs.sel, tc.entryOfRow(r)); if (res.ok) gs.selMsg = ''; else { t.checked = false; gs.selMsg = res.msg; } }   // 20곳 한도·같은 기관 두 번은 체크하지 않고 띠에 알린다(5-6)
     else { tc.unpickRow(gs.sel, id, r.targetNo); gs.selMsg = ''; }
+    dropDraftChips();
     syncPickDom(); paintSel();
   }
   function clearSelection() {
     tc.clearSel(gs.sel); gs.selMsg = ''; gs.selNote = '';
+    dropDraftChips();
     syncPickDom(); paintSel();
     const f = $('hb-pickall') || $('hb-goals'); if (f && f.focus) f.focus();   // 띠가 사라지므로 눌렀던 단추 대신 표로
   }
@@ -2903,6 +2942,7 @@
       if (j >= 0) d.sets[k].splice(j, 1);
     });
     if (!it.add) tc.unpick(gs.sel, it.id);
+    dropDraftChips();
     syncPickDom(); paintSel();
     if (!d.items.length) { d.done = true; root.dlg.close(d.overlay); return; }
     chRepaint(d);
@@ -3015,7 +3055,7 @@
       const it = tc.newItem(++uid, gs.sel.by[id]), p = pre[id];   // 항목의 이전 줄은 고른 줄의 스냅샷(같은 객체 — 목록을 다시 받으면 제자리 갱신)
       if (edit) {
         const ia = tc.newItem(uid, gs.sel.by[id]);
-        tc.setOp(it, 'EDIT');   // 연도·구분·메모를 지금 값으로 채운다(연도는 그대로 보낸다). 관심 줄은 고정 동작이라 그대로
+        tc.setOp(it, 'EDIT', { tag: (tc.draftOf(gs.draft, gs.sel.by[id]) || {}).tagCd });   // 연도·메모는 지금 값, 구분은 대기 중인 값으로 미리 채운다(없으면 지금 값). 관심 줄은 고정 동작이라 그대로
         sets.edit.push(it); sets.approval.push(ia);
       } else if (p && !tc.isFixed(it)) tc.setOp(it, p.op, p);
       return it;
@@ -3078,6 +3118,7 @@
     const res = tc.resultOf(body, d.items.length, d.kind), ids = d.items.map(function (x) { return x.id; });
     d.done = true;
     tc.clearSel(gs.sel); gs.selMsg = ''; gs.selNote = '';
+    dropDraftChips();
     if (!d.gone) root.dlg.close(d.overlay, { restore: false });
     say(res.text, false, res.mode === 'APPROVAL' ? 'inbox' : '');
     if (res.mode === 'DIRECT') gs.justIds = ids;
@@ -3352,6 +3393,9 @@
     else if (t.id === 'hb-f-kind') { gs.f.kind = t.value; renderGoals(); const e3 = $('hb-f-kind'); if (e3) e3.focus(); }
   }
 
+  function onBeforeUnload(e) { if (tc.draftCount(gs.draft, gs.sel) > 0) { e.preventDefault(); e.returnValue = ''; } }
+  kbb.draftCount = function () { return tc.draftCount(gs.draft, gs.sel); };   // app.js 메뉴 이동 경고가 나중에 부를 입구
+
   kbb.mount = function (el) {
     if (!el) return;
     if (host) kbb.unmount();
@@ -3366,7 +3410,9 @@
     host.addEventListener('compositionend', onCompEnd, opt);
     composing = false; gs.cntEl = null;
     gs.sel = tc.newSel(); gs.selMsg = ''; gs.carryTried = false;   // NEXT 105: 마운트마다 새로(자동 이월은 한 번만)
+    gs.draft = {};
     host.addEventListener('keydown', onKeydown, opt);
+    if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('beforeunload', onBeforeUnload, opt);   // 저장 전 구분 바뀜이 있으면 브라우저 닫기·새로고침 경고(네이티브, confirm 아님)
     st.err = '';
     gs.st = (!U.serverMode() || !U.hasEmp()) ? 'offline' : 'loading';
     gs.tab = 'goal'; gs.f = { q: '', tag: '', status: '', kind: '', stage: -1 }; gs.tbSig = '';   // 거르기는 화면 상태로만(저장하지 않는다)
@@ -3385,7 +3431,7 @@
     gs.st = 'offline'; gs.data = null; gs.sumSt = 'idle'; gs.sum = {}; gs.direct = {}; gs.rows = []; gs.wrows = []; gs.focusNext = null; gs.retryFocus = '';
     gs.just = null; gs.seeInst = '';   // 앞 계정의 강조·[관심 탭에서 보기] 대상을 버린다(qa 11-19 P3-2)
     if (dash.clearGoals) dash.clearGoals();
-    closeChangeDlgs(); gs.sel = tc.newSel(); gs.selMsg = ''; gs.carryTried = false; gs.carryTok += 1; gs.justIds = null;   // 앞 계정의 고른 줄·창·진행 중인 이월을 버린다
+    closeChangeDlgs(); gs.sel = tc.newSel(); gs.selMsg = ''; gs.carryTried = false; gs.carryTok += 1; gs.justIds = null; gs.draft = {};   // 앞 계정의 고른 줄·창·진행 중인 이월을 버린다
     prepDenied403 = false;   // 다른 계정은 제안 진행을 볼 수 있을 수 있다 — 403 기억을 푼다
     closeMenu(false); closeDlg('none'); closePop(false);
     if (host && ALL) { renderAll(); loadProgress(); loadGoals(); if (root.noticerec && root.noticerec.ensure) root.noticerec.ensure(); }   // 공고 현황 기록도 새 계정으로 다시(mount와 같은 방식, qa 11-19 P3-3)
@@ -3394,7 +3440,7 @@
     seq += 1; gs.seq += 1;
     closeMenu(false); closeDlg('none'); closePop(false);
     if (qTimer) { clearTimeout(qTimer); qTimer = null; }
-    closeChangeDlgs(); gs.sel = tc.newSel(); gs.carryTried = false; gs.carryTok += 1;
+    closeChangeDlgs(); gs.sel = tc.newSel(); gs.carryTried = false; gs.carryTok += 1; gs.draft = {};
     if (offNr) { offNr(); offNr = null; }
     if (ac) ac.abort();
     ac = null;

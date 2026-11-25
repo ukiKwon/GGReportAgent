@@ -2227,6 +2227,8 @@
   .hb-tag svg { width:8px; height:8px; fill:none; stroke:var(--muted); stroke-width:1.4; }
   .hb-tag.add { border-style:dashed; padding:2px 8px; }
   .hb-tag.ro { border-color:var(--line-strong); cursor:default; padding:2px 8px; }   /* 보기 전용: span, ▾ 없음 */
+  .hb-tag.draft { border-style:dashed; border-color:var(--accent-color); }   /* 저장 전 구분(대기): 점선 + 꼬리표 '바뀜' — 색만으로 구분하지 않는다 */
+  .hb-q.hb-dft { color:var(--fg); font-weight:700; }
   .hb-dd { font:700 16px var(--mono); color:var(--fg); }
   .hb-dd.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
   .hb-dd.est { font-weight:400; color:var(--muted); }

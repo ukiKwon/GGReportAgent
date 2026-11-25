@@ -546,7 +546,7 @@ test('요청: /bid-targets/changes·/bid-targets/carry·/institutions/{id}/bid-t
 test('현황판 소스 배선: 한 줄 동작은 결재 모드에서 일괄 창으로, 추가 창은 [결재 요청 쓰기], 새 창은 dlg, 서버 글은 textContent·esc', function () {
   const k = src('js/kbboard.js');
   assert.ok(k.indexOf("const tc = isNode ? require('./tchange.js') : root.tchange;") > 0);
-  assert.ok(k.indexOf("changeTag(r, code, btn);   // 구분은 목표·관심 모두 바로 저장한다") > 0 && k.indexOf("op: 'EDIT', tag: code") < 0);   // 구분 고르기는 결재 창으로 가지 않는다(NEXT 114)
+  assert.ok(k.indexOf("changeTag(r, code, btn);   // 목표 줄은 저장 전 대기(띠 [수정하기…]로 저장), 관심 줄은 바로 저장한다") > 0 && k.indexOf("op: 'EDIT', tag: code") < 0);   // 구분 고르기는 결재 창으로 가지 않는다(NEXT 114)
   // 구분 메뉴에서 빠진 빼기·옮기기·메모·개시일 분기는 없고(11-25), 관심 줄 빼기는 줄 안 단추(data-act="unwatch") → openCancel, 옮기기는 줄 단추·[수정하기…] 결재 칸
   assert.ok(!/(^|[^.\w])cmd === '(cancel|towatch|memo|term)'/.test(k));   // 메뉴 클릭 분기 없음(m.cmd는 이동 창 상태라 별개)
   assert.ok(k.indexOf("else if (act === 'unwatch') { const r = rowOfBtn(btn, false); if (r && r.kind === 'WATCH') openCancel(r, btn); }") > 0);
@@ -625,11 +625,11 @@ test('NEXT 114 띠: 고른 목표 기관 n곳·선택 지우기·[수정하기�
   tc.unpick(ms, 'W'); tc.pick(ms, { id: 'P', targetNo: 3, kind: 'GOAL', year: 2025 });
   assert.deepStrictEqual([tc.modeAvail(ms, { canBulk: true, hasMode: true, year: 2026 }).edit.on, tc.modeAvail(ms, { canBulk: true, hasMode: true, year: 2026 }).edit.why], [false, '지난해 목표가 있어 고칠 수 없습니다.']);   // 지난해 목표는 바로 반영 칸만 꺼진다
   assert.strictEqual(tc.modeAvail(ms, { canBulk: true, hasMode: false, year: 2026 }).approval.on, false);
-  // D. 구분을 바꿔 자동으로 골라 둔 알림: 일반색 .note, 한도 경고(.lim)가 있으면 그쪽이 이긴다
-  assert.strictEqual(tc.autoPickNote('노원구청'), '구분을 바꾼 노원구청을 골라 두었습니다');
-  assert.strictEqual(tc.autoPickNote('수원시'), '구분을 바꾼 수원시를 골라 두었습니다');
-  assert.strictEqual(tc.selStatusHtml(2, '', { goal: 2, watch: 0 }, 0, tc.autoPickNote('노원구청')),
-    '<span class="sr-only">구분을 바꾼 노원구청을 골라 두었습니다. 목표 기관 2곳 고름</span><span aria-hidden="true">고른 목표 기관 <b>2</b>곳</span><span class="note" aria-hidden="true">구분을 바꾼 노원구청을 골라 두었습니다</span>');
+  // D. 구분 바뀜 대기 알림(저장 전): 일반색 .note, 한도 경고(.lim)가 있으면 그쪽이 이긴다
+  assert.strictEqual(tc.autoPickNote(1), '구분 바뀜 1곳 — [수정하기…]로 저장');
+  assert.strictEqual(tc.autoPickNote(2), '구분 바뀜 2곳 — [수정하기…]로 저장');
+  assert.strictEqual(tc.selStatusHtml(2, '', { goal: 2, watch: 0 }, 0, tc.autoPickNote(2)),
+    '<span class="sr-only">구분 바뀜 2곳 — [수정하기…]로 저장. 목표 기관 2곳 고름</span><span aria-hidden="true">고른 목표 기관 <b>2</b>곳</span><span class="note" aria-hidden="true">구분 바뀜 2곳 — [수정하기…]로 저장</span>');
   assert.ok(tc.selStatusHtml(20, tc.CAP_MSG, { goal: 20, watch: 0 }, 0, '알림').indexOf('class="note"') < 0);
   assert.ok(tc.selStatusHtml(1, '', { goal: 1, watch: 0 }, 0, '').indexOf('class="note"') < 0);   // 알림이 없으면 예전 마크업 그대로
   assert.ok(k.indexOf('tc.barBtnText(') < 0 && k.indexOf('hb-selwho') < 0);   // 띠가 더는 쓰지 않는다(함수는 남김)
