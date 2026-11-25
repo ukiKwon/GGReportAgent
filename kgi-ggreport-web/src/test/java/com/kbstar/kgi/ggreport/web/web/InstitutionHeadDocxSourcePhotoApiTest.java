@@ -237,7 +237,13 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         assertTrue(xml.contains("경력옛날A(2001.01 ~ 2005.12)"));
         assertFalse("저장 형식 없음", xml.contains("2019-07") || xml.contains("2010-03"));
         String sum = documentXml(bytes(docx()));   // 요약본(기본): 날짜 없음
-        assertTrue(sum.contains("■ 경력최근C") && !sum.contains("2010.03") && !sum.contains("경력최근C("));
+        assertTrue(squareLine(sum, "경력최근C") && !sum.contains("2010.03") && !sum.contains("경력최근C("));
+    }
+
+    /** '■' run → 탭 run → 본문 run 순서(디자인 11-25: ■ 뒤 공백 대신 탭). text 는 본문 run 의 앞부분. */
+    private static boolean squareLine(String xml, String text) {
+        return Pattern.compile("■</w:t></w:r><w:r><w:rPr>(?:(?!</w:rPr>).)*</w:rPr><w:tab/></w:r><w:r><w:rPr>(?:(?!</w:rPr>).)*</w:rPr><w:t[^>]*>"
+                + Pattern.quote(text)).matcher(xml).find();
     }
 
     private MvcResult docx(String query) throws Exception {
@@ -251,6 +257,36 @@ public class InstitutionHeadDocxSourcePhotoApiTest extends HeadApiTestBase {
         for (String v : new String[]{"full", "DATED", "1"}) {
             MvcResult r = docx("?mode=" + v);
             assertEquals(v, 400, r.getResponse().getStatus());
+            assertEquals("BAD_VALUE", code(json(r)));
+        }
+    }
+
+    @Test
+    public void 모르는_mode는_감사_표에_INVALID_한_줄이고_OK_DENIED는_없고_입력값이_본문에_없다() throws Exception {
+        addHeadOk(INST, L1, "홍길동", "구청장");
+        MvcResult r = docx("?mode=zzbad");
+        assertEquals(text(r), 400, r.getResponse().getStatus());
+        assertEquals("BAD_VALUE", code(json(r)));
+        assertFalse("입력값을 메시지에 싣지 않는다", text(r).contains("zzbad"));
+        assertEquals(1, act("HEAD_DOCX", "INVALID"));
+        assertEquals(0, act("HEAD_DOCX", "OK"));
+        assertEquals(0, act("HEAD_DOCX", "DENIED"));
+    }
+
+    @Test
+    public void mode_경계값_빈값과_summary는_요약본_값이_둘이면_400() throws Exception {
+        long head = addHeadOk(INST, L1, "홍길동", "구청장");
+        addItemOk(INST, L1, periodItem(head, "CAREER", "경력경계K", "2010-03", "2018-12"), 201);
+        for (String q : new String[]{"", "?mode=", "?mode=summary"}) {
+            MvcResult r = docx(q);
+            assertEquals(q, 200, r.getResponse().getStatus());
+            String xml = documentXml(bytes(r));
+            assertTrue(q, squareLine(xml, "경력경계K"));
+            assertFalse(q + " 요약본은 날짜 없음", xml.contains("2010.03") || xml.contains("경력경계K("));
+        }
+        for (String q : new String[]{"?mode=summary&mode=dated", "?mode=dated&mode=dated"}) {   // Spring 이 'a,b' 로 합친다
+            MvcResult r = docx(q);
+            assertEquals(q, 400, r.getResponse().getStatus());
             assertEquals("BAD_VALUE", code(json(r)));
         }
     }

@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -20,7 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/** 기관장 Word 학력·경력: '■ 내용' 한 줄(■ 뒤 한 칸)·요약본(기본)/날짜정보 포함 괄호 규칙(사용자 11-24). 가상 값만. */
+/** 기관장 Word 학력·경력: '■ 내용' 한 줄(■ 뒤 탭 하나)·요약본(기본)/날짜정보 포함 괄호 규칙(사용자 11-24). 가상 값만. */
 public class HeadDocBuilderDatesTest {
 
     private static Map<String, Object> item(String value, String from, String to) {
@@ -75,6 +76,20 @@ public class HeadDocBuilderDatesTest {
         return "";
     }
 
+    /** '■' run → 탭 run → 본문 run 순서(디자인 11-25: ■ 뒤 공백 대신 탭). text 는 본문 run 의 앞부분(끝 조각 포함 가능). */
+    static boolean squareLine(String xml, String text) {
+        return Pattern.compile("■</w:t></w:r><w:r><w:rPr>(?:(?!</w:rPr>).)*</w:rPr><w:tab/></w:r><w:r><w:rPr>(?:(?!</w:rPr>).)*</w:rPr><w:t[^>]*>"
+                + Pattern.quote(text)).matcher(xml).find();
+    }
+
+    private static int count(String s, String sub) {
+        int n = 0;
+        for (int i = s.indexOf(sub); i >= 0; i = s.indexOf(sub, i + sub.length())) {
+            n++;
+        }
+        return n;
+    }
+
     private static String render(Map<String, Object> d, boolean dated) throws Exception {
         return xml(DocxKit.render(HeadDocBuilder.buildDoc(d, "서울시 가구청", "2026-11-20", null, dated).model(), DocxKit.Footer.pageNumberOnly()));
     }
@@ -96,7 +111,7 @@ public class HeadDocBuilderDatesTest {
     @Test
     public void 요약본은_날짜가_전혀_없다() throws Exception {
         String x = render(sample(), false);
-        assertTrue(x.contains("■ 마산공업고등학교 졸업") && x.contains("■ 행정학석사") && x.contains("■ 경력진행"));
+        assertTrue(squareLine(x, "마산공업고등학교 졸업") && squareLine(x, "행정학석사") && squareLine(x, "경력진행"));
         assertFalse(x.contains("졸업(") || x.contains("행정학석사(") || x.contains("경력진행(") || x.contains("경력옛날("));
         assertFalse(x.contains("1990.03") || x.contains("2018.07") || x.contains("2026.01") || x.contains("~ 현재"));
         assertTrue("최근 것부터", x.indexOf("경력진행") < x.indexOf("경력옛날") && x.indexOf("경력옛날") < x.indexOf("경력무기간"));
@@ -105,11 +120,11 @@ public class HeadDocBuilderDatesTest {
     @Test
     public void 날짜_포함은_내용_뒤_괄호이고_순서는_같다() throws Exception {
         String x = render(sample(), true);
-        assertTrue(x.contains("■ 마산공업고등학교 졸업(2026.01)"));
-        assertTrue(x.contains("■ 행정학석사(1990.03 ~ 1994.02)"));
-        assertTrue(x.contains("■ 경력옛날(2001.01 ~ 2005.12)"));
-        assertTrue(x.contains("■ 경력진행(2018.07 ~ 현재)"));
-        assertTrue("기간 없는 줄은 괄호 없음", x.contains("■ 경력무기간<"));
+        assertTrue(squareLine(x, "마산공업고등학교 졸업(2026.01)"));
+        assertTrue(squareLine(x, "행정학석사(1990.03 ~ 1994.02)"));
+        assertTrue(squareLine(x, "경력옛날(2001.01 ~ 2005.12)"));
+        assertTrue(squareLine(x, "경력진행(2018.07 ~ 현재)"));
+        assertTrue("기간 없는 줄은 괄호 없음", squareLine(x, "경력무기간</w:t>"));
         assertTrue(x.indexOf("경력진행") < x.indexOf("경력옛날") && x.indexOf("경력옛날") < x.indexOf("경력무기간"));
         assertFalse("저장 형식 없음", x.contains("2018-07") || x.contains("1990-03"));
     }
@@ -120,7 +135,8 @@ public class HeadDocBuilderDatesTest {
         byte[] def = DocxKit.render(HeadDocBuilder.buildDoc(d, "서울시 가구청", "2026-11-20", null).model(), DocxKit.Footer.pageNumberOnly());
         String x = xml(def);
         assertEquals("4인자 = 요약본", render(sample(), false), x);
-        assertFalse("■ 뒤 두 칸 이상 없음", x.contains("■  ") || x.contains("■\t"));
+        assertFalse("■ 뒤 공백 없음(탭 하나로 대체)", x.contains("■ "));
+        assertEquals("■ 하나당 탭 하나", count(x, "■"), count(x, "<w:tab/>"));
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(def))) {
             assertEquals("사진이 없으면 표 없음", 0, doc.getTables().size());
         }
@@ -162,7 +178,7 @@ public class HeadDocBuilderDatesTest {
         assertEquals(0, s.eduDropped());
         String x = xml(DocxKit.render(t.model(), DocxKit.Footer.pageNumberOnly()));
         assertTrue("가장 최근은 남는다", x.contains("가상경력59"));
-        assertFalse("가장 오래된 줄은 빠진다", x.contains(">■ 가상경력0("));
+        assertFalse("가장 오래된 줄은 빠진다", x.contains("가상경력0("));
         assertEquals(0, HeadDocBuilder.buildDoc(detail(new ArrayList<Map<String, Object>>(), manyCareer(3, "")), "서울시 가구청", "2026-11-20", null, true).careerDropped());
     }
 }

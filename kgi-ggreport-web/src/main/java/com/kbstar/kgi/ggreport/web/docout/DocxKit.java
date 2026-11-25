@@ -8,9 +8,12 @@ import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFFooter;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.poi.xwpf.usermodel.XWPFPicture;
 import org.apache.xmlbeans.XmlCursor;
 import org.apache.xmlbeans.XmlObject;
 import org.apache.xmlbeans.impl.xb.xmlschema.SpaceAttribute;
+import org.openxmlformats.schemas.drawingml.x2006.main.CTBlipFillProperties;
+import org.openxmlformats.schemas.drawingml.x2006.main.CTRelativeRect;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBody;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBorder;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTFonts;
@@ -25,8 +28,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRow;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTShd;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSimpleField;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSpacing;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSpacing;import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblBorders;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblCellMar;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblGrid;
@@ -40,8 +42,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STBrType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STJc;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.STShd;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblLayoutType;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STShd;import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblLayoutType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblWidth;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STUnderline;
 import org.openxmlformats.schemas.officeDocument.x2006.sharedTypes.STVerticalAlignRun;
@@ -211,11 +212,32 @@ public final class DocxKit {
         sp.setAfter(BigInteger.valueOf(40));
         try {
             XWPFRun run = new XWPFParagraph(p, d).createRun();
-            run.addPicture(new ByteArrayInputStream(pic.getData()), Document.PICTURE_TYPE_JPEG, "photo.jpg",
+            XWPFPicture xp = run.addPicture(new ByteArrayInputStream(pic.getData()), Document.PICTURE_TYPE_JPEG, "photo.jpg",
                     pic.getWidthEmu(), pic.getHeightEmu());
             run.getCTR().getDrawingArray(0).getInlineArray(0).getDocPr().setDescr(clean(pic.getAlt()));   // 대체 글
+            if (pic.hasCrop()) {
+                applyCrop(xp, pic);
+            }
         } catch (InvalidFormatException | IOException e) {
             throw new IllegalStateException("docx build failed");
+        }
+    }
+
+    /** Word 자르기(a:srcRect, 1/1000 %). 원본 JPEG 는 그대로라 Word 에서 '자르기'를 풀어 되돌릴 수 있다. setter 시그니처가 버전마다 달라 속성을 직접 쓴다. */
+    private static void applyCrop(XWPFPicture xp, DocModel.Picture pic) {
+        CTBlipFillProperties bf = xp.getCTPicture().getBlipFill();
+        if (bf == null) {
+            throw new IllegalStateException("docx build failed");
+        }
+        CTRelativeRect rc = bf.isSetSrcRect() ? bf.getSrcRect() : bf.addNewSrcRect();   // 순서(blip → srcRect → stretch)는 스키마가 맞춘다
+        XmlCursor c = rc.newCursor();
+        try {
+            c.setAttributeText(new QName("l"), String.valueOf(pic.getCropL()));
+            c.setAttributeText(new QName("t"), String.valueOf(pic.getCropT()));
+            c.setAttributeText(new QName("r"), String.valueOf(pic.getCropR()));
+            c.setAttributeText(new QName("b"), String.valueOf(pic.getCropB()));
+        } finally {
+            c.dispose();
         }
     }
 
@@ -241,13 +263,35 @@ public final class DocxKit {
             pPr.addNewJc().setVal(STJc.RIGHT);
         }
         String prefix = "";
+        boolean squareTab = para.getBullet() == DocModel.Bullet.SQUARE;   // ■ 는 공백 대신 탭 + 1.3em 내어쓰기(디자인 11-25: 둘째 줄이 본문 첫 글자와 같은 위치)
         if (para.getBullet() != DocModel.Bullet.NONE) {
-            prefix = para.getBullet() == DocModel.Bullet.CIRCLE_O ? "ㅇ "
-                    : para.getBullet() == DocModel.Bullet.SQUARE ? "■ " : "- ";
-            int hanging = para.getSize() * 20;   // 글자 크기만큼 내어쓰기(글머리 + 공백 폭 근사)
+            prefix = para.getBullet() == DocModel.Bullet.CIRCLE_O ? "ㅇ " : squareTab ? "■" : "- ";
+            int hanging = squareTab ? (int) Math.round(para.getSize() * 20 * 1.3)
+                    : para.getSize() * 20;   // 그 밖: 글자 크기만큼 내어쓰기(글머리 + 공백 폭 근사)
+            int left = hanging + para.getLevel() * 260;
+            if (squareTab) {
+                // Word 자동 탭에 맡기지 않고 본문 시작 위치에 명시. 타입 클래스(lite 스키마) 없이 커서로 pPr 맨 앞(tabs 는 spacing 앞)에 끼운다.
+                XmlCursor tc = pPr.newCursor();
+                try {
+                    tc.toFirstContentToken();
+                    tc.beginElement(new QName(W, "tabs"));
+                    tc.beginElement(new QName(W, "tab"));
+                    tc.insertAttributeWithValue(new QName(W, "val"), "left");
+                    tc.insertAttributeWithValue(new QName(W, "pos"), String.valueOf(left));
+                } finally {
+                    tc.dispose();
+                }
+            }
             CTInd ind = pPr.addNewInd();
-            ind.setLeft(BigInteger.valueOf(hanging + para.getLevel() * 260L));
+            ind.setLeft(BigInteger.valueOf(left));
             ind.setHanging(BigInteger.valueOf(hanging));
+        }
+        if (squareTab) {   // '■' run + 탭 run 을 따로 낸다(clean 이 \t 를 공백으로 바꾸므로 w:tab 을 직접)
+            emitRun(p, prefix, para.getSize(), false, false);
+            CTR tr = p.addNewR();
+            fmt(tr, para.getSize(), false, false);
+            tr.addNewTab();
+            prefix = "";
         }
         boolean first = true;
         for (DocModel.Run r : para.getRuns()) {

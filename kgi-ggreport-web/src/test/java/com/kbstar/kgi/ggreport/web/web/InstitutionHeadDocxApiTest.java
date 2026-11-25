@@ -65,6 +65,12 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         return "";
     }
 
+    /** '■' run → 탭 run → 본문 run 순서(디자인 11-25: ■ 뒤 공백 대신 탭). text 는 본문 run 의 앞부분. */
+    private static boolean squareLine(String xml, String text) {
+        return java.util.regex.Pattern.compile("■</w:t></w:r><w:r><w:rPr>(?:(?!</w:rPr>).)*</w:rPr><w:tab/></w:r><w:r><w:rPr>(?:(?!</w:rPr>).)*</w:rPr><w:t[^>]*>"
+                + java.util.regex.Pattern.quote(text)).matcher(xml).find();
+    }
+
     @Test
     public void 영업팀이_식별자와_함께_받으면_200_첨부_no_store이고_감사가_남고_확정_값만_담긴다() throws Exception {
         long head = addHeadOk(INST, L1, "홍길동", "구청장");
@@ -141,6 +147,16 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         assertEquals(text(r), 403, r.getResponse().getStatus());
         assertEquals(1, act("HEAD_DOCX", "DENIED"));
         assertEquals(deniedBefore + 1, count("SELECT COUNT(*) FROM ACCESS_LOG WHERE EVENT_TYPE='DENIED' AND REQ_PATH=?", path(INST)));
+    }
+
+    @Test
+    public void 영업_밖이_잘못된_mode를_보내도_400이_아니라_403이고_DENIED만_남는다() throws Exception {
+        addHeadOk(INST, L1, "홍길동", "구청장");
+        MvcResult r = docx(path(INST) + "?mode=zzbad", DESIGNER, true);
+        assertEquals(text(r), 403, r.getResponse().getStatus());   // 권한 검사 → mode 검증 순서(qa a79159d6 확인 항목)
+        assertEquals(1, act("HEAD_DOCX", "DENIED"));
+        assertEquals(0, act("HEAD_DOCX", "INVALID"));
+        assertFalse(text(r).contains("zzbad"));
     }
 
     @Test
@@ -244,7 +260,7 @@ public class InstitutionHeadDocxApiTest extends HeadApiTestBase {
         byte[] b = bytes(r);
         String xml = documentXml(b);
         assertTrue(xml.contains("성 명 : 홍길동"));
-        assertTrue(xml.contains("■ 구청장"));
+        assertTrue(squareLine(xml, "구청장"));
         assertFalse("값 없는 줄은 생략", xml.contains("첫 취임일"));
         assertFalse("임기 줄도 생략", xml.contains("(~") || xml.contains(" ~)"));
         assertFalse("null 글자 없음", xml.contains(">null<") || xml.contains("null ~") || xml.contains("~ null"));

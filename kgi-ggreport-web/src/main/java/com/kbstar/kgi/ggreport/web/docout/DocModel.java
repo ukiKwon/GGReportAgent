@@ -222,6 +222,21 @@ public final class DocModel {
         private final int widthEmu;
         private final int heightEmu;
         private final String alt;
+        private int cropL;   // 자르기(a:srcRect 단위 = 1/1000 %, 0~99999). 기본 0 = 자르지 않음
+        private int cropT;
+        private int cropR;
+        private int cropB;
+
+        private Picture(Picture o) {   // withCrop 용 복사(data 는 이미 복제본이라 다시 복제하지 않는다)
+            this.data = o.data;
+            this.widthEmu = o.widthEmu;
+            this.heightEmu = o.heightEmu;
+            this.alt = o.alt;
+            this.cropL = o.cropL;
+            this.cropT = o.cropT;
+            this.cropR = o.cropR;
+            this.cropB = o.cropB;
+        }
 
         private Picture(byte[] data, double widthMm, double heightMm, String alt) {
             if (data == null || data.length == 0 || data.length > MAX_BYTES) {
@@ -238,6 +253,39 @@ public final class DocModel {
 
         public static Picture jpeg(byte[] data, double widthMm, double heightMm, String alt) {
             return new Picture(data, widthMm, heightMm, alt);
+        }
+
+        /** 원본은 그대로 두고 Word 자르기만 건 새 그림. 각 값은 원본 한 변 길이에 대한 0~1 비율이고 좌+우·위+아래는 1 미만이어야 한다. */
+        public Picture withCrop(double l, double t, double r, double b) {
+            if (!(l >= 0) || !(t >= 0) || !(r >= 0) || !(b >= 0) || l + r >= 1 || t + b >= 1) {
+                throw new IllegalArgumentException("picture crop");
+            }
+            Picture p = new Picture(this);
+            p.cropL = (int) Math.round(l * 100000d);
+            p.cropT = (int) Math.round(t * 100000d);
+            p.cropR = (int) Math.round(r * 100000d);
+            p.cropB = (int) Math.round(b * 100000d);
+            return p;
+        }
+
+        public boolean hasCrop() {
+            return cropL > 0 || cropT > 0 || cropR > 0 || cropB > 0;
+        }
+
+        public int getCropL() {
+            return cropL;
+        }
+
+        public int getCropT() {
+            return cropT;
+        }
+
+        public int getCropR() {
+            return cropR;
+        }
+
+        public int getCropB() {
+            return cropB;
         }
 
         public byte[] getData() {

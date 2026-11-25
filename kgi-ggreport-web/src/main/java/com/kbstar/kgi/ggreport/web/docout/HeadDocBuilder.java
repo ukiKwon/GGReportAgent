@@ -29,6 +29,7 @@ import java.util.Set;
  * 기준일(baseDate)은 나이 계산에만 쓴다. 나이는 '만 n세'만 쓴다 — 생년월일 날짜는 어디에도 넣지 않는다(사용자 11-20).
  * 후보 값·사번(created_by)·이전 기관장은 넣지 않는다.
  * <p>사진은 1장 맞춤을 위해 4단계 상자(S0 78×81.8 … S3 88×92.3mm, 비율 78:81.8) 중 들어가는 가장 큰 것을 고른다({@link #chooseStage}).
+ * 사진은 그 상자를 꽉 채우고 넘치는 쪽을 Word 자르기(srcRect)로 잘라낸다(cover — 사용자 11-23 '최소 78×81.8'). 잘림이 한 축 35%를 넘는 극단 비율은 자르지 않고 상자 안에 비율대로 넣는다(contain).
  * 어느 단계도 안 들어가면 S0 로 두고, 그래도 넘치면 경력을(경력이 0줄이 되면 학력을) 표 맨 아래(가장 오래된) 줄부터 뺀다(글자는 줄이지 않음 — 사용자 11-23 밤 '어떤 경우에도 1장').
  * 뺀 줄 수는 응답 머리 X-Head-Trimmed-Career·X-Head-Trimmed-Edu 로 알린다.
  */
@@ -61,6 +62,29 @@ public final class HeadDocBuilder {
     // 사진 상자 단계(가로×세로 mm, 비율 78:81.8 유지)
     static final double[] STAGE_W_MM = {78, 82, 85, 88};
     static final double[] STAGE_H_MM = {81.8, 86.0, 89.1, 92.3};
+
+    /** 상자를 꽉 채울 때 한 축에서 잘라내도 되는 최대 비율. 넘으면 자르지 않고 상자 안에 비율대로 넣는다(contain). */
+    static final double MAX_CROP = 0.35;
+    /** 세로로 긴 사진은 머리 위 여유를 덜 자른다 — 잘라낼 양의 30% 를 위, 70% 를 아래에서. */
+    static final double TOP_SHARE = 0.30;
+
+    /**
+     * 사진(w×h px)을 상자(boxW×boxH mm)에 꽉 채울 때 자를 비율 {왼쪽, 위, 오른쪽, 아래}(각 0~1).
+     * 비율이 같거나(자를 것 없음) 잘림이 {@value #MAX_CROP} 를 넘으면 null — 호출부는 contain 으로 넣는다.
+     */
+    static double[] cropFor(double boxW, double boxH, int w, int h) {
+        double boxR = boxW / boxH;
+        double r = (double) w / h;
+        if (Math.abs(r - boxR) < 1e-6) {
+            return null;
+        }
+        if (r < boxR) {   // 세로로 긴 사진: 폭을 맞추고 위아래를 자른다
+            double f = 1 - r / boxR;
+            return f > MAX_CROP ? null : new double[]{0, f * TOP_SHARE, 0, f * (1 - TOP_SHARE)};
+        }
+        double f = 1 - boxR / r;   // 가로로 긴 사진: 높이를 맞추고 좌우를 가운데 기준으로 자른다
+        return f > MAX_CROP ? null : new double[]{f / 2, 0, f / 2, 0};
+    }
 
     // 1장 맞춤 추정(본문 170×257mm, 목표 예산 247mm). 맑은 고딕 행간 ≈ 1.33×글자.
     static final double BODY_W_MM = 170;
@@ -258,10 +282,16 @@ public final class HeadDocBuilder {
 
         String status = PHOTO_NONE;
         if (hasPhoto) {
-            double scale = Math.min(STAGE_W_MM[stage] / photo.w, STAGE_H_MM[stage] / photo.h);   // 단계 상자 안에 비율을 지켜 맞춘다(찌그러뜨리지 않는다)
+            double[] crop = cropFor(STAGE_W_MM[stage], STAGE_H_MM[stage], photo.w, photo.h);   // 상자를 꽉 채우고 넘치는 쪽을 자른다(사용자 11-23 '최소 78×81.8')
             DocModel.Picture pic = null;
             try {
-                pic = DocModel.Picture.jpeg(photo.jpeg, photo.w * scale, photo.h * scale, "기관장 사진");
+                if (crop != null) {
+                    pic = DocModel.Picture.jpeg(photo.jpeg, STAGE_W_MM[stage], STAGE_H_MM[stage], "기관장 사진")
+                            .withCrop(crop[0], crop[1], crop[2], crop[3]);
+                } else {   // 극단 비율: 자르지 않고 상자 안에 비율대로(찌그러뜨리지 않는다)
+                    double scale = Math.min(STAGE_W_MM[stage] / photo.w, STAGE_H_MM[stage] / photo.h);
+                    pic = DocModel.Picture.jpeg(photo.jpeg, photo.w * scale, photo.h * scale, "기관장 사진");
+                }
             } catch (IllegalArgumentException e) {
                 pic = null;   // planPhoto 가 크기·바이트를 미리 거르므로 거의 없다
             }
@@ -459,7 +489,7 @@ public final class HeadDocBuilder {
         return lead + "(~ " + ym(end) + ")";
     }
 
-    /** 학력·경력 한 줄 12pt — '■ ' 는 DocxKit 이 붙이고(■ 뒤 한 칸) 둘째 줄부터는 내어쓰기(left=hanging=240twip). 사용자 11-24 "띄어쓰기 1~2개 정도". */
+    /** 학력·경력 한 줄 12pt — '■' + 탭은 DocxKit 이 붙이고(■ 뒤 한 칸 안팎) 둘째 줄부터는 내어쓰기(left=hanging=312twip, 디자인 11-25). 사용자 11-24 "띄어쓰기 1~2개 정도". */
     private static List<DocModel.Block> lineParas(List<Map<String, Object>> items, boolean withDates) {
         List<DocModel.Block> out = new ArrayList<DocModel.Block>();
         for (Map<String, Object> it : items) {

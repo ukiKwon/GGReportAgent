@@ -29,6 +29,7 @@ import java.util.zip.ZipInputStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -214,7 +215,7 @@ public class HeadDocBuilderLayoutTest {
                 assertEquals(STBorder.NIL, b.getInsideV().getVal());
             }
         }
-        assertTrue("■ 글머리", xml(render(true)).contains("■ 성 명 : 홍길동"));
+        assertTrue("■ 글머리(탭)", squareLine(xml(render(true)), "성 명 : 홍길동"));
     }
 
     @Test
@@ -227,7 +228,10 @@ public class HeadDocBuilderLayoutTest {
     @Test
     public void 요약본_기본은_학력_경력에_날짜가_없고_네모_뒤_한_칸이며_날짜_생년_표기는_없다() throws Exception {
         String xml = xml(render(true));
-        assertTrue("■ 뒤 한 칸 + 내용", xml.contains("■ 경력진행") && xml.contains("■ 행정학석사") && xml.contains("■ 대학교졸업"));
+        assertTrue("■ + 탭 + 내용", squareLine(xml, "경력진행") && squareLine(xml, "행정학석사") && squareLine(xml, "대학교졸업"));
+        assertTrue("내어쓰기 312twip(12pt) + 탭 위치 명시", xml.contains("w:hanging=\"312\"") && xml.contains("w:left=\"312\"")
+                && xml.contains("<w:tab w:val=\"left\" w:pos=\"312\"/>"));
+        assertTrue("정보 줄 14pt 는 364twip", xml.contains("w:hanging=\"364\"") && xml.contains("<w:tab w:val=\"left\" w:pos=\"364\"/>"));
         assertFalse("요약본: 학력·경력 날짜 없음(사용자 11-24)", xml.contains("2018 ~ 현재") || xml.contains("2001 ~ 2005") || xml.contains("1990 ~ 1994")
                 || xml.contains("1986 ~ 1990") || xml.contains("1990.03") || xml.contains("2001.01"));
         assertTrue("임기", xml.contains("(2023.12") && xml.contains(" ~ 2027.12"));
@@ -294,6 +298,12 @@ public class HeadDocBuilderLayoutTest {
         return DocxKit.render(HeadDocBuilder.build(withLicense(license), "서울시 가구청", "2026-11-20", jpeg), DocxKit.Footer.pageNumberOnly());
     }
 
+    /** '■' run → 탭 run → 본문 run 순서(디자인 11-25: ■ 뒤 공백 대신 탭). text 는 본문 run 의 앞부분. */
+    static boolean squareLine(String xml, String text) {
+        return Pattern.compile("■</w:t></w:r><w:r><w:rPr>(?:(?!</w:rPr>).)*</w:rPr><w:tab/></w:r><w:r><w:rPr>(?:(?!</w:rPr>).)*</w:rPr><w:t[^>]*>"
+                + Pattern.quote(text)).matcher(xml).find();
+    }
+
     private static int[] extent(String xml) {
         Matcher m = Pattern.compile("extent cx=\"(\\d+)\" cy=\"(\\d+)\"").matcher(xml);
         assertTrue(xml, m.find());
@@ -301,19 +311,101 @@ public class HeadDocBuilderLayoutTest {
     }
 
     @Test
-    public void 학력_경력이_적으면_사진은_S3_88x92_3mm_상자_안에_비율을_지켜_맞춘다() throws Exception {
-        int tol = 36;
-        int[] tall = extent(xml(render("INST_PERMIT", jpeg(300, 400))));
-        assertTrue(tall[0] <= BOX_W && tall[1] <= BOX_H + tol);
-        assertEquals(BOX_H, tall[1], tol);
-        assertEquals(300d / 400d, (double) tall[0] / tall[1], 0.001);
-        int[] wide = extent(xml(render("INST_PERMIT", jpeg(400, 300))));
-        assertTrue(wide[0] <= BOX_W && wide[1] <= BOX_H);
-        assertEquals(BOX_W, wide[0], tol);
-        assertEquals(400d / 300d, (double) wide[0] / wide[1], 0.001);
-        int[] sq = extent(xml(render("INST_PERMIT", jpeg(500, 500))));
-        assertEquals(BOX_W, sq[0], tol);
-        assertEquals(sq[0], sq[1], tol);
+    public void 학력_경력이_적으면_사진은_S3_88x92_3mm_상자를_꽉_채운다_세로_가로_정사각_모두() throws Exception {
+        for (int[] wh : new int[][]{{300, 400}, {400, 300}, {500, 500}}) {
+            int[] e = extent(xml(render("INST_PERMIT", jpeg(wh[0], wh[1]))));
+            assertEquals(wh[0] + "x" + wh[1] + " 폭", BOX_W, e[0], 36);
+            assertEquals(wh[0] + "x" + wh[1] + " 높이", BOX_H, e[1], 36);
+        }
+    }
+
+    /** word/document.xml 의 srcRect 속성(없으면 0). srcRect 요소 자체가 없으면 -1. */
+    private static int crop(String xml, String attr) {
+        Matcher e = Pattern.compile("<[A-Za-z]*:?srcRect\\b[^>]*>").matcher(xml);
+        if (!e.find()) {
+            return -1;
+        }
+        Matcher a = Pattern.compile("\\s" + attr + "=\"(\\d+)\"").matcher(e.group());
+        return a.find() ? Integer.parseInt(a.group(1)) : 0;
+    }
+
+    @Test
+    public void 세로_3대4_사진은_위30_아래70으로_잘라_상자를_채운다() throws Exception {
+        String xml = xml(render("INST_PERMIT", jpeg(300, 400)));   // 적으면 S3
+        int[] e = extent(xml);
+        assertEquals(BOX_W, e[0], 36);
+        assertEquals(BOX_H, e[1], 36);
+        assertEquals(0, crop(xml, "l"));
+        assertEquals(0, crop(xml, "r"));
+        assertEquals("위 약 6.4%", 6402, crop(xml, "t"), 100);
+        assertEquals("아래 약 14.9%", 14937, crop(xml, "b"), 100);
+    }
+
+    @Test
+    public void 가로_4대3_사진은_좌우_가운데를_잘라_상자를_채운다() throws Exception {
+        String xml = xml(render("INST_PERMIT", jpeg(400, 300)));
+        int[] e = extent(xml);
+        assertEquals(BOX_W, e[0], 36);
+        assertEquals(BOX_H, e[1], 36);
+        assertEquals(14247, crop(xml, "l"), 100);
+        assertEquals(14247, crop(xml, "r"), 100);
+        assertEquals(0, crop(xml, "t"));
+        assertEquals(0, crop(xml, "b"));
+    }
+
+    @Test
+    public void 행이_많아_S0이면_세로_사진도_78x81_8mm를_채운다() throws Exception {
+        String xml = xml(DocxKit.render(HeadDocBuilder.build(manyRows(40), "서울시 가구청", "2026-11-20", jpeg(300, 400)), DocxKit.Footer.pageNumberOnly()));
+        int[] e = extent(xml);
+        assertEquals(78 * 36000, e[0], 36);   // 사용자 11-23 '최소 78×81.8' — 이전엔 61.4mm
+        assertEquals((int) Math.round(81.8 * 36000), e[1], 36);
+        assertTrue(crop(xml, "t") > 0);
+    }
+
+    @Test
+    public void 극단_비율은_자르지_않고_상자_안에_비율대로_넣는다() throws Exception {
+        String tallXml = xml(render("INST_PERMIT", jpeg(200, 600)));   // 1:3 → 잘림 65% 라 contain
+        assertEquals("srcRect 없음", -1, crop(tallXml, "t"));
+        int[] t = extent(tallXml);
+        assertTrue("폭은 상자보다 작다", t[0] < BOX_W - 36000);
+        assertEquals(BOX_H, t[1], 36);
+        assertEquals(1d / 3d, (double) t[0] / t[1], 0.002);
+        String wideXml = xml(render("INST_PERMIT", jpeg(900, 300)));   // 3:1
+        assertEquals(-1, crop(wideXml, "l"));
+        int[] w = extent(wideXml);
+        assertEquals(BOX_W, w[0], 36);
+        assertTrue(w[1] < BOX_H - 36000);
+    }
+
+    @Test
+    public void 사진_모양은_1장_맞춤_결과에_영향이_없다() throws Exception {
+        HeadDocBuilder.Built tall = HeadDocBuilder.buildDoc(manyRows(40), "서울시 가구청", "2026-11-20", jpeg(300, 400));
+        HeadDocBuilder.Built sq = HeadDocBuilder.buildDoc(manyRows(40), "서울시 가구청", "2026-11-20", jpeg(500, 500));
+        HeadDocBuilder.Built wide = HeadDocBuilder.buildDoc(manyRows(40), "서울시 가구청", "2026-11-20", jpeg(900, 300));
+        assertEquals(sq.careerDropped(), tall.careerDropped());
+        assertEquals(sq.careerDropped(), wide.careerDropped());
+        assertEquals(sq.eduDropped(), tall.eduDropped());
+    }
+
+    @Test
+    public void cropFor_순수_계산() {
+        double[] c = HeadDocBuilder.cropFor(78, 81.8, 300, 400);
+        assertEquals(0, c[0], 1e-9);
+        assertEquals(0.0640, c[1], 0.001);
+        assertEquals(0, c[2], 1e-9);
+        assertEquals(0.1494, c[3], 0.001);
+        double[] w = HeadDocBuilder.cropFor(78, 81.8, 400, 300);
+        assertEquals(0.1424, w[0], 0.001);
+        assertEquals(w[0], w[2], 1e-9);
+        assertEquals(0, w[1], 1e-9);
+        assertNull("같은 비율이면 자를 것 없음", HeadDocBuilder.cropFor(80, 100, 400, 500));
+        assertNull("극단 세로", HeadDocBuilder.cropFor(78, 81.8, 200, 600));
+        assertNull("극단 가로", HeadDocBuilder.cropFor(78, 81.8, 900, 300));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void 자르기_값이_범위를_벗어나면_거절한다() throws Exception {
+        DocModel.Picture.jpeg(jpeg(), 10, 10, "x").withCrop(0.6, 0, 0.5, 0);
     }
 
     @Test
