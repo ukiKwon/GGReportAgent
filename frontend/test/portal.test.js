@@ -299,7 +299,7 @@ test('HTML: 이름·은행은 이스케이프, 단계 칩 모양, 날짜 표기(
   const e1 = portal.tableHtml([], { caption: 'c', mode: 'month', org: 'all', month: 11, total: 10 });
   assert.ok(e1.indexOf('11월에 접수 마감인 기관이 없습니다.') > 0 && e1.indexOf('data-pt-unfilter') > 0);
   const e2 = portal.tableHtml([], { caption: 'c', mode: 'all', org: 'all', total: 0 });
-  assert.ok(e2.indexOf('1년 안에 다가오는 입찰이 없습니다.') > 0 && e2.indexOf('[지역별 공고현황]에서 봅니다') > 0);
+  assert.ok(e2.indexOf('1년 안에 다가오는 입찰이 없습니다.') > 0 && e2.indexOf('[전국 지역별]에서 봅니다') > 0);
   assert.ok(portal.tableHtml([], { mode: 'all', org: '법원', total: 5 }).indexOf('이 유형에는 해당하는 기관이 없습니다.') > 0);
   assert.ok(e1.indexOf('<caption class="sr-only">c</caption>') > 0 && e1.indexOf('<th scope="col">기관</th>') > 0);
   // 열 머리 정렬(11-19 저녁): 네 열은 .hb-sort 버튼, 정렬된 열에만 aria-sort, 기관 열은 글자만
