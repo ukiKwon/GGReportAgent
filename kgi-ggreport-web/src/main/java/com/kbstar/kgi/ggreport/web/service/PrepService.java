@@ -572,7 +572,7 @@ public class PrepService {
      *
      * <p>바꿀 수 있는 사람(security 11-25 F1) — 결재가 없으므로 변경 신청보다 좁다: <b>지금 담당자</b>, 또는 <b>이 건의 팀장</b>
      * (확정자·지금 담당자 중 누군가의 같은 팀 영업팀장 — 사전준비 시작 권한과 같은 기준, 다른 팀 팀장은 403).
-     * 담당자가 아닌 팀장은 자기 자신을 담당자로 넣지 못한다(옛 결재의 '승인자=수혜자 거부'를 잇는다 — 팀장을 넣으려면 지금 담당자가 한다).
+     * 사용자 11-25: 담당 아닌 같은 팀 팀장의 자기 추가는 결재 없이 허용(NEXT 121 F1 결정 — 옛 '승인자=수혜자 거부'는 잇지 않는다).
      * 상태(F5): 사전준비 중·작성 가능·작성 중인 건만. 기획 승인 대기 중에는 409(결재 중인 구성을 바꾸지 않는다), 사전준비 행이 없는 옛 건은 404.
      * 성공 감사 줄(F2)은 같은 트랜잭션에서 쓴다 — 감사가 실패하면 변경 전체가 되돌아간다(500).</p>
      */
@@ -595,12 +595,6 @@ public class PrepService {
         if (!assignee) {
             if (!isLead(me) || !isCaseLead(me, p, current)) {
                 throw new ApiException(403, "담당자 변경은 지금 담당자 또는 이 건의 영업팀장만 할 수 있습니다.");
-            }
-            List<String> adds = in == null || in.getAddEmpNos() == null ? Collections.<String>emptyList() : in.getAddEmpNos();
-            for (String e : adds) {
-                if (e != null && me.getEmpNo().equals(e.trim())) {
-                    throw new ApiException(403, "담당자가 아닌 영업팀장은 자기 자신을 담당자로 넣을 수 없습니다. 지금 담당자가 지정해야 합니다.");
-                }
             }
         }
         String reason = BoardMaterialService.checkedText(in == null ? null : in.getReason(), 200, "변경 사유", true);
