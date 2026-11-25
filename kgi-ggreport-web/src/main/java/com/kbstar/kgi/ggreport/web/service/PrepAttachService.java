@@ -257,7 +257,26 @@ public class PrepAttachService {
      * (첨부는 바뀌지 않는다 — 무효 처리된 파일은 후보에서 빠진다). 트랜잭션을 열지 않는다 — 파일 읽기·파싱 동안 DB 연결을 잡지 않는다.</p>
      */
     public Map<String, Object> scoring(SysUser me, String bidCaseId) {
+        return scoring(me, bidCaseId, null);
+    }
+
+    /**
+     * 후보 표 고르기 — tableRaw(?table=n)는 머리에 '배점'이 든 후보 표 중 번호(0부터 정수). 정수가 아니거나 음수, 또는 후보 수 이상이면 400.
+     * 응답에는 병합을 복원한 cells[{r,c,rs,cs,text}]·row_count·col_count·table(고른 번호)·candidate_count·candidate_heads 가 더해진다(TABLE 만).
+     */
+    public Map<String, Object> scoring(SysUser me, String bidCaseId, String tableRaw) {
         requireViewer(me, bidCaseId);
+        int table = 0;
+        if (tableRaw != null && !tableRaw.trim().isEmpty()) {
+            try {
+                table = Integer.parseInt(tableRaw.trim());
+            } catch (NumberFormatException e) {
+                throw new ApiException(400, "표 번호는 0 이상의 정수여야 합니다.");
+            }
+            if (table < 0 || table >= ScoringTable.MAX_CANDIDATES) {
+                throw new ApiException(400, "표 번호가 범위를 벗어났습니다.");
+            }
+        }
         List<BidPrepAttach> cands = new ArrayList<>();
         for (BidPrepAttach a : mapper.selectAttachList(bidCaseId)) {
             boolean kind = KIND_NOTICE.equals(a.getTaskCd()) || TASK_T4.equals(a.getTaskCd());
@@ -276,7 +295,7 @@ public class PrepAttachService {
             if (a.getSizeBytes() > SCORING_MAX_BYTES) {
                 continue;
             }
-            String cacheKey = a.getAttachId() + ":" + a.getSha256();
+            String cacheKey = a.getAttachId() + ":" + a.getSha256() + ":" + table;
             ScoringTable.Result hit;
             boolean known;
             synchronized (SCORING_CACHE) {
@@ -304,7 +323,7 @@ public class PrepAttachService {
                 LOG.error("prep attach hash mismatch id={}", a.getAttachId());
                 continue;
             }
-            ScoringTable.Timed timed = ScoringTable.extractTimed(a.getExtCd(), bytes);
+            ScoringTable.Timed timed = ScoringTable.extractTimed(a.getExtCd(), bytes, table);
             if (timed.isTimedOut()) {
                 continue;   // 시간 안에 못 읽은 파일은 기억하지 않는다(다음에 다시 시도)
             }
@@ -329,6 +348,27 @@ public class PrepAttachService {
         out.put("rows", t.getRows());
         out.put("total", t.getTotal());
         out.put("page", t.getPage());
+        if (t.getCells() != null) {   // HWPX 병합 복원(추가 필드)
+            if (t.isOutOfRange()) {
+                throw new ApiException(400, "표 번호가 범위를 벗어났습니다.");
+            }
+            List<Map<String, Object>> cells = new ArrayList<>();
+            for (ScoringTable.Cell c : t.getCells()) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("r", c.getR());
+                m.put("c", c.getC());
+                m.put("rs", c.getRs());
+                m.put("cs", c.getCs());
+                m.put("text", c.getText());
+                cells.add(m);
+            }
+            out.put("cells", cells);
+            out.put("row_count", t.getRowCount());
+            out.put("col_count", t.getColCount());
+            out.put("table", t.getTableIndex());
+            out.put("candidate_count", t.getCandidateCount());
+            out.put("candidate_heads", t.getCandidateHeads());
+        }
         return out;
     }
 

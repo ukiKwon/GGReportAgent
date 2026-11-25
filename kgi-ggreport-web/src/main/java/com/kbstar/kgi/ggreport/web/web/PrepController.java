@@ -282,8 +282,10 @@ public class PrepController {
 
     /** 선정 평가표 옮겨 오기 — 올려 둔 공고 원본·RFP 붙임서류에서 배점 표를 글자 그대로(LLM 없음). 열람 규칙은 첨부 목록과 같다. */
     @GetMapping("/bidcases/{bidCaseId}/prep/notice-scoring")
-    public Map<String, Object> noticeScoring(@PathVariable String bidCaseId, HttpServletRequest req) {
-        return run(req, bidCaseId, "SCORING_READ", null, null, me -> attach.scoring(me, bidCaseId));
+    public Map<String, Object> noticeScoring(@PathVariable String bidCaseId,
+                                             @RequestParam(name = "table", required = false) String table,
+                                             HttpServletRequest req) {
+        return run(req, bidCaseId, "SCORING_READ", null, null, me -> attach.scoring(me, bidCaseId, table));
     }
 
     /**

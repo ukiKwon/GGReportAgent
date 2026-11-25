@@ -46,12 +46,46 @@ public final class ScoringTable {
     private ScoringTable() {
     }
 
+    public static final int MAX_CANDIDATES = 20;
+    private static final int MAX_HEAD = 80;
+
+    /** 병합을 복원한 칸 하나 — r·c 는 0부터의 행·열 위치, rs·cs 는 합친 줄·칸 수(병합이 없으면 1). */
+    public static final class Cell {
+        private final int r;
+        private final int c;
+        private final int rs;
+        private final int cs;
+        private final String text;
+
+        Cell(int r, int c, int rs, int cs, String text) {
+            this.r = r;
+            this.c = c;
+            this.rs = rs;
+            this.cs = cs;
+            this.text = text;
+        }
+
+        public int getR() { return r; }
+        public int getC() { return c; }
+        public int getRs() { return rs; }
+        public int getCs() { return cs; }
+        public String getText() { return text; }
+    }
+
     /** 옮겨 온 표. kind TABLE = 행·칸 그대로, LINES = 줄마다 한 칸. page 는 PDF 쪽 번호(1부터, HWPX 는 0). */
     public static final class Result {
         private final String kind;
         private final List<List<String>> rows;
         private final Integer total;
         private final int page;
+        // HWPX 병합 복원(TABLE 만 — LINES 는 cells null)
+        private List<Cell> cells;
+        private int rowCount;
+        private int colCount;
+        private int tableIndex;
+        private int candidateCount;
+        private List<String> candidateHeads;
+        private boolean outOfRange;
 
         Result(String kind, List<List<String>> rows, Integer total, int page) {
             this.kind = kind;
@@ -64,6 +98,22 @@ public final class ScoringTable {
         public List<List<String>> getRows() { return rows; }
         public Integer getTotal() { return total; }
         public int getPage() { return page; }
+        public List<Cell> getCells() { return cells; }
+        public int getRowCount() { return rowCount; }
+        public int getColCount() { return colCount; }
+        public int getTableIndex() { return tableIndex; }
+        public int getCandidateCount() { return candidateCount; }
+        public List<String> getCandidateHeads() { return candidateHeads; }
+        /** 고른 표 번호가 후보 수를 넘었다 — 호출자가 400 으로 돌려준다. */
+        public boolean isOutOfRange() { return outOfRange; }
+    }
+
+    /** 구역에서 모은 표 하나(내부용). */
+    private static final class Tbl {
+        final List<List<String>> rows = new ArrayList<>();
+        final List<Cell> cells = new ArrayList<>();
+        int rowCount;
+        int colCount;
     }
 
     /** 파싱 시간 상한(초) — 넘기면 그 파일은 건너뛴다. 일꾼은 2개뿐이라 한꺼번에 몰려도 서버 일꾼을 다 쓰지 않는다. */
@@ -90,7 +140,12 @@ public final class ScoringTable {
 
     /** {@link #extract} 를 시간 상한({@link #TIMEOUT_SECONDS}) 안에서 돌린다. 넘기면 작업을 끊고 timedOut. */
     public static Timed extractTimed(String ext, byte[] data) {
-        java.util.concurrent.Future<Result> f = POOL.submit(() -> extract(ext, data));
+        return extractTimed(ext, data, 0);
+    }
+
+    /** table = 머리에 '배점'이 든 후보 표 중 고를 번호(0부터, HWPX 만 뜻이 있다). */
+    public static Timed extractTimed(String ext, byte[] data, int table) {
+        java.util.concurrent.Future<Result> f = POOL.submit(() -> extract(ext, data, table));
         try {
             return new Timed(f.get(TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS), false);
         } catch (java.util.concurrent.TimeoutException e) {
@@ -107,10 +162,14 @@ public final class ScoringTable {
 
     /** 확장자(ext: hwpx·pdf)에 맞는 방법으로 읽는다. 그 밖의 형식·못 찾음·읽기 실패는 null. */
     public static Result extract(String ext, byte[] data) {
+        return extract(ext, data, 0);
+    }
+
+    public static Result extract(String ext, byte[] data, int table) {
         String e = ext == null ? "" : ext.toLowerCase(Locale.ROOT);
         try {
             if ("hwpx".equals(e)) {
-                return fromHwpx(data);
+                return fromHwpx(data, table);
             }
             if ("pdf".equals(e)) {
                 return fromPdf(data);
@@ -128,6 +187,11 @@ public final class ScoringTable {
     // ── HWPX ────────────────────────────────────────────────────────────
 
     static Result fromHwpx(byte[] data) throws IOException, XMLStreamException {
+        return fromHwpx(data, 0);
+    }
+
+    static Result fromHwpx(byte[] data, int table) throws IOException, XMLStreamException {
+        List<Tbl> found = new ArrayList<>();
         XMLInputFactory f = XMLInputFactory.newInstance();
         f.setProperty(XMLInputFactory.SUPPORT_DTD, false);
         f.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
@@ -147,24 +211,74 @@ public final class ScoringTable {
                     }
                     xml.write(buf, 0, r);
                 }
-                List<List<String>> t = firstScoringTable(f, xml.toByteArray());
-                if (t != null) {
-                    return new Result("TABLE", t, totalOf(t), 0);
+                scoringTables(f, xml.toByteArray(), found);
+                if (found.size() >= MAX_CANDIDATES) {
+                    break;
                 }
             }
         }
-        return null;
+        if (found.isEmpty()) {
+            return null;
+        }
+        List<String> heads = new ArrayList<>();
+        for (Tbl t : found) {
+            heads.add(headOf(t.rows));
+        }
+        int pick = table < 0 ? 0 : table;
+        Tbl t = found.get(Math.min(pick, found.size() - 1));
+        Result res = new Result("TABLE", t.rows, totalOf(t.rows), 0);
+        res.cells = t.cells;
+        res.rowCount = t.rowCount;
+        res.colCount = t.colCount;
+        res.tableIndex = Math.min(pick, found.size() - 1);
+        res.candidateCount = found.size();
+        res.candidateHeads = heads;
+        res.outOfRange = pick >= found.size();
+        return res;
     }
 
-    /** 구역 XML 에서 머리 두 줄 안에 '배점' 칸이 있는 첫 바깥 표. 표 안의 표는 그 칸의 글자로 합친다. */
-    private static List<List<String>> firstScoringTable(XMLInputFactory f, byte[] xml) throws XMLStreamException {
+    /** 후보 식별용 — 머리 두 줄의 글자를 한 줄로(줄바꿈은 공백). */
+    private static String headOf(List<List<String>> rows) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < Math.min(2, rows.size()); i++) {
+            for (String c : rows.get(i)) {
+                String s = c.replaceAll("[\\s\\u00a0\\u3000]+", " ").trim();
+                if (!s.isEmpty()) {
+                    b.append(b.length() > 0 ? " | " : "").append(s);
+                }
+            }
+        }
+        return b.length() > MAX_HEAD ? b.substring(0, MAX_HEAD) : b.toString();
+    }
+
+    private static int intAttr(XMLStreamReader r, String name, int dflt) {
+        String v = r.getAttributeValue(null, name);
+        if (v == null) {
+            return dflt;
+        }
+        try {
+            return Integer.parseInt(v.trim());
+        } catch (NumberFormatException e) {
+            return dflt;
+        }
+    }
+
+    /** 구역 XML 에서 머리 두 줄 안에 '배점' 칸이 있는 바깥 표를 모두(후보 상한까지) out 에 더한다. 표 안의 표는 그 칸의 글자로 합친다. */
+    private static void scoringTables(XMLInputFactory f, byte[] xml, List<Tbl> out) throws XMLStreamException {
         XMLStreamReader r = f.createXMLStreamReader(new ByteArrayInputStream(xml));
         try {
             int depth = 0;                       // 표 중첩 깊이
+            Tbl tbl = null;
             List<List<String>> rows = null;
             List<String> row = null;
             StringBuilder cell = null;
             boolean inText = false;
+            int rowIdx = -1;
+            int colCursor = 0;
+            int cr = -1;
+            int cc = -1;
+            int crs = 1;
+            int ccs = 1;
             while (r.hasNext()) {
                 int ev = r.next();
                 if (ev == XMLStreamConstants.START_ELEMENT) {
@@ -172,12 +286,26 @@ public final class ScoringTable {
                     if ("tbl".equals(name)) {
                         depth++;
                         if (depth == 1) {
-                            rows = new ArrayList<>();
+                            tbl = new Tbl();
+                            rows = tbl.rows;
+                            rowIdx = -1;
                         }
                     } else if (depth == 1 && "tr".equals(name)) {
                         row = new ArrayList<>();
+                        rowIdx++;
+                        colCursor = 0;
                     } else if (depth == 1 && "tc".equals(name)) {
                         cell = new StringBuilder();
+                        cr = -1;
+                        cc = -1;
+                        crs = 1;
+                        ccs = 1;
+                    } else if (depth == 1 && cell != null && "cellAddr".equals(name)) {
+                        cc = intAttr(r, "colAddr", -1);
+                        cr = intAttr(r, "rowAddr", -1);
+                    } else if (depth == 1 && cell != null && "cellSpan".equals(name)) {
+                        ccs = Math.max(1, Math.min(MAX_COLS, intAttr(r, "colSpan", 1)));
+                        crs = Math.max(1, Math.min(MAX_ROWS, intAttr(r, "rowSpan", 1)));
                     } else if (depth >= 1 && "t".equals(name)) {
                         inText = true;
                     }
@@ -192,8 +320,19 @@ public final class ScoringTable {
                     } else if ("p".equals(name) && cell != null && cell.length() > 0 && cell.charAt(cell.length() - 1) != '\n') {
                         cell.append('\n');       // 칸 안의 문단 경계
                     } else if (depth == 1 && "tc".equals(name) && row != null && cell != null) {
+                        String text = cell.toString().trim();
                         if (row.size() < MAX_COLS) {
-                            row.add(cell.toString().trim());
+                            row.add(text);
+                        }
+                        int rr = cr >= 0 ? cr : rowIdx;
+                        int c0 = cc >= 0 ? cc : colCursor;
+                        colCursor = c0 + ccs;
+                        if (rr < MAX_ROWS && c0 < MAX_COLS && tbl != null && tbl.cells.size() < MAX_ROWS * MAX_COLS) {
+                            int rs = Math.min(crs, MAX_ROWS - rr);
+                            int cs = Math.min(ccs, MAX_COLS - c0);
+                            tbl.cells.add(new Cell(rr, c0, rs, cs, text));
+                            tbl.rowCount = Math.max(tbl.rowCount, rr + rs);
+                            tbl.colCount = Math.max(tbl.colCount, c0 + cs);
                         }
                         cell = null;
                     } else if (depth == 1 && "tr".equals(name) && rows != null && row != null) {
@@ -204,15 +343,18 @@ public final class ScoringTable {
                     } else if ("tbl".equals(name)) {
                         depth--;
                         if (depth == 0) {
-                            if (rows != null && isScoring(rows)) {
-                                return rows;
+                            if (rows != null && tbl != null && isScoring(rows)) {
+                                out.add(tbl);
+                                if (out.size() >= MAX_CANDIDATES) {
+                                    return;
+                                }
                             }
                             rows = null;
+                            tbl = null;
                         }
                     }
                 }
             }
-            return null;
         } finally {
             r.close();
         }

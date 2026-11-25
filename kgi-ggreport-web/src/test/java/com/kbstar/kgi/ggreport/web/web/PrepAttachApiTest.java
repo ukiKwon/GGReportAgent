@@ -453,6 +453,19 @@ public class PrepAttachApiTest {
         assertEquals("배 점", t.path("rows").get(0).get(2).asText());
         assertEquals("가. 신용평가\n나. 재무구조", t.path("rows").get(2).get(1).asText());   // 칸 안의 문단은 줄바꿈
         assertEquals(404, getAs(path, MEMBER).getResponse().getStatus());   // 담당이 아닌 영업팀원
+        // 병합 복원 추가 필드(NEXT 113 ④) — 기존 필드는 위에서 그대로 확인했다
+        assertEquals(3, t.path("row_count").asInt());
+        assertEquals(3, t.path("col_count").asInt());
+        assertEquals(9, t.path("cells").size());
+        assertEquals("배 점", t.path("cells").get(2).path("text").asText());
+        assertEquals(1, t.path("cells").get(2).path("rs").asInt());
+        assertEquals(1, t.path("candidate_count").asInt());
+        assertEquals(0, t.path("table").asInt());
+        assertEquals(1, t.path("candidate_heads").size());
+        assertEquals(200, getAs(path + "?table=0", HEAD).getResponse().getStatus());
+        assertEquals(400, getAs(path + "?table=1", HEAD).getResponse().getStatus());   // 후보 수 이상
+        assertEquals(400, getAs(path + "?table=-1", HEAD).getResponse().getStatus());
+        assertEquals(400, getAs(path + "?table=x", HEAD).getResponse().getStatus());
     }
 
     /** 담당자 변경(사용자 2026-11-25): 결재 없이 바로 반영하고 쪽지함으로 알린다. 현재 담당자·영업팀장만. */
