@@ -146,7 +146,7 @@ test('C [관심에서 빼기…] 단추와 구분 메뉴 호출부: 메뉴에는
   const w = kbbMod.watchRowHtml(wrow({ movable: 2027, canCancel: true, nextDate: '2027-06-30', next: { src: 'contract' } }), { canEdit: true });   // 순서 [목표로 옮기기…] → [메모 고치기…] → [관심에서 빼기…], 한 묶음
   assert.ok(w.indexOf('<div class="hb-wacts">') > 0 && w.indexOf('>목표로 옮기기…</button>') > 0);
   assert.ok(w.indexOf('data-act="togoal"') < w.indexOf('data-act="unwatch"'));   // 동작 칸은 둘 — [목표로 옮기기…] → [관심에서 빼기…]
-  assert.ok(w.indexOf('data-act="memo"') > 0 && w.indexOf('data-act="memo"') < w.indexOf('data-act="togoal"'));   // P2-1 안 A: [메모 고치기…]는 메모 칸 안(동작 칸보다 앞)
+  assert.ok(w.indexOf('data-act="memo"') < 0 && w.indexOf('hb-memo-go') < 0);   // 11-25 사용자 결정: 메모 고치기 단추 없음
   assert.ok(w.slice(w.indexOf('<div class="hb-wacts">')).indexOf('data-act="memo"') < 0);
   assert.ok(w.indexOf('</div></td></tr>') > w.indexOf('data-act="unwatch"'));
 });
@@ -182,7 +182,7 @@ test('D 구분 고르기는 저장하지 않고 대기에 담는다 → 자동 �
   assert.strictEqual(tc.isPicked(gs.sel, row), true); assert.strictEqual(tc.selCount(gs.sel), 1); assert.ok(paints > 0);
   // 2. 띠 문구: 대기 건수
   assert.strictEqual(tc.draftCount(gs.draft, gs.sel), 1);
-  assert.ok(tc.selStatusHtml(1, '', tc.kindCounts(gs.sel), 0, tc.autoPickNote(tc.draftCount(gs.draft, gs.sel))).indexOf('구분 바뀜 1곳 — [수정하기…]로 저장') > 0);
+  assert.ok(tc.selStatusHtml(1, '', tc.kindCounts(gs.sel), 0, tc.autoPickNote(tc.draftCount(gs.draft, gs.sel))).indexOf('구분 바뀜 1곳 — [수정하기]로 저장') > 0);
   // 3. 칩: 새 구분 + 점선 클래스 + '바뀜' 꼬리표(색만으로 구분하지 않음) + 저장된 값 sr 안내
   const h = kbbD.tagCellHtml(row, { canEdit: true, canTag: function () { return true; }, drafts: gs.draft });
   assert.ok(h.indexOf('class="hb-tag draft"') > 0 && h.indexOf('<span class="sr-only">바뀔 구분: </span>신규유치 도전') > 0);
@@ -195,8 +195,8 @@ test('D 구분 고르기는 저장하지 않고 대기에 담는다 → 자동 �
   const eh = tc.editItemHtml(it, 1, { tags: TAGS });
   assert.ok(eh.indexOf('<option value="NEW" selected>신규유치 도전</option>') > 0 && eh.indexOf('<dd>') > 0 && tc.beforeHtml(it).indexOf('재유치 도전') > 0);
   assert.strictEqual(tc.validate([it], { mode: 'DIRECT' }).ok, true);
-  // 5. 일괄 저장 본문: 연도·메모·주 담당은 지금 값 그대로, 구분만 대기 값
-  assert.deepStrictEqual(tc.buildBody([it], { mode: 'DIRECT' }), { items: [{ institution_id: 'G1', op_cd: 'EDIT', target_no: 1, base_rev_no: 4, target_year: 2026, tag_cd: 'NEW', memo: '메모', owner_emp_no: 'E1' }] });
+  // 5. 일괄 저장 본문: 연도·주 담당은 지금 값 그대로, 구분만 대기 값 (memo는 서버 keepUnsent 계약상 본문에서 뺀다, qa P2-1)
+  assert.deepStrictEqual(tc.buildBody([it], { mode: 'DIRECT' }), { items: [{ institution_id: 'G1', op_cd: 'EDIT', target_no: 1, base_rev_no: 4, target_year: 2026, tag_cd: 'NEW', owner_emp_no: 'E1' }] });
   // 6. 원래 구분으로 되돌리면 대기만 지운다(고른 줄은 그대로)
   draftTag(row, 'RETAIN');
   assert.strictEqual(gs.draft.G1, undefined); assert.strictEqual(tc.isPicked(gs.sel, row), true);
@@ -244,9 +244,9 @@ test('D 구분 고르기는 저장하지 않고 대기에 담는다 → 자동 �
   assert.deepStrictEqual(tc.pick(full, { id: 'A', targetNo: 1, kind: 'GOAL' }), { ok: false, msg: tc.CAP_MSG });
 });
 
-test('E [수정하기…]는 띠 오른쪽 끝 유지(.sp 다음 마지막 단추)', function () {
+test('E [수정하기][삭제하기]는 띠 오른쪽 끝 묶음(.sp 다음 마지막 두 단추, 삭제가 맨 오른쪽)', function () {
   const b = tc.selbarHtml();
-  assert.ok(b.indexOf('<span class="sp"></span><button type="button" id="hb-seledit" aria-haspopup="dialog" hidden>수정하기…</button></div>') > 0);
+  assert.ok(b.indexOf('<span class="sp"></span><button type="button" id="hb-seledit" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seledit-why">수정하기</button><span id="hb-seledit-why" class="sr-only"></span><button type="button" id="hb-seldel" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seldel-why">삭제하기</button><span id="hb-seldel-why" class="sr-only"></span></div>') > 0);
   assert.strictEqual(tc.MAX_ITEMS, 20);
 });
 
@@ -254,20 +254,16 @@ test('E [수정하기…]는 띠 오른쪽 끝 유지(.sp 다음 마지막 단�
 const kbbMod = require('../js/kbboard.js');
 const wrow = function (o) { return Object.assign({ id: 'W1', key: 'k', fkey: 'id:W1', name: '행', regionName: '서울', kind: 'WATCH', tagCd: 'NEW', tagName: '신규유치 도전', memo: '', nextDate: '', next: {}, movable: 0, canCancel: false, rec: null, bank: { name: '', unknown: true } }, o || {}); };
 
-test('P2-1 관심 줄 [메모 고치기…]: 고칠 수 있는 계정·결재 중 아님일 때만, 클릭은 openMemo', function () {
-  const h = kbbMod.watchRowHtml(wrow(), { canEdit: true });
-  assert.ok(h.indexOf('class="hb-tag hb-memo-go" data-act="memo" data-inst="W1" data-key="id:W1" aria-haspopup="dialog" aria-label="행 메모 고치기">메모 고치기…</button>') > 0);
-  assert.ok(h.indexOf('<td class="mut"><div class="hb-memocell"><span class="hb-memotx">') > 0);   // 메모 칸 안, 메모 글 뒤
-  const hm = kbbMod.watchRowHtml(wrow({ memo: '메모글' }), { canEdit: true });
-  assert.ok(hm.indexOf('<span class="hb-memotx" title="메모글">메모글</span><button type="button" class="hb-tag hb-memo-go"') > 0);
+test('P2-1 → 11-25 사용자 결정으로 뒤집음: 관심 줄 [메모 고치기…]·메모 감싸기 없음, 메모는 읽기 전용 글자', function () {
+  const h = kbbMod.watchRowHtml(wrow({ memo: '메모글' }), { canEdit: true });
+  assert.ok(h.indexOf('data-act="memo"') < 0 && h.indexOf('hb-memo-go') < 0 && h.indexOf('hb-memocell') < 0 && h.indexOf('메모 고치기') < 0);
+  assert.ok(h.indexOf('<td class="mut" title="메모글">메모글</td>') > 0);
+  assert.ok(kbbMod.watchRowHtml(wrow(), { canEdit: true }).indexOf('<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">메모 없음</span></td>') > 0);
   const css = src('index.html');
-  assert.ok(css.indexOf('.hb-memocell .hb-memo-go { flex:none; min-height:24px; margin-left:6px; }') > 0);
+  assert.ok(css.indexOf('.hb-memocell') < 0 && css.indexOf('.hb-memo-go') < 0);
   assert.ok(css.indexOf('@media (min-width:1440px) { .hb-tt col.c-act { width:230px; } }') > 0);
-  assert.ok(kbbMod.watchRowHtml(wrow(), { canEdit: false }).indexOf('data-act="memo"') < 0);
-  assert.ok(kbbMod.watchRowHtml(wrow({ pend: true }), { canEdit: true }).indexOf('data-act="memo"') < 0);
-  assert.ok(kbbMod.watchRowHtml(wrow(), { canEdit: true, canTag: function () { return false; } }).indexOf('data-act="memo"') < 0);   // canValueEdit 거짓이면 없음
-  assert.ok(K.indexOf("else if (act === 'memo') { const r = rowOfBtn(btn, false); if (r && r.kind === 'WATCH') openMemo(r, btn); }") > 0);
-  assert.ok(K.indexOf('canTag: canValueEdit });') > 0);
+  assert.ok(K.indexOf("act === 'memo'") < 0 && K.indexOf('openMemo(r, btn)') < 0);   // 클릭 분기 없음(openMemo 함수는 데드 코드로 남음)
+  assert.ok(K.indexOf('canTag: canValueEdit, y0:') > 0);   // 관심 줄 구분 칩 배선(목록 그리기 옵션, 11-25 kbboard.js 개정에 맞춤)
 });
 
 test('P2-2 협약 개시일 입구: 결재 요청 칸 줄에도 [협약 개시일 적기…], 줄을 못 찾으면 창 오류 줄', function () {

@@ -9,6 +9,7 @@ public class BidTargetReqItem {
     private Integer targetNo, baseRevNo, baseYear, toYear;
     // 조인 칸
     private String institutionName, tagName, cancelReasonName, baseTagCd, baseTagName, baseMemo, baseOwnerName, reqCreatedAt;
+    private String aimRankCd, aimRankName, baseAimRankCd, baseAimRankName;   // 063 금고 방식
 
     public Long getReqId() { return reqId; } public void setReqId(Long v) { reqId = v; }
     public String getInstitutionId() { return institutionId; } public void setInstitutionId(String v) { institutionId = v; }
@@ -37,4 +38,8 @@ public class BidTargetReqItem {
     public String getBaseMemo() { return baseMemo; } public void setBaseMemo(String v) { baseMemo = v; }
     public String getBaseOwnerName() { return baseOwnerName; } public void setBaseOwnerName(String v) { baseOwnerName = v; }
     public String getReqCreatedAt() { return reqCreatedAt; } public void setReqCreatedAt(String v) { reqCreatedAt = v; }
+    public String getAimRankCd() { return aimRankCd; } public void setAimRankCd(String v) { aimRankCd = v; }
+    public String getAimRankName() { return aimRankName; } public void setAimRankName(String v) { aimRankName = v; }
+    public String getBaseAimRankCd() { return baseAimRankCd; } public void setBaseAimRankCd(String v) { baseAimRankCd = v; }
+    public String getBaseAimRankName() { return baseAimRankName; } public void setBaseAimRankName(String v) { baseAimRankName = v; }
 }

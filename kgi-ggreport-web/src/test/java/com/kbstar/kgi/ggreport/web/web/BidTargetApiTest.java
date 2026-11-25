@@ -100,8 +100,22 @@ public class BidTargetApiTest {
 
     @Test public void 태그_코드는_코드표만() throws Exception {
         assertEquals(400, status(send(SALES, PATH, ADD, body("tag_cd", "XX"))));
+        // 11-25(사용자) — 목표로 처음 넣을 때 구분은 비워 둘 수 있다(이전에는 '태그 없으면 400'). 비우면 NULL 로 저장되고 목록에는 tag_cd null.
         Map<String, Object> b = body(); b.remove("tag_cd");
-        assertEquals(400, status(send(SALES, PATH, ADD, b)));
+        assertEquals(201, status(send(SALES, PATH, ADD, b)));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE TAG_CD IS NULL", Integer.class).intValue());
+        JsonNode first = json(getAs(SALES, "/bid-targets")).path("items").get(0);
+        assertTrue(first.path("tag_cd").isNull());
+        assertTrue(first.path("tag_name").isNull());
+    }
+
+    @Test public void 구분을_빈_값으로_보내도_넣기는_201_NULL_저장_고치기에서_비우기도_된다() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD, body("tag_cd", ""))));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE REV_NO=1 AND TAG_CD IS NULL", Integer.class).intValue());
+        assertEquals(201, status(send(SALES, PATH, TAG, body("target_no", 1, "base_rev_no", 1, "tag_cd", "RETAIN"))));   // 채우기
+        assertEquals(201, status(send(SALES, PATH, TAG, body("target_no", 1, "base_rev_no", 2, "tag_cd", ""))));        // 다시 비우기
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE REV_NO=3 AND TAG_CD IS NULL", Integer.class).intValue());
+        assertEquals(400, status(send(SALES, PATH, TAG, body("target_no", 1, "base_rev_no", 3, "tag_cd", "XX"))));      // 모르는 코드는 여전히 400
     }
 
     @Test public void 영업부서가_아니면_403_없으면_401() throws Exception {

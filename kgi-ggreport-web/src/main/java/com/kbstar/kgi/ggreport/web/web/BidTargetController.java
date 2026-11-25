@@ -75,6 +75,7 @@ public class BidTargetController {
         req.setAttribute(AccessLogInterceptor.DETAIL, (saved
                 ? "bid-target save no=" + out.get("target_no") + " rev=" + out.get("rev_no") : "bid-target save no-change")
                 + (BidTargetService.DIRECT_VALUE_EDIT.equals(out.get("direct_basis")) ? " basis=value" : "")
+                + aimTag(out.get("aim_edit"))
                 + (out.get("warning") != null ? " warn=INST_BID_CLOSED" : ""));
         return ResponseEntity.status(saved ? HttpStatus.CREATED : HttpStatus.OK).body(out);
     }
@@ -135,6 +136,7 @@ public class BidTargetController {
         int n = body.getItems().size();   // 여기 오면 1~20 으로 검사됨
         req.setAttribute(AccessLogInterceptor.DETAIL, "bid-target change mode=" + ("DIRECT".equals(out.get("mode")) ? "direct" : "approval")
                 + " n=" + n + (BidTargetService.DIRECT_VALUE_EDIT.equals(out.get("direct_basis")) ? " basis=value" : "")
+                + (out.get("aim_edits") instanceof Integer && ((Integer) out.get("aim_edits")).intValue() > 0 ? " aim=" + out.get("aim_edits") : "")
                 + (reqId == null ? "" : " req=" + reqId));
         return out;
     }
@@ -227,6 +229,14 @@ public class BidTargetController {
         Map<String, Object> out = targets.myWatchList(actor.getEmpNo());
         req.setAttribute(AccessLogInterceptor.DETAIL, "bid-target my-watch n=" + out.get("n"));
         return out;
+    }
+
+    /** 063 — 금고 방식 바뀜 종류만(값 없음). 서버 상수 셋만 통과. */
+    private static String aimTag(Object v) {
+        if ("FIRST".equals(v)) return " aim=first";
+        if ("CHANGE".equals(v)) return " aim=change";
+        if ("CLEAR".equals(v)) return " aim=clear";
+        return "";
     }
 
     private static String itemNo(ApiException e) {

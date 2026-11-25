@@ -154,6 +154,7 @@ public class BidTargetService {
                     : settings.getCarryDefaultStart().atYear(year + 1).toString());   // 달성 판정·이월 기준일(기록 없으면 추정)
             v.put("judge_from_assumed", !has);
             v.put("change_mode", goalMode);
+            v.put("aim_mode", aimMode(t, edit, goalMode, thisYear));   // 063 — 이 줄의 금고 방식 고르기: DIRECT|APPROVAL|null
             putPending(v, pending.get(t.getInstitutionId()), edit);
             items.add(v);
         }
@@ -326,8 +327,10 @@ public class BidTargetService {
         String kind = cur == null ? BidTargetRules.kind(in.getKindCd()) : BidTargetRules.kindOf(cur);
         if (cur != null && in.getKindCd() != null && !kind.equals(BidTargetRules.kind(in.getKindCd()))) throw ApiException.badRequest(KIND_EDIT_MSG);
         boolean watch = BidTargetRules.KIND_WATCH.equals(kind);
+        if (cur == null && !watch) BidTargetRules.requireNoAimOnAdd(in.getAimRankCd());   // 063 — 목표로 처음 넣을 때 금고 방식은 비운다(관심은 parseWatch 가 400)
         BidTargetRules.Parsed p = watch ? BidTargetRules.parseWatch(in, codeCheck())
                 : BidTargetRules.parse(in, thisYear, cur == null ? null : cur.getTargetYear(), codeCheck());
+        BidTargetRules.keepUnsent(p, in.getMemo(), in.getAimRankCd(), cur);   // NEXT 114 — 빠진 메모·금고 방식은 지금 값 그대로
         String ownerName = ownerName(p.owner, cur);
         if (cur != null && BidTargetRules.same(cur, p)) {
             Map<String, Object> out = new LinkedHashMap<String, Object>();
@@ -344,6 +347,7 @@ public class BidTargetService {
         Map<String, Object> warning = null;
         if (!watch && p.year == thisYear && (cur == null || !year.equals(cur.getTargetYear()))) warning = closedCheck(inst, today);
         boolean valueEdit = BidTargetRules.valueOnlyEdit(cur, p, thisYear);
+        String aimEdit = BidTargetRules.aimEdit(cur, p);
         boolean roleDirect = !watch && directGoal(users.selectByEmpNo(actor.getEmpNo()));   // 영업부장 등 역할상 바로 가능(security F4)
         if (!watch && !valueEdit) requireDirect(actor, cur);   // 목표 넣기·연도·주 담당 = 결재(관심·구분·메모는 바로, NEXT 114). 결재 중 잠금은 위 requireNoPending
         int newNo = cur == null ? mapper.selectMaxTargetNo(inst) + 1 : cur.getTargetNo();
@@ -361,9 +365,11 @@ public class BidTargetService {
         row.setOwnerEmpNo(p.owner);
         row.setOwnerName(ownerName);
         row.setWatchEmpNo(watch ? actor.getEmpNo() : null);   // 고치기면 위 requireWatchOwner 로 주인 = 본인
+        row.setAimRankCd(p.aim);
         Map<String, Object> out = insert(row, actor, ui);
         out.put("mode", "DIRECT");
         out.put("direct_basis", watch ? DIRECT_WATCH : roleDirect ? DIRECT_ROLE : DIRECT_VALUE_EDIT);
+        if (aimEdit != null) out.put("aim_edit", aimEdit);   // FIRST|CHANGE|CLEAR — 접근 이력 종류(값 아님)
         if (warning != null) out.put("warning", warning);
         return out;
     }
@@ -608,6 +614,7 @@ public class BidTargetService {
             row.setInstitutionId(inst); row.setTargetNo(newNo); row.setRevNo(1); row.setActionCd(ACTION_CARRY);
             row.setKindCd(d.carryKind); row.setTargetYear(d.carryYear);   // 목표 = 원천 연도+1, 관심 = NULL
             row.setTagCd(src.getTagCd()); row.setMemo(src.getMemo()); row.setOwnerEmpNo(src.getOwnerEmpNo()); row.setOwnerName(src.getOwnerName());   // 이어받은 값은 다시 검사하지 않는다
+            row.setAimRankCd(src.getAimRankCd());   // 063 — 금고 방식도 잇는다(팀 결정 11-25)
             row.setCarryFromNo(src.getTargetNo()); row.setCarryBasisCd(d.verdict);
             row.setWatchEmpNo(BidTargetRules.KIND_WATCH.equals(d.carryKind) ? CarryRules.watchOwnerOf(src) : null);   // 061 — 이월 관심 주인
             insert(row, actor, ui, null);
@@ -664,7 +671,7 @@ public class BidTargetService {
             row.setInstitutionId(inst); row.setTargetNo(newNo); row.setRevNo(1);
         }
         row.setActionCd(ACTION_SAVE); row.setKindCd(BidTargetRules.KIND_WATCH); row.setTargetYear(null); row.setTagCd(tag);
-        row.setMemo(null); row.setOwnerEmpNo(null); row.setOwnerName(null);   // 다시 켤 때 옛 값을 잇지 않는다
+        row.setMemo(null); row.setOwnerEmpNo(null); row.setOwnerName(null); row.setAimRankCd(null);   // 다시 켤 때 옛 값을 잇지 않는다
         row.setCancelReasonCd(null); row.setCancelReasonEtc(null); row.setCarryFromNo(null); row.setCarryBasisCd(null);
         row.setWatchEmpNo(actor.getEmpNo());
         Map<String, Object> out = write(row, me, actor, ui, null);
@@ -828,7 +835,15 @@ public class BidTargetService {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("tags", codeList(BidTargetRules.G_TAG));
         m.put("cancel_reasons", codeList(BidTargetRules.G_CANCEL));
+        m.put("aim_ranks", codeList(BidTargetRules.G_AIM));   // 063 금고 방식
         return m;
+    }
+
+    /** 063 — 이 목표 줄에서 금고 방식을 고르면: 영업부장 DIRECT · 지난해 목표 APPROVAL(구분 고치기와 같은 규칙) · 그 밖 쓰기 자격자 DIRECT · 자격 없으면 null. */
+    private String aimMode(BidTarget t, boolean edit, String goalMode, int thisYear) {
+        if (!edit) return null;
+        if ("DIRECT".equals(goalMode)) return "DIRECT";
+        return t.getTargetYear() == null || t.getTargetYear().intValue() < thisYear ? "APPROVAL" : "DIRECT";
     }
 
     private List<Map<String, Object>> codeList(String group) {
@@ -854,6 +869,8 @@ public class BidTargetService {
         m.put("tag_cd", t.getTagCd());
         m.put("tag_name", t.getTagName());
         m.put("memo", t.getMemo() == null ? "" : t.getMemo());
+        m.put("aim_rank_cd", t.getAimRankCd());     // 063 — null = '-'(아직 안 정함)
+        m.put("aim_rank_name", t.getAimRankName());
         m.put("owner_name", t.getOwnerName());
         if (showOwnerEmpNo) m.put("owner_emp_no", t.getOwnerEmpNo());
         if (withAction) {

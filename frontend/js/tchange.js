@@ -26,8 +26,8 @@
   tc.opLong = function (op) { return has(OP_LONG, op) ? OP_LONG[op] : ''; };
   tc.opShort = function (op) { return has(OP_SHORT, op) ? OP_SHORT[op] : ''; };
   tc.GO_TEXT = { APPROVAL: '결재 요청', DIRECT: '바로 반영' };
-  tc.APPROVAL_NOW_MSG = '목표에서 빼기·옮기기는 결재가 필요합니다. 줄을 고른 뒤 아래 [빼기·옮기기 결재 요청…]으로 올려 주세요. 구분·메모는 결재 없이 바로 바뀝니다.';
-  tc.PAST_EDIT_MSG = '지난해 목표는 구분·메모를 고칠 수 없습니다.';
+  tc.APPROVAL_NOW_MSG = '목표에서 빼기·옮기기는 결재가 필요합니다. 빼기는 줄을 고른 뒤 아래 [삭제하기]로, 내 관심으로 옮기기는 기관 이름을 눌러 연 창의 [관심 기관으로…]로 올리세요. 구분은 결재 없이 바로 바뀝니다.';
+  tc.PAST_EDIT_MSG = '지난해 목표는 구분을 고칠 수 없습니다.';
   tc.isPastYear = function (year, y0) { const y = Number(year); return y > 0 && y < Number(y0); };   // 지난해 목표(관심 줄은 연도가 없어 false)
   tc.pastCount = function (s, y0) { let n = 0; ((s && s.ids) || []).forEach(function (id) { const e = s.by[id]; if (e && e.kind !== 'WATCH' && tc.isPastYear(e.year, y0)) n += 1; }); return n; };
   tc.DUP_MSG ='한 요청에 같은 기관은 한 번만 넣을 수 있습니다.';
@@ -56,7 +56,7 @@
   };
   tc.dlgTitle = function (mode, n) { return mode === 'APPROVAL' ? '목표 기관 변경 결재 요청 — ' + n + '곳' : '목표 기관 변경 — ' + n + '곳'; };
   tc.dlgHint = function (mode, role) {
-    if (mode === 'APPROVAL') return tc.approverText(role, mode) + ' 결재가 끝날 때까지 이 기관들은 구분·메모도 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).';
+    if (mode === 'APPROVAL') return tc.approverText(role, mode) + ' 결재가 끝날 때까지 이 기관들은 구분도 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).';
     return (str(role).trim() === '영업부장' ? '영업부장은 ' : '') + '결재 없이 바로 반영합니다. 반영한 사람·시각은 기록에 남습니다.';
   };
   // 구분·메모 한꺼번에 수정 창(결재 없음, 규격 6-4A)
@@ -67,7 +67,7 @@
   tc.memoFlash = function (name, memo) {
     return str(name) + (str(memo).trim() ? ' 메모를 저장했습니다. 결재 없이 반영되고 기록에 남습니다.' : ' 메모를 지웠습니다. 기록에 남습니다.');
   };
-  tc.editResultText = function (n) { return '목표 기관 ' + Number(n) + '곳의 구분·메모를 수정했습니다. 결재 없이 반영되고 기록에 남습니다.'; };
+  tc.editResultText = function (n) { return '목표 기관 ' + Number(n) + '곳의 구분을 수정했습니다. 결재 없이 반영되고 기록에 남습니다.'; };
   tc.pendingLockMsg = function (name) { return str(name) + tc.eun(name) + ' 방금 결재 요청에 들어가 잠겼습니다. 결재가 끝나면 다시 바꿀 수 있습니다.'; };
 
   // ── 고른 줄(탭·연도·거르기를 바꿔도 남는다, 기관 하나 = 한 줄) ──────────
@@ -203,7 +203,7 @@
     const b = { institution_id: it.id, op_cd: it.op };
     if (it.op === 'ADD') { b.target_year = Number(it.year); b.tag_cd = it.tag; b.memo = str(it.memo).trim() || null; return b; }
     b.target_no = it.snap.targetNo; b.base_rev_no = it.snap.revNo;
-    if (it.op === 'EDIT' || it.op === 'NEXT') { b.op_cd = 'EDIT'; b.target_year = Number(it.year); b.tag_cd = it.tag; b.memo = str(it.memo).trim() || null; b.owner_emp_no = it.snap.ownerEmpNo || null; }   // NEXT = EDIT + 연도 +1(서버는 모른다)
+    if (it.op === 'EDIT' || it.op === 'NEXT') { b.op_cd = 'EDIT'; b.target_year = Number(it.year); b.tag_cd = it.tag; b.owner_emp_no = it.snap.ownerEmpNo || null; }   // NEXT = EDIT + 연도 +1(서버는 모른다). memo 키는 보내지 않는다 — 서버가 '키 없음 = 지금 값 유지'(BidTargetRules.keepUnsent)라 금칙어가 든 옛 메모에 걸리지 않는다(qa 11-25 P2-1)
     else if (it.op === 'CANCEL') { b.cancel_reason_cd = it.cancelCd; b.cancel_reason_etc = it.cancelCd === tc.ETC_CD ? str(it.cancelEtc).trim() : null; }
     else if (it.op === 'TO_GOAL') b.target_year = Number(it.year);
     return b;
@@ -262,7 +262,7 @@
     const direct = !!body && body.mode === 'DIRECT';
     const cnt = direct && Number(body.applied) > 0 ? Number(body.applied) : Number(n);
     return { mode: direct ? 'DIRECT' : 'APPROVAL', n: cnt,
-      text: direct ? (kind === 'edit' ? tc.editResultText(cnt) : '목표 기관 ' + cnt + '곳을 바로 반영했습니다.') : '결재 요청을 올렸습니다 — 목표 기관 ' + cnt + '곳. 결재가 끝날 때까지 이 기관들은 잠깁니다.' };
+      text: direct ? (kind === 'edit' ? tc.editResultText(cnt) : kind === 'delete' ? '목표 기관 ' + cnt + '곳을 목표에서 뺐습니다. 뺀 기록(누가·언제·사유)은 남습니다.' : '목표 기관 ' + cnt + '곳을 바로 반영했습니다.') : '결재 요청을 올렸습니다 — 목표 기관 ' + cnt + '곳. 결재가 끝날 때까지 이 기관들은 잠깁니다.' };
   };
 
   // ── 자동 이월 알림(규격 5-5) — 받은 숫자로만 만든다 ───────────────────────
@@ -326,16 +326,17 @@
     return '<td class="ck"><label><input type="checkbox" data-pick="' + esc(r.id) + '" aria-label="' + esc(r.regionName) + ' ' + esc(r.name) + ' 고르기"' + (on ? ' checked' : '') + '></label></td>';
   };
   tc.selbarHtml = function () {   // 바닥 띠(#hb-ts와 #hb-tf 사이). 1곳 이상 골랐을 때만 보인다
-    // 왼쪽부터 숫자 문장·선택 지우기 | [수정하기…](오른쪽 끝, 두 칸 중 하나라도 켜질 때). 결재 요청(빼기·옮기기)도 이 창의 두 번째 칸에서 한다(사용자 11-25)
+    // 왼쪽부터 숫자 문장·선택 지우기 | [수정하기] [삭제하기](오른쪽 끝 묶음, 무거운 동작이 맨 오른쪽). 꺼져도 Tab으로 닿고(aria-disabled) 이유는 -why·title·누르면 상태 줄(사용자 11-25 재요청)
     return '<div class="hb-selbar" id="hb-selbar" role="region" aria-label="고른 기관" hidden><span class="n" id="hb-seln" role="status"></span>' +
       '<button type="button" id="hb-selclr" class="lnk">선택 지우기</button><span class="sp"></span>' +
-      '<button type="button" id="hb-seledit" aria-haspopup="dialog" hidden>수정하기…</button>' +
+      '<button type="button" id="hb-seledit" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seledit-why">수정하기</button><span id="hb-seledit-why" class="sr-only"></span>' +
+      '<button type="button" id="hb-seldel" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seldel-why">삭제하기</button><span id="hb-seldel-why" class="sr-only"></span>' +
       '</div>';
   };
   // 숫자 문장(role=status). 20곳 한도 같은 짧은 알림은 같은 자리에서 읽힌다.
   // kinds = { goal, watch }(없으면 '고른 기관 n곳'), off = 이 화면 밖에 고른 줄 수(규격 6-1)
   // note = 일반색 알림(경고 아님) — 저장 전 구분 바뀜 건수 — msg(한도 경고 .lim)가 있으면 msg가 이긴다.
-  tc.autoPickNote = function (n) { return '구분 바뀜 ' + Number(n) + '곳 — [수정하기…]로 저장'; };   // 저장 전 대기 건수(사용자 11-25)
+  tc.autoPickNote = function (n) { return '구분 바뀜 ' + Number(n) + '곳 — [수정하기]로 저장'; };   // 저장 전 대기 건수(사용자 11-25)
   tc.selStatusHtml = function (n, msg, kinds, off, note) {
     n = Number(n); off = Number(off) || 0;
     const g = kinds ? Number(kinds.goal) || 0 : 0, w = kinds ? Number(kinds.watch) || 0 : 0;
@@ -355,6 +356,149 @@
     const aria = '결재 중' + (opL ? ': ' + opL + ' 요청' : '') + (info.by ? ', 요청자 ' + info.by : '') + (when ? ', ' + when : '') + '. 자세히 보기';
     return '<td title="' + esc(tip) + '"><button type="button" class="hb-pend" data-act="pend" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="dialog" aria-label="' + esc(aria) + '">' +
       '<svg viewBox="0 0 12 12" aria-hidden="true">' + LOCK_IN + '</svg>결재 중' + (opS ? ' · ' + esc(opS) : '') + '</button><span class="sr-only">. 구분 ' + esc(nm) + '</span></td>';
+  };
+
+  // ── 띠 [수정하기]·[삭제하기] 확인 상자 + 기관 상세 팝업·일정 칸 [관심 기관으로…] 확인 상자(사용자 11-25 재요청, NEXT 114) ──────
+  tc.EDIT_SKIP = '바뀐 내용 없음 — 제외';
+  tc.DEL_SKIP = '관심 기관 — 제외';
+  tc.EDIT_NONE = '바뀐 구분이 없습니다. 표에서 구분을 고르면 켜집니다.';
+  tc.EDIT_NOPERM = '이 계정은 구분을 바로 고칠 수 없습니다.';
+  tc.DEL_WATCH = '고른 줄이 모두 관심 기관입니다. 관심 기관은 각 줄의 [관심에서 빼기…]로 뺍니다.';
+  tc.DEL_NOREASON = '빼는 사유 목록을 받지 못했습니다. 목록을 다시 불러온 뒤 시도하세요.';
+  tc.TOWATCH_GONE = '이 기관은 지금 옮길 수 없는 상태입니다. 목록을 다시 불러왔으니 확인하세요.';
+  // [수정하기]: 보낼 줄 = 구분 바뀜 대기가 살아 있는 고른 줄. 나머지(대기 없음·관심)는 skip('제외'로 보임). c = { canBulk }
+  tc.editState = function (s, d, c) {
+    c = c || {};
+    const send = [], skip = [];
+    ((s && s.ids) || []).forEach(function (id) { (liveDraft(d, s, id) ? send : skip).push(s.by[id]); });
+    const r = { on: false, why: '', send: send, skip: skip };
+    if (!send.length && !skip.length) r.why = '고른 기관이 없습니다.';
+    else if (!c.canBulk) r.why = tc.EDIT_NOPERM;   // 권한을 대기 여부보다 먼저 본다 — 권한 없는 계정에 '구분을 고르면 켜집니다'라고 하지 않는다(qa P3-2)
+    else if (!send.length) r.why = tc.EDIT_NONE;
+    else r.on = true;
+    return r;
+  };
+  // [삭제하기]: 보낼 줄 = 고른 목표 줄. 관심 줄은 skip(관심 빼기는 각 줄 [관심에서 빼기…]). c = { hasMode, nReasons }
+  tc.deleteState = function (s, c) {
+    c = c || {};
+    const send = [], skip = [];
+    ((s && s.ids) || []).forEach(function (id) { (s.by[id].kind === 'WATCH' ? skip : send).push(s.by[id]); });
+    const r = { on: false, why: '', send: send, skip: skip };
+    if (!send.length && !skip.length) r.why = '고른 기관이 없습니다.';
+    else if (!c.hasMode) r.why = '결재를 올릴 수 없습니다.';
+    else if (!send.length) r.why = tc.DEL_WATCH;
+    else if (!(Number(c.nReasons) > 0)) r.why = tc.DEL_NOREASON;
+    else r.on = true;
+    return r;
+  };
+  tc.editLine = function (e, d) { const x = tc.draftOf(d, e); return str(e.tagName || e.tagCd) + ' → ' + str(x ? x.tagName : ''); };
+  tc.deleteLine = function (e, d) { return (Number(e.year) > 0 ? e.year + ' ' : '') + '목표에서 뺌' + (tc.draftOf(d, e) ? ' · 바뀐 구분은 버림' : ''); };
+  tc.approverShort = function (role) { const r = str(role).trim(); return r === '영업팀' ? '팀장 결재' : (r === '영업팀장' ? '부장 결재' : '결재'); };
+  function pickedText(n, total, mid) { n = Number(n); total = Number(total) || n; return total === n ? '선택한 ' + n + '곳을' : '선택한 ' + total + '곳 중 ' + mid + n + '곳을'; }
+  tc.editQuestion = function (n, total) {
+    n = Number(n); total = Number(total) || n;
+    return total === n ? '선택한 ' + n + '곳에 대하여 수정하시겠습니까?' : pickedText(n, total, '바뀐 ') + ' 수정하시겠습니까?';
+  };
+  // m = { n, total, mode, role, thisYear }
+  tc.deleteQuestion = function (m) {
+    const where = (m.thisYear ? '올해 ' : '') + '목표에서';
+    return pickedText(m.n, m.total, '') + ' ' + where + (m.mode === 'APPROVAL' ? ' 빼도록 ' + tc.approverShort(m.role) + '를 요청하시겠습니까?' : ' 바로 빼시겠습니까?');
+  };
+  // m = { name, mode, role, thisYear } — 기관 하나
+  tc.toWatchQuestion = function (m) {
+    const nm = str(m.name), where = (m.thisYear ? '올해 ' : '') + '목표에서 빼고 내 관심 기관으로';
+    return nm + tc.eul(nm) + ' ' + where + (m.mode === 'APPROVAL' ? ' 옮기도록 ' + tc.approverShort(m.role) + '를 요청하시겠습니까?' : ' 바로 옮기시겠습니까?');
+  };
+  tc.toWatchHint = function (mode, role) {
+    return mode === 'APPROVAL' ? tc.approverText(role, mode) + ' 결재가 끝나면 옮겨지고, 그때까지 이 기관은 구분도 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).' : tc.dlgHint('DIRECT', role);
+  };
+  tc.toWatchFact = function (tagName) { return '구분(' + (str(tagName) || '구분') + ')과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.'; };
+  tc.deleteReason = function (reasons, cd, etc) {   // 결재 사유(서버 필수): 고른 빼는 사유에서 만든다(고정 문구라 개인정보 검사에 걸리지 않는다)
+    const r = (reasons || []).filter(function (x) { return x.code === cd; })[0], e = cd === tc.ETC_CD ? str(etc).trim() : '';
+    return '목표에서 빼기 — ' + (r ? r.name : str(cd)) + (e ? ': ' + e : '');
+  };
+  tc.bulkTitle = function (m) {
+    if (m.kind === 'towatch') return '내 관심 기관으로 옮기기 — ' + str(m.regionName) + ' ' + str(m.name);
+    return (m.kind === 'delete' ? '목표에서 빼기' : '구분 수정') + ' — ' + Number(m.n) + '곳';
+  };
+  tc.bulkQuestion = function (m) { return m.kind === 'towatch' ? tc.toWatchQuestion(m) : (m.kind === 'delete' ? tc.deleteQuestion(m) : tc.editQuestion(m.n, m.total)); };
+  // rows = [{ name, regionName, text, skip }] — 보낼 줄이 먼저, 제외 줄이 뒤(번호 없이 '—')
+  tc.bulkItemsHtml = function (rows) {
+    let no = 0;
+    return (rows || []).map(function (r) {
+      return '<li class="tc-item"><div class="tc-ih"><span class="no" aria-hidden="true">' + (r.skip ? '—' : ++no) + '</span><span class="nm" title="' + esc((str(r.regionName) ? str(r.regionName) + ' ' : '') + str(r.name)) + '"><span class="rg">' + esc(r.regionName) + '</span>' + esc(r.name) + '</span><span class="fix">' + esc(r.text) + '</span></div></li>';
+    }).join('');
+  };
+  // m = { kind:'edit'|'delete'|'towatch', mode, role, rows, n, total, thisYear, reasons:[{code,name}], name·regionName·tagName(towatch) }. 덮개는 body 직계로 붙이고 dlg.open으로 연다.
+  tc.bulkDialogHtml = function (m) {
+    const kind = m.kind === 'delete' || m.kind === 'towatch' ? m.kind : 'edit', del = kind === 'delete', tw = kind === 'towatch', appr = m.mode === 'APPROVAL', rs = m.reasons || [];
+    const go = del ? (appr ? tc.GO_TEXT.APPROVAL : '빼기') : (tw ? (appr ? tc.GO_TEXT.APPROVAL : '옮기기') : '수정');   // 결재면 '결재 요청', 바로 반영이면 동사
+    const req = '<span class="dlg-req" aria-hidden="true">*</span><span class="sr-only"> (필수)</span>';
+    const reasonBox = !del ? '' :
+      '<div class="dlg-f"><label for="tc-bd-rs">빼는 사유' + req + '</label><select id="tc-bd-rs"><option value="" selected>고르세요</option>' +
+      rs.map(function (x) { return '<option value="' + esc(x.code) + '">' + esc(x.name) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="dlg-f" id="tc-bd-etcrow" hidden><label for="tc-bd-etc">기타 사유' + req + '</label><input id="tc-bd-etc" maxlength="' + tc.ETC_MAX + '" aria-describedby="tc-bd-etch"><p class="tc-sub"><span id="tc-bd-etch">사유에는 개인정보를 적지 마세요.</span></p></div>';
+    const hint = del ? tc.dlgHint(m.mode, m.role) : (tw ? tc.toWatchHint(m.mode, m.role) : tc.EDIT_HINT);
+    const body = tw
+      ? '<p id="tc-bd-q">' + esc(tc.bulkQuestion(m)) + '</p><p class="tc-sub">' + esc(tc.toWatchFact(m.tagName)) + '</p>' + (appr ? reasonBoxHtml({ mode: 'APPROVAL', reason: '' }) : '')
+      : '<p id="tc-bd-q">' + esc(tc.bulkQuestion(m)) + '</p>' + reasonBox + '<ol class="tc-items" id="tc-bd-items">' + tc.bulkItemsHtml(m.rows) + '</ol>';
+    return '<div id="tc-bd" class="modal-overlay" style="display:none" data-kind="' + kind + '"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="tc-bd-t" aria-describedby="tc-bd-q">' +
+      '<header class="dlg-bar"><h2 class="dlg-t" id="tc-bd-t" tabindex="-1">' + esc(tc.bulkTitle(m)) + '</h2><div class="dlg-acts"><button type="button" id="tc-bd-cancel">취소</button>' +
+      '<button type="button" id="tc-bd-go" class="' + (del && !appr ? 'dlg-danger' : 'dlg-go') + '">' + esc(go) + '</button></div></header>' +
+      '<div class="dlg-note"><p class="dlg-hint">' + esc(hint) + '</p><p class="dlg-err" id="tc-bd-err" role="alert"></p></div>' +
+      '<div class="dlg-body">' + body + '</div></div></div>';
+  };
+  // 목표→관심 서버 오류: 기관 하나짜리 상자라 '이번 수정에서 빼 주세요' 같은 일괄 창 문장을 쓰지 않는다. → { msg, field(사유 칸 아래), refresh(목록을 다시 읽고 상자를 닫는다) }
+  tc.toWatchError = function (x, items) {
+    const e = tc.errorOf(x, items), s = x ? Number(x.status) || 0 : 0, d = x && x.body ? x.body.detail : null, code = d && typeof d === 'object' && typeof d.code === 'string' ? d.code : '';
+    let msg = e.item ? e.item.msg : (e.msg || e.top), refresh = !!e.refresh;
+    if (s === 409 && code === 'ALREADY_WATCH') msg = '이미 내 관심 기관에 들어 있어 옮길 수 없습니다. 옮기려면 내 관심 탭에서 먼저 빼고 다시 시도하세요.';
+    else if (s === 409 && code === 'CHANGE_PENDING') msg = '방금 다른 결재 요청에 들어가 잠겼습니다. 결재가 끝난 뒤 다시 시도해 주세요.';
+    else if (s === 409 && code === 'STALE') msg = '다른 사람이 먼저 고쳤습니다. 최신 기록으로 다시 읽었으니 확인하고 다시 시도하세요.';
+    else if (s === 409 && code === 'ALREADY_CANCELLED') { msg = '이미 목표에서 빠진 기관입니다. 목록을 다시 불러왔습니다.'; refresh = true; }
+    return { msg: msg, field: e.kind === 'field' || !!(e.item && e.item.f === 'text'), refresh: refresh };
+  };
+  // 띠 [수정하기]·[삭제하기] 확인 상자 오류(qa 11-25 P2-3·P3-3): '이번 수정에서 빼 주세요'·'n번째'는 이 상자에 맞지 않는다 — 기관 이름으로 말하고, 잠김·이미 빠짐은 목록을 다시 읽는다(refresh).
+  // 다시 읽으면 그 줄이 보낼 목록에서 빠지므로 '다시 누르세요'로 끝낸다. → { msg, refresh }
+  tc.bulkError = function (x, items, kind) {
+    const e = tc.errorOf(x, items), s = x ? Number(x.status) || 0 : 0, d = x && x.body ? x.body.detail : null, code = d && typeof d === 'object' && typeof d.code === 'string' ? d.code : '';
+    if (!e.item) return { msg: e.msg || e.top, refresh: !!e.refresh };
+    const it = (items || []).filter(function (z) { return z && z.uid === e.item.uid; })[0], nm = it ? str(it.name) : '', verb = kind === 'delete' ? '빼지' : '저장하지';
+    if (s === 409 && code === 'CHANGE_PENDING') return { msg: nm + tc.eun(nm) + ' 방금 결재 요청에 들어가 잠겨 ' + verb + ' 못했습니다. 목록을 다시 읽었으니 확인하고 다시 누르세요.', refresh: true };
+    if (s === 409 && code === 'ALREADY_CANCELLED') return { msg: nm + tc.eun(nm) + ' 이미 목표에서 빠진 기관입니다. 목록을 다시 읽었으니 확인하고 다시 누르세요.', refresh: true };
+    return { msg: nm + tc.eul(nm) + ' 확인하세요. ' + e.item.msg, refresh: !!e.refresh };
+  };
+  // ── 기관 상세 팝업 머리 [관심 기관으로…](현황판에서 연 팝업만). r = 현황판의 그 기관 목표 줄(없으면 null), c = { mode, readOnly, noWatch, year(올해) }. 위에서부터 처음 맞는 것
+  tc.toWatchState = function (r, c) {
+    c = c || {};
+    if (!c.mode || c.readOnly || c.noWatch) return { show: false };
+    if (!r || r.out || r.kind === 'WATCH') return { show: false };
+    if (tc.isPastYear(r.targetYear, c.year)) return { show: false };
+    if (r.pend) return { show: true, pend: true, info: r.pendInfo || null, tagName: str(r.tagName || r.tagCd) };
+    return { show: true, pend: false };
+  };
+  // 판정에 쓸 줄 고르기(순수): list = 거르기·탭 전의 목표 줄 전체. 그 기관의 목표 줄(관심·목표 밖 제외) 하나, 없으면 null.
+  tc.towatchPick = function (list, id) {
+    const k = str(id);
+    return k ? (list || []).filter(function (r) { return r && r.id === k && !r.out && r.kind !== 'WATCH'; })[0] || null : null;
+  };
+  tc.toWatchDesc = function (mode, role) {
+    if (mode !== 'APPROVAL') return '목표에서 빼고 내 관심 기관으로 바로 옮깁니다.';
+    const r = str(role).trim();
+    return '목표에서 빼고 내 관심 기관으로 옮깁니다. ' + (r === '영업팀장' ? '영업부장' : (r === '영업팀' ? '영업팀장' : '팀장')) + ' 결재가 필요합니다.';
+  };
+  // o = { mode, role, disabled(확정 확인 상자가 열린 동안) } → .dm-btns 안에 들어갈 조각. 결재 중이면 단추 대신 글자 칩(팝업 Tab 가두기가 꺼진 단추를 건너뛴다)
+  tc.toWatchHeadHtml = function (s, o) {
+    o = o || {};
+    if (!s || !s.show) return '';
+    if (s.pend) {
+      const info = s.info || {}, opS = tc.opShort(info.op), opL = tc.opLong(info.op), when = tc.kst(info.at);
+      const tip = [s.tagName ? '구분: ' + s.tagName : '', '결재 중' + (opL ? ': ' + opL + ' 요청' : ''), str(info.by) + (when ? ' ' + when : '')].filter(Boolean).join(' · ');
+      const sr = (opL ? opL + ' ' : '') + '결재가 진행 중입니다.' + (info.by ? ' 요청자 ' + info.by + (when ? ', ' + when : '') + '.' : '');
+      return '<span class="hb-pend dm-pend" title="' + esc(tip) + '"><svg viewBox="0 0 12 12" aria-hidden="true">' + LOCK_IN + '</svg>결재 중' + (opS ? ' · ' + esc(opS) : '') + '</span><span class="sr-only">' + esc(sr) + '</span>';
+    }
+    const d = tc.toWatchDesc(o.mode, o.role);
+    return '<button type="button" id="dm-towatch" class="dm-sub" data-hx="towatch" aria-haspopup="dialog" aria-describedby="dm-towatch-d" title="' + esc(d) + '"' + (o.disabled ? ' disabled' : '') + '>관심 기관으로…</button><span id="dm-towatch-d" class="sr-only">' + esc(d) + '</span>';
   };
 
   // ── 일괄 요청 창(규격 6-3) ──────────────────────────────────────────

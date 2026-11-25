@@ -80,7 +80,7 @@ test('입찰 종료 줄: 마감까지 칸 \'입찰 종료\'+근거(title·sr), 1
   const h = kbb.goalRowHtml(r, { win: kbb.laneWindow(TODAY, 2026), canEdit: true });
   assert.ok(h.indexOf('<td title="근거: 입찰 공고 현황 2026-09-30 공고 종료"><b class="hb-dd tx end">입찰 종료</b><span class="sr-only">근거: 입찰 공고 현황 2026-09-30 공고 종료</span></td>') > 0);
   assert.ok(h.indexOf('<td class="ln"><div class="hb-acts">') > 0 && h.indexOf('hb-lane') < 0 && h.indexOf('hb-late') < 0 && h.indexOf('class="late"') < 0);
-  assert.ok(h.indexOf('data-act="towatch"') > 0 && h.indexOf('data-act="tonext"') > 0 && h.indexOf('>내 관심으로…</button>') > 0 && h.indexOf('>내 관심으로</button>') < 0 && h.indexOf('aria-label="가 내 관심으로 옮기기"') > 0 && h.indexOf('>다음 회차 목표로…</button>') > 0);   // 버튼·메뉴·안내 모두 '내 관심으로…'(design P3-1, 용어 통일 11-25)
+  assert.ok(h.indexOf('data-act="towatch"') > 0 && h.indexOf('data-act="tonext"') > 0 && h.indexOf('>관심 기관으로…</button>') > 0 && h.indexOf('>내 관심으로…</button>') < 0 && h.indexOf('aria-label="가 관심 기관으로 옮기기"') > 0 && h.indexOf('>다음 회차 목표로…</button>') > 0);   // 입찰 종료 줄 일정 칸 단추 이름도 '관심 기관으로…'(design 11-25 NEXT 114 ③)
   const nw = kbb.goalRowHtml(r, { win: kbb.laneWindow(TODAY, 2026), canEdit: true, noWatch: true });                  // 옛 서버: 관심 기관이 없으니 옮기기 버튼도 없다
   assert.ok(nw.indexOf('data-act="towatch"') < 0 && nw.indexOf('data-act="tonext"') > 0);
   const ro = kbb.goalRowHtml(r, { win: kbb.laneWindow(TODAY, 2026), canEdit: false });
@@ -207,7 +207,7 @@ test('409 4종과 201 warning: ALREADY_WATCH(내 관심) 고정 문장·NOT_WATC
   // 목표→관심 옮기기 중 ALREADY_WATCH(내 관심에 이미 있음)는 방금 누른 버튼을 되풀이하지 않고 다음 행동을 말한다
   const wm = kbb.outcome(r(409, { code: 'ALREADY_WATCH', message: '<img>', latest: { target_no: 4, rev_no: 1, kind_cd: 'WATCH' } }), 'move');
   assert.deepStrictEqual([wm.kind, wm.which], ['already', 'WATCH']);
-  assert.strictEqual(wm.msg, '이 기관은 이미 내 관심 기관에 들어 있어 옮길 수 없습니다. 목표는 그대로 두거나, 내 관심에서 먼저 빼 주세요.');
+  assert.strictEqual(wm.msg, '이 기관은 이미 내 관심 기관에 들어 있어 옮길 수 없습니다. 옮기려면 내 관심 탭에서 먼저 빼고 다시 시도하세요.');
   // 남의 관심 403 NOT_WATCH_OWNER: 고정 문장 + 목록 다시 읽기(stale), 서버 글은 내보이지 않는다. 일반 403(영업부서만)은 그대로 denied
   const no = kbb.outcome(r(403, { code: 'NOT_WATCH_OWNER', message: '<img>' }), 'edit');
   assert.deepStrictEqual([no.kind, no.code], ['stale', 'NOT_WATCH_OWNER']);
@@ -346,7 +346,7 @@ test('추가 창: 넣을 곳(목표·관심) 라디오, 관심이면 연도 줄 
   assert.ok(html.indexOf('· 이미 내 관심 기관') > 0 && html.indexOf('· 이미 2027 목표') > 0 && html.indexOf('· 올해 입찰 종료') > 0);
   assert.strictEqual(kbb.dupText('GOAL', 2027), '이미 목표 기관으로 설정되어 있습니다(2027 목표).');
   assert.strictEqual(kbb.dupText('WATCH'), '이미 내 관심 기관으로 설정되어 있습니다.');
-  assert.ok(kbb.dupLinkHtml('WATCH').indexOf('>내 관심 탭에서 보기<') > 0 && kbb.dupHint('GOAL') === '내 관심으로 옮기려면 목표 표에서 그 줄을 고른 뒤 아래 띠의 [수정하기…] → \'빼기·옮기기\' 칸에서 고르세요.' && kbb.dupLinkHtml('GOAL').indexOf('목표 표에서 보기') > 0);
+  assert.ok(kbb.dupLinkHtml('WATCH').indexOf('>내 관심 탭에서 보기<') > 0 && kbb.dupHint('GOAL') === '내 관심으로 옮기려면 목표 표에서 기관 이름을 눌러 연 창의 [관심 기관으로…]를 누르세요.' && kbb.dupLinkHtml('GOAL').indexOf('목표 표에서 보기') > 0);
   assert.deepStrictEqual(kbb.addState({ inst: { id: 'I1' }, tag: 'NEW', kind: 'WATCH' }), { canGo: true, why: '' });                             // 관심은 연도가 필요 없다
   assert.deepStrictEqual(kbb.addState({ inst: { id: 'I1' }, tag: 'NEW', year: 2026, closedBlock: true }), { canGo: false, why: '올해 입찰이 끝나 올해 목표로는 넣을 수 없습니다.' });
   const list = [rec('I1', '광진구청'), rec('I2', '광진복지원')];

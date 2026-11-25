@@ -56,6 +56,7 @@ public class TargetChangeService {
     static final class Planned {
         int itemNo; String inst, op, warnCd, tag, memo, owner, ownerName, cancelCd, cancelEtc; BidTarget cur; Integer toYear;
         boolean valueOnly;   // EDIT 이고 연도·주 담당 그대로(NEXT 114)
+        String aim, aimEdit;   // 063 — 금고 방식·바뀜 종류(FIRST|CHANGE|CLEAR|null, 접근 이력용)
     }
 
     public static final class Plan {
@@ -109,7 +110,10 @@ public class TargetChangeService {
         if (add ? (it.getTargetNo() != null || it.getBaseRevNo() != null) : (it.getTargetNo() == null || it.getBaseRevNo() == null)) {
             throw item(400, "BAD_VALUE", add ? "새로 넣을 때는 기록 번호를 보내지 않습니다." : "바꿀 기록 번호와 화면이 본 기록 번호(base_rev_no)가 필요합니다.", no);
         }
-        boolean values = it.getTagCd() != null || it.getMemo() != null || it.getOwnerEmpNo() != null;
+        if (add && it.getAimRankCd() != null && !it.getAimRankCd().trim().isEmpty()) {
+            throw item(400, "BAD_VALUE", BidTargetRules.ADD_AIM_MSG, no);   // 063 — 목표로 처음 넣을 때 금고 방식은 비운다(security 11-25)
+        }
+        boolean values = it.getTagCd() != null || it.getMemo() != null || it.getOwnerEmpNo() != null || it.getAimRankCd() != null;
         boolean cancelVals = it.getCancelReasonCd() != null || it.getCancelReasonEtc() != null;
         boolean yearOk = add || edit || OP_TO_GOAL.equals(op);
         if ((values && !(add || edit)) || (cancelVals && !cancel) || (it.getTargetYear() != null && !yearOk)) {
@@ -175,10 +179,11 @@ public class TargetChangeService {
         switch (p.op) {
             case OP_EDIT: {
                 BidTargetRules.Parsed v = BidTargetRules.parse(asIn(it), thisYear, cur.getTargetYear(), codes);
+                BidTargetRules.keepUnsent(v, it.getMemo(), it.getAimRankCd(), cur);   // 빠진 메모·금고 방식은 그대로
                 if (BidTargetRules.same(cur, v)) throw ApiException.badRequest("바뀐 내용이 없습니다.");
                 fill(p, v, targets.ownerName(v.owner, cur));
-                p.valueOnly = cur.getTargetYear() != null && cur.getTargetYear() >= thisYear   // 지난해 목표는 결재(security F1)
-                        && p.toYear.equals(cur.getTargetYear()) && Objects.equals(p.owner, cur.getOwnerEmpNo());   // NEXT 114
+                p.aimEdit = BidTargetRules.aimEdit(cur, v);
+                p.valueOnly = BidTargetRules.valueOnlyEdit(cur, v, thisYear);   // 단건 save 와 같은 판정 하나(NEXT 114·063, 지난해 목표는 결재 — security F1)
                 if (!p.toYear.equals(cur.getTargetYear())) {
                     targets.checkGoalOverlap(p.inst, cur.getTargetNo(), p.toYear);
                     if (p.toYear.intValue() == thisYear) p.warnCd = warn(targets.closedCheck(p.inst, today));
@@ -241,6 +246,7 @@ public class TargetChangeService {
             }
             x.setToYear(p.toYear); x.setTagCd(p.tag); x.setMemo(p.memo); x.setOwnerEmpNo(p.owner); x.setOwnerName(p.ownerName);
             x.setCancelReasonCd(p.cancelCd); x.setCancelReasonEtc(p.cancelEtc); x.setWarnCd(p.warnCd);
+            x.setAimRankCd(p.aim);   // 063 — EDIT 승인 때 지워지지 않게 요청 때 값을 싣는다(security 11-25 3번). ADD 는 항상 null
             x.setRequesterEmpNo(me.getEmpNo()); x.setRequesterName(me.getName()); x.setCreatedAt(now);
             mapper.insertReqItem(x);
         }
@@ -251,11 +257,13 @@ public class TargetChangeService {
     @Transactional
     public Map<String, Object> applyDirect(Plan plan, Actor actor, BoardUiIds.Ui ui, String basis) {
         List<Map<String, Object>> done = new ArrayList<Map<String, Object>>();
-        for (Planned p : plan.items) done.add(write(p, actor, ui, null, plan.requesterEmp));
+        int aims = 0;
+        for (Planned p : plan.items) { done.add(write(p, actor, ui, null, plan.requesterEmp)); if (p.aimEdit != null) aims++; }
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("mode", "DIRECT");
         out.put("direct_basis", basis);
         out.put("applied", done.size());
+        out.put("aim_edits", aims);   // 063 — 금고 방식이 바뀐 항목 수(접근 이력용, 값 아님)
         out.put("items", done);
         return out;
     }
@@ -309,8 +317,12 @@ public class TargetChangeService {
         switch (p.op) {
             case OP_ADD:
             case OP_EDIT: {
-                if (x.getTagCd() == null || !codes.enabled(BidTargetRules.G_TAG, x.getTagCd())) throw invalid("태그가 더 이상 쓰이지 않습니다.", p.cur);
-                p.toYear = x.getToYear(); p.tag = x.getTagCd(); p.memo = x.getMemo(); p.owner = x.getOwnerEmpNo();
+                if (x.getTagCd() != null && !codes.enabled(BidTargetRules.G_TAG, x.getTagCd())) throw invalid("태그가 더 이상 쓰이지 않습니다.", p.cur);   // 11-25 — 구분 비움(NULL) 허용
+                String curAim = p.cur == null ? null : p.cur.getAimRankCd();
+                if (x.getAimRankCd() != null && !x.getAimRankCd().equals(curAim) && !codes.enabled(BidTargetRules.G_AIM, x.getAimRankCd())) {
+                    throw invalid("금고 방식이 더 이상 쓰이지 않습니다.", p.cur);   // 새로 고른 값만 다시 검사(이어받기만 한 값 때문에 다른 결재가 막히지 않게)
+                }
+                p.toYear = x.getToYear(); p.tag = x.getTagCd(); p.memo = x.getMemo(); p.owner = x.getOwnerEmpNo(); p.aim = x.getAimRankCd();
                 try { p.ownerName = targets.ownerName(p.owner, p.cur); }   // 새로 고른 주 담당만 다시 검사(활성 영업)
                 catch (ApiException e) { throw invalid("주 담당이 더 이상 영업부서 활성 사용자가 아닙니다.", p.cur); }
                 if (p.cur == null || !p.toYear.equals(p.cur.getTargetYear())) {
@@ -356,6 +368,7 @@ public class TargetChangeService {
         if (OP_ADD.equals(p.op) || OP_EDIT.equals(p.op)) {
             row.setActionCd(BidTargetService.ACTION_SAVE); row.setKindCd(BidTargetRules.KIND_GOAL); row.setTargetYear(p.toYear);
             row.setTagCd(p.tag); row.setMemo(p.memo); row.setOwnerEmpNo(p.owner); row.setOwnerName(p.ownerName);
+            row.setAimRankCd(p.aim);
             row.setWatchEmpNo(null);
         } else if (OP_CANCEL.equals(p.op)) {
             row.setActionCd(BidTargetService.ACTION_CANCEL); row.setCancelReasonCd(p.cancelCd); row.setCancelReasonEtc(p.cancelEtc);
@@ -399,10 +412,14 @@ public class TargetChangeService {
                 before.put("kind_cd", x.getBaseKindCd()); before.put("target_year", x.getBaseYear());
                 before.put("tag_name", x.getBaseTagName()); before.put("memo", x.getBaseMemo() == null ? "" : x.getBaseMemo());
                 before.put("owner_name", x.getBaseOwnerName());
+                before.put("aim_rank_cd", x.getBaseAimRankCd()); before.put("aim_rank_name", x.getBaseAimRankName());
             }
             m.put("before", before);
             m.put("to_year", x.getToYear());
             m.put("tag_name", x.getTagName());
+            boolean aimKept = !OP_ADD.equals(x.getOpCd()) && !OP_EDIT.equals(x.getOpCd());   // TO_GOAL·TO_WATCH·CANCEL 은 금고 방식을 건드리지 않는다 — '이후'도 이전 값(security 11-25 4번)
+            m.put("aim_rank_cd", aimKept ? x.getBaseAimRankCd() : x.getAimRankCd());
+            m.put("aim_rank_name", aimKept ? x.getBaseAimRankName() : x.getAimRankName());
             m.put("memo", x.getMemo());
             m.put("owner_name", x.getOwnerName());
             m.put("cancel_reason_name", BidTargetRules.CANCEL_ETC.equals(x.getCancelReasonCd()) ? x.getCancelReasonEtc() : x.getCancelReasonName());
@@ -417,11 +434,12 @@ public class TargetChangeService {
     private static BidTargetIn asIn(TargetChangeIn.Item it) {
         BidTargetIn in = new BidTargetIn();
         in.setTargetYear(it.getTargetYear()); in.setTagCd(it.getTagCd()); in.setMemo(it.getMemo()); in.setOwnerEmpNo(it.getOwnerEmpNo());
+        in.setAimRankCd(it.getAimRankCd());
         return in;
     }
 
     private static void fill(Planned p, BidTargetRules.Parsed v, String ownerName) {
-        p.toYear = Integer.valueOf(v.year); p.tag = v.tag; p.memo = v.memo; p.owner = v.owner; p.ownerName = ownerName;
+        p.toYear = Integer.valueOf(v.year); p.tag = v.tag; p.memo = v.memo; p.owner = v.owner; p.ownerName = ownerName; p.aim = v.aim;
     }
 
     private static String warn(Map<String, Object> w) { return w == null ? null : "INST_BID_CLOSED"; }

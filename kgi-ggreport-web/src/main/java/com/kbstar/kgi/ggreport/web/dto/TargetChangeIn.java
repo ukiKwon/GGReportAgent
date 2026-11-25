@@ -25,6 +25,7 @@ public class TargetChangeIn {
         @JsonProperty("owner_emp_no")      private String ownerEmpNo;      // ADD·EDIT
         @JsonProperty("cancel_reason_cd")  private String cancelReasonCd;  // CANCEL
         @JsonProperty("cancel_reason_etc") private String cancelReasonEtc; // CANCEL
+        @JsonProperty("aim_rank_cd")       private String aimRankCd;       // EDIT(063 금고 방식, null=그대로 ""=지움). ADD 에서 비어 있지 않으면 400
 
         public String getInstitutionId() { return institutionId; } public void setInstitutionId(String v) { institutionId = v; }
         public String getOpCd() { return opCd; } public void setOpCd(String v) { opCd = v; }
@@ -36,5 +37,6 @@ public class TargetChangeIn {
         public String getOwnerEmpNo() { return ownerEmpNo; } public void setOwnerEmpNo(String v) { ownerEmpNo = v; }
         public String getCancelReasonCd() { return cancelReasonCd; } public void setCancelReasonCd(String v) { cancelReasonCd = v; }
         public String getCancelReasonEtc() { return cancelReasonEtc; } public void setCancelReasonEtc(String v) { cancelReasonEtc = v; }
+        public String getAimRankCd() { return aimRankCd; } public void setAimRankCd(String v) { aimRankCd = v; }
     }
 }

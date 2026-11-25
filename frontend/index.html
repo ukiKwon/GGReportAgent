@@ -1791,6 +1791,9 @@
   .dm-btns .db-next { height:32px; padding:0 14px; font-weight:700; }
   .dm-btns .dm-sep { width:1px; height:20px; margin:0 12px; background:var(--line-strong); }   /* 주 동작 | 창 닫기 — 주 동작이 있을 때만 */
   .dm-btns .dm-cls { height:32px; padding:0 14px; }   /* 글자 [닫기] — 다른 .dlg 창 단추와 같은 높이·안쪽 여백(DESIGN.md '팝업': × 아이콘 금지, 11-23) */
+  .dm-btns .dm-sub { height:32px; padding:0 12px; font-size:12px; }   /* 보조 단추 [관심 기관으로…]: 기본 단추 모양 그대로(흰 바탕·--line-strong) */
+  .dm-btns #dm-towatch:not(:first-child), .dm-btns .dm-pend:not(:first-child) { margin-left:8px; }   /* 주 동작과 8px */
+  .dm-btns .dm-pend { flex:none; white-space:nowrap; }
   .dm-note { flex:none; }
   .dm-box .db-flash:empty, #dm-act-note:empty { display:none; }
   .dm-box .db-flash { padding:8px 24px; border-bottom:1px solid var(--line); }
@@ -2456,10 +2459,15 @@
   .hb-selbar button { height:32px; padding:0 14px; }
   .hb-selbar button[hidden] { display:none; }
   .hb-selbar #hb-seledit { background:var(--panel); border:1px solid var(--line-strong); }   /* 바로 반영 보조 단추: 흰 바탕 보통 단추(결재 주 단추 .go 와 구분) */
+  .hb-selbar #hb-seldel { background:var(--panel); border:1px solid var(--line-strong); }   /* [삭제하기]: [수정하기]와 같은 보통 단추, 맨 오른쪽(무거운 동작). 빨강은 바로 빼는 모드의 확인 상자에만 */
+  .hb-selbar #hb-seledit[aria-disabled="true"], .hb-selbar #hb-seldel[aria-disabled="true"] { color:var(--muted); border-color:var(--line); cursor:default; }   /* 꺼짐은 opacity 대신 muted 글자 — Tab으로 닿고 이유는 title·sr·누르면 상태 줄 */
+  .hb-selbar #hb-seledit[aria-disabled="true"]:hover, .hb-selbar #hb-seldel[aria-disabled="true"]:hover { background:var(--panel); border-color:var(--line); }
   .hb-selbar .lnk { border:0; background:transparent; color:var(--muted); padding:0 6px; }   /* 선택 지우기: 글자 모양 단추 */
   .hb-selbar .lnk:hover, .hb-selbar .lnk:focus-visible { background:transparent; color:var(--fg); text-decoration:underline; }
   #mm-dlg .dlg-ferr:empty { display:none; }
   #tc-dlg .dlg-ferr:empty, #tt-dlg .dlg-ferr:empty { display:none; }
+  #tc-bd .dlg-ferr:empty { display:none; }
+  #tc-bd .dlg-body > p { margin:0 0 12px; line-height:1.5; word-break:keep-all; }   /* 확인 상자 질문·사실 줄 */
   .tc-sub { display:flex; justify-content:space-between; margin:4px 0 0; font-size:12px; color:var(--muted); }
   .tc-all { display:flex; align-items:center; gap:8px; margin:0 0 12px; font-size:12px; }
   /* [수정하기…] 창 두 칸 세그먼트(사용자 11-25): 각진 2px·1px 선, 켜진 칸은 포인트 16% 틴트 + 글자 700. 라디오 동그라미는 숨기고 label 전체가 눌림 영역(높이 40px) */
@@ -2477,9 +2485,6 @@
   .tc-ba .tc-termgo, .tc-ba select { box-sizing:border-box; height:29px; }   /* 같은 줄 select(12px 글자 + 위아래 5px + 테두리 ≈ 29px)와 높이를 맞춘다(design 11-25 P3-2) */
   .tc-ba .tc-termgo { padding:0 8px; font-size:12px; }
   .hb-wacts { display:flex; flex-wrap:wrap; gap:4px 6px; align-items:center; }   /* 관심 줄 동작 묶음: [목표로 옮기기…][관심에서 빼기…] (메모 고치기는 메모 칸 안, design 11-25 P2-1 안 A) */
-  .hb-memocell { display:flex; align-items:center; min-width:0; }
-  .hb-memocell .hb-memotx { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .hb-memocell .hb-memo-go { flex:none; min-height:24px; margin-left:6px; }
   .hb-note.info .hb-note-ck { display:none; }   /* 안내 변형(꺼진 단추의 이유): 성공 ✓ 없이 글자 --fg만. 새 색 없음 */
   .hb-note.info { border-color:var(--line-strong); background:var(--panel); }
   @media (min-width:1440px) { .hb-tt col.c-act { width:230px; } }

@@ -13,6 +13,7 @@ public class BidTarget {
     private Integer firstCarryFromNo; private String firstCarryBasisCd, firstActionCd, firstKindCd;   // 056 조회 — REV 1(f) 값
     private String requesterEmpNo, requestedByName, firstRequesterEmpNo, firstRequestedByName;      // 056 조회 — 결재 항목 요청자(사번은 내보내지 않음)
     private String watchEmpNo;    // 061 — 관심(WATCH) 주인 사번, 목표는 NULL. 화면에 내보내지 않는다
+    private String aimRankCd, aimRankName;   // 063 — 금고 방식(TARGET_AIM_RANK)·조회 조인 이름
 
     public String getInstitutionId() { return institutionId; } public void setInstitutionId(String v) { institutionId = v; }
     public String getInstitutionName() { return institutionName; } public void setInstitutionName(String v) { institutionName = v; }
@@ -52,4 +53,6 @@ public class BidTarget {
     public String getFirstRequesterEmpNo() { return firstRequesterEmpNo; } public void setFirstRequesterEmpNo(String v) { firstRequesterEmpNo = v; }
     public String getFirstRequestedByName() { return firstRequestedByName; } public void setFirstRequestedByName(String v) { firstRequestedByName = v; }
     public String getWatchEmpNo() { return watchEmpNo; } public void setWatchEmpNo(String v) { watchEmpNo = v; }
+    public String getAimRankCd() { return aimRankCd; } public void setAimRankCd(String v) { aimRankCd = v; }
+    public String getAimRankName() { return aimRankName; } public void setAimRankName(String v) { aimRankName = v; }
 }

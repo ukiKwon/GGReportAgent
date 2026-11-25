@@ -458,6 +458,194 @@ public class TargetChangeApiTest {
         assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE REV_NO=2"));
     }
 
+    // ---- NEXT 114 · 063 — '금고 방식'(TARGET_AIM_RANK) : 고르기·바꾸기·지우기는 구분처럼 결재 없이 바로 + REV 이력 ----
+
+    private static final String AIM_BTN = "set_target_aim_rank";
+    private MvcResult aimSingle(String emp, String inst, Object... kv) throws Exception {
+        return send(emp, "/institutions/" + inst + "/bid-targets", "bid_board", AIM_BTN, single(kv));
+    }
+    private String lastPostDetail() {
+        return jdbc.queryForList("SELECT DETAIL FROM ACCESS_LOG WHERE EVENT_TYPE='API' AND HTTP_METHOD='POST' ORDER BY LOG_ID DESC", String.class).get(0);
+    }
+
+    @Test public void 금고_방식_고르기_바꾸기_지우기는_결재_없이_201_이력과_접근기록에는_종류만() throws Exception {
+        baseSeed();
+        final int Y = y();
+        MvcResult r1 = aimSingle(SALES, "jung", "target_year", Y, "tag_cd", "NEW", "aim_rank_cd", "FIRST");
+        assertEquals(raw(r1), 201, status(r1));
+        assertEquals("VALUE_EDIT", json(r1).path("direct_basis").asText());
+        assertEquals("FIRST", json(r1).path("aim_edit").asText());
+        assertEquals("1금고", json(r1).path("item").path("aim_rank_name").asText());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND TARGET_NO=1 AND REV_NO=2 AND AIM_RANK_CD='FIRST'"
+                + " AND BUTTON_ID='set_target_aim_rank' AND UI_VALID=1 AND APPROVAL_REQ_ID IS NULL AND EDITOR_EMP_NO=?", SALES));
+        assertEquals(0, count("SELECT COUNT(*) FROM APPROVAL_REQUEST"));
+        assertEquals("bid-target save no=1 rev=2 basis=value aim=first", lastPostDetail());
+        MvcResult r2 = aimSingle(SALES, "jung", "base_rev_no", 2, "target_year", Y, "tag_cd", "NEW", "aim_rank_cd", "SECOND");   // 바꾸기
+        assertEquals(raw(r2), 201, status(r2));
+        assertEquals("bid-target save no=1 rev=3 basis=value aim=change", lastPostDetail());
+        MvcResult r3 = aimSingle(SALES, "jung", "base_rev_no", 3, "target_year", Y, "tag_cd", "NEW", "aim_rank_cd", "");            // 지우기
+        assertEquals(raw(r3), 201, status(r3));
+        assertEquals("bid-target save no=1 rev=4 basis=value aim=clear", lastPostDetail());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=4 AND AIM_RANK_CD IS NULL"));
+        assertEquals(0, count("SELECT COUNT(*) FROM APPROVAL_REQUEST"));
+        assertEquals(400, status(aimSingle(SALES, "jung", "base_rev_no", 4, "target_year", Y, "tag_cd", "NEW", "aim_rank_cd", "THIRD")));   // 코드표 밖
+    }
+
+    @Test public void 일괄_금고_방식도_사유_없이_바로_set_target_aim_rank() throws Exception {
+        baseSeed();
+        MvcResult r = send(SALES, "/bid-targets/changes", "bid_board", AIM_BTN,
+                req(null, item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", y(), "tag_cd", "NEW", "aim_rank_cd", "SINGLE")));
+        assertEquals(raw(r), 200, status(r));
+        assertEquals("DIRECT", json(r).path("mode").asText());
+        assertEquals("VALUE_EDIT", json(r).path("direct_basis").asText());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND AIM_RANK_CD='SINGLE'"
+                + " AND BUTTON_ID='set_target_aim_rank' AND UI_VALID=1 AND APPROVAL_REQ_ID IS NULL"));
+        assertEquals(0, count("SELECT COUNT(*) FROM APPROVAL_REQUEST WHERE REQ_TYPE='TARGET_CHANGE'"));
+        assertEquals("bid-target change mode=direct n=1 basis=value aim=1", lastPostDetail());
+    }
+
+    @Test public void 목표로_처음_넣을_때_금고_방식이_있으면_400_단건_일괄() throws Exception {
+        final int Y = y();
+        Map<String, Object> b = new LinkedHashMap<String, Object>();
+        b.put("target_year", Y); b.put("tag_cd", "NEW"); b.put("aim_rank_cd", "FIRST");
+        MvcResult s = send(HEAD, "/institutions/jongno/bid-targets", "bid_board", "add_bid_target", b);   // 영업부장이어도(역할과 무관)
+        assertEquals(raw(s), 400, status(s));
+        MvcResult t = send(SALES, "/institutions/jongno/bid-targets", "bid_board", "add_bid_target", b);   // 팀원도 403 보다 400 이 먼저
+        assertEquals(raw(t), 400, status(t));
+        MvcResult c = change(HEAD, req("새 목표", item("jongno", "ADD", "tag_cd", "NEW", "target_year", Y, "aim_rank_cd", "FIRST")));
+        assertEquals(raw(c), 400, status(c));
+        assertEquals(1, json(c).path("detail").path("item_no").asInt());
+        MvcResult a = change(SALES, req("새 목표", item("jongno", "ADD", "tag_cd", "NEW", "target_year", Y, "aim_rank_cd", "FIRST")));
+        assertEquals(raw(a), 400, status(a));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET"));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM"));
+        // 빈 값("")은 '비움'이라 통과한다
+        MvcResult ok = change(HEAD, req(null, item("jongno", "ADD", "tag_cd", "NEW", "target_year", Y, "aim_rank_cd", "")));
+        assertEquals(raw(ok), 200, status(ok));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND REV_NO=1 AND AIM_RANK_CD IS NULL"));
+    }
+
+    @Test public void 목표로_넣을_때_구분을_비우면_NULL_영업부장_바로_일괄_결재_승인_모두() throws Exception {
+        final int Y = y();
+        MvcResult h = change(HEAD, req(null, item("jongno", "ADD", "target_year", Y)));   // 영업부장 바로 — 구분 없음
+        assertEquals(raw(h), 200, status(h));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND REV_NO=1 AND TAG_CD IS NULL"));
+        MvcResult r = change(SALES, req("새 목표", item("jung", "ADD", "target_year", Y, "tag_cd", "")));   // 팀원 결재 — 빈 값도 구분 없음
+        assertEquals(raw(r), 200, status(r));
+        assertEquals("APPROVAL", json(r).path("mode").asText());
+        long id = json(r).path("request").path("req_id").asLong();
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM WHERE REQ_ID=? AND TAG_CD IS NULL AND AIM_RANK_CD IS NULL", id));
+        assertTrue(json(r).path("request").path("target_items").get(0).path("tag_name").isNull());
+        MvcResult d = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(d), 200, status(d));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=1 AND TAG_CD IS NULL AND APPROVAL_REQ_ID=?", id));
+        JsonNode items = json(getAs(SALES, "/bid-targets")).path("items");
+        boolean found = false;
+        for (JsonNode n : items) if ("jung".equals(n.path("institution_id").asText())) { found = true; assertTrue(n.path("tag_cd").isNull()); }
+        assertTrue(found);
+    }
+
+    @Test public void 결재_EDIT_주_담당_변경을_승인해도_금고_방식은_유지() throws Exception {
+        baseSeed();
+        final int Y = y();
+        jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='FIRST' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");
+        MvcResult r = change(SALES, req("담당 변경", item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "NEW", "owner_emp_no", LEAD)));
+        assertEquals(raw(r), 200, status(r));
+        assertEquals("APPROVAL", json(r).path("mode").asText());
+        long id = json(r).path("request").path("req_id").asLong();
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM WHERE REQ_ID=? AND AIM_RANK_CD='FIRST'", id));   // 요청 때 값이 실린다
+        JsonNode card = json(r).path("request").path("target_items").get(0);
+        assertEquals("1금고", card.path("before").path("aim_rank_name").asText());
+        assertEquals("1금고", card.path("aim_rank_name").asText());
+        MvcResult d = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(d), 200, status(d));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND AIM_RANK_CD='FIRST'"
+                + " AND OWNER_EMP_NO=? AND APPROVAL_REQ_ID=?", LEAD, id));
+    }
+
+    @Test public void 결재_카드의_TO_WATCH_이후_금고_방식은_이전_값() throws Exception {
+        baseSeed();
+        jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='SECOND' WHERE INSTITUTION_ID='mapo' AND TARGET_NO=1");
+        MvcResult r = change(SALES, req("관심으로", item("mapo", "TO_WATCH", "target_no", 1, "base_rev_no", 1)));
+        assertEquals(raw(r), 200, status(r));
+        JsonNode card = json(r).path("request").path("target_items").get(0);
+        assertEquals("2금고", card.path("before").path("aim_rank_name").asText());
+        assertEquals("2금고", card.path("aim_rank_name").asText());   // '이후'가 비어 보이지 않는다(실제 반영도 그대로 둠)
+    }
+
+    @Test public void 지난해_목표의_금고_방식만_고쳐도_403_APPROVAL_REQUIRED() throws Exception {
+        baseSeed();
+        final int Y = y();
+        jdbc.update("UPDATE INST_BID_TARGET SET TARGET_YEAR=? WHERE INSTITUTION_ID='jung' AND TARGET_NO=1", Y - 1);
+        MvcResult r = aimSingle(SALES, "jung", "target_year", Y - 1, "tag_cd", "NEW", "aim_rank_cd", "FIRST");
+        assertEquals(raw(r), 403, status(r));
+        assertEquals("APPROVAL_REQUIRED", json(r).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2"));
+        JsonNode items = json(getAs(SALES, "/bid-targets?year=" + (Y - 1))).path("items");
+        assertEquals("APPROVAL", items.get(0).path("aim_mode").asText());
+    }
+
+    @Test public void 관심_줄에_금고_방식은_400_결재_중이면_409() throws Exception {
+        baseSeed();
+        MvcResult w = aimSingle(SALES, "nowon", "tag_cd", "NEW", "aim_rank_cd", "FIRST");
+        assertEquals(raw(w), 400, status(w));
+        submitFive();
+        MvcResult p = aimSingle(SALES, "jung", "target_year", y(), "tag_cd", "NEW", "aim_rank_cd", "FIRST");
+        assertEquals(raw(p), 409, status(p));
+        assertEquals("CHANGE_PENDING", json(p).path("detail").path("code").asText());
+    }
+
+    @Test public void 메모와_금고_방식을_보내지_않으면_지금_값을_잇고_빈_문자열이면_지운다() throws Exception {
+        baseSeed();
+        final int Y = y();
+        jdbc.update("UPDATE INST_BID_TARGET SET MEMO='옛 메모', AIM_RANK_CD='FIRST' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");
+        MvcResult r = send(SALES, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_year", Y, "tag_cd", "RETAIN"));
+        assertEquals(raw(r), 201, status(r));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND TAG_CD='RETAIN' AND MEMO='옛 메모' AND AIM_RANK_CD='FIRST'"));
+        MvcResult c = send(SALES, "/institutions/jung/bid-targets", "bid_board", "edit_bid_target", single("base_rev_no", 2, "target_year", Y, "tag_cd", "RETAIN", "memo", ""));
+        assertEquals(raw(c), 201, status(c));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=3 AND MEMO IS NULL AND AIM_RANK_CD='FIRST'"));
+        // 일괄도 같다
+        jdbc.update("UPDATE INST_BID_TARGET SET MEMO='옛2', AIM_RANK_CD='SINGLE' WHERE INSTITUTION_ID='jungnang' AND TARGET_NO=1");
+        MvcResult b = send(SALES, "/bid-targets/changes", "bid_board", "save_target_values",
+                req(null, item("jungnang", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "RETAIN")));
+        assertEquals(raw(b), 200, status(b));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jungnang' AND REV_NO=2 AND MEMO='옛2' AND AIM_RANK_CD='SINGLE'"));
+    }
+
+    @Test public void 목록에_금고_방식_칸과_모드_코드표() throws Exception {
+        baseSeed();
+        JsonNode j = json(getAs(SALES, "/bid-targets"));
+        JsonNode first = j.path("items").get(0);
+        assertTrue(first.has("aim_rank_cd")); assertTrue(first.path("aim_rank_cd").isNull());
+        assertTrue(first.path("aim_rank_name").isNull());
+        assertEquals("DIRECT", first.path("aim_mode").asText());
+        assertEquals(4, j.path("codes").path("aim_ranks").size());
+        assertEquals("FIRST", j.path("codes").path("aim_ranks").get(0).path("code").asText());
+        assertEquals("1금고", j.path("codes").path("aim_ranks").get(0).path("name").asText());
+        assertEquals("주거래", j.path("codes").path("aim_ranks").get(3).path("name").asText());
+        jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='SINGLE' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");
+        for (JsonNode n : json(getAs(SALES, "/bid-targets")).path("items")) {
+            if ("jung".equals(n.path("institution_id").asText())) assertEquals("단수금고", n.path("aim_rank_name").asText());
+        }
+        JsonNode d = json(getAs(DESIGNER, "/bid-targets")).path("items").get(0);
+        assertTrue(d.path("aim_mode").isNull());   // 쓰기 자격 없음
+    }
+
+    @Test public void 목표를_관심으로_옮겼다_돌아와도_금고_방식을_이어받는다() throws Exception {
+        baseSeed();
+        final int Y = y();
+        jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='MAIN_BANK' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");
+        Map<String, Object> toWatch = new LinkedHashMap<String, Object>(); toWatch.put("base_rev_no", 1); toWatch.put("to_kind_cd", "WATCH");
+        MvcResult w = send(HEAD, "/institutions/jung/bid-targets/1/move", "bid_board", "move_to_watch", toWatch);
+        assertEquals(raw(w), 201, status(w));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND KIND_CD='WATCH' AND AIM_RANK_CD='MAIN_BANK'"));
+        Map<String, Object> toGoal = new LinkedHashMap<String, Object>(); toGoal.put("base_rev_no", 2); toGoal.put("to_kind_cd", "GOAL"); toGoal.put("target_year", Y);
+        MvcResult g = send(HEAD, "/institutions/jung/bid-targets/1/move", "bid_board", "move_to_goal", toGoal);
+        assertEquals(raw(g), 201, status(g));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=3 AND KIND_CD='GOAL' AND AIM_RANK_CD='MAIN_BANK'"));
+    }
+
     @Test public void 디자이너는_구분_고치기_403_목록의_value_edit_mode() throws Exception {
         baseSeed();
         MvcResult d = send(DESIGNER, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_year", y(), "tag_cd", "RETAIN"));

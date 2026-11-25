@@ -18,7 +18,8 @@ public class BidTargetRulesTest {
     private static final BankContractRules.CodeCheck CODES = new BankContractRules.CodeCheck() {
         @Override public boolean enabled(String group, String code) {
             return ("TARGET_TAG".equals(group) && ("NEW".equals(code) || "RETAIN".equals(code) || "REGAIN".equals(code)))
-                    || ("TARGET_CANCEL_REASON".equals(group) && ("WRONG".equals(code) || "ETC".equals(code)));
+                    || ("TARGET_CANCEL_REASON".equals(group) && ("WRONG".equals(code) || "ETC".equals(code)))
+                    || ("TARGET_AIM_RANK".equals(group) && ("FIRST".equals(code) || "SECOND".equals(code) || "SINGLE".equals(code) || "MAIN_BANK".equals(code)));
         }
         @Override public List<String> names(String group) { return Arrays.asList("x"); }
     };
@@ -51,6 +52,78 @@ public class BidTargetRulesTest {
 
     @Test public void 태그_REGAIN_통과() {
         assertEquals("REGAIN", BidTargetRules.parse(in(null, "REGAIN"), 2026, null, CODES).tag);
+    }
+
+    @Test public void 태그는_비워도_통과_NULL_모르는_코드는_400() {   // 11-25 — 구분 '-'
+        assertNull(BidTargetRules.parse(in(null, null), 2026, null, CODES).tag);
+        assertNull(BidTargetRules.parse(in(null, "  "), 2026, null, CODES).tag);
+        assertNull(BidTargetRules.parseWatch(in(null, ""), CODES).tag);
+        assertEquals(400, statusOf(new Runnable() { public void run() { BidTargetRules.parse(in(null, "ZZ"), 2026, null, CODES); } }));
+    }
+
+    // ---- 063 금고 방식 ----
+
+    private static BidTargetIn aimIn(String tag, String aim) { BidTargetIn i = in(2026, tag); i.setAimRankCd(aim); return i; }
+
+    @Test public void 금고_방식_코드표_밖은_400_관심에_값이면_400_빈값은_null() {
+        assertEquals("FIRST", BidTargetRules.parse(aimIn("NEW", "FIRST"), 2026, 2026, CODES).aim);
+        assertEquals("MAIN_BANK", BidTargetRules.parse(aimIn("NEW", " MAIN_BANK "), 2026, 2026, CODES).aim);
+        assertNull(BidTargetRules.parse(aimIn("NEW", ""), 2026, 2026, CODES).aim);
+        assertNull(BidTargetRules.parse(aimIn("NEW", null), 2026, 2026, CODES).aim);
+        assertEquals(400, statusOf(new Runnable() { public void run() { BidTargetRules.parse(aimIn("NEW", "THIRD"), 2026, 2026, CODES); } }));
+        final BidTargetIn w = in(null, "NEW"); w.setAimRankCd("FIRST");
+        assertEquals(400, statusOf(new Runnable() { public void run() { BidTargetRules.parseWatch(w, CODES); } }));
+        BidTargetIn w2 = in(null, "NEW"); w2.setAimRankCd("");
+        assertNull(BidTargetRules.parseWatch(w2, CODES).aim);
+    }
+
+    @Test public void 넣기에서_금고_방식이_비어_있지_않으면_400() {
+        BidTargetRules.requireNoAimOnAdd(null);
+        BidTargetRules.requireNoAimOnAdd("");
+        BidTargetRules.requireNoAimOnAdd("  ");
+        assertEquals(400, statusOf(new Runnable() { public void run() { BidTargetRules.requireNoAimOnAdd("FIRST"); } }));
+    }
+
+    @Test public void keepUnsent_빠지면_잇고_빈값이면_지운다() {
+        BidTarget cur = new BidTarget(); cur.setTargetYear(2026); cur.setTagCd("NEW"); cur.setMemo("옛"); cur.setAimRankCd("FIRST");
+        BidTargetIn i = in(2026, "NEW");   // memo·aim 둘 다 안 보냄
+        BidTargetRules.Parsed p = BidTargetRules.parse(i, 2026, 2026, CODES);
+        BidTargetRules.keepUnsent(p, i.getMemo(), i.getAimRankCd(), cur);
+        assertEquals("옛", p.memo); assertEquals("FIRST", p.aim);
+        i.setMemo(""); i.setAimRankCd("");   // 빈 문자열 = 지움
+        p = BidTargetRules.parse(i, 2026, 2026, CODES);
+        BidTargetRules.keepUnsent(p, i.getMemo(), i.getAimRankCd(), cur);
+        assertNull(p.memo); assertNull(p.aim);
+        BidTargetRules.keepUnsent(p, null, null, null);   // 넣기(cur 없음)는 건드리지 않음
+        assertNull(p.memo);
+    }
+
+    @Test public void aimEdit_종류() {
+        BidTarget none = new BidTarget(); none.setTargetYear(2026); none.setTagCd("NEW");
+        BidTarget first = new BidTarget(); first.setTargetYear(2026); first.setTagCd("NEW"); first.setAimRankCd("FIRST");
+        assertEquals(BidTargetRules.AIM_FIRST, BidTargetRules.aimEdit(none, BidTargetRules.parse(aimIn("NEW", "FIRST"), 2026, 2026, CODES)));
+        assertEquals(BidTargetRules.AIM_CHANGE, BidTargetRules.aimEdit(first, BidTargetRules.parse(aimIn("NEW", "SECOND"), 2026, 2026, CODES)));
+        assertEquals(BidTargetRules.AIM_CLEAR, BidTargetRules.aimEdit(first, BidTargetRules.parse(aimIn("NEW", ""), 2026, 2026, CODES)));
+        assertNull(BidTargetRules.aimEdit(first, BidTargetRules.parse(aimIn("NEW", "FIRST"), 2026, 2026, CODES)));
+        assertNull(BidTargetRules.aimEdit(none, BidTargetRules.parse(aimIn("NEW", ""), 2026, 2026, CODES)));
+    }
+
+    @Test public void same_은_금고_방식도_비교() {
+        BidTarget c = new BidTarget(); c.setTargetYear(2026); c.setTagCd("NEW"); c.setAimRankCd("FIRST");
+        assertTrue(BidTargetRules.same(c, BidTargetRules.parse(aimIn("NEW", "FIRST"), 2026, 2026, CODES)));
+        assertFalse(BidTargetRules.same(c, BidTargetRules.parse(aimIn("NEW", "SECOND"), 2026, 2026, CODES)));
+        assertFalse(BidTargetRules.same(c, BidTargetRules.parse(aimIn("NEW", ""), 2026, 2026, CODES)));
+    }
+
+    @Test public void valueOnlyEdit_는_금고_방식과_무관_지난해_목표는_여전히_false() {
+        BidTarget c = new BidTarget(); c.setTargetYear(2026); c.setTagCd("NEW"); c.setAimRankCd("FIRST");
+        assertTrue(BidTargetRules.valueOnlyEdit(c, BidTargetRules.parse(aimIn("NEW", "SECOND"), 2026, 2026, CODES), 2026));   // 바꾸기
+        assertTrue(BidTargetRules.valueOnlyEdit(c, BidTargetRules.parse(aimIn("NEW", ""), 2026, 2026, CODES), 2026));         // 지우기
+        BidTarget none = new BidTarget(); none.setTargetYear(2026); none.setTagCd("NEW");
+        assertTrue(BidTargetRules.valueOnlyEdit(none, BidTargetRules.parse(aimIn("NEW", "FIRST"), 2026, 2026, CODES), 2026)); // 처음 고르기
+        BidTarget past = new BidTarget(); past.setTargetYear(2025); past.setTagCd("NEW");
+        BidTargetIn pin = in(2025, "NEW"); pin.setAimRankCd("FIRST");
+        assertFalse(BidTargetRules.valueOnlyEdit(past, BidTargetRules.parse(pin, 2026, 2025, CODES), 2026));   // 지난해 목표는 결재
     }
 
     @Test public void same_은_네_값_비교() {

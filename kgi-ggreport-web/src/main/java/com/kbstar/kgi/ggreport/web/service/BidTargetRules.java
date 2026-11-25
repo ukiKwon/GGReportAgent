@@ -15,6 +15,10 @@ final class BidTargetRules {
 
     static final String G_TAG = "TARGET_TAG", G_CANCEL = "TARGET_CANCEL_REASON", CANCEL_ETC = "ETC";
     static final String KIND_GOAL = "GOAL", KIND_WATCH = "WATCH";
+    static final String G_AIM = "TARGET_AIM_RANK";   // 063 금고 방식(1금고·2금고·단수금고·주거래)
+    static final String AIM_FIRST = "FIRST", AIM_CHANGE = "CHANGE", AIM_CLEAR = "CLEAR";   // aimEdit 결과(접근 이력용 종류, 값 아님)
+    static final String WATCH_AIM_MSG = "관심 기관에는 금고 방식을 두지 않습니다. 목표로 옮긴 뒤 정해 주세요.";
+    static final String ADD_AIM_MSG = "금고 방식은 목표로 넣은 뒤 표에서 고릅니다.";
     static final String BASIS_CLOSED = "NOTICE_CLOSED", BASIS_NO_BID = "NOTICE_NO_BID", BASIS_CONTRACT = "CONTRACT_DECIDED";
     static final int YEARS_AHEAD = 2;
     private static final Pattern CODE = Pattern.compile("[A-Z0-9_]{1,20}");
@@ -24,7 +28,7 @@ final class BidTargetRules {
     static final String WATCH_YEAR_MSG = "관심 기관에는 연도를 두지 않습니다. 연도를 정해 노리려면 목표로 옮겨 주세요.";
     private static final String YEAR_RANGE_MSG = "목표 연도는 올해부터 2년 뒤까지 고를 수 있습니다.";
 
-    static final class Parsed { int year; boolean watch; String tag, memo, owner; }
+    static final class Parsed { int year; boolean watch; String tag, memo, owner, aim; }
     static final class CancelParsed { String reasonCd, reasonEtc; }
 
     private BidTargetRules() { }
@@ -85,13 +89,45 @@ final class BidTargetRules {
     }
 
     private static void common(Parsed p, BidTargetIn in, BankContractRules.CodeCheck codes) {
-        p.tag = code(in.getTagCd(), G_TAG, codes, "태그를 목록에서 골라 주세요.");
+        String t = in.getTagCd() == null ? null : in.getTagCd().trim();
+        p.tag = t == null || t.isEmpty() ? null : code(t, G_TAG, codes, "태그를 목록에서 골라 주세요.");   // 11-25 — 구분은 비워 둘 수 있다(NULL = '-')
         p.memo = BankContractRules.text(in.getMemo(), 100, "메모는 100자 이내여야 합니다.");
         String o = in.getOwnerEmpNo() == null ? null : in.getOwnerEmpNo().trim();
         if (o != null && o.isEmpty()) o = null;
         if (o != null && !EMP_NO.matcher(o).matches()) throw bad(BidTargetService.OWNER_MSG);
         p.owner = o;
+        p.aim = aim(in.getAimRankCd(), p.watch, codes);
         new MemoScreen("TARGET_FORBIDDEN", FORBIDDEN_MSG).free(p.memo).throwIfAny();
+    }
+
+    /** 063 — 금고 방식. 비우면 null. 관심에 값을 보내면 400. */
+    static String aim(String raw, boolean watch, BankContractRules.CodeCheck codes) {
+        String v = raw == null ? null : raw.trim();
+        if (v == null || v.isEmpty()) return null;
+        if (watch) throw bad(WATCH_AIM_MSG);
+        return code(v, G_AIM, codes, "금고 방식을 목록에서 골라 주세요.");
+    }
+
+    /** 063 — 목표로 처음 넣을 때(단건·일괄 ADD)는 금고 방식을 비운다. 비어 있지 않으면 400(security 11-25). */
+    static void requireNoAimOnAdd(String raw) {
+        if (raw != null && !raw.trim().isEmpty()) throw bad(ADD_AIM_MSG);
+    }
+
+    /**
+     * NEXT 114 — 고치기에서 보내지 않은 메모·금고 방식(null)은 지금 값 그대로(빈 문자열은 지움, 위 파싱이 null 로 만든다).
+     * 화면에서 메모 칸을 없앴다 — 메모를 모르는 본문이 옛 메모를 지우지 않게. 이어받은 값은 다시 검사하지 않는다(이월과 같음).
+     */
+    static void keepUnsent(Parsed p, String memoRaw, String aimRaw, BidTarget cur) {
+        if (cur == null) return;
+        if (memoRaw == null) p.memo = cur.getMemo();
+        if (aimRaw == null) p.aim = cur.getAimRankCd();
+    }
+
+    /** 금고 방식이 어떻게 바뀌나 — null(그대로) | FIRST(비어 있던 것에 처음) | CHANGE | CLEAR. */
+    static String aimEdit(BidTarget cur, Parsed p) {
+        String before = cur == null ? null : cur.getAimRankCd();
+        if (Objects.equals(before, p.aim)) return null;
+        return before == null ? AIM_FIRST : p.aim == null ? AIM_CLEAR : AIM_CHANGE;
     }
 
     static CancelParsed parseCancel(BidTargetCancelIn in, BankContractRules.CodeCheck codes) {
@@ -111,10 +147,15 @@ final class BidTargetRules {
     static boolean same(BidTarget c, Parsed p) {
         boolean yearSame = p.watch ? c.getTargetYear() == null : Integer.valueOf(p.year).equals(c.getTargetYear());
         return yearSame && Objects.equals(c.getTagCd(), p.tag)
-                && Objects.equals(c.getMemo(), p.memo) && Objects.equals(c.getOwnerEmpNo(), p.owner);
+                && Objects.equals(c.getMemo(), p.memo) && Objects.equals(c.getOwnerEmpNo(), p.owner)
+                && Objects.equals(c.getAimRankCd(), p.aim);
     }
 
-    /** NEXT 114(사용자 11-24 밤) — 목표 고치기 중 연도·주 담당이 그대로(구분 태그·메모만 바뀜)면 결재 없이 바로. 넣기(cur==null)·관심은 false. */
+    /**
+     * NEXT 114(사용자 11-24 밤) — 목표 고치기 중 연도·주 담당이 그대로(구분 태그·메모·금고 방식만 바뀜)면 결재 없이 바로. 넣기(cur==null)·관심은 false.
+     * 금고 방식은 구분 태그처럼 값 고치기다(바꾸기·지우기도 바로, 사용자 11-25) — 이 함수에 금고 방식 조건을 넣지 않는다.
+     * 단건 save 와 일괄 TargetChangeService.planItem 이 이 함수 하나를 쓴다.
+     */
     static boolean valueOnlyEdit(BidTarget cur, Parsed p, int thisYear) {
         return cur != null && !p.watch && KIND_GOAL.equals(kindOf(cur))
                 && cur.getTargetYear() != null && cur.getTargetYear() >= thisYear   // 지난해 목표는 결재(security F1)

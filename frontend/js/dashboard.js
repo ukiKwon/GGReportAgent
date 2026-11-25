@@ -1025,8 +1025,9 @@
     const p = dash.paneParts(it, Object.assign({}, c, { infoEditHtml: c.readOnly ? '' : '<button type="button" id="dm-info-edit" class="db-sec-act">기관 정보 수정</button>' }));
     const a = dash.actParts(it, c);
     const main = c.editing ? '' : a.main;   // 약정 입력 중에는 [제안 확정] 등이 나가지 않게 숨긴다(한 번에 한 일)
+    const extra = c.editing ? '' : String(c.extraHtml || '');   // 현황판이 끼우는 보조 단추 [관심 기관으로…](c.extraHtml, NEXT 114): 주 동작 바로 뒤·구분선 앞. 약정 입력 중에는 같이 숨긴다
     const back = c.back ? '<button type="button" id="dm-back" class="dm-back" aria-label="' + esc(c.back.aria) + '"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M8 2 4 6l4 4"/></svg>이전</button>' : '';
-    const bar = '<div class="dm-bar' + (c.back ? ' has-back' : '') + '">' + back + p.head + '<div class="dm-btns">' + main + (main ? '<span class="dm-sep" aria-hidden="true"></span>' : '') +
+    const bar = '<div class="dm-bar' + (c.back ? ' has-back' : '') + '">' + back + p.head + '<div class="dm-btns">' + main + extra + (main || extra ? '<span class="dm-sep" aria-hidden="true"></span>' : '') +
       '<button type="button" id="dm-close" class="dm-cls" aria-label="' + esc(c.back ? c.back.close : '닫기') + '" title="' + esc(c.back ? c.back.close : '닫기') + ' (Esc)">닫기</button></div></div>';
     const note = a.confirm || (a.why ? '<p class="db-why dm-why">' + a.why + '</p>' : '');
     return { bar: bar, note: note, body: '<div class="db-pane-body">' + p.sub + p.rest + '</div>' };
@@ -1866,6 +1867,11 @@
   }
   function dmLeaveKeep(m) { return m.el.querySelector('#ie-bk-bank') || m.el.querySelector('#dm-db-rec-op') || m.el.querySelector('#dm-db-rec-save') || m.el.querySelector('#dm-name'); }
   function dmCompEnd(m) { m.comp = false; if (m.compLater) { m.compLater = false; if (dm.cur === m) dmRender(); } }
+  // 현황판이 끼우는 머리 단추(opts.headExtra = { html(m, { confirm, act }), onClick(btn, m) }) — 판정은 호출한 화면이 한다. 실패해도 팝업은 그대로 그린다.
+  function dmHeadExtra(m, act) {
+    if (!m.headExtra || m.bankEdit) return '';
+    try { return String(m.headExtra.html(m, { confirm: !!(m.confirm && act === 'confirm'), act: act }) || ''); } catch (e) { return ''; }
+  }
   // 상세를 다시 그린다. 위 상자(#dm-box)·알림 줄(#dm-flash·#dm-err)은 그대로 두고 머리 줄(#dm-bar)·이유/확인 상자(#dm-act-note)·본문(#dm-pane)만 바꾸며, 스크롤·포커스를 이어 준다.
   // 11-19 저녁 design 4-4: 버튼은 머리 줄 오른쪽(주버튼 → [편집] → ×), 확정 확인 상자는 머리 아래 고정 영역(스크롤 안 됨).
   function dmRender() {
@@ -1899,6 +1905,7 @@
       recordHtml: ie.isOpenCheck(m.rec) ? '' : recViewHtml(dmRc(m)), bank: m.readOnly ? dash.lockBank(bankView(m.rec)) : bankView(m.rec),
       nameId: 'dm-name', readOnly: m.readOnly, back: dmBackInfo(m), editing: !!m.bankEdit,   // 보기 전용: 머리 줄에는 ×만(주버튼은 act 'none'이라 없다). back = 스택 단계(약정 편집 → 읽기 → 목록)
       tailHtml: raw ? '<div class="db-sec"><details class="pop-raw"><summary>원본 정보</summary>' + raw + '</details></div>' : '',
+      extraHtml: dmHeadExtra(m, act),
     });
     bar.innerHTML = parts.bar; nt.innerHTML = parts.note; pane.innerHTML = parts.body;
     if (m.leaveAsk) nt.innerHTML = dash.leaveBoxHtml(m.leaveAsk === 'close' || (m.leaveAsk === 'exit' && !(m.back && m.back.go)), dmLeaveWhat(m, m.leaveAsk));   // 이탈 확인 상자가 확정 확인 상자 자리를 쓴다
@@ -2031,6 +2038,7 @@
     if (hcb && root.headcard) { root.headcard.onPaneClick(hcb.getAttribute('data-hc'), function () { return dmHeadEnv(m); }); return; }
     const btn = t.closest('button');
     if (!btn) return;
+    if (btn.getAttribute('data-hx') && m.headExtra && typeof m.headExtra.onClick === 'function') { if (!m.readOnly && !btn.disabled) m.headExtra.onClick(btn, m); return; }   // 현황판이 끼운 머리 단추(NEXT 114)
     if (m.readOnly && ['dm-edit', 'bk-edit', 'db-cf', 'db-do', 'db-open'].indexOf(btn.id) >= 0) return;   // 보기 전용: 버튼이 없어도 함수가 한 번 더 막는다
     if (m.readOnly && btn.id === 'dm-info-edit') return;
     if (m.noConfirm && (btn.id === 'db-cf' || btn.id === 'db-do')) return;   // 협약 성과 화면: 버튼이 없어도 함수가 한 번 더 막는다
@@ -2097,6 +2105,7 @@
   // opts.refocus = opener가 사라졌을 때 닫은 뒤 포커스를 받을 새 요소를 돌려주는 함수(현황판: 같은 열의 같은 data-key 버튼). 없거나 null이면 fallback.
   // opts.focus = 'confirm'이면 팝업이 그려진 뒤 [제안 확정] 버튼으로 포커스를 옮긴다(현황판 2번 구획 줄의 [제안 확정]).
   // opts.noteView = 지도 패널의 지금 보기('pending'|'delayed'|'done'|'all')를 돌려주는 함수 — 저장 뒤 이동 안내 기준.
+  // opts.headExtra = { html(m, { confirm, act }) → 머리 .dm-btns에 들어갈 조각, onClick(btn, m) } — 현황판의 [관심 기관으로…](NEXT 114). 단추에는 data-hx를 달고 판정은 호출한 화면이 한다.
   // opts.back = { label, go } — 같은 팝업 안 한 단계 뒤(협약 중인 기관 목록 → 상세). [이전]·×·Esc가 상세를 닫고 go()를 부른다. 없으면 지금처럼 닫는다.
   dash.openDetail = function (rec, opts) {
     if (typeof document === 'undefined' || !rec) return false;
@@ -2104,7 +2113,8 @@
     const m = { rec: rec, it: dash.itemForRec(rec, todayDate()), opener: (opts && opts.opener) || document.activeElement,
       screen: (opts && opts.screen) || 'map_popover', fallback: (opts && opts.fallback) || '', refocus: (opts && opts.refocus) || null, back: opts && opts.back && typeof opts.back.go === 'function' ? opts.back : null, focus: (opts && opts.focus) || '', noConfirm: !!(opts && opts.noConfirm), changed: false, readOnly: dash.isViewOnly(), bankEdit: null, leaveAsk: false, leaveFocus: false,
       preps: null, prepSt: 'offline', confirm: false, busy: false, down: null, el: null,
-      rc: recFresh(''), rcx: null, comp: false, compLater: false, flashMsg: '', noteView: opts && typeof opts.noteView === 'function' ? opts.noteView : null };
+      rc: recFresh(''), rcx: null, comp: false, compLater: false, flashMsg: '', noteView: opts && typeof opts.noteView === 'function' ? opts.noteView : null,
+      headExtra: opts && opts.headExtra && typeof opts.headExtra.html === 'function' ? opts.headExtra : null };
     const ov = document.createElement('div');
     ov.className = 'modal-overlay dm-ov';
     ov.id = 'dm-ov';
@@ -2176,6 +2186,8 @@
   };
   dash.isDetailOpen = function () { return !!dm.cur; };
   dash.popupState = function () { return dm.cur; };   // 시험용
+  dash.repaintDetail = function () { if (dm.cur) dmRender(); };   // 현황판이 머리 단추(결재 중 칩 등)를 다시 그리게(NEXT 114)
+  dash.detailFlash = function (msg, isErr) { dmFlash(msg, !!isErr); };   // 팝업 알림 줄(#dm-flash·#dm-err)에 한 줄
   // 로그인 경과 팝업이 현황판 위에서 쓴다(overdue.js): 마운트 여부·경과 묶음 펼침+포커스.
   dash.isMounted = function () { return !!host; };
   dash.showPast = function () { if (host) showPast(); };

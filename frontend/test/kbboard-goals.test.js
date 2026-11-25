@@ -583,7 +583,7 @@ test('DOM 코드 구조: 서버 글은 textContent·esc로, 쓰기는 영업부�
   assert.ok(k.indexOf("btn.setAttribute('aria-expanded', 'true')") > 0 && k.indexOf("m.btn.setAttribute('aria-expanded', 'false')") > 0);
   assert.ok(k.indexOf("btn.setAttribute('aria-busy', 'true')") > 0);                                                              // 저장 중 칩 aria-busy
   // 구분 바꾸기는 base_rev_no와 함께 전체 값을 다시 보낸다
-  assert.ok(/target_no: r\.targetNo, base_rev_no: r\.revNo, target_year: r\.targetYear, tag_cd: r\.tagCd, memo: r\.memo \|\| null, owner_emp_no: r\.ownerEmpNo \|\| null/.test(k));   // 본문은 kbb.valueBody 한 곳(NEXT 114)
+  assert.ok(/target_no: r\.targetNo, base_rev_no: r\.revNo, target_year: r\.targetYear, tag_cd: r\.tagCd, owner_emp_no: r\.ownerEmpNo \|\| null/.test(k) && k.indexOf('memo: r.memo || null') < 0);   // 본문은 kbb.valueBody 한 곳(NEXT 114)
   assert.ok(k.indexOf('kbb.valueBody(r, { tag_cd: code })') > 0);                                                                   // changeTag는 구분만 덮어쓴다
   assert.ok(/base_rev_no: r\.revNo, cancel_reason_cd: m\.reason, cancel_reason_etc: m\.reason === 'ETC' \?/.test(k));
   // 열기 전 영업부서(can_edit) 확인: 서버가 줄 때만 추가 버튼·메뉴
