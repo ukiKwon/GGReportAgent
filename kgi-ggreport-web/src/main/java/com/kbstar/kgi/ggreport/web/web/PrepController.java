@@ -161,6 +161,17 @@ public class PrepController {
         return run(req, bidCaseId, "OPEN_START", null, null, ui, true, me -> prep.start(me, actor, bidCaseId, body, ui));
     }
 
+    /**
+     * 담당자 변경(결재 없음 — 쪽지함 알림, 사용자 11-25). 현재 담당자·영업팀장. 감사 행위 ASSIGNEE_CHANGE(성공·실패 모두 BID_PREP_ACT).
+     * 접근 이력에는 인원 수만 남긴다(사번·사유 제외).
+     */
+    @PostMapping("/bidcases/{bidCaseId}/prep/assignees/change")
+    public Map<String, Object> changeAssignees(@PathVariable String bidCaseId, @RequestBody(required = false) PrepIn.AssigneeChange body,
+                                               HttpServletRequest req) {
+        Actor actor = Actor.of(req);
+        return run(req, bidCaseId, "ASSIGNEE_CHANGE", null, me -> prep.changeAssignees(me, actor, bidCaseId, body));
+    }
+
     /** 상세(6) — PrepView + nobid_notice(입찰 없음 알림, 048). 비담당은 404. 접근 이력 DETAIL 끝에 nobid=Y|N|-(읽기 실패) 만 붙인다. */
     @GetMapping("/bidcases/{bidCaseId}/prep")
     public Map<String, Object> detail(@PathVariable String bidCaseId, HttpServletRequest req) {
@@ -265,6 +276,12 @@ public class PrepController {
     @GetMapping("/bidcases/{bidCaseId}/prep/attachments")
     public List<Map<String, Object>> listAttachments(@PathVariable String bidCaseId, HttpServletRequest req) {
         return run(req, bidCaseId, "ATTACH_LIST", null, null, me -> attach.list(me, bidCaseId));
+    }
+
+    /** 선정 평가표 옮겨 오기 — 올려 둔 공고 원본·RFP 붙임서류에서 배점 표를 글자 그대로(LLM 없음). 열람 규칙은 첨부 목록과 같다. */
+    @GetMapping("/bidcases/{bidCaseId}/prep/notice-scoring")
+    public Map<String, Object> noticeScoring(@PathVariable String bidCaseId, HttpServletRequest req) {
+        return run(req, bidCaseId, "SCORING_READ", null, null, me -> attach.scoring(me, bidCaseId));
     }
 
     /**

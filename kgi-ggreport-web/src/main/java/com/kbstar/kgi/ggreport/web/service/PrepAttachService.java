@@ -35,6 +35,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import com.kbstar.kgi.ggreport.web.support.ScoringTable;
+
 /**
  * 사전준비 첨부 원본 보관(NEXT 71, 025) — 올리기·목록·내려받기·무효 처리. T3 확정본 지정은 {@link PrepService} 가 한다.
  *
@@ -227,6 +229,62 @@ public class PrepAttachService {
             throw new ApiException(500, "첨부 파일 무결성 검사에 실패했습니다. 관리자에게 알려 주세요.");
         }
         return new Download(a.getOrigName(), bytes);
+    }
+
+    // ── 선정 평가표 옮겨 오기(사용자 2026-11-25) ─────────────────────────
+
+    /**
+     * 올려 둔 공고 원본(NOTICE)·RFP 붙임서류(T4)에서 '선정 평가표'(배점 표)를 글자 그대로 옮겨 온다 — LLM 없이 {@link ScoringTable}.
+     * 열람 규칙은 첨부 목록과 같다(담당자·영업팀장·영업부장, 그 밖은 404). 최근에 올린 파일부터 보고 처음 찾은 표를 돌려준다.
+     * 응답: found, reason(NO_FILE 올린 파일 없음 · NOT_FOUND 읽을 수 있는 파일에 표가 없음), files(살펴본 파일 수),
+     * 찾았으면 attach_id·file·kind(TABLE 행·칸 그대로 / LINES 줄 단위)·rows·total('계' 줄의 숫자)·page(PDF 쪽).
+     * 값은 고치지 않는다 — 화면이 '원문 대조 필요'로 보인다. 파일을 읽지 못하면(없음·무결성) 그 파일은 건너뛴다.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> scoring(SysUser me, String bidCaseId) {
+        requireViewer(me, bidCaseId);
+        List<BidPrepAttach> cands = new ArrayList<>();
+        for (BidPrepAttach a : mapper.selectAttachList(bidCaseId)) {
+            boolean kind = KIND_NOTICE.equals(a.getTaskCd()) || TASK_T4.equals(a.getTaskCd());
+            boolean ext = "hwpx".equals(a.getExtCd()) || "pdf".equals(a.getExtCd());
+            if (a.getValidYn() == 1 && kind && ext) {
+                cands.add(a);
+            }
+        }
+        cands.sort((x, y) -> Long.compare(y.getAttachId(), x.getAttachId()));   // 최근에 올린 것부터
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("files", cands.size());
+        for (BidPrepAttach a : cands) {
+            Path path = pathOf(a.getStoreKey());
+            byte[] bytes;
+            try {
+                if (path == null || !Files.isRegularFile(path)) {
+                    continue;
+                }
+                bytes = Files.readAllBytes(path);
+            } catch (IOException e) {
+                LOG.error("prep attach read failed id={}", a.getAttachId(), e);
+                continue;
+            }
+            if (!a.getSha256().equals(sha256(bytes))) {
+                LOG.error("prep attach hash mismatch id={}", a.getAttachId());
+                continue;
+            }
+            ScoringTable.Result t = ScoringTable.extract(a.getExtCd(), bytes);
+            if (t != null) {
+                out.put("found", true);
+                out.put("attach_id", a.getAttachId());
+                out.put("file", a.getOrigName());
+                out.put("kind", t.getKind());
+                out.put("rows", t.getRows());
+                out.put("total", t.getTotal());
+                out.put("page", t.getPage());
+                return out;
+            }
+        }
+        out.put("found", false);
+        out.put("reason", cands.isEmpty() ? "NO_FILE" : "NOT_FOUND");
+        return out;
     }
 
     // ── 무효 처리(12) ────────────────────────────────────────────────────

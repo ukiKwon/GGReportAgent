@@ -1460,6 +1460,38 @@ public class BoardMaterialApiTest {
         }
     }
 
+    /** 이사회 일정(사용자 2026-11-25): 확정 전에도 담당자가 날짜만 먼저 적는다. 상태·결과는 그대로, 가결·부결 뒤에는 409. */
+    @Test
+    public void 이사회_일정은_확정_전에도_담당자가_등록한다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        String path = "/board-materials/" + id + "/meeting-date";
+        assertEquals(400, send(path, MEMBER, "{}").getResponse().getStatus());
+        assertEquals(400, send(path, MEMBER, "{\"meeting_date\":\"2026-13-45\"}").getResponse().getStatus());
+        assertEquals(404, send(path, MEMBER2, "{\"meeting_date\":\"2026-12-10\"}").getResponse().getStatus());   // 담당이 아닌 영업팀원 — 자료가 없는 것처럼 숨긴다
+        MvcResult ok = send(path, MEMBER, "{\"meeting_date\":\"2026-12-10\"}");
+        assertEquals(text(ok), 200, ok.getResponse().getStatus());
+        Map<String, Object> row = jdbc.queryForMap("SELECT STATUS_CD, RESULT_CD, MEETING_DATE FROM BOARD_MATERIAL WHERE MATERIAL_ID=?", id);
+        assertEquals("2026-12-10", String.valueOf(row.get("MEETING_DATE")).substring(0, 10));
+        assertEquals(null, row.get("RESULT_CD"));
+        assertTrue(!"CONFIRMED".equals(row.get("STATUS_CD")));
+        assertEquals(1, logCount(id, "MEETING"));
+        assertTrue(json(ok).path("viewer").path("can_set_meeting").asBoolean());
+        // 가결이 등록된 자료는 일정 등록으로 날짜를 바꾸지 못한다
+        long done = confirmedMaterial(newCaseWith(MEMBER), 2026, MEMBER, LEAD);
+        assertEquals(200, setResult(done, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-02\"}").getResponse().getStatus());
+        MvcResult late = send("/board-materials/" + done + "/meeting-date", MEMBER, "{\"meeting_date\":\"2026-12-20\"}");
+        assertEquals(409, late.getResponse().getStatus());
+        assertEquals("RESULT_SET", codeOf(late));
+    }
+
+    private String newCaseWith(String emp) throws Exception {
+        String bc = newCase();
+        assign(bc, emp);
+        return bc;
+    }
+
     @Test
     public void 반려하면_현재_담당자_전원에게_쪽지_신청자_중복없음_행한_사람_제외() throws Exception {
         String bc = newCase();

@@ -23,6 +23,7 @@ import com.kbstar.kgi.ggreport.web.support.PrepOpenApprovalSwitch;
 import com.kbstar.kgi.ggreport.web.support.Ranks;
 import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
+import com.kbstar.kgi.ggreport.web.support.Pii;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
 import org.springframework.dao.DuplicateKeyException;
@@ -562,6 +563,47 @@ public class PrepService {
             throw coded(409, "NOTIFY_TARGET_NOT_RESOLVED", NOTIFY_TARGET_MSG);
         }
         return to;
+    }
+
+    /**
+     * 담당자 변경(결재 없음, 사용자 결정 2026-11-25) — 바꾼 즉시 반영하고 쪽지함으로 알린다.
+     * 받는 사람: 새로 들어온 사람·빠진 사람·남은 담당자·바꾼 사람의 같은 팀 영업팀장(바꾼 본인은 뺀다). 쪽지에는 인원 수만 싣고 사유·사번은 싣지 않는다
+     * (사유는 배정 이력 BID_ASSIGN_LOG 에 남는다). 받을 사람이 없어도(혼자 담당·팀장 본인) 변경은 된다.
+     */
+    @Transactional
+    public Map<String, Object> changeAssignees(SysUser me, Actor actor, String bidCaseId, PrepIn.AssigneeChange in) {
+        String reason = BoardMaterialService.checkedText(in == null ? null : in.getReason(), 200, "변경 사유", true);
+        if (!Pii.scan(reason).isEmpty()) {
+            throw new ApiException(422, "사유에 개인정보로 보이는 값이 있습니다. 지우고 다시 입력하세요.");   // 검출값은 싣지 않는다
+        }
+        Map<String, List<String>> r = assignments.changeDirect(bidCaseId, in == null ? null : in.getAddEmpNos(),
+                in == null ? null : in.getRemoveEmpNos(), reason, me, actor);
+        List<String> added = r.get("added");
+        List<String> removed = r.get("removed");
+        List<String> remaining = r.get("remaining");
+        Set<String> to = new LinkedHashSet<>();
+        to.addAll(added);
+        to.addAll(removed);
+        to.addAll(remaining);
+        SysUser lead = assignments.sameTeamLead(me);
+        if (lead != null) {
+            to.add(lead.getEmpNo());
+        }
+        to.remove(me.getEmpNo());
+        String inst = mapper.selectInstitutionNameByBid(bidCaseId);
+        String body = "[담당자 변경] " + me.getName() + "님이 '" + (inst == null ? "" : inst) + "' 담당자를 바꿨습니다(추가 "
+                + added.size() + "명, 해제 " + removed.size() + "명, 현재 " + remaining.size() + "명). 제안 준비 현황에서 확인하세요.";
+        for (String emp : to) {
+            notes.create(emp, KIND_START_NOTICE, body, null, null, null, null, me.getName());
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("bid_case_id", bidCaseId);
+        out.put("added_count", added.size());
+        out.put("removed_count", removed.size());
+        out.put("assignee_count", remaining.size());
+        out.put("notified_count", to.size());
+        out.put("can_view", isLead(me) || isHead(me) || remaining.contains(me.getEmpNo()));   // 스스로 빠졌으면 상세는 더 못 본다
+        return out;
     }
 
     private void sendStartNotice(SysUser me, String bid, List<String> targets, Set<String> to) {

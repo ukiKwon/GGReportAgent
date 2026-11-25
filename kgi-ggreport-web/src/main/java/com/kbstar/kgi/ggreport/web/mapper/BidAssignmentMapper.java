@@ -58,6 +58,13 @@ public interface BidAssignmentMapper {
     int bumpVersion(@Param("bidCaseId") String bidCaseId, @Param("groupVer") int groupVer,
                     @Param("reqId") Long reqId, @Param("by") String by, @Param("now") String now);
 
+    /**
+     * 결재 없는 담당자 변경의 첫 쓰기 — GROUP_VER 확인 + 증가를 한 문장으로. 진행 중인 변경 신청이 선점하고 있으면 0행
+     * (끝난 요청이 남긴 낡은 선점 staleReqId 는 지우며 지나간다).
+     */
+    int bumpVersionDirect(@Param("bidCaseId") String bidCaseId, @Param("groupVer") int groupVer,
+                          @Param("staleReqId") Long staleReqId, @Param("by") String by, @Param("now") String now);
+
     /** 현재 담당자 해제(ACTIVE_YN 1→0, 행은 지우지 않는다). 1행이 아니면 현재 담당자가 아니었던 것. */
     int updateRelease(@Param("bidCaseId") String bidCaseId, @Param("empNo") String empNo,
                       @Param("by") String by, @Param("now") String now);

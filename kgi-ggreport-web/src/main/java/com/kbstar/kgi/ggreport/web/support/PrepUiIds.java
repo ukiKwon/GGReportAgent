@@ -22,7 +22,7 @@ public final class PrepUiIds {
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "open", "refresh", "confirm", "unconfirm", "open_request", "withdraw", "check", "uncheck",
             "plan_request", "start_writing", "history_open", "cancel_prep", "approve", "reject", "cancel_request",
-            "attach_upload", "attach_download", "attach_void", "t3_set", "t3_clear", "open_prep", "nobid_continue", "open_start")));
+            "attach_upload", "attach_download", "attach_void", "t3_set", "t3_clear", "open_prep", "nobid_continue", "open_start", "assignee_change")));
 
     /** [제안 확정] 감사용 화면 — 입찰 현황판만(NEXT 114). */
     public static final Set<String> CONFIRM_SCREENS = Collections.unmodifiableSet(new HashSet<String>(Collections.singletonList("bid_board")));

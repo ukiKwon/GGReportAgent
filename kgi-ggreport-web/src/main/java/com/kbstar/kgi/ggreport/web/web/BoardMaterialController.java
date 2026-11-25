@@ -184,6 +184,15 @@ public class BoardMaterialController {
         return out;
     }
 
+    /** 이사회 일정 등록 — 담당자, 확정 전에도. 본문 {meeting_date}. */
+    @PostMapping("/{id}/meeting-date")
+    public Map<String, Object> meetingDate(@PathVariable String id, @RequestBody(required = false) BoardMaterialIn.Result in,
+                                           HttpServletRequest req) {
+        Map<String, Object> out = run(req, id, "MEETING", true, me -> service.setMeetingDate(me, Actor.of(req), id, in));
+        req.setAttribute(AccessLogInterceptor.DETAIL, "board-material id=" + id + " code=MEETING");
+        return out;
+    }
+
     // ── 공통: 호출자 확인 + 화면·버튼 식별자 검증 + 확정 건 감사 기록 + 403 DENIED 기록 ──
 
     private <T> T run(HttpServletRequest req, String id, String action, boolean write, Function<SysUser, T> call) {

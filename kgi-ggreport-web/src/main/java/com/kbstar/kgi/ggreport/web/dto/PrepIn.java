@@ -26,6 +26,21 @@ public class PrepIn {
         public void setBidCaseId(String v) { this.bidCaseId = v; }
     }
 
+    /** {@code POST /bidcases/{id}/prep/assignees/change} — 결재 없는 담당자 변경(더할 사람·뺄 사람·사유). */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class AssigneeChange {
+        private List<String> addEmpNos = new ArrayList<>();
+        private List<String> removeEmpNos = new ArrayList<>();
+        private String reason;
+
+        public List<String> getAddEmpNos() { return addEmpNos; }
+        public void setAddEmpNos(List<String> v) { this.addEmpNos = v; }
+        public List<String> getRemoveEmpNos() { return removeEmpNos; }
+        public void setRemoveEmpNos(List<String> v) { this.removeEmpNos = v; }
+        public String getReason() { return reason; }
+        public void setReason(String v) { this.reason = v; }
+    }
+
     /** 확정 취소·중단 — 사유 필수. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Reason {

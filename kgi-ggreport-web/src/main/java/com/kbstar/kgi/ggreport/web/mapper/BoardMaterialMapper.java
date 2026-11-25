@@ -67,6 +67,10 @@ public interface BoardMaterialMapper {
     int updateResult(@Param("id") Long id, @Param("from") String from, @Param("to") String to,
                      @Param("meetingDate") String meetingDate, @Param("by") String by, @Param("now") String now);
 
+    /** 이사회 날짜만 바꾼다(상태·결과는 그대로). 가결·부결이 등록된 자료는 0행 — 그때는 결과 등록에서 개최일을 고친다. */
+    int updateMeetingDate(@Param("id") Long id, @Param("meetingDate") String meetingDate,
+                          @Param("by") String by, @Param("now") String now);
+
     int insertSnap(BoardMaterialSnap s);
 
     BoardMaterialSnap selectSnap(@Param("id") Long id, @Param("snapNo") int snapNo);

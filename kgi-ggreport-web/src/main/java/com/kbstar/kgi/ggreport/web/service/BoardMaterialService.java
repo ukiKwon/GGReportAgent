@@ -380,6 +380,31 @@ public class BoardMaterialService {
         return detail(me, id);
     }
 
+    /**
+     * 이사회 일정 등록(사용자 결정 2026-11-25) — 자료가 확정되기 전에도 담당자가 이사회 날짜만 먼저 적는다. 상태·의결 결과는 바꾸지 않는다.
+     * 가결·부결이 이미 등록됐으면 409(개최일은 결과 등록에서 고친다). 이력은 MEETING 한 줄(누가·언제·날짜).
+     */
+    @Transactional
+    public Map<String, Object> setMeetingDate(SysUser me, Actor actor, String id, BoardMaterialIn.Result in) {
+        lockCaseOf(id);
+        BoardMaterial m = loadVisible(me, id);
+        requireWriter(me, m);
+        String meeting = optDate(in == null ? null : in.getMeetingDate());
+        if (meeting == null) {
+            throw coded(400, "MEETING_DATE_REQUIRED", "이사회 날짜를 입력하세요.");
+        }
+        if (PASSED.equals(m.getResultCd()) || REJECTED.equals(m.getResultCd())) {
+            throw coded(409, "RESULT_SET", "의결 결과가 등록된 자료입니다. 개최일은 결과 등록에서 고치세요.");
+        }
+        String now = Times.nowIso();
+        if (mapper.updateMeetingDate(m.getMaterialId(), meeting, me.getEmpNo(), now) != 1) {
+            throw coded(409, "CONFLICT", "다른 사람이 먼저 바꿨습니다. 새로 고친 뒤 다시 시도해 주세요.");
+        }
+        mapper.insertLog(m.getMaterialId(), "MEETING", null, null, m.getResultCd(), m.getResultCd(), meeting, null, null, null, null,
+                me.getEmpNo(), verified(actor), now);
+        return detail(me, id);
+    }
+
     // ── 제출 흐름(결재 연계 — ApprovalRequestService 가 호출한다) ──
 
     /** 제출 계획 — 검증과 결재자 계산(쓰기 없음). */
@@ -814,6 +839,7 @@ public class BoardMaterialService {
         v.put("can_submit", assignee && DRAFT.equals(m.getStatusCd()) && m.getCurSnap() > 0);
         v.put("can_withdraw", assignee && SUBMITTED.equals(m.getStatusCd()));
         v.put("can_set_result", assignee && CONFIRMED.equals(m.getStatusCd()));
+        v.put("can_set_meeting", assignee && !PASSED.equals(m.getResultCd()) && !REJECTED.equals(m.getResultCd()));   // 이사회 일정 — 확정 전에도
         v.put("can_rework", afterSubmit && "ACTIVE".equals(me.getStatus()) && BoardAccess.isHead(me));   // 결재선 팀장은 false
         return v;
     }

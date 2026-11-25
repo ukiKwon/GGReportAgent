@@ -454,10 +454,15 @@ test('담당자 지정: 끝난 뒤 이 화면에서 [담당자 변경…](여러
   assert.strictEqual(ms(['1', '2'], '').canGo, false);
   assert.strictEqual(ms(['1', '2'], '인사 이동').canGo, true);
   assert.strictEqual(ms([], '인사 이동').canGo, false);
-  assert.strictEqual(prep.modalGoLabel('open', false, true), '담당자 변경 요청');
+  assert.strictEqual(prep.modalGoLabel('open', false, true), '담당자 변경');
   assert.ok(prep.modalTitle('open', { name: '청주시', change: true }).indexOf('담당자 변경 — 청주시') === 0);
   assert.ok(prep.modalBodyHtml({ kind: 'open', change: true, cur: ['1'], sel: ['1'], reason: '', candState: 'ok', cands: [] }, {}).indexOf('변경 사유 (필수)') > 0);
-  assert.ok(/'\/approval-requests\/assignee-change', \{ bid_case_id: S\.selected, add_emp_nos: d\.add, remove_emp_nos: d\.remove, reason: reason \}/.test(PREP_SRC));
+  // 결재 없이 바로 반영 + 쪽지함 알림(사용자 11-25 답) — 옛 결재 요청 주소로 보내지 않는다
+  assert.ok(/req\('POST', base\(S\.selected\) \+ '\/assignees\/change', \{ add_emp_nos: d\.add, remove_emp_nos: d\.remove, reason: reason \}, ui\('prep_detail', 'assignee_change'\)\)/.test(PREP_SRC));
+  assert.ok(PREP_SRC.indexOf("'/approval-requests/assignee-change'") < 0);
+  assert.strictEqual(prep.T.okChangeReq({ notified_count: 2 }), '담당자를 바꿨습니다. 쪽지함으로 2명에게 알렸습니다.');
+  assert.strictEqual(prep.T.okChangeReq({ notified_count: 0 }), '담당자를 바꿨습니다.');
+  assert.ok(pt.T.changeAssigneeNote.indexOf('쪽지함') > 0 && pt.T.changeAssigneeNote.indexOf('승인') < 0);
   assert.ok(/if \(m\.direct && !m\.change && !m\.sel\.length\) \{ const me = myEmp\(\);/.test(PREP_SRC));
   assert.ok(/team: N\.TEAM_ID/.test(PREP_SRC) && /board: N\.DASH_ID/.test(PREP_SRC));
 });
@@ -617,7 +622,7 @@ test('4단계 파일 표: 열은 파일명·상태·개인정보 검사·담당�
 });
 
 test('7단계 이사회 준비: 자료 작성·일정 등록·추가 자료 등록·발표 대본이 한 단계', function () {
-  const base = { state: 'ok', id: 12, statusName: '확정', snapNo: 4, confirmed: true, html: 'x', resultCd: '', meeting: '', canResult: true };
+  const base = { state: 'ok', id: 12, statusName: '작성 중', snapNo: 4, confirmed: false, html: 'x', resultCd: '', meeting: '', canResult: false, canMeeting: true };
   const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('BOARD_DOC'), { board: base, addFiles: '<div class="pp-files" data-kind="BOARD_ADD"></div>' }));
   const at = ['>이사회 자료 작성</h4>', '>이사회 일정 등록</h4>', '>이사회 추가 자료 등록</h4>', '>이사회 발표 대본</h4>'].map(function (x) { return h.indexOf(x); });
   assert.ok(at[0] > 0 && at[0] < at[1] && at[1] < at[2] && at[2] < at[3]);
@@ -627,13 +632,18 @@ test('7단계 이사회 준비: 자료 작성·일정 등록·추가 자료 등�
   // 일정이 있으면 [일정 바꾸기], 결과가 난 뒤에는 일정 칸을 닫는다
   const set = pt.boardSchedHtml(Object.assign({}, base, { resultCd: 'SCHEDULED', meeting: '2026-12-03' }));
   assert.ok(/value="2026-12-03"/.test(set) && />일정 바꾸기</.test(set) && set.indexOf('의결 예정') > 0);
-  assert.ok(!/board-sched/.test(pt.boardSchedHtml(Object.assign({}, base, { resultCd: 'PASSED', meeting: '2026-12-03' }))));
-  // 자료가 확정 전·없음·담당 아님
-  assert.strictEqual(pt.boardSchedHtml(Object.assign({}, base, { confirmed: false })).indexOf(pt.T.schedNeedDoc) > 0, true);
+  const after = pt.boardSchedHtml(Object.assign({}, base, { resultCd: 'PASSED', meeting: '2026-12-03' }));
+  assert.ok(!/board-sched/.test(after) && after.indexOf('개최일은 8단계') > 0);
+  // 자료 확정 전에도 일정은 등록한다(사용자 11-25 b안) — 위 base가 확정 전이다. 자료 없음·담당 아님은 안내만
   assert.ok(pt.boardSchedHtml({ state: 'none' }).indexOf(pt.T.schedNoMat) > 0);
-  const ro = pt.boardSchedHtml(Object.assign({}, base, { canResult: false }));
+  const ro = pt.boardSchedHtml(Object.assign({}, base, { canMeeting: false }));
   assert.ok(!/board-sched/.test(ro) && ro.indexOf(pt.T.schedView) > 0);
   assert.ok(pt.boardSchedHtml(Object.assign({}, base, { resErr: '날짜를 고르세요.' })).indexOf('role="alert">날짜를 고르세요.') > 0);
+  // 배선: 일정은 날짜만 적는 주소, 권한은 서버 can_set_meeting
+  assert.ok(/mat\.itemUrl\(sm\.d\.material_id\) \+ '\/meeting-date'/.test(PREP_SRC) && /JSON\.stringify\(\{ meeting_date: date \}\)/.test(PREP_SRC));
+  assert.ok(/canMeeting: !!\(d\.viewer && d\.viewer\.can_set_meeting === true\)/.test(PREP_SRC));
+  // 발표 대본 자리에 '샘플 필요!'
+  assert.ok(/<p class="ts-need" role="note"><b>샘플 필요!<\/b><span>이사회 발표 대본 샘플을 받으면/.test(h));
 });
 
 test('8단계 이사회 개최 및 결과: 결과 등록·결과 문서 보관·부서별 확인', function () {
@@ -653,4 +663,31 @@ test('8단계 이사회 개최 및 결과: 결과 등록·결과 문서 보관·
   assert.ok(/const result = sched \? 'SCHEDULED' : str\(cdEl && cdEl\.value\);/.test(PREP_SRC));
   assert.ok(/case 'board-sched': onBoardResult\(true\); return;/.test(PREP_SRC) && /case 'board-result': onBoardResult\(false\); return;/.test(PREP_SRC));
   assert.ok(/if \(curStep\.id === 'BOARD_DOC' \|\| curStep\.result\) model\.board = stepBoard\(\);/.test(PREP_SRC));
+});
+
+// ── 11-25 추가(3): 사용자 답 반영 — 선정 평가표(LLM 없이 옮겨 옴)·샘플 필요 표시 ──
+test('3단계 선정 평가표: 공고 원본에서 옮겨 온 표를 그대로, 못 찾으면 무엇을 올릴지 안내', function () {
+  const data = { found: true, files: 1, attach_id: 7, file: '금고 지정 공고<b>.hwpx', kind: 'TABLE', total: 100, page: 0,
+    rows: [['항 목', '세부항목', '배 점'], ['계', '', '100'], ['1. 신용도', '가. 신용평가\n나. 재무구조', '(5) (15)']] };
+  const h = pt.scoringHtml({ state: 'ok', data: data });
+  assert.ok(h.indexOf('출처: 금고 지정 공고&lt;b&gt;.hwpx') > 0 && h.indexOf('총점 100점') > 0 && h.indexOf(pt.T.scCheck) > 0);
+  assert.ok(/<thead><tr><th scope="col">항 목<\/th><th scope="col">세부항목<\/th><th scope="col">배 점<\/th><\/tr><\/thead>/.test(h));
+  assert.ok(h.indexOf('<td>가. 신용평가<br>나. 재무구조</td>') > 0, '칸 안의 줄바꿈은 그대로');
+  assert.strictEqual((h.match(/<tr>/g) || []).length, 3);
+  assert.ok(h.indexOf(pt.T.scLines) < 0);
+  const pdf = pt.scoringHtml({ state: 'ok', data: { found: true, file: '안내서.pdf', kind: 'LINES', page: 40, total: null, rows: [['평 가 항 목 배 점'], ['계 100']] } });
+  assert.ok(pdf.indexOf('출처: 안내서.pdf · 40쪽') > 0 && pdf.indexOf(pt.T.scLines) > 0 && !/<thead>/.test(pdf) && pdf.indexOf('총점') < 0);
+  assert.ok(pt.scoringHtml({ state: 'ok', data: { found: false, reason: 'NO_FILE', files: 0 } }).indexOf('2단계') > 0);
+  assert.ok(pt.scoringHtml({ state: 'ok', data: { found: false, reason: 'NOT_FOUND', files: 2 } }).indexOf('올려 둔 파일 2개에서') > 0);
+  assert.ok(pt.scoringHtml({ state: 'err' }).indexOf(pt.T.scErr) > 0);
+  assert.ok(pt.scoringHtml(undefined).indexOf(pt.T.scLoading) > 0);
+  assert.ok(pt.scoringHtml({ state: 'hidden' }).indexOf(pt.T.scHidden) > 0);
+  // 본문: 과제 아래에 평가표 묶음, 위에 '샘플 필요!'
+  const b = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('INST_ANALYSIS'), { docs: {}, scoring: { state: 'ok', data: data } }));
+  assert.ok(b.indexOf('class="ts-need"') > 0 && b.indexOf('class="ts-need"') < b.indexOf('class="pp-tasks'));
+  assert.ok(b.indexOf('>선정 평가표 (공고 원본에서 옮겨 옴)</h4>') > b.indexOf('class="pp-tasks'));
+  // 배선
+  assert.ok(/req\('GET', base\(id\) \+ '\/notice-scoring', undefined, ui\('prep_detail', 'refresh'\)\)/.test(PREP_SRC));
+  assert.ok(/if \(kind === 'NOTICE'\) S\.sc = null;/.test(PREP_SRC), '공고 원본을 올리면 다시 읽는다');
+  assert.ok(/\.ts-need \{[^}]*border:1px dashed var\(--orange\)/.test(HTML));
 });

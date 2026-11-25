@@ -86,8 +86,11 @@
     fileHint: 'HWPX·PDF·xlsx·docx, 한 파일 30MB 이하',
     fileEmpty: '아직 올린 파일이 없습니다. 수익성 분석표를 올리고 확정본으로 지정하면 이 과제가 완료됩니다.',
     uploading: '올리는 중…',
-    okChangeReq: '담당자 변경을 요청했습니다. 승인되면 담당자가 바뀝니다.',
-    changeNote: '담당자를 더하거나 뺍니다(여러 명 가능, 1~10명). 요청하면 영업팀장이 승인한 뒤 바뀌고, 영업팀장이 들어 있으면 영업부장이 승인합니다.',
+    okChangeReq: function (res) {
+      const n = Number(res && res.notified_count) || 0;
+      return '담당자를 바꿨습니다.' + (n ? ' 쪽지함으로 ' + n + '명에게 알렸습니다.' : '');
+    },
+    changeNote: '담당자를 더하거나 뺍니다(여러 명 가능, 1~10명). 바꾸면 바로 반영되고, 새 담당자·빠진 담당자·남은 담당자·영업팀장에게 쪽지함으로 알립니다.',
     changeWhySame: '바뀐 담당자가 없습니다.',
     okSched: '이사회 일정을 등록했습니다.',
     okResult: '이사회 결과를 등록했습니다.',
@@ -850,7 +853,7 @@
     return '파일 무효 처리 — ' + str(i.fileName);
   };
   prep.modalGoLabel = function (kind, direct, change) {
-    return { open: change ? '담당자 변경 요청' : direct ? '사전준비 시작' : '개설 신청 올리기', unconfirm: '확정 취소하기', abort: '중단하기', 'void': '무효 처리하기' }[kind] || '확인';
+    return { open: change ? '담당자 변경' : direct ? '사전준비 시작' : '개설 신청 올리기', unconfirm: '확정 취소하기', abort: '중단하기', 'void': '무효 처리하기' }[kind] || '확인';
   };
   prep.modalCancelLabel = function (kind) { return kind === 'open' ? '취소' : '닫기'; };
 
@@ -1109,7 +1112,7 @@
   function resetSteps(bd) {
     S.board = bd && bd.row ? { row: bd.row, marks: Array.isArray(bd.marks) ? bd.marks : [], scope: str(bd.scope) } : null;
     S.boardLoading = false; S.boardSeq = ++reqSeq; S.stepIdx = -1; S.stepAuto = true; S.markBusy = {}; S.live = '';
-    S.sum = null; S.foldOpen = {}; S.res = null;   // 3단계 펼침 내용(기관 정보 요약 응답)·다시 편 과제
+    S.sum = null; S.foldOpen = {}; S.res = null; S.sc = null;   // 3단계 펼침 내용(기관 정보 요약 응답)·다시 편 과제
     S.mat = null;                    // 7단계 이사회 자료
   }
   function boardHooks() {
@@ -1253,7 +1256,7 @@
           checks: pt.noticeChecks ? pt.noticeChecks(ni.ns || null, str(cell.notice_status_cd), { known: Array.isArray(d.attach), n: nFiles }, { canUpload: !!vwr.can_upload }) : [] };
         model.noticeFiles = filesOf('NOTICE', { title: '', hint: pt.T.noticeFilesHint, empty: pt.T.noticeFilesEmpty });
       }
-      if (curStep.id === 'INST_ANALYSIS') { model.docs = stepDocs(d.view); model.foldOpen = S.foldOpen; }
+      if (curStep.id === 'INST_ANALYSIS') { model.docs = stepDocs(d.view); model.foldOpen = S.foldOpen; model.scoring = stepScoring(d); }
       if (curStep.id === 'BOARD_DOC' || curStep.result) model.board = stepBoard();
       if (curStep.id === 'BOARD_DOC') model.addFiles = filesOf('BOARD_ADD', { title: '', hint: pt.T.addFilesHint, empty: pt.T.addFilesEmpty });
       if (curStep.result) model.resFiles = filesOf('BOARD_RES', { title: '', hint: pt.T.resFilesHint, empty: pt.T.resFilesEmpty });
@@ -1369,6 +1372,24 @@
       repaintKeep();
     });
   }
+  // 3단계 선정 평가표: 올려 둔 공고 원본에서 서버가 글자 그대로 옮겨 온 표(GET …/prep/notice-scoring). S.sc = { state, data }
+  function loadScoring(id) {
+    const mine = S.sc = { state: 'loading', data: null };
+    req('GET', base(id) + '/notice-scoring', undefined, ui('prep_detail', 'refresh')).then(function (data) {
+      if (S.sc !== mine || S.selected !== id) return;
+      mine.state = 'ok'; mine.data = data;
+      repaintKeep();
+    }).catch(function () {
+      if (S.sc !== mine || S.selected !== id) return;
+      mine.state = 'err';
+      repaintKeep();
+    });
+  }
+  function stepScoring(d) {
+    if (!Array.isArray(d.attach)) return { state: 'hidden' };   // 첨부를 볼 수 없는 사람·담당자 지정 전
+    if (!S.sc && S.selected) loadScoring(S.selected);
+    return S.sc || { state: 'loading' };
+  }
   function stepDocs(v) {
     const pt = root.preptask, hc = root.headcard;
     const docs = {};
@@ -1471,7 +1492,8 @@
     return { state: 'ok', id: d.material_id, statusName: str(d.status_name), snapNo: Number(d.current_snap) || 0,
              saved: mat.savedLabel ? mat.savedLabel(d) : '', confirmed: d.confirmed_snap != null, html: html,
              resultCd: str(d.result_cd), meeting: mat.dateOf ? str(mat.dateOf(d.meeting_date)) : str(d.meeting_date).slice(0, 10),
-             canResult: !!(d.viewer && d.viewer.can_set_result === true), resBusy: !!rs.busy, resErr: str(rs.err) };
+             canResult: !!(d.viewer && d.viewer.can_set_result === true), canMeeting: !!(d.viewer && d.viewer.can_set_meeting === true),
+             resBusy: !!rs.busy, resErr: str(rs.err) };
   }
   // 이사회 일정 등록(sched: 결과 = 의결 예정)·결과 등록 — 이사회 자료 화면의 '의결 결과 입력'과 같은 주소(누가·언제는 자료 이력에 남는다).
   function onBoardResult(sched) {
@@ -1484,7 +1506,13 @@
     if (!date) { S.res = { busy: false, err: T.errDate }; S.refocus = '#' + (sched ? 'ts-sched-date' : 'ts-res-date'); paintCase(); return; }
     const mine = S.res = { busy: true, err: '' };
     S.refocus = sel; paintCase();
-    mat.actCall(bfetch, 'result', sm.d.material_id, { result: result, date: date }).then(function (r) {
+    // 일정 등록은 날짜만 적는다(자료 확정 전에도 — 상태·결과는 그대로). 결과 등록은 이사회 자료 화면의 '의결 결과 입력'과 같은 주소.
+    const call = sched
+      ? bfetch(mat.itemUrl(sm.d.material_id) + '/meeting-date', { method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, mat.headers(mat.UI.WRITE, mat.BTN.RESULT)), body: JSON.stringify({ meeting_date: date }) })
+          .then(function (resp) { return resp.json().catch(function () { return null; }).then(function (body) { return { ok: resp.ok, status: resp.status, body: body }; }); })
+      : mat.actCall(bfetch, 'result', sm.d.material_id, { result: result, date: date });
+    call.then(function (r) {
       if (S.res !== mine || S.selected !== id) return;
       if (!r || !r.ok) {
         const msg = r && r.body && typeof r.body === 'object' ? str(r.body.message || r.body.error) : '';
@@ -1779,6 +1807,7 @@
       setFlash(okText);
       S.refocus = '[data-act="upload"][data-kind="' + kind + '"]';
       invalidateCache();
+      if (kind === 'NOTICE') S.sc = null;   // 공고 원본이 바뀌었으니 선정 평가표를 다시 읽는다
       if (id === S.selected) loadDetail(id);
       if (kind !== 'T3') return;
       // 4단계 → 이사회 자료 초안 자동 작성(실패해도 올린 파일은 그대로)
@@ -1947,7 +1976,8 @@
       if (m.change) {
         const d = prep.assigneeDiff(m.cur, m.sel);
         doAct(function () {
-          return req('POST', '/approval-requests/assignee-change', { bid_case_id: S.selected, add_emp_nos: d.add, remove_emp_nos: d.remove, reason: reason }, ui('prep_detail', 'assignee_change'));
+          // 결재 없이 바로 반영 + 쪽지함 알림(사용자 11-25)
+          return req('POST', base(S.selected) + '/assignees/change', { add_emp_nos: d.add, remove_emp_nos: d.remove, reason: reason }, ui('prep_detail', 'assignee_change'));
         }, T.okChangeReq, { modal: true, focusTitle: true, where: 'change' });
       } else if (m.direct) {
         doAct(function () { return req('POST', base(S.selected) + '/prep/start', body, ui('prep_detail', 'open_start')); },

@@ -132,6 +132,11 @@
        AND COALESCE(RESULT_CD, '-') = COALESCE(#{from,jdbcType=VARCHAR}, '-')
   </update>
 
+  <update id="updateMeetingDate">
+    UPDATE BOARD_MATERIAL SET MEETING_DATE = #{meetingDate}, UPDATED_BY = #{by}, UPDATED_AT = #{now}
+     WHERE MATERIAL_ID = #{id} AND COALESCE(RESULT_CD, 'SCHEDULED') = 'SCHEDULED'
+  </update>
+
   <insert id="insertSnap">
     INSERT INTO BOARD_MATERIAL_SNAP (MATERIAL_ID, SNAP_NO, VALUES_JSON, NOTE, SAVED_BY, SAVED_AT)
     VALUES (#{materialId}, #{snapNo}, #{valuesJson,jdbcType=CLOB}, #{note,jdbcType=VARCHAR}, #{savedBy}, #{savedAt})

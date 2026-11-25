@@ -280,6 +280,12 @@ public class BidAssignmentService {
      * 결재자(400 APPROVER_NOT_RESOLVED). 오류 문구에 사번·이름을 싣지 않는다.
      */
     public ChangePlan planChange(String bidCaseId, List<String> addIn, List<String> removeIn, SysUser me) {
+        return planChange(bidCaseId, addIn, removeIn, me, true);
+    }
+
+    /** withApprover=false 면 결재자를 정하지 않는다(결재 없는 변경 — 검증은 같다, ChangePlan.approver 는 null). */
+    private ChangePlan planChange(String bidCaseId, List<String> addIn, List<String> removeIn, SysUser me,
+                                  boolean withApprover) {
         boolean lead = LEAD_ROLE.equals(roleOf(me));
         if (!lead && !MEMBER_ROLE.equals(roleOf(me))) {   // 영업팀·영업팀장 외(디자이너·관리자·영업부장 등)는 건 존재 여부와 무관하게 403
             throw new ApiException(403, "담당자 변경은 현재 담당자 또는 영업팀장만 신청할 수 있습니다.");
@@ -340,8 +346,52 @@ public class BidAssignmentService {
             }
             stale = head.getPendingReqId();   // 끝난(반려·취소) 요청의 낡은 선점 — 새 신청이 교체한다
         }
-        SysUser approver = resolveApprover(me, leadInvolved);
+        SysUser approver = withApprover ? resolveApprover(me, leadInvolved) : null;
         return new ChangePlan(bidCaseId, head.getGroupVer(), stale, add, remove, approver);
+    }
+
+    /**
+     * 결재 없는 담당자 변경(사용자 결정 2026-11-25 — 승인 대신 쪽지함 알림, 알림은 호출자 {@link PrepService} 가 보낸다).
+     * 바꿀 수 있는 사람·입력 검증은 변경 신청({@link #planChange})과 같다: 현재 담당자 또는 영업팀장, 결과 1~10명, 팀장 승인 대기 중인 변경 신청이 있으면 409.
+     * 순서: 검증(쓰기 없음) → 사전준비 행 잠금(중단된 건 409) → GROUP_VER 확인·증가(동시 변경이면 409) → 해제·추가·이력(REQ_ID 없음) → 작성본 인계 기록.
+     * 반환: added·removed·remaining(사번 목록 — 알림 대상 계산용, 응답에 그대로 싣지 않는다).
+     */
+    @Transactional
+    public Map<String, List<String>> changeDirect(String bidCaseId, List<String> addIn, List<String> removeIn, String reason,
+                                                  SysUser me, Actor actor) {
+        ChangePlan plan = planChange(bidCaseId, addIn, removeIn, me, false);
+        if (PrepService.CANCELLED.equals(prepMapper.selectStateForUpdate(bidCaseId))) {
+            throw coded(409, "PREP_CANCELLED", "중단된 건이라 담당자를 바꿀 수 없습니다.");
+        }
+        String d = me.getEmpNo();
+        String now = Times.nowIso();
+        if (mapper.bumpVersionDirect(bidCaseId, plan.getGroupVer(), plan.getStaleReqId(), d, now) != 1) {
+            throw groupVerChanged();
+        }
+        int verified = actor != null && actor.isVerified() ? 1 : 0;
+        for (String e : plan.getRemove()) {
+            if (mapper.updateRelease(bidCaseId, e, d, now) != 1) {
+                throw groupVerChanged();
+            }
+            mapper.insertLog(bidCaseId, ACTION_RELEASE, e, null, reason, d, verified, now);
+        }
+        for (String e : plan.getAdd()) {
+            if (mapper.updateReactivate(bidCaseId, e, d, now) == 0) {
+                mapper.insertAssignment(bidCaseId, e, d, now);
+            }
+            mapper.insertLog(bidCaseId, ACTION_ADD, e, null, reason, d, verified, now);
+        }
+        handoverMaterials(bidCaseId, plan.getRemove(), plan.getAdd(), null, d, verified, now);
+        cancelPendingSubmit(bidCaseId);
+        List<String> remaining = new ArrayList<>();
+        for (BidAssigneeView v : mapper.selectActiveAssignees(bidCaseId)) {
+            remaining.add(v.getEmpNo());
+        }
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        out.put("added", plan.getAdd());
+        out.put("removed", plan.getRemove());
+        out.put("remaining", remaining);
+        return out;
     }
 
     /** 신청 요청 행을 만든 뒤 호출 — 입찰 건당 진행 중 신청 1건(낙관적). 0행이면 409 이고 호출한 트랜잭션이 롤백된다. */

@@ -422,6 +422,69 @@ public class PrepAttachApiTest {
         assertEquals(403, upload(bid, MEMBER, "NOTICE", "a.pdf", pdf("x y z", false)).getResponse().getStatus());   // 담당자만
     }
 
+    /** 선정 평가표 옮겨 오기(사용자 2026-11-25): HWPX 는 표 구조 그대로, 머리 줄에 '배점'이 든 표만. LLM 없음. */
+    @Test
+    public void 선정_평가표를_공고_원본_HWPX에서_글자_그대로_옮긴다() throws Exception {
+        String bid = opened();
+        String path = "/bidcases/" + bid + "/prep/notice-scoring";
+        JsonNode none = json(getAs(path, MEMBER2));
+        assertFalse(none.path("found").asBoolean());
+        assertEquals("NO_FILE", none.path("reason").asText());
+        uploaded(bid, MEMBER2, "NOTICE", "안내문.hwpx", hwpx("가상 공고 내용, 배점은 별표와 같다"));   // 표가 없는 파일
+        assertEquals("NOT_FOUND", json(getAs(path, MEMBER2)).path("reason").asText());
+        String tc = "<hp:tc><hp:subList><hp:p><hp:run><hp:t>%s</hp:t></hp:run></hp:p></hp:subList></hp:tc>";
+        String two = "<hp:tc><hp:subList><hp:p><hp:run><hp:t>가. 신용평가</hp:t></hp:run></hp:p><hp:p><hp:run><hp:t>나. 재무구조</hp:t></hp:run></hp:p></hp:subList></hp:tc>";
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><hs:sec xmlns:hs=\"http://www.hancom.co.kr/hwpml/2011/section\" xmlns:hp=\"http://www.hancom.co.kr/hwpml/2011/paragraph\">"
+                + "<hp:p><hp:run><hp:tbl><hp:tr>" + String.format(tc, "구분") + String.format(tc, "내용") + "</hp:tr><hp:tr>" + String.format(tc, "기간") + String.format(tc, "4년") + "</hp:tr><hp:tr>"
+                + String.format(tc, "비고") + String.format(tc, "없음") + "</hp:tr></hp:tbl></hp:run></hp:p>"
+                + "<hp:p><hp:run><hp:tbl><hp:tr>" + String.format(tc, "항   목") + String.format(tc, "세 부 항 목") + String.format(tc, "배 점") + "</hp:tr>"
+                + "<hp:tr>" + String.format(tc, "계") + String.format(tc, "") + String.format(tc, "100") + "</hp:tr>"
+                + "<hp:tr>" + String.format(tc, "1. 신용도 및 재무구조") + two + String.format(tc, "(5) (15)") + "</hp:tr>"
+                + "</hp:tbl></hp:run></hp:p></hs:sec>";
+        long id = uploaded(bid, MEMBER2, "NOTICE", "금고 지정 공고.hwpx",
+                zip(new String[]{"mimetype", "Contents/section0.xml"}, new String[]{"application/hwp+zip", xml}));
+        JsonNode t = json(getAs(path, HEAD));   // 영업부장도 본다
+        assertTrue(t.toString(), t.path("found").asBoolean());
+        assertEquals("TABLE", t.path("kind").asText());
+        assertEquals(id, t.path("attach_id").asLong());
+        assertEquals("금고 지정 공고.hwpx", t.path("file").asText());
+        assertEquals(100, t.path("total").asInt());
+        assertEquals(3, t.path("rows").size());
+        assertEquals("배 점", t.path("rows").get(0).get(2).asText());
+        assertEquals("가. 신용평가\n나. 재무구조", t.path("rows").get(2).get(1).asText());   // 칸 안의 문단은 줄바꿈
+        assertEquals(404, getAs(path, MEMBER).getResponse().getStatus());   // 담당이 아닌 영업팀원
+    }
+
+    /** 담당자 변경(사용자 2026-11-25): 결재 없이 바로 반영하고 쪽지함으로 알린다. 현재 담당자·영업팀장만. */
+    @Test
+    public void 담당자_변경은_바로_반영되고_쪽지로_알린다() throws Exception {
+        String bid = opened();   // 담당자 = 윤서준(MEMBER2)
+        String path = "/bidcases/" + bid + "/prep/assignees/change";
+        int notesBefore = count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림'");
+        assertEquals(403, postJson(path, DESIGNER, "{\"add_emp_nos\":" + arr(MEMBER) + ",\"reason\":\"인사 이동\"}").getResponse().getStatus());
+        assertEquals(403, postJson(path, MEMBER, "{\"add_emp_nos\":" + arr(MEMBER) + ",\"reason\":\"인사 이동\"}").getResponse().getStatus());   // 담당이 아닌 영업팀원
+        assertEquals(400, postJson(path, MEMBER2, "{\"add_emp_nos\":" + arr(MEMBER) + "}").getResponse().getStatus());   // 사유 필수
+        assertEquals(400, postJson(path, MEMBER2, "{\"remove_emp_nos\":" + arr(MEMBER2) + ",\"reason\":\"혼자 빠짐\"}").getResponse().getStatus());   // 한 명은 남아야
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", bid));
+        MvcResult ok = postJson(path, MEMBER2, "{\"add_emp_nos\":" + arr(MEMBER) + ",\"reason\":\"함께 맡음\"}");
+        assertEquals(text(ok), 200, ok.getResponse().getStatus());
+        JsonNode o = json(ok);
+        assertEquals(1, o.path("added_count").asInt());
+        assertEquals(2, o.path("assignee_count").asInt());
+        assertEquals(2, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", bid));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGN_LOG WHERE BID_CASE_ID=? AND ACTION_CD='ADD' AND TARGET_EMP_NO=? AND REQ_ID IS NULL AND ACTOR_EMP_NO=?", bid, MEMBER, MEMBER2));
+        // 쪽지: 새 담당자(김영업)와 바꾼 사람의 팀장 — 바꾼 본인에게는 가지 않는다
+        assertEquals(o.path("notified_count").asInt(), count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림'") - notesBefore);
+        assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", MEMBER));
+        assertEquals(0, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", MEMBER2));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ASSIGNEE_CHANGE' AND OUTCOME='OK'", bid));
+        // 이어서 새 담당자가 옛 담당자를 뺀다 — 한 명 남음
+        MvcResult rm = postJson(path, MEMBER, "{\"remove_emp_nos\":" + arr(MEMBER2) + ",\"reason\":\"업무 조정\"}");
+        assertEquals(text(rm), 200, rm.getResponse().getStatus());
+        assertEquals(1, json(rm).path("assignee_count").asInt());
+        assertEquals(403, upload(bid, MEMBER2, "NOTICE", "a.pdf", pdf("x y z", false)).getResponse().getStatus());   // 빠진 사람은 더 올리지 못한다
+    }
+
     @Test
     public void 업로드_입력_검사_과제_코드_파일_없음_이름() throws Exception {
         String bid = opened();

@@ -128,7 +128,7 @@
     sumEmpty: '아직 작성하지 않았습니다. [작성하기]를 눌러 작성하세요.',
     sumNone: '적은 내용 없음',
     changeAssignee: '담당자 변경…',
-    changeAssigneeNote: '담당자는 여러 명을 둘 수 있습니다. 변경은 이 화면에서 요청하고, 영업팀장(팀장이 들어 있으면 영업부장)이 승인하면 바뀝니다.',
+    changeAssigneeNote: '담당자는 여러 명을 둘 수 있습니다. 바꾸면 바로 반영되고, 새 담당자·빠진 담당자·남은 담당자·영업팀장에게 쪽지함으로 알립니다.',
     changeAssigneeView: '담당자 변경은 지금 담당자나 영업팀장이 요청합니다.',
     assigneeCount: function (n) { return '담당 ' + n + '명'; },
     // 2단계 확인 항목(사용자 11-25: 공고 진행·원본 파일을 확인, 마감 같은 사실은 붉은 글씨 + 체크 모양)
@@ -157,7 +157,23 @@
     secResDoc: '이사회 결과 문서 보관',
     secMarks: '부서별 확인',
     schedNone: '아직 등록한 이사회 일정이 없습니다.',
-    schedNeedDoc: '이사회 자료가 확정된 뒤에 일정을 등록합니다.',
+    schedNeedDoc: '이사회 자료가 확정된 뒤에 결과를 등록합니다.',
+    schedResultSet: '의결 결과가 등록됐습니다. 개최일은 8단계 \'이사회 개최 및 결과\'에서 고칩니다.',
+    // 샘플을 받으면 이어서 만들 것(사용자 11-25: 잊지 않게 화면에 적어 둔다)
+    needTag: '샘플 필요!',
+    needSummary: '\'기관 선정 입찰참여 관련 요약\' Word 양식 샘플(1쪽 추진배경·기대효과, 2쪽 선정 평가표)을 받으면 아래 양식을 그 구성으로 바꿉니다.',
+    needScript: '이사회 발표 대본 샘플을 받으면, 이사회 자료의 숫자를 넣어 Word 대본을 만드는 기능을 붙입니다.',
+    // 3단계 선정 평가표(공고 원본에서 글자 그대로 옮겨 옴 — LLM 없음)
+    secScoring: '선정 평가표 (공고 원본에서 옮겨 옴)',
+    scLoading: '공고 원본에서 선정 평가표를 찾는 중…',
+    scErr: '선정 평가표를 불러오지 못했습니다. 잠시 뒤 화면을 다시 여세요.',
+    scNoFile: '아직 읽을 공고 원본이 없습니다. 2단계 \'입찰공고확인\'에서 공고문·제안요청서를 HWPX나 PDF로 올리면 여기에 평가표가 나타납니다.',
+    scNotFound: function (n) { return '올려 둔 파일 ' + n + '개에서 배점 표를 찾지 못했습니다. 평가표가 든 파일(신청 안내서·제안요청서)을 HWPX로 올려 보세요. 그림으로 된(스캔) PDF는 읽지 못합니다.'; },
+    scFrom: function (file, page) { return '출처: ' + file + (page ? ' · ' + page + '쪽' : ''); },
+    scTotal: function (n) { return '총점 ' + n + '점'; },
+    scCheck: '파일의 글자를 그대로 옮긴 것입니다. 원문과 대조해 확인하세요.',
+    scLines: '이 파일(PDF)은 표의 칸 구분을 알 수 없어 줄 단위로 옮겼습니다. HWPX로 올리면 표 모양 그대로 나옵니다.',
+    scHidden: '선정 평가표는 담당 영업·영업팀장·영업부장에게 보입니다.',
     schedNoMat: '이사회 자료가 만들어진 뒤에 등록합니다.',
     schedView: '일정·결과는 이 기관의 담당 영업이 등록합니다.',
     schedSave: '일정 등록',
@@ -565,6 +581,28 @@
     return note(T.docLoading);
   };
 
+  function need(text) { return '<p class="ts-need" role="note"><b>' + esc(T.needTag) + '</b><span>' + esc(text) + '</span></p>'; }
+  // 3단계 선정 평가표: sc = { state: 'loading'|'ok'|'err'|'hidden', data: GET …/prep/notice-scoring 응답 }. 값은 모두 이스케이프한다.
+  pt.scoringHtml = function (sc) {
+    const x = sc || {};
+    if (x.state === 'hidden') return note(T.scHidden);
+    if (x.state === 'err') return note(T.scErr);
+    if (x.state !== 'ok' || !x.data) return note(T.scLoading);
+    const d = x.data;
+    if (d.found !== true) return note(d.reason === 'NO_FILE' ? T.scNoFile : T.scNotFound(Number(d.files) || 0));
+    const rows = (Array.isArray(d.rows) ? d.rows : []).filter(Array.isArray);
+    const cell = function (v) { return esc(str(v)).replace(/\n/g, '<br>'); };
+    const lines = d.kind !== 'TABLE';
+    const body = rows.map(function (r, i) {
+      const tag = !lines && i === 0 ? 'th scope="col"' : 'td';
+      return '<tr>' + r.map(function (c) { return '<' + tag + '>' + cell(c) + '</' + tag.slice(0, 2) + '>'; }).join('') + '</tr>';
+    });
+    const head = !lines && body.length ? '<thead>' + body.shift() + '</thead>' : '';
+    return '<dl class="ts-facts"><div><dd>' + esc(T.scFrom(str(d.file), Number(d.page) || 0)) + '</dd></div>' +
+      (d.total != null ? '<div><dd><b>' + esc(T.scTotal(Number(d.total))) + '</b></dd></div>' : '') + '</dl>' +
+      note(T.scCheck) + (lines ? note(T.scLines) : '') +
+      '<div class="ts-fold ts-score" tabindex="0" role="region" aria-label="선정 평가표"><table class="ts-doc' + (lines ? ' ts-score-l' : '') + '">' + head + '<tbody>' + body.join('') + '</tbody></table></div>';
+  };
   function sec(title, inner) { return '<div class="ts-sec"><h4 class="ts-sec-h">' + esc(title) + '</h4>' + inner + '</div>'; }
   // 이사회 일정·결과(이사회 자료의 '의결 결과·개최일' 칸을 그대로 쓴다 — 서버 규칙: 확정된 자료에만, 담당 영업만).
   // b = stepBoard 결과 + { resultCd, meeting(YYYY-MM-DD), canResult, resBusy, resErr }
@@ -579,13 +617,14 @@
     if (!b.confirmed) return note(T.schedNeedDoc);
     return '';
   }
+  // 일정은 자료가 확정되기 전에도 담당 영업이 날짜만 먼저 적는다(사용자 11-25 b안, 서버 viewer.can_set_meeting). 상태·결과는 바뀌지 않는다.
   pt.boardSchedHtml = function (b) {
-    const g = resultGate(b);
-    if (g) return g;
+    if (!b || b.state === 'loading') return note(T.docLoading);
+    if (b.state !== 'ok') return note(b.state === 'err' ? T.boardErr : T.schedNoMat);
     let h = b.meeting ? resultFact(b) : note(T.schedNone);
-    if (!b.canResult) return h + note(T.schedView);
-    // 결과(가결·부결)가 이미 있으면 일정은 8단계에서 고친다 — 여기서 날짜만 바꾸면 결과가 '의결 예정'으로 돌아간다.
-    if (str(b.resultCd) && str(b.resultCd) !== 'SCHEDULED') return h;
+    // 결과(가결·부결)가 등록된 뒤에는 개최일을 8단계 결과 등록에서 고친다.
+    if (str(b.resultCd) === 'PASSED' || str(b.resultCd) === 'REJECTED') return h + note(T.schedResultSet);
+    if (!b.canMeeting) return h + note(T.schedView);
     return h + '<div class="ts-form"><label for="ts-sched-date">' + esc(T.schedDate) + '</label>' +
       '<input type="date" id="ts-sched-date" value="' + esc(b.meeting || '') + '">' +
       '<button type="button" data-act="board-sched"' + (b.resBusy ? ' aria-disabled="true"' : '') + '>' + esc(b.meeting ? T.schedEdit : T.schedSave) + '</button>' +
@@ -678,11 +717,13 @@
       h += sec(T.secDoc, note(T.boardHint) + (tasksBlock(m, { tasks: ['T5'] }) || '') + pt.boardBlockHtml(m.board)) +
         sec(T.secSched, pt.boardSchedHtml(m.board)) +
         sec(T.secAdd, m.addFiles ? str(m.addFiles) : note(T.filesLater)) +
-        sec(T.secScript, tasksBlock(m, { tasks: ['T6'] }) || note(T.taskNone));
+        sec(T.secScript, need(T.needScript) + (tasksBlock(m, { tasks: ['T6'] }) || note(T.taskNone)));
     } else {   // auto — 준비 과제를 여기에서 처리한다
       if (s.id === 'PROFIT') h += note(T.profitHint);
+      if (s.id === 'INST_ANALYSIS') h += need(T.needSummary);
       const tb = s.id === 'INST_ANALYSIS' ? foldBlock(m, s) : tasksBlock(m, s);
       h += tb || note(T.taskNone);
+      if (s.id === 'INST_ANALYSIS') h += sec(T.secScoring, pt.scoringHtml(m.scoring));
     }
     const prev = idx > 0 ? { label: T.prev(pt.STEPS[idx - 1].label), off: false } : { label: T.prevNone, off: true };
     const next = idx < n - 1 ? { label: T.next(pt.STEPS[idx + 1].label), off: false } : { label: T.nextNone, off: true };
