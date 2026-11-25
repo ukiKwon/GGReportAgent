@@ -441,8 +441,8 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   assert.ok(/\.hb-lane \.w \{[^}]*min-width:6px/.test(css));
   assert.ok(!/\.hb-cols\b|\.hb-col\b|\.hb-nlink|\.hb-li\b|\.hb-act\b|\.hb-none\b|#hb-preps|#hb-notice/.test(css));   // 옛 3열·2번 구획 규칙은 지웠다
   assert.ok(!/\.hb-list\b|\.hb-grid\b|\.hb-cards\b|\.kb-card\b|\.hb-alert\b|\.hb-chip\b/.test(css));
-  assert.ok(/@media \(max-width:1279px\) \{ \.hb-tt \.ln, \.hb-tf \.lg \{ display:none; \} \.hb-tt col\.c-nm \{ width:auto; \} \}/.test(css));   // 1279 이하: 일정 열·범례 숨김, 기관 열이 남는 폭을 받는다(design 11-17 P2-1)
-  assert.ok(/@media \(max-width:880px\) \{[^@]*\.hb-band \{ grid-template-columns:1fr 1fr; \}[^@]*\.hb-tp \{ height:auto; \}[^@]*\.hb-tt \{ min-width:764px; \}/.test(css));   // 764 = 기관 150 + 나머지 고정 열 614
+  assert.ok(/@media \(max-width:1279px\) \{ \.hb-tt \.ln, \.hb-tf \.lg \{ display:none; \} \.hb-tt col\.c-nm \{ width:auto; \} \}/.test(css));   // 1279 이하(사용자 11-26): 일정 열·범례 숨김, 기관 열이 남는 폭을 받는다(design 11-17 P2-1)
+  assert.ok(/@media \(max-width:880px\) \{[^@]*\.hb-band \{ grid-template-columns:1fr 1fr; \}[^@]*\.hb-tp \{ height:auto; \}[^@]*\.hb-tt \{ min-width:856px; \}/.test(css));   // 856 = 기관 150 + 나머지 고정 열 706
   assert.ok(/\.hb-menu \{[^}]*border-radius:var\(--r\)/.test(css) && /\.hb-menu button\[aria-checked=false\] \.ck \{ visibility:hidden; \}/.test(css));
   // 줄: 종료 D-n(크게 16px mono), 빨강·주황은 글자색만(채운 배경 없음), 종료일 미상은 muted, 행 이름 13px
   assert.ok(/\.hb-end b \{ font:700 16px\/1\.2 var\(--mono\)/.test(css) && /\.hb-end\.urgent b \{ color:color-mix\(in srgb, var\(--red\) 72%, var\(--fg\)\)/.test(css) && /\.hb-end\.soon b \{ color:color-mix\(in srgb, var\(--orange\) 72%, var\(--fg\)\)/.test(css));

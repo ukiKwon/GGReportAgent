@@ -89,7 +89,7 @@ test('고르기: 20곳 한도·같은 기관 두 번(다른 연도 목표)은 �
 
 test('줄 → 고른 항목 스냅샷, 고를 수 있는 줄(목표 밖·결재 중·옮길 시기 아닌 관심 줄은 아님)', function () {
   const e = tc.entryOfRow(mk({ id: 'I1', targetNo: 3, revNo: 2, tagCd: 'RETAIN', tagName: '재유치 도전', memo: 'm', ownerEmpNo: 'E1', ownerName: '김영업' }));
-  assert.deepStrictEqual(e, { id: 'I1', name: '종로구청', regionName: '서울', kind: 'GOAL', targetNo: 3, revNo: 2, year: 2026, tagCd: 'RETAIN', tagName: '재유치 도전', memo: 'm', ownerEmpNo: 'E1', ownerName: '김영업', moveYear: 0, closed: false });
+  assert.deepStrictEqual(e, { id: 'I1', name: '종로구청', regionName: '서울', kind: 'GOAL', targetNo: 3, revNo: 2, year: 2026, tagCd: 'RETAIN', tagName: '재유치 도전', aimCd: '', aimName: '', memo: 'm', ownerEmpNo: 'E1', ownerName: '김영업', moveYear: 0, closed: false });
   assert.strictEqual(tc.entryOfRow(mk({ closed: { basis_cd: 'NOTICE_CLOSED' } })).closed, true);   // 다음 회차 목표로 옵션 판정용
   assert.strictEqual(tc.pickable(mk()), true);
   assert.strictEqual(tc.pickable(mk({ out: true })), false);
@@ -493,7 +493,7 @@ test('현황판 줄 모델·표 마크업: 잠금·이월·판정일·고르기 
   const tb = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', win: win, rows: [plain], out: [], canEdit: true, selCol: true, picked: {}, sort: { key: 'due', dir: 'asc' }, total: 1 });
   assert.ok(tb.indexOf('<table class="hb-tt sel">') === 0 && tb.indexOf('<colgroup><col class="c-ck"><col class="c-nm">') > 0 && tb.indexOf('<thead><tr><th scope="col" class="ck">') > 0);
   const em = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', win: win, rows: [], out: [], canEdit: true, selCol: true, groups: [], total: 0 });
-  assert.ok(em.indexOf('colspan="8"') > 0);
+  assert.ok(em.indexOf('colspan="9"') > 0);
   const wt = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: win, rows: [w], out: [], canEdit: true, selCol: true, picked: {}, sort: { key: 'next', dir: 'asc' }, total: 1 });
   assert.ok(wt.indexOf('<colgroup><col class="c-ck"><col class="c-wnm">') > 0 && wt.indexOf('<th scope="col" class="ck">') > 0);
   const no = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', win: win, rows: [plain], out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 1 });

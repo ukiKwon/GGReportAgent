@@ -231,7 +231,7 @@ test('D 구분 고르기는 저장하지 않고 대기에 담는다 → 자동 �
   assert.ok(K.slice(sc, fe).indexOf('draft') < 0);   // 실패 경로는 대기·선택을 건드리지 않는다
   assert.ok(/tc\.clearSel\(gs\.sel\); gs\.selMsg = ''; gs\.selNote = '';\n    dropDraftChips\(\);/.test(K.slice(fe, fx)));   // 성공하면 대기 비움
   assert.ok(K.indexOf("dropDraftChips();\n    syncPickDom(); paintSel();\n    const f = $('hb-pickall')") > 0);   // 선택 지우기 → 칩 원래 값
-  assert.ok(K.indexOf("dn > 0 ? tc.autoPickNote(dn) : gs.selNote") > 0);
+  assert.ok(K.indexOf("dn > 0 ? tc.autoPickNote(dn, tc.draftWhat(gs.draft, gs.sel)) : gs.selNote") > 0);
   assert.ok(K.indexOf("window.addEventListener('beforeunload', onBeforeUnload, opt)") > 0);   // 브라우저 닫기·새로고침 경고(P6)
   // CSS: 점선 + accent, 꼬리표는 굵게(그림자·새 hex 없음)
   const css = src('index.html');
@@ -263,7 +263,7 @@ test('P2-1 → 11-25 사용자 결정으로 뒤집음: 관심 줄 [메모 고치
   assert.ok(css.indexOf('.hb-memocell') < 0 && css.indexOf('.hb-memo-go') < 0);
   assert.ok(css.indexOf('@media (min-width:1440px) { .hb-tt col.c-act { width:230px; } }') > 0);
   assert.ok(K.indexOf("act === 'memo'") < 0 && K.indexOf('openMemo(r, btn)') < 0);   // 클릭 분기 없음(openMemo 함수는 데드 코드로 남음)
-  assert.ok(K.indexOf('canTag: canValueEdit, y0:') > 0);   // 관심 줄 구분 칩 배선(목록 그리기 옵션, 11-25 kbboard.js 개정에 맞춤)
+  assert.ok(K.indexOf('canTag: canValueEdit, canAim: canAimEdit, y0:') > 0);   // 관심 줄 구분 칩 배선(목록 그리기 옵션, 11-25 kbboard.js 개정에 맞춤)
 });
 
 test('P2-2 협약 개시일 입구: 결재 요청 칸 줄에도 [협약 개시일 적기…], 줄을 못 찾으면 창 오류 줄', function () {

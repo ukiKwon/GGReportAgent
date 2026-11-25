@@ -67,7 +67,7 @@
   tc.memoFlash = function (name, memo) {
     return str(name) + (str(memo).trim() ? ' 메모를 저장했습니다. 결재 없이 반영되고 기록에 남습니다.' : ' 메모를 지웠습니다. 기록에 남습니다.');
   };
-  tc.editResultText = function (n) { return '목표 기관 ' + Number(n) + '곳의 구분을 수정했습니다. 결재 없이 반영되고 기록에 남습니다.'; };
+  tc.editResultText = function (n, what) { return '목표 기관 ' + Number(n) + '곳의 ' + (str(what) || '구분') + '을 수정했습니다. 결재 없이 반영되고 기록에 남습니다.'; };
   tc.pendingLockMsg = function (name) { return str(name) + tc.eun(name) + ' 방금 결재 요청에 들어가 잠겼습니다. 결재가 끝나면 다시 바꿀 수 있습니다.'; };
 
   // ── 고른 줄(탭·연도·거르기를 바꿔도 남는다, 기관 하나 = 한 줄) ──────────
@@ -77,7 +77,7 @@
   tc.pickable = function (r) { return !!r && !r.out && !r.pend && (r.kind !== 'WATCH' || Number(r.movable) > 0); };   // 관심 줄은 [목표로 옮기기]가 보이는 줄만(규격 6-1)
   tc.entryOfRow = function (r) {
     return { id: r.id, name: r.name, regionName: r.regionName, kind: r.kind === 'WATCH' ? 'WATCH' : 'GOAL', targetNo: r.targetNo, revNo: r.revNo, year: Number(r.targetYear) || 0,
-      tagCd: r.tagCd, tagName: r.tagName, memo: r.memo || '', ownerEmpNo: r.ownerEmpNo || '', ownerName: r.ownerName || '', moveYear: Number(r.movable) || 0, closed: !!r.closed };
+      tagCd: r.tagCd, tagName: r.tagName, aimCd: r.aimCd || '', aimName: r.aimName || '', memo: r.memo || '', ownerEmpNo: r.ownerEmpNo || '', ownerName: r.ownerName || '', moveYear: Number(r.movable) || 0, closed: !!r.closed };
   };
   // 고른 줄의 종류별 수와 섞임 판정(띠 문구·단추 이름·[수정하기…] 보임 조건)
   tc.kindCounts = function (s) {
@@ -128,13 +128,43 @@
   };
 
   // ── 구분 바뀜 대기(저장 전, 사용자 11-25): d = { 기관 id: { no: 목표 번호, tagCd, tagName } }. 고른 줄에만 둔다(고르기를 풀면 같이 버린다).
-  const liveDraft = function (d, s, id) { const x = d && has(d, id) ? d[id] : null; return !!x && has(s.by, id) && Number(s.by[id].targetNo) === x.no && s.by[id].tagCd !== x.tagCd; };
-  tc.draftOf = function (d, r) { const x = d && r && has(d, r.id) ? d[r.id] : null; return x && x.no === Number(r.targetNo) ? x : null; };
-  tc.setDraft = function (d, r, code, name) {   // 원래 구분으로 되돌리면 대기를 지운다(false)
-    if (!code || code === r.tagCd) { if (tc.draftOf(d, r)) delete d[r.id]; return false; }
-    d[r.id] = { no: Number(r.targetNo), tagCd: code, tagName: str(name || code) };
-    return true;
+  const liveDraft = function (d, s, id) {
+    const x = d && has(d, id) ? d[id] : null;
+    if (!x || !has(s.by, id) || Number(s.by[id].targetNo) !== x.no) return false;
+    const e = s.by[id];
+    return x.tagCd !== e.tagCd || (x.aimCd !== undefined && str(x.aimCd) !== str(e.aimCd));
   };
+  tc.draftOf = function (d, r) { const x = d && r && has(d, r.id) ? d[r.id] : null; return x && x.no === Number(r.targetNo) ? x : null; };
+  // 구분·금고 방식은 한 대기에 함께 담긴다. 한 칸을 원래 값으로 되돌리면 그 칸만 빠지고, 둘 다 원래 값이면 대기를 지운다(false).
+  function normDraft(d, r, x) {
+    if (x.aimCd !== undefined && str(x.aimCd) === str(r.aimCd)) { delete x.aimCd; delete x.aimName; }
+    if (x.tagCd === r.tagCd && x.aimCd === undefined) { delete d[r.id]; return false; }
+    d[r.id] = x;
+    return true;
+  }
+  function draftBase(d, r) { return tc.draftOf(d, r) || { no: Number(r.targetNo), tagCd: r.tagCd, tagName: str(r.tagName) }; }
+  tc.setDraft = function (d, r, code, name) {
+    const x = draftBase(d, r), keep = !code || code === r.tagCd;
+    x.tagCd = keep ? r.tagCd : code; x.tagName = keep ? str(r.tagName) : str(name || code);
+    return normDraft(d, r, x);
+  };
+  tc.setAimDraft = function (d, r, code, name) {   // code '' = 금고 방식 비움('-')
+    const x = draftBase(d, r);
+    x.aimCd = str(code); x.aimName = str(name);
+    return normDraft(d, r, x);
+  };
+  tc.draftAim = function (d, e) { const x = tc.draftOf(d, e); return x && x.aimCd !== undefined ? x.aimCd : undefined; };
+  function whatOfList(d, list) {   // 띠·확인 상자 문구에 쓰는 '무엇이 바뀌나'
+    let t = false, a = false;
+    (list || []).forEach(function (e) {
+      const x = tc.draftOf(d, e); if (!x) return;
+      if (x.tagCd !== e.tagCd) t = true;
+      if (x.aimCd !== undefined && str(x.aimCd) !== str(e.aimCd)) a = true;
+    });
+    return t && a ? '구분·금고 방식' : (a ? '금고 방식' : '구분');
+  }
+  tc.draftWhatOf = whatOfList;
+  tc.draftWhat = function (d, s) { return whatOfList(d, ((s && s.ids) || []).filter(function (id) { return liveDraft(d, s, id); }).map(function (id) { return s.by[id]; })); };
   tc.draftCount = function (d, s) { return ((s && s.ids) || []).filter(function (id) { return liveDraft(d, s, id); }).length; };
   tc.pruneDrafts = function (d, s) {   // 고르기가 풀렸거나 서버 값과 같아진 대기를 버리고 버린 기관 id 목록을 돌려준다
     const out = [];
@@ -159,7 +189,7 @@
     pre = pre || {};
     it.op = op === 'EDIT' || op === 'CANCEL' || op === 'TO_WATCH' || op === 'NEXT' ? op : '';
     it.cancelCd = ''; it.cancelEtc = '';
-    if (it.op === 'EDIT') { it.year = Number(pre.year) || it.snap.year || 0; it.tag = pre.tag || it.snap.tagCd; it.memo = it.snap.memo; }
+    if (it.op === 'EDIT') { it.year = Number(pre.year) || it.snap.year || 0; it.tag = pre.tag || it.snap.tagCd; it.memo = it.snap.memo; it.aim = pre.aim !== undefined ? str(pre.aim) : str(it.snap.aimCd); }
     else if (it.op === 'NEXT') { it.year = (Number(it.snap.year) || 0) + 1; it.tag = it.snap.tagCd; it.memo = it.snap.memo; }   // 구분·메모는 그대로, 연도만 +1
     else { it.year = 0; it.tag = ''; it.memo = ''; }
     return it;
@@ -182,7 +212,7 @@
         const s = it.snap;
         if (!Number(it.year)) { bad(it, 'year', '목표 연도를 고르세요.'); return; }
         if (str(it.memo).trim().length > tc.MEMO_MAX) { bad(it, 'memo', '메모는 ' + tc.MEMO_MAX + '자 이내로 적으세요.'); return; }
-        if (Number(it.year) === Number(s.year) && it.tag === s.tagCd && str(it.memo).trim() === str(s.memo).trim()) bad(it, 'edit', '고친 내용이 없습니다. 칸을 바꾸거나 이 기관을 이번 수정에서 빼세요.');
+        if (Number(it.year) === Number(s.year) && it.tag === s.tagCd && str(it.aim === undefined ? s.aimCd : it.aim) === str(s.aimCd) && str(it.memo).trim() === str(s.memo).trim()) bad(it, 'edit', '고친 내용이 없습니다. 칸을 바꾸거나 이 기관을 이번 수정에서 빼세요.');
       } else if (it.op === 'NEXT') {
         if (!Number(it.year)) bad(it, 'year', '목표 연도를 고르세요.');
       } else if (it.op === 'CANCEL') {
@@ -201,9 +231,9 @@
   // 서버 TargetChangeIn 모양. 동작에 안 맞는 칸은 보내지 않는다(서버 shape()가 400). 영업부장 바로 반영은 사유를 받지 않는다.
   function toItem(it) {
     const b = { institution_id: it.id, op_cd: it.op };
-    if (it.op === 'ADD') { b.target_year = Number(it.year); b.tag_cd = it.tag; b.memo = str(it.memo).trim() || null; return b; }
+    if (it.op === 'ADD') { b.target_year = Number(it.year); if (it.tag) b.tag_cd = it.tag; b.memo = str(it.memo).trim() || null; return b; }   // 구분은 비워 둘 수 있다(사용자 11-25). 금고 방식 키는 ADD에 없다(서버 400)
     b.target_no = it.snap.targetNo; b.base_rev_no = it.snap.revNo;
-    if (it.op === 'EDIT' || it.op === 'NEXT') { b.op_cd = 'EDIT'; b.target_year = Number(it.year); b.tag_cd = it.tag; b.owner_emp_no = it.snap.ownerEmpNo || null; }   // NEXT = EDIT + 연도 +1(서버는 모른다). memo 키는 보내지 않는다 — 서버가 '키 없음 = 지금 값 유지'(BidTargetRules.keepUnsent)라 금칙어가 든 옛 메모에 걸리지 않는다(qa 11-25 P2-1)
+    if (it.op === 'EDIT' || it.op === 'NEXT') { b.op_cd = 'EDIT'; b.target_year = Number(it.year); b.tag_cd = it.tag; b.owner_emp_no = it.snap.ownerEmpNo || null; if (it.op === 'EDIT' && it.aim !== undefined && str(it.aim) !== str(it.snap.aimCd)) b.aim_rank_cd = str(it.aim); }   // NEXT = EDIT + 연도 +1(서버는 모른다). memo 키는 보내지 않는다 — 서버가 '키 없음 = 지금 값 유지'(BidTargetRules.keepUnsent)라 금칙어가 든 옛 메모에 걸리지 않는다(qa 11-25 P2-1)
     else if (it.op === 'CANCEL') { b.cancel_reason_cd = it.cancelCd; b.cancel_reason_etc = it.cancelCd === tc.ETC_CD ? str(it.cancelEtc).trim() : null; }
     else if (it.op === 'TO_GOAL') b.target_year = Number(it.year);
     return b;
@@ -258,11 +288,11 @@
     return e;
   };
   // kind === 'edit'(구분·메모 일괄 수정 창)이고 서버가 바로 반영했으면 수정 알림 문장.
-  tc.resultOf = function (body, n, kind) {
+  tc.resultOf = function (body, n, kind, what) {
     const direct = !!body && body.mode === 'DIRECT';
     const cnt = direct && Number(body.applied) > 0 ? Number(body.applied) : Number(n);
     return { mode: direct ? 'DIRECT' : 'APPROVAL', n: cnt,
-      text: direct ? (kind === 'edit' ? tc.editResultText(cnt) : kind === 'delete' ? '목표 기관 ' + cnt + '곳을 목표에서 뺐습니다. 뺀 기록(누가·언제·사유)은 남습니다.' : '목표 기관 ' + cnt + '곳을 바로 반영했습니다.') : '결재 요청을 올렸습니다 — 목표 기관 ' + cnt + '곳. 결재가 끝날 때까지 이 기관들은 잠깁니다.' };
+      text: direct ? (kind === 'edit' ? tc.editResultText(cnt, what) : kind === 'delete' ? '목표 기관 ' + cnt + '곳을 목표에서 뺐습니다. 뺀 기록(누가·언제·사유)은 남습니다.' : '목표 기관 ' + cnt + '곳을 바로 반영했습니다.') : '결재 요청을 올렸습니다 — 목표 기관 ' + cnt + '곳. 결재가 끝날 때까지 이 기관들은 잠깁니다.' };
   };
 
   // ── 자동 이월 알림(규격 5-5) — 받은 숫자로만 만든다 ───────────────────────
@@ -296,7 +326,7 @@
     const out = [];
     if (r && r.carried) {
       const t = tc.carriedTitle(r); if (t) out.push(t);
-      if (r.tagCd === 'NEW' && r.prevYear) out.push('되찾기 후보: 예전 국민은행 금고(마지막 ' + r.prevYear + '년)');
+      if ((r.tagCd === 'NEW' || !r.tagCd) && r.prevYear) out.push('되찾기 후보: 예전 국민은행 금고(마지막 ' + r.prevYear + '년)');
     }
     const j = tc.judgeText(r); if (j) out.push(j);
     return out;
@@ -336,7 +366,7 @@
   // 숫자 문장(role=status). 20곳 한도 같은 짧은 알림은 같은 자리에서 읽힌다.
   // kinds = { goal, watch }(없으면 '고른 기관 n곳'), off = 이 화면 밖에 고른 줄 수(규격 6-1)
   // note = 일반색 알림(경고 아님) — 저장 전 구분 바뀜 건수 — msg(한도 경고 .lim)가 있으면 msg가 이긴다.
-  tc.autoPickNote = function (n) { return '구분 바뀜 ' + Number(n) + '곳 — [수정하기]로 저장'; };   // 저장 전 대기 건수(사용자 11-25)
+  tc.autoPickNote = function (n, what) { return (str(what) || '구분') + ' 바뀜 ' + Number(n) + '곳 — [수정하기]로 저장'; };   // 저장 전 대기 건수(사용자 11-25)
   tc.selStatusHtml = function (n, msg, kinds, off, note) {
     n = Number(n); off = Number(off) || 0;
     const g = kinds ? Number(kinds.goal) || 0 : 0, w = kinds ? Number(kinds.watch) || 0 : 0;
@@ -349,7 +379,7 @@
   };
   // 결재 중인 줄의 구분 칸: 쓰기 자격자는 눌러 보는 칩(버튼), 그 밖은 글자 칩(span). 구분 이름은 title·sr로만
   tc.pendCellHtml = function (r, o) {
-    const nm = str(r.tagName || r.tagCd), info = r.pendInfo;
+    const nm = str(r.tagName || r.tagCd) || '정하지 않음', info = r.pendInfo;
     if (!(o && o.canEdit) || !info) return '<td title="결재가 진행 중인 기관입니다"><span class="hb-pend"><svg viewBox="0 0 12 12" aria-hidden="true">' + LOCK_IN + '</svg>결재 중</span><span class="sr-only">. 구분 ' + esc(nm) + '</span></td>';
     const opS = tc.opShort(info.op), opL = tc.opLong(info.op), when = tc.kst(info.at);
     const tip = ['구분: ' + nm, '결재 중' + (opL ? ': ' + opL + ' 요청' : ''), str(info.by) + (when ? ' ' + when : '')].filter(Boolean).join(' · ');
@@ -361,8 +391,8 @@
   // ── 띠 [수정하기]·[삭제하기] 확인 상자 + 기관 상세 팝업·일정 칸 [관심 기관으로…] 확인 상자(사용자 11-25 재요청, NEXT 114) ──────
   tc.EDIT_SKIP = '바뀐 내용 없음 — 제외';
   tc.DEL_SKIP = '관심 기관 — 제외';
-  tc.EDIT_NONE = '바뀐 구분이 없습니다. 표에서 구분을 고르면 켜집니다.';
-  tc.EDIT_NOPERM = '이 계정은 구분을 바로 고칠 수 없습니다.';
+  tc.EDIT_NONE = '바뀐 내용이 없습니다. 표에서 구분이나 금고 방식을 고르면 켜집니다.';
+  tc.EDIT_NOPERM = '이 계정은 구분·금고 방식을 바로 고칠 수 없습니다.';
   tc.DEL_WATCH = '고른 줄이 모두 관심 기관입니다. 관심 기관은 각 줄의 [관심에서 빼기…]로 뺍니다.';
   tc.DEL_NOREASON = '빼는 사유 목록을 받지 못했습니다. 목록을 다시 불러온 뒤 시도하세요.';
   tc.TOWATCH_GONE = '이 기관은 지금 옮길 수 없는 상태입니다. 목록을 다시 불러왔으니 확인하세요.';
@@ -391,8 +421,14 @@
     else r.on = true;
     return r;
   };
-  tc.editLine = function (e, d) { const x = tc.draftOf(d, e); return str(e.tagName || e.tagCd) + ' → ' + str(x ? x.tagName : ''); };
-  tc.deleteLine = function (e, d) { return (Number(e.year) > 0 ? e.year + ' ' : '') + '목표에서 뺌' + (tc.draftOf(d, e) ? ' · 바뀐 구분은 버림' : ''); };
+  tc.editLine = function (e, d) {
+    const x = tc.draftOf(d, e), none = '정하지 않음', out = [];
+    const tagCh = !x || x.tagCd !== e.tagCd, aimCh = !!(x && x.aimCd !== undefined && str(x.aimCd) !== str(e.aimCd));
+    if (tagCh) out.push((tagCh && aimCh ? '구분 ' : '') + (str(e.tagName || e.tagCd) || none) + ' → ' + (str(x ? x.tagName : '') || none));
+    if (aimCh) out.push('금고 방식 ' + (str(e.aimName || e.aimCd) || none) + ' → ' + (str(x.aimName) || none));
+    return out.join(' · ');   // 예: '재유치 도전 → 신규유치 도전' / '금고 방식 정하지 않음 → 1금고' / 둘 다면 '구분 … → … · 금고 방식 … → …'
+  };
+  tc.deleteLine = function (e, d) { return (Number(e.year) > 0 ? e.year + ' ' : '') + '목표에서 뺌' + (tc.draftOf(d, e) ? ' · 바뀐 ' + whatOfList(d, [e]) + '은 버림' : ''); };
   tc.approverShort = function (role) { const r = str(role).trim(); return r === '영업팀' ? '팀장 결재' : (r === '영업팀장' ? '부장 결재' : '결재'); };
   function pickedText(n, total, mid) { n = Number(n); total = Number(total) || n; return total === n ? '선택한 ' + n + '곳을' : '선택한 ' + total + '곳 중 ' + mid + n + '곳을'; }
   tc.editQuestion = function (n, total) {
@@ -412,14 +448,15 @@
   tc.toWatchHint = function (mode, role) {
     return mode === 'APPROVAL' ? tc.approverText(role, mode) + ' 결재가 끝나면 옮겨지고, 그때까지 이 기관은 구분도 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).' : tc.dlgHint('DIRECT', role);
   };
-  tc.toWatchFact = function (tagName) { return '구분(' + (str(tagName) || '구분') + ')과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.'; };
+  tc.toWatchFact = function (tagName) { return (str(tagName) ? '구분(' + str(tagName) + ')' : '구분') + '과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.'; };
   tc.deleteReason = function (reasons, cd, etc) {   // 결재 사유(서버 필수): 고른 빼는 사유에서 만든다(고정 문구라 개인정보 검사에 걸리지 않는다)
     const r = (reasons || []).filter(function (x) { return x.code === cd; })[0], e = cd === tc.ETC_CD ? str(etc).trim() : '';
     return '목표에서 빼기 — ' + (r ? r.name : str(cd)) + (e ? ': ' + e : '');
   };
   tc.bulkTitle = function (m) {
     if (m.kind === 'towatch') return '내 관심 기관으로 옮기기 — ' + str(m.regionName) + ' ' + str(m.name);
-    return (m.kind === 'delete' ? '목표에서 빼기' : '구분 수정') + ' — ' + Number(m.n) + '곳';
+    const what = m.kind === 'delete' ? '목표에서 빼기' : (m.what === '금고 방식' ? '금고 방식 수정' : (m.what === '구분·금고 방식' ? '구분·금고 방식 수정' : '구분 수정'));   // m.what = draftWhat 결과(팀 결정 11-26)
+    return what + ' — ' + Number(m.n) + '곳';
   };
   tc.bulkQuestion = function (m) { return m.kind === 'towatch' ? tc.toWatchQuestion(m) : (m.kind === 'delete' ? tc.deleteQuestion(m) : tc.editQuestion(m.n, m.total)); };
   // rows = [{ name, regionName, text, skip }] — 보낼 줄이 먼저, 제외 줄이 뒤(번호 없이 '—')
@@ -516,7 +553,7 @@
   }
   tc.beforeHtml = function (it) {
     if (it.add || !it.snap) return '목표·관심 아님';
-    const s = it.snap, tag = esc(s.tagName || s.tagCd);
+    const s = it.snap, tag = str(s.tagName || s.tagCd) ? esc(s.tagName || s.tagCd) : '구분 정하지 않음';
     if (s.kind === 'WATCH') return '관심 기관 · ' + tag;
     return '<span class="mono">' + esc(s.year) + '</span> 목표 · ' + tag + (s.ownerName ? ' · 주 담당 ' + esc(s.ownerName) : '') + (it.op === 'EDIT' ? ' · 메모 ' + (s.memo ? esc(s.memo) : '없음') : '');
   };
@@ -525,10 +562,10 @@
     const id = function (k) { return 'tc-i' + it.uid + '-' + k; }, u = ' data-uid="' + it.uid + '"';
     let dd;
     if (it.op === 'ADD') {
-      dd = '<span class="mono">' + esc(it.year) + '</span> 목표 · ' + esc(it.add.tagName) + (it.memo ? '<span class="tc-memo">메모: ' + esc(it.memo) + '</span>' : '');
+      dd = '<span class="mono">' + esc(it.year) + '</span> 목표 · ' + (it.add.tagName ? esc(it.add.tagName) : '구분 정하지 않음') + (it.memo ? '<span class="tc-memo">메모: ' + esc(it.memo) + '</span>' : '');
     } else if (it.op === 'EDIT') {
       dd = '<label for="' + id('y') + '">목표 연도</label><select id="' + id('y') + '"' + u + ' data-f="year">' + yearOpts(yearsFor(it, o.years), it.year, false) + '</select>' +
-        '<label for="' + id('t') + '">구분</label><select id="' + id('t') + '"' + u + ' data-f="tag">' + (o.tags || []).map(function (t) {
+        '<label for="' + id('t') + '">구분</label><select id="' + id('t') + '"' + u + ' data-f="tag">' + '<option value=""' + (it.tag ? '' : ' selected') + '>-</option>' + (o.tags || []).map(function (t) {
           return '<option value="' + esc(t.code) + '"' + (t.code === it.tag ? ' selected' : '') + '>' + esc(t.name) + '</option>';
         }).join('') + '</select>' +
         '<label for="' + id('m') + '">메모</label><input id="' + id('m') + '"' + u + ' data-f="memo" maxlength="' + tc.MEMO_MAX + '" size="20" value="' + esc(it.memo) + '">';
@@ -581,7 +618,7 @@
   };
   // 구분·메모 한꺼번에 수정 창(규격 6-4A): 같은 #tc-dlg 뼈대, 사유 칸·동작 칸·연도 칸 없음. 연도는 지금 값 그대로 보낸다.
   function tagOpts(tags, cur) {
-    return (tags || []).map(function (t) { return '<option value="' + esc(t.code) + '"' + (t.code === cur ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('');
+    return '<option value=""' + (cur ? '' : ' selected') + '>-</option>' + (tags || []).map(function (t) { return '<option value="' + esc(t.code) + '"' + (t.code === cur ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('');
   }
   tc.editItemHtml = function (it, n, o) {
     o = o || {};
@@ -697,14 +734,15 @@
   function goalLine(year, tag, owner, hl) {
     hl = hl || {};
     const y = hl.year ? '<b class="mono">' + esc(year) + '</b>' : '<span class="mono">' + esc(year) + '</span>';
-    const t = hl.tag ? '<b>' + esc(tag) + '</b>' : esc(tag);
+    const tg = str(tag) ? esc(tag) : '구분 정하지 않음';   // esc(null)이 'null'이 되지 않게(qa P2-1)
+    const t = hl.tag ? '<b>' + tg + '</b>' : tg;
     const w = owner ? ' · 주 담당 ' + (hl.owner ? '<b>' + esc(owner) + '</b>' : esc(owner)) : (hl.owner ? ' · <b>주 담당 없음</b>' : '');
     return y + ' 목표 · ' + t + w;
   }
   function beforeCell(x) {
     const b = x.before;
     if (!b) return '<span aria-hidden="true">—</span><span class="sr-only">없음, 새로 넣기</span>';
-    if (b.kind_cd === 'WATCH') return '관심 기관 · ' + esc(b.tag_name);
+    if (b.kind_cd === 'WATCH') return '관심 기관' + (str(b.tag_name) ? ' · ' + esc(b.tag_name) : ' · 구분 정하지 않음');
     return goalLine(b.target_year, b.tag_name, b.owner_name);
   }
   function afterCell(x) {

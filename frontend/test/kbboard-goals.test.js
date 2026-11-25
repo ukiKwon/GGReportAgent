@@ -314,7 +314,7 @@ test('goalRowHtml: 지연 행(late·지연 칩·마감 D-n·준비 단계 막대
   assert.ok(h.indexOf('<span class="hb-stg"><span class="lb" title="사전준비">사전준비</span><span class="hb-pg" aria-hidden="true"><i style="width:60%"></i></span><span class="n">3/5</span><span class="hb-late">지연</span></span>') > 0);
   assert.ok(h.indexOf('<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">설명회 기록 없음</span></td>') > 0);   // 설명회 열은 1단계에 '—'
   assert.ok(h.indexOf('<td class="ln"><div class="hb-lane" aria-hidden="true">') > 0 && h.indexOf('class="w hot"') > 0);
-  assert.strictEqual((h.match(/<td/g) || []).length, 6);                                                      // th 1 + td 6 = 7열
+  assert.strictEqual((h.match(/<td/g) || []).length, 7);                                                      // th 1 + td 7 = 8열(금고 방식 칸 포함)
   // 지연이 아니면 class 없음, 단계 기록이 없고 제안 사전준비가 가능하면 단계 칸에 '시작 전' 글자만(줄마다 있던 [제안 확정] 단추는 11-25에 없앴다)
   const ok = rowHtml(kbb.goalRow(tgt('IF', 'NEW'), mkCtx()));
   assert.ok(ok.indexOf('<tr><th scope="row">') === 0 && ok.indexOf('hb-late') < 0);
@@ -384,20 +384,20 @@ test('서버 글(이름·메모·편집자)은 전부 이스케이프(S8) — �
   assert.ok(kbb.laneCellHtml({ kind: 'fixed', days: 3, from: X, to: X }, kbb.laneWindow(TODAY, 2026)).indexOf('<img') < 0);
 });
 
-test('goalTableHtml: 표 구조(caption·colgroup·머리 7열·월 머리), 상태별 문구(불러오는 중·서버 없음·권한·오류·빈 상태·목표 밖 묶음)', function () {
+test('goalTableHtml: 표 구조(caption·colgroup·머리 8열·월 머리), 상태별 문구(불러오는 중·서버 없음·권한·오류·빈 상태·목표 밖 묶음)', function () {
   const win = kbb.laneWindow(TODAY, 2026), base = { year: 2026, win: win, rows: [], out: [], canEdit: true, cands: [] };
   const ctx = mkCtx();
   const rows = kbb.sortGoals(kbb.goalRows([tgt('IA', 'RETAIN'), tgt('IB', 'NEW')], ctx));
   const out = kbb.outRows([{ institutionId: 'IF', name: '바' }], {}, ctx);
   const ok = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, out: out }));
   assert.ok(ok.indexOf('<table class="hb-tt"><caption class="sr-only">2026 목표 기관 2곳과 그 밖의 제안서 준비 중인 기관 1곳, 마감 가까운 순</caption><colgroup>') === 0);
-  assert.ok(ok.indexOf('<col class="c-nm"><col class="c-tag"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf"><col class="ln">') > 0);   // 열 폭은 CSS 클래스(인라인 px 없음)
+  assert.ok(ok.indexOf('<col class="c-nm"><col class="c-tag"><col class="c-aim"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf"><col class="ln">') > 0);   // 열 폭은 CSS 클래스(인라인 px 없음)
   assert.ok(ok.indexOf('<col style') < 0);
   assert.ok(ok.indexOf('hb-pretry') < 0);                                                                       // 제안 진행 자료가 정상이면 오류 안내 없음
-  ['기관', '구분', '마감까지', '현 금고 은행', '준비 단계', '설명회'].forEach(function (c) { assert.ok(ok.indexOf('<th scope="col">' + c + '</th>') > 0, c); });
+  ['기관', '구분', '금고 방식', '마감까지', '현 금고 은행', '준비 단계', '설명회'].forEach(function (c) { assert.ok(ok.indexOf('<th scope="col">' + c + '</th>') > 0, c); });
   assert.ok(ok.indexOf('<span class="yr">2026.11 ~ 2027.10</span><span class="mh" aria-hidden="true"><span>11</span><span>12</span><span>1</span>') > 0);
   assert.strictEqual((ok.match(/<span>\d+<\/span>/g) || []).length, 12);
-  assert.ok(ok.indexOf('<tr class="grp"><th scope="rowgroup" colspan="7">그 밖의 제안서 준비 중인 기관 <b>1</b>곳</th></tr>') > 0);
+  assert.ok(ok.indexOf('<tr class="grp"><th scope="rowgroup" colspan="8">그 밖의 제안서 준비 중인 기관 <b>1</b>곳</th></tr>') > 0);
   assert.ok(ok.indexOf('data-act="add"') > ok.indexOf('rowgroup'));                                            // 목표에 넣기는 묶음 안
   assert.ok(ok.indexOf('hb-nm') < ok.indexOf('rowgroup'));
   const M = kbb.GOAL_MSG;
@@ -410,7 +410,7 @@ test('goalTableHtml: 표 구조(caption·colgroup·머리 7열·월 머리), 상
   assert.ok(tb('error', 0).indexOf('서버에 연결되지 않음') > 0);
   // 제안 진행 자료 오류(qa 11-17 P2-1): 목표 밖 묶음 자리에 오류 안내 + [다시 시도](#hb-pretry). 목표 밖 기관이 있으면 안내 없이 묶음, 권한 없음(403)은 표에 안내를 두지 않는다(띠가 이유를 말한다)
   const pe = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, prep: 'error', prepCode: 500 }));
-  assert.ok(pe.indexOf('<tr class="grp"><th scope="rowgroup" colspan="7">그 밖의 제안서 준비 중인 기관</th></tr><tr class="emp"><td colspan="7"><p class="db-state">제안 진행 자료를 불러오지 못했습니다(오류 500).') > 0);
+  assert.ok(pe.indexOf('<tr class="grp"><th scope="rowgroup" colspan="8">그 밖의 제안서 준비 중인 기관</th></tr><tr class="emp"><td colspan="8"><p class="db-state">제안 진행 자료를 불러오지 못했습니다(오류 500).') > 0);
   assert.ok(pe.indexOf('<button type="button" id="hb-pretry">다시 시도</button>') > 0 && pe.indexOf('id="hb-gretry"') < 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, prep: 'error', prepCode: 0 })).indexOf('제안 진행 자료를 불러오지 못했습니다(서버에 연결되지 않음).') > 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, out: out, prep: 'error' })).indexOf('hb-pretry') < 0);
@@ -462,9 +462,9 @@ test('searchInst: 2자부터·최대 8곳·이름이 검색어로 시작하는 �
   assert.ok(html.indexOf('<li role="option" id="hb-a-o1" data-i="1" aria-selected="false" aria-disabled="true">') > 0 && html.indexOf('이미 2026 목표') > 0);
 });
 
-test('addState·cancelState: 기관 → 구분 → 메모 100자 순으로 막고 이유를 말한다 / 빼기 사유 필수, 기타는 글 필수(50자)', function () {
+test('addState·cancelState: 기관 → 연도 → 메모 100자 순으로(구분은 비워 둘 수 있다) 막고 이유를 말한다 / 빼기 사유 필수, 기타는 글 필수(50자)', function () {
   assert.deepStrictEqual(kbb.addState({}), { canGo: false, why: '기관을 고르세요.' });
-  assert.deepStrictEqual(kbb.addState({ inst: { id: 'I1' }, year: 2026, tag: '' }), { canGo: false, why: '구분을 고르세요.' });
+  assert.deepStrictEqual(kbb.addState({ inst: { id: 'I1' }, year: 2026, tag: '' }), { canGo: true, why: '' });
   assert.deepStrictEqual(kbb.addState({ inst: { id: 'I1' }, tag: 'NEW', year: 0 }), { canGo: false, why: '목표 연도를 고르세요.' });
   assert.deepStrictEqual(kbb.addState({ inst: { id: 'I1' }, tag: 'NEW', year: 2026, memo: '가'.repeat(101) }), { canGo: false, why: '메모는 100자 이내로 적으세요.' });
   assert.deepStrictEqual(kbb.addState({ inst: { id: 'I1' }, tag: 'NEW', year: 2026, memo: '가'.repeat(100) }), { canGo: true, why: '' });
@@ -482,7 +482,7 @@ test('대화창 마크업: 추가 = 기관 combobox·목표 연도·구분 라�
   assert.ok(add.indexOf('<div class="modal-box tm-modal-box hb-dlg" role="dialog" aria-modal="true" aria-labelledby="hb-d-t"><h3 id="hb-d-t">목표 기관 추가</h3>') === 0);
   assert.ok(add.indexOf('<div class="tm-reason-row"><label for="hb-a-q">기관 (필수)</label></div><input type="text" id="hb-a-q" role="combobox" aria-expanded="false" aria-controls="hb-a-list" aria-autocomplete="list"') > 0);
   assert.ok(add.indexOf('<option value="2027" selected>2027년</option>') > 0 && add.indexOf('<option value="2026">2026년</option>') > 0);
-  assert.ok(add.indexOf('<legend>구분 (필수)</legend>') > 0 && add.indexOf('<input type="radio" name="hb-a-tag" value="NEW" checked>') > 0);
+  assert.ok(add.indexOf('<legend>구분 (선택)</legend>') > 0 && add.indexOf('<input type="radio" name="hb-a-tag" value="NEW" checked>') > 0);
   assert.ok(add.indexOf('메모 (선택)') > 0 && add.indexOf('<span id="hb-a-cnt" class="tm-count">0/100</span>') > 0 && add.indexOf('개인정보를 적지 마세요.') > 0);
   assert.ok(add.indexOf('<button type="button" id="hb-a-cancel">취소</button><button type="button" id="hb-a-go" class="pp-next-btn" disabled aria-describedby="hb-a-why">목표에 넣기</button>') > 0);
   assert.ok(add.indexOf('id="hb-a-err" class="ap-err" role="alert"') > 0);

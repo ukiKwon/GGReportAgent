@@ -2157,9 +2157,12 @@
   .hb-tt { width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; }
   .hb-tt col.c-nm { width:150px; } .hb-tt col.c-tag { width:166px; } .hb-tt col.c-due { width:120px; }   /* 열 폭(design 11-17 6-A): 구분 166('예전 KB')·마감까지 120('D+140 추정 지남')·현 금고 은행 124가 잘리지 않게, 일정 열은 나머지 */
   .hb-tt col.c-bank { width:124px; } .hb-tt col.c-stg { width:148px; } .hb-tt col.c-brf { width:56px; }
+  .hb-tt col.c-aim { width:92px; }   /* 금고 방식(NEXT 114): 칩 '단수금고 ▾' 약 76px + 칸 패딩 12px. 1280px 기준(좁은 폭 미지원) */
   .hb-tt thead th { position:sticky; top:0; z-index:1; height:40px; padding:0 10px 7px; vertical-align:bottom; text-align:left; font-size:12px; font-weight:700; white-space:nowrap; color:var(--muted);
     background:var(--panel); border-bottom:1px solid var(--line-strong); }
-  .hb-tt thead th:nth-child(6) { padding-left:6px; padding-right:4px; }   /* 설명회(56px) 굵은 12px가 들어가게 */
+  .hb-tt:not(.wt) thead th:nth-child(7) { padding-left:6px; padding-right:4px; }   /* 설명회(56px) 굵은 12px가 들어가게(금고 방식 열이 생겨 6→7번째). 관심 표(.wt)는 열이 6개라 이전 규칙(6번째)을 그대로 쓴다 */
+  .hb-tt.wt thead th:nth-child(6) { padding-left:6px; padding-right:4px; }
+  .hb-tt td.aim { padding:0 4px 0 8px; }   /* 금고 방식 칸: 점선 칩이 '바뀜' 꼬리표 없이 92px 안에 든다 */
   .hb-tt td, .hb-tt tbody th { height:40px; padding:0 10px; vertical-align:middle; text-align:left; font-size:12px; font-weight:400; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .hb-tt td.mut, .hb-tt .mut { color:var(--muted); }
   .hb-tt .hb-nm { all:unset; cursor:pointer; border-radius:var(--r); font-size:13px; font-weight:700; color:var(--fg); }
@@ -2184,7 +2187,7 @@
   .hb-tag svg { width:8px; height:8px; fill:none; stroke:var(--muted); stroke-width:1.4; }
   .hb-tag.add { border-style:dashed; padding:2px 8px; }
   .hb-tag.ro { border-color:var(--line-strong); cursor:default; padding:2px 8px; }   /* 보기 전용: span, ▾ 없음 */
-  .hb-tag.draft { border-style:dashed; border-color:var(--accent-color); }   /* 저장 전 구분(대기): 점선 + 꼬리표 '바뀜' — 색만으로 구분하지 않는다 */
+  .hb-tag.draft { border-style:dashed; border-color:var(--accent-color); }   /* 저장 전 구분(대기): 점선 + 꼬리표 '바뀜' — 색만으로 구분하지 않는다. 금고 방식 칸은 폭 때문에 꼬리표 없이 점선 + 낭독문 */
   .hb-q.hb-dft { color:var(--fg); font-weight:700; }
   .hb-dd { font:700 16px var(--mono); color:var(--fg); }
   .hb-dd.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
@@ -2409,9 +2412,9 @@
   .hb-rec-h[aria-expanded="true"] svg { transform:rotate(180deg); }
   @media (prefers-reduced-motion:reduce) { .hb-rec-h svg { transition:none; } }
   @media (max-width:880px) { .hb-rec li { grid-template-columns:1fr; } .hb-rec li > .hb-tag { grid-column:1; grid-row:3; justify-self:end; } }
-  /* 1279px 이하: 12개월 일정 열·범례를 숨긴다(날짜는 '마감까지' 열이 맡는다). 880px 이하: 요약 띠 2×2, 표는 안에서 가로 스크롤 */
+  /* 1279px 이하: 12개월 일정 열·범례를 숨긴다(날짜는 '마감까지' 열이 맡는다). 사용자 11-26: 12개월 띠 불필요 — 완전 제거·줄 단추 옮기기는 다음 작업. 880px 이하: 요약 띠 2×2, 표는 안에서 가로 스크롤 */
   @media (max-width:1279px) { .hb-tt .ln, .hb-tf .lg { display:none; } .hb-tt col.c-nm { width:auto; } }   /* 일정 열을 숨기면 남는 폭을 기관 열이 받는다(표가 끝까지 찬다) */
-  @media (max-width:880px) { .hb-band { grid-template-columns:1fr 1fr; } .hb-k:nth-child(3) { border-left:0; } .hb-tp { height:auto; } .hb-tt { min-width:764px; } }
+  @media (max-width:880px) { .hb-band { grid-template-columns:1fr 1fr; } .hb-k:nth-child(3) { border-left:0; } .hb-tp { height:auto; } .hb-tt { min-width:856px; } }
   @media (max-width:880px) { .hb-stgs { grid-template-columns:88px repeat(5, minmax(150px,1fr)); overflow-x:auto; } }
   @media (prefers-reduced-motion:reduce) { .hb-row { transition:none; } }
   /* 11-19 4-4 결과 알림 띠(.hb-note: 요약 띠 아래·표 위) + 옮긴 줄·탭 강조(.hb-just). 새 hex·새 변수 없음, 상태색 --blue/--accent-color만 */
@@ -2431,8 +2434,10 @@
   .hb-tt .ck label { display:flex; align-items:center; justify-content:center; width:32px; height:40px; cursor:pointer; }
   .hb-tt .ck input { width:16px; height:16px; margin:0; accent-color:var(--accent-color); }
   .hb-tt .ck .lk { width:12px; height:12px; fill:none; stroke:var(--muted); stroke-width:1.3; }
-  .hb-tt.sel thead th:nth-child(6) { padding-left:10px; padding-right:10px; }   /* 고르기 열이 앞에 서면 설명회 머리가 6번째에서 7번째로 밀린다 */
-  .hb-tt.sel thead th:nth-child(7) { padding-left:6px; padding-right:4px; }
+  .hb-tt.sel:not(.wt) thead th:nth-child(7) { padding-left:10px; padding-right:10px; }   /* 고르기 열이 앞에 서면 설명회 머리가 7번째에서 8번째로 밀린다 */
+  .hb-tt.sel:not(.wt) thead th:nth-child(8) { padding-left:6px; padding-right:4px; }
+  .hb-tt.wt.sel thead th:nth-child(6) { padding-left:10px; padding-right:10px; }   /* 관심 표: 이전 규칙 그대로(6번째 원래 값, 7번째 동작 머리) */
+  .hb-tt.wt.sel thead th:nth-child(7) { padding-left:6px; padding-right:4px; }
   .hb-tt tbody tr.picked > * { background:color-mix(in srgb, var(--accent-color) 8%, var(--panel)); }
   .hb-tt tbody tr.picked > td.ck { background:linear-gradient(to right, var(--accent-color) 3px, transparent 3px), color-mix(in srgb, var(--accent-color) 8%, var(--panel)); }   /* 고른 줄 왼쪽 막대(그림자 없이 그라데이션) */
   .hb-tt tr.late.picked > * { background:color-mix(in srgb, var(--red) 8%, var(--panel)); }

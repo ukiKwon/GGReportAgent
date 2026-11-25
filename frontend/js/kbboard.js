@@ -472,6 +472,13 @@
     return nm + josaEun(nm) + ' 지금 ' + whoIs(def) + ' 금고라 \'' + tag + '\'' + dash.josaEul(tag) + ' 골랐습니다. 바꿀 수 있습니다.';
   };
   // 메뉴 맨 위 설명 줄에 쓰는 근거(규격 6-E ②)
+  // 목표 기관 추가 창 근거 한 줄(사용자 11-25: 구분은 미리 고르지 않는다 — 참고만). 은행을 모르면 빈 글.
+  kbb.tagHint = function (def, name) {
+    if (!def || !def.tag) return '';
+    const nm = String(name || ''), tag = kbb.TAG[def.tag] || '';
+    if (def.tag === 'REGAIN') return '참고: ' + nm + josaEun(nm) + ' ' + def.last + '년까지 국민은행이 금고였고 지금은 ' + (def.bank || '다른 은행') + ' 금고입니다. 은행 기록으로는 ' + tag + '에 해당합니다. 구분은 직접 고르세요.';
+    return '참고: ' + nm + josaEun(nm) + ' 지금 ' + whoIs(def) + ' 금고입니다. 은행 기록으로는 ' + tag + '에 해당합니다. 구분은 직접 고르세요.';
+  };
   kbb.tagWhy = function (def) { return def && def.why === 'regain' ? '예전 국민은행 금고(' + def.last + '년까지)' + (def.bank ? ' · 지금 ' + def.bank : '') : (def && def.why === 'other' ? '지금 ' + whoIs(def) + ' 금고' : (def && def.tag ? '지금 국민은행 협약 중' : '')); };
 
   // 마감까지 모델. it = dash.itemForRec 결과(없으면 미상).
@@ -571,7 +578,7 @@
     const q = String(f.q == null ? '' : f.q).trim().toLowerCase();
     return (rows || []).filter(function (r) {
       if (q && String(r.name).toLowerCase().indexOf(q) < 0 && String(r.regionName).toLowerCase().indexOf(q) < 0) return false;
-      if (f.tag && r.tagCd !== f.tag) return false;
+      if (f.tag === 'NONE') { if (r.tagCd) return false; } else if (f.tag && r.tagCd !== f.tag) return false;   // 'NONE' = 구분 미정
       if (f.kind === 'goal' && r.out) return false;
       if (f.kind === 'out' && !r.out) return false;
       if (typeof f.stage === 'number' && f.stage >= 0 && r.stage !== f.stage) return false;
@@ -807,7 +814,7 @@
     const lastKb = kbb.formerKbYear(sum, ty);
     const r = { id: id, key: key, fkey: key || ('id:' + id), rec: rec, it: it, out: !!out, name: (rec && rec.name) || String(t.institution_name || '') || id,   // 기관 자료(지자체 목록)에 없는 기관(공공기관·조달 등)도 서버가 준 이름으로, 이름도 없으면 id로 줄을 낸다(11-25 지도 ♥ 보고)
       regionName: dash.regionName((rec && rec.region) || t.region_code || ''),
-      targetNo: t.target_no, revNo: t.rev_no, targetYear: t.target_year, tagCd: t.tag_cd || '', tagName: t.tag_name || kbb.TAG[t.tag_cd] || '',
+      targetNo: t.target_no, revNo: t.rev_no, targetYear: t.target_year, tagCd: t.tag_cd || '', tagName: t.tag_name || kbb.TAG[t.tag_cd] || '', aimCd: t.aim_rank_cd || '', aimName: t.aim_rank_name || '', aimMode: t.aim_mode === 'DIRECT' || t.aim_mode === 'APPROVAL' ? t.aim_mode : '',
       memo: String(t.memo || ''), ownerEmpNo: t.owner_emp_no || '', editorName: String(t.editor_name || ''), firstEditor: String(t.first_editor_name || ''),
       savedAt: String(t.saved_at || ''), empVerified: t.emp_verified === true, canCancel: !!t.can_cancel,
       due: due, bank: kbb.bankInfo(sum, rec, { lofin: ctx.lofin, today: ctx.today }),
@@ -877,9 +884,9 @@
   // prepOk가 아니면(제안 진행 자료를 못 받음) 지연·보류는 null — 판정하지 않는다.
   kbb.bandModel = function (rows, o) {
     o = o || {};
-    const b = { n: rows.length, retain: 0, regain: 0, fresh: 0, soon: 0, delay: null, hold: null, delayDays: o.delayDays || kbb.DELAY_DEFAULT, bars: [] };
+    const b = { n: rows.length, retain: 0, regain: 0, fresh: 0, none: 0, soon: 0, delay: null, hold: null, delayDays: o.delayDays || kbb.DELAY_DEFAULT, bars: [] };
     rows.forEach(function (r) {
-      if (r.tagCd === 'RETAIN') b.retain += 1; else if (r.tagCd === 'REGAIN') b.regain += 1; else if (r.tagCd === 'NEW') b.fresh += 1;
+      if (r.tagCd === 'RETAIN') b.retain += 1; else if (r.tagCd === 'REGAIN') b.regain += 1; else if (r.tagCd === 'NEW') b.fresh += 1; else b.none += 1;
       if (!r.closed && r.due.kind === 'fixed' && r.due.days <= kbb.DEADLINE_SOON) b.soon += 1;
     });
     if (o.prepOk) { b.delay = rows.filter(function (r) { return r.late === true; }).length; b.hold = rows.filter(function (r) { return r.hold === true; }).length; }
@@ -905,7 +912,7 @@
     const dash2 = '—', y = esc(v.year), ld = !!v.loaded;
     const big = function (n, hot) { return '<span class="v' + (hot && n > 0 ? ' hot' : '') + '">' + n + '<span>곳</span></span>'; };
     const k1 = '<div class="hb-k"><span class="l">' + y + ' 목표 기관</span>' + (ld ? big(b.n, false) : '<span class="v">' + dash2 + '</span>') +
-      '<span class="s">' + (ld ? '<span class="nw">재유치 <b>' + b.retain + '</b></span> · <span class="nw">되찾기 <b>' + b.regain + '</b></span> · <span class="nw">신규 <b>' + b.fresh + '</b></span>' : '&nbsp;') + '</span></div>';
+      '<span class="s">' + (ld ? '<span class="nw">재유치 <b>' + b.retain + '</b></span> · <span class="nw">되찾기 <b>' + b.regain + '</b></span> · <span class="nw">신규 <b>' + b.fresh + '</b></span>' + (b.none > 0 ? ' · <span class="nw">미정 <b>' + b.none + '</b></span>' : '') : '&nbsp;') + '</span></div>';
     const k2 = '<div class="hb-k"><span class="l">접수 마감 ' + kbb.DEADLINE_SOON + '일 안</span>' + (ld ? big(b.soon, true) : '<span class="v">' + dash2 + '</span>') +
       '<span class="s">공고로 확정된 마감일만 셉니다</span></div>';
     const M = kbb.BAND_MSG, none = ld && b.n === 0;
@@ -948,6 +955,7 @@
 
   // 표 행(규격 6-C). r = goalRow 결과, o = { win, canEdit }
   const CHEV = '<svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg>';
+  const NONE_CHIP = '<span aria-hidden="true">-</span><span class="sr-only">정하지 않음</span>';   // 구분·금고 방식이 비었을 때 칩 글자('-' 눈, '정하지 않음' 낭독)
   function tagCellHtml(r, o) {
     if (r.out) {
       return '<td>' + (o.canEdit ? '<button type="button" class="hb-tag add" data-act="add" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-label="' + esc(r.name) + ' 목표에 넣기">목표에 넣기</button>'
@@ -957,18 +965,34 @@
     const canChip = o.canEdit && (typeof o.canTag !== 'function' || o.canTag(r));   // 구분을 고칠 수 없는 줄(지난해 목표·바로 반영 아님)은 빈 메뉴 대신 읽기 전용 칩(qa P2-3)
     const dr = canChip && o.drafts && r.kind !== 'WATCH' ? tc.draftOf(o.drafts, r) : null;
     const dv = dr && dr.tagCd !== r.tagCd ? dr : null;   // 저장 전 '바뀔 구분'
-    const nm = esc(dv ? dv.tagName : (r.tagName || r.tagCd));
+    const nm = dv ? esc(dv.tagName) : (esc(r.tagName || r.tagCd) || NONE_CHIP);
     // 넣은 사람·고친 사람·메모는 서버 글 — 전부 이스케이프. 사번 확인 안 된 기록은 '확인됨'처럼 보이지 않게 '사번 자기신고'를 밝힌다.
     const tip = [r.memo ? '메모: ' + r.memo : '', r.firstEditor ? '넣은 사람 ' + r.firstEditor : '',
       r.editorName ? '마지막 고침 ' + r.editorName + (r.empVerified ? '' : '(사번 자기신고)') + (r.savedAt ? ' ' + r.savedAt.slice(0, 16).replace('T', ' ') : '') : ''].concat(tc.rowTips(r)).filter(Boolean).join(' · ');
-    const prev = r.tagCd === 'NEW' && r.prevYear ? (r.carried ? '' : '<span class="hb-q hb-prev" title="되찾기 후보 — 예전에 국민은행 금고였던 기관(마지막 ' + r.prevYear + '년)">되찾기</span>') + (r.carried ? '' : '<span class="sr-only"> 되찾기 후보, 예전 국민은행 금고, 마지막 ' + r.prevYear + '년</span>') : '';   // 이월 줄은 rowTips 문장이 같은 말을 읽어 준다(두 번 읽지 않게)
+    const prev = (r.tagCd === 'NEW' || !r.tagCd) && r.prevYear ? (r.carried ? '' : '<span class="hb-q hb-prev" title="되찾기 후보 — 예전에 국민은행 금고였던 기관(마지막 ' + r.prevYear + '년)">되찾기</span>') + (r.carried ? '' : '<span class="sr-only"> 되찾기 후보, 예전 국민은행 금고, 마지막 ' + r.prevYear + '년</span>') : '';   // 이월 줄은 rowTips 문장이 같은 말을 읽어 준다(두 번 읽지 않게)
     const chip = canChip
       ? '<button type="button" class="hb-tag' + (dv ? ' draft' : '') + '" data-act="tag" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="menu" aria-expanded="false"><span class="sr-only">' + (dv ? '바뀔 구분: ' : '구분: ') + '</span>' + nm + CHEV + '</button>'
       : '<span class="hb-tag ro"><span class="sr-only">구분: </span>' + nm + '</span>';
-    const dtail = dv ? '<span class="hb-q hb-dft">바뀜</span><span class="sr-only">. 저장 전입니다. 지금 저장된 구분은 ' + esc(r.tagName || r.tagCd) + '</span>' : '';
+    const dtail = dv ? '<span class="hb-q hb-dft">바뀜</span><span class="sr-only">. 저장 전입니다. 지금 저장된 구분은 ' + (esc(r.tagName || r.tagCd) || '정하지 않음') + '</span>' : '';
     return '<td' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' + chip + dtail + (r.carried ? '<span class="hb-q">이월</span>' : '') + prev + (tip ? '<span class="sr-only">. ' + esc(tip) + '</span>' : '') + '</td>';
   }
   kbb.tagCellHtml = tagCellHtml;
+  // 금고 방식 칸(NEXT 114): 목표 줄 '구분' 바로 오른쪽. 값 1금고·2금고·단수금고·주거래, 비면 '-'. 관심 기관 표에는 이 칸이 없다.
+  // 고르기는 구분 칩과 같다 — 메뉴에서 고르면 저장 전 대기(.draft 점선)에 담고 띠 [수정하기]로 저장. 칸이 좁아(92px) '바뀜' 꼬리표 대신 점선 + 낭독문 + title로 알린다.
+  // 고를 수 있는 줄: 서버 aim_mode가 DIRECT(APPROVAL = 지난해 목표 → 읽기 전용 칩) + o.canAim(r)(지난해·일괄 수정 권한). 결재 중 줄·권한 없음도 읽기 전용.
+  function aimCellHtml(r, o) {
+    if (r.out) return '<td class="aim mut"><span aria-hidden="true">—</span><span class="sr-only">목표가 아니어서 금고 방식 없음</span></td>';
+    const can = !r.pend && !!o.canEdit && r.aimMode === 'DIRECT' && (typeof o.canAim !== 'function' || o.canAim(r));
+    const dr = can && o.drafts ? tc.draftOf(o.drafts, r) : null;
+    const dv = dr && dr.aimCd !== undefined && String(dr.aimCd) !== String(r.aimCd || '') ? dr : null;
+    const nm = esc(dv ? dv.aimName : (r.aimName || r.aimCd)) || NONE_CHIP;
+    const chip = can
+      ? '<button type="button" class="hb-tag' + (dv ? ' draft' : '') + '" data-act="aim" data-inst="' + esc(r.id) + '" data-key="' + esc(r.fkey) + '" aria-haspopup="menu" aria-expanded="false"><span class="sr-only">' + (dv ? '바뀔 금고 방식: ' : '금고 방식: ') + '</span>' + nm + CHEV + '</button>'
+      : '<span class="hb-tag ro"><span class="sr-only">금고 방식: </span>' + nm + '</span>';
+    const dtail = dv ? '<span class="sr-only">. 저장 전입니다. 지금 저장된 금고 방식은 ' + (esc(r.aimName || r.aimCd) || '정하지 않음') + '</span>' : '';
+    return '<td class="aim"' + (dv ? ' title="저장 전 — 띠의 [수정하기]로 저장합니다"' : '') + '>' + chip + dtail + '</td>';
+  }
+  kbb.aimCellHtml = aimCellHtml;
   function stageCellHtml(r) {
     const late = r.late ? '<span class="hb-late">지연</span>' : '';
     if (r.stage >= 0) {
@@ -994,7 +1018,7 @@
     // 동작 단추(.hb-acts)를 그리는 줄에는 has-acts — 단추가 비어 있는 설명회 칸까지 넘쳐 나가게(CSS가 이 클래스로 칸 잘림을 푼다, 실사용 버그 11-23)
     let trCls = tc.rowClass(r, o);
     if (lane.indexOf('hb-acts') >= 0) trCls = trCls ? trCls.replace(/"$/, ' has-acts"') : ' class="has-acts"';
-    return '<tr' + trCls + '>' + (o.selCol ? tc.ckCellHtml(r, o) : '') + '<th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + '<td' + dueAttr + '>' + due + '</td>' + kbb.bankCellHtml(r.bank) + stageCellHtml(r) +
+    return '<tr' + trCls + '>' + (o.selCol ? tc.ckCellHtml(r, o) : '') + '<th scope="row">' + nm + '</th>' + tagCellHtml(r, o) + aimCellHtml(r, o) + '<td' + dueAttr + '>' + due + '</td>' + kbb.bankCellHtml(r.bank) + stageCellHtml(r) +
       '<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">설명회 기록 없음</span></td><td class="ln">' + lane + '</td></tr>';
   };
   // 목표 밖 준비 줄이 올해 입찰 종료이면 12개월 칸: 옮길 목표가 없으니 버튼 없이 사실만(그림 + 같은 뜻의 sr-only 문장, design 11-19 A).
@@ -1064,13 +1088,13 @@
     return '<th scope="col"' + (on ? ' aria-sort="' + (dir === 'desc' ? 'descending' : 'ascending') + '"' : '') + '><button type="button" class="hb-sort" data-sort="' + key + '">' + label + SORT_ICON[on ? dir : 'none'] + '</button></th>';
   }
   kbb.goalTableHtml = function (v) {
-    const win = v.win, watch = v.tab === 'watch', sel = !!v.selCol, ncol = (watch ? 6 : 7) + (sel ? 1 : 0);
+    const win = v.win, watch = v.tab === 'watch', sel = !!v.selCol, ncol = (watch ? 6 : 8) + (sel ? 1 : 0);
     const cols = watch
       ? '<colgroup>' + (sel ? '<col class="c-ck">' : '') + '<col class="c-wnm"><col class="c-tag"><col class="c-next"><col class="c-bank"><col class="c-memo"><col class="c-act"></colgroup>'
-      : '<colgroup>' + (sel ? '<col class="c-ck">' : '') + '<col class="c-nm"><col class="c-tag"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf"><col class="ln"></colgroup>';
+      : '<colgroup>' + (sel ? '<col class="c-ck">' : '') + '<col class="c-nm"><col class="c-tag"><col class="c-aim"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf"><col class="ln"></colgroup>';
     const head = watch
       ? '<thead><tr>' + (sel ? tc.ckHeadHtml(true) : '') + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('공고·다음 협약 종료', 'next', v) + thHtml('현 금고 은행', 'bank', v) + '<th scope="col">메모</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>'
-      : '<thead><tr>' + (sel ? tc.ckHeadHtml() : '') + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('마감까지', 'due', v) + thHtml('현 금고 은행', 'bank', v) + thHtml('준비 단계', 'stage', v) + '<th scope="col">설명회</th>' +
+      : '<thead><tr>' + (sel ? tc.ckHeadHtml() : '') + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('금고 방식', '', v) + thHtml('마감까지', 'due', v) + thHtml('현 금고 은행', 'bank', v) + thHtml('준비 단계', 'stage', v) + '<th scope="col">설명회</th>' +
         '<th scope="col" class="ln"><span class="sr-only">12개월 일정 </span><span class="yr">' + esc(win.label) + '</span><span class="mh" aria-hidden="true">' +
         win.months.map(function (m) { return '<span>' + m.m + '</span>'; }).join('') + '</span></th></tr></thead>';
     const msg = function (inner, busy) { return '<tbody><tr class="emp"><td colspan="' + ncol + '"' + (busy ? ' aria-busy="true"' : '') + '>' + inner + '</td></tr></tbody>'; };
@@ -1081,7 +1105,7 @@
     else if (v.st === 'denied') body = msg('<p class="db-state">' + esc(v.code === 401 ? M.login : M.denied) + '</p>');
     else if (v.st === 'error') body = msg('<p class="db-state">' + kbb.goalErrHtml(v.code) + '</p>');
     else {
-      const o = { win: win, canEdit: !!v.canEdit, noWatch: !!v.noWatch, selCol: sel, picked: v.picked || null, canTag: v.canTag || null, drafts: v.drafts || null, y0: Number(v.y0) || 0 };   // y0 = 올해(지난해 목표 줄은 [관심 기관으로…]를 그리지 않는다, qa P3-1). canTag(r) = 구분을 고칠 수 있는 줄인가(없으면 canEdit만 본다)
+      const o = { win: win, canEdit: !!v.canEdit, noWatch: !!v.noWatch, selCol: sel, picked: v.picked || null, canTag: v.canTag || null, canAim: v.canAim || null, drafts: v.drafts || null, y0: Number(v.y0) || 0 };   // y0 = 올해(지난해 목표 줄은 [관심 기관으로…]를 그리지 않는다, qa P3-1). canTag(r) = 구분을 고칠 수 있는 줄인가(없으면 canEdit만 본다)
       const outN = v.out ? v.out.length : 0, none = !v.rows.length && !outN;
       if (watch) {
         body = v.rows.length ? '<tbody>' + v.rows.map(function (r) { return kbb.watchRowHtml(r, o); }).join('') + '</tbody>'
@@ -1107,7 +1131,7 @@
         cap = (watch ? '내 관심 기관 ' : esc(v.year) + ' 목표 기관 ') + (kinds ? kinds + ', ' : '') + total + '곳 중 ' + shown + '곳 보임, ' + kbb.SORT_LABEL[v.sort.key] + ' ' + (v.sort.dir === 'desc' ? '내림차순' : '오름차순');
       }
     }
-    return '<table class="hb-tt' + (sel ? ' sel' : '') + '"><caption class="sr-only">' + cap + '</caption>' + cols + head + body + '</table>';
+    return '<table class="hb-tt' + (sel ? ' sel' : '') + (watch ? ' wt' : '') + '"><caption class="sr-only">' + cap + '</caption>' + cols + head + body + '</table>';
   };
   kbb.filteredNoneHtml = function () { return '<p class="db-state">조건에 맞는 기관이 없습니다. <button type="button" id="hb-fclear2">필터 지우기</button></p>'; };
   // 관심 탭이 비었을 때(규격 5절). 편집 가능 계정에는 [관심 기관 추가].
@@ -1138,6 +1162,16 @@
     });
     return h + '</div>';
   };
+  // 금고 방식 메뉴: 구분 메뉴와 같은 틀(.hb-menu, 라디오 항목). 첫 항목 '정하지 않음'('-')으로 비울 수 있다. o = { aims:[{code,name}], cur: 지금(대기 중이면 대기 값) 코드 }
+  kbb.aimMenuHtml = function (r, o) {
+    o = o || {};
+    const cur = String(o.cur || '');
+    let h = '<div class="hb-menu" role="menu" aria-label="금고 방식 고르기">';
+    [{ code: '', name: '정하지 않음' }].concat(o.aims || []).forEach(function (t) {
+      h += '<button type="button" role="menuitemradio" aria-checked="' + (t.code === cur ? 'true' : 'false') + '" data-aim="' + esc(t.code) + '" tabindex="-1"><span>' + esc(t.name) + '</span>' + CK + '</button>';
+    });
+    return h + '</div>';
+  };
 
   // 표 도구 줄(규격 6-4). v = { tab:'goal'|'watch', nGoal, nWatch, f:{q,tag,status,kind,stage}, stageName, shown, total, canEdit }
   // 건수: 화면 낭독은 '5곳 중 3곳 보임'(읽는 글), 눈에 보이는 '3 / 5곳'은 aria-hidden. 바깥 #hb-cnt는 렌더가 바뀌어도 같은 노드로 둔다(paintToolbar) — role=status 알림이 끊기지 않게.
@@ -1159,7 +1193,7 @@
     // v.noWatch = 옛 서버(관심 기관 응답 없음): 관심 탭·[관심 기관 추가]를 숨긴다(qa 11-17 P3-2)
     return '<div class="ap-tabs" role="tablist" aria-label="목록 종류">' + tab('goal', '목표', v.nGoal) + (v.noWatch ? '' : tab('watch', '내 관심 기관', v.nWatch, kbb.watchChipHtml(v.wsum))) + '</div>' +
       '<input type="search" id="hb-q" placeholder="기관명·지역" aria-label="기관명이나 지역으로 찾기" maxlength="40" autocomplete="off"' + (q ? ' class="on"' : '') + ' value="' + esc(q) + '">' +
-      sel('hb-f-tag', '구분 거르기', [['', '구분 전체'], ['RETAIN', kbb.TAG.RETAIN], ['REGAIN', kbb.TAG.REGAIN], ['NEW', kbb.TAG.NEW]], f.tag) +
+      sel('hb-f-tag', '구분 거르기', [['', '구분 전체'], ['RETAIN', kbb.TAG.RETAIN], ['REGAIN', kbb.TAG.REGAIN], ['NEW', kbb.TAG.NEW], ['NONE', '구분 미정']], f.tag) +
       sel('hb-f-status', '상태 거르기', kbb.STATUS[watch ? 'watch' : 'goal'], f.status) +
       (watch ? '' : sel('hb-f-kind', '종류 거르기', [['', '종류 전체'], ['goal', '목표만'], ['out', '그 밖의 준비 기관만']], f.kind)) +
       (!watch && typeof f.stage === 'number' && f.stage >= 0 ? '<button type="button" class="hb-tag" id="hb-sclr" aria-label="단계 거르기 끄기: ' + esc(v.stageName || '') + '">단계: ' + esc(v.stageName || '') + ' ×</button>' : '') +
@@ -1458,7 +1492,7 @@
   kbb.addState = function (m) {
     const watch = m.kind === 'WATCH';
     if (!m.inst) return { canGo: false, why: '기관을 고르세요.' };
-    if (!m.tag) return { canGo: false, why: '구분을 고르세요.' };
+    // 구분은 비워 둘 수 있다(사용자 11-25) — 고르지 않아도 넣는다
     if (!watch && !m.year) return { canGo: false, why: '목표 연도를 고르세요.' };
     if (String(m.memo || '').length > kbb.MEMO_MAX) return { canGo: false, why: '메모는 ' + kbb.MEMO_MAX + '자 이내로 적으세요.' };
     if (m.closedBlock) return { canGo: false, why: '올해 입찰이 끝나 올해 목표로는 넣을 수 없습니다.' };
@@ -1479,7 +1513,7 @@
   kbb.addDialogHtml = function (m, o) {
     o = o || {};
     const yrs = (o.years || []).map(function (y) { return '<option value="' + esc(y) + '"' + (String(y) === String(m.year) ? ' selected' : '') + '>' + esc(y) + '년</option>'; }).join('');
-    const tags = (o.tags || []).map(function (t) {
+    const tags = '<label class="hb-rd"><input type="radio" name="hb-a-tag" value=""' + (m.tag ? '' : ' checked') + '> 정하지 않음</label>' + (o.tags || []).map(function (t) {
       return '<label class="hb-rd"><input type="radio" name="hb-a-tag" value="' + esc(t.code) + '"' + (t.code === m.tag ? ' checked' : '') + '> ' + esc(t.name) + '</label>';
     }).join('');
     const watch = m.kind === 'WATCH';
@@ -1492,7 +1526,7 @@
       (o.rec ? '<div id="hb-a-rec" class="hb-rec" role="group" aria-labelledby="hb-a-rech" hidden></div>' : '') +
       '<div id="hb-a-box"></div>' +
       '<div id="hb-a-yrow"' + (watch ? ' hidden' : '') + '><div class="tm-reason-row"><label for="hb-a-year">목표 연도 (필수)</label></div><select id="hb-a-year">' + yrs + '</select></div>' +
-      '<fieldset class="tm-fs"><legend>구분 (필수)</legend><div class="hb-opts">' + tags + '</div><p id="hb-a-note" class="tm-note">' + esc(m.note || '') + '</p></fieldset>' +
+      '<fieldset class="tm-fs"><legend>구분 (선택)</legend><div class="hb-opts">' + tags + '</div><p id="hb-a-note" class="tm-note">' + esc(m.note || '') + '</p></fieldset>' +
       '<div class="tm-reason-row"><label for="hb-a-memo">메모 (선택)</label><span id="hb-a-cnt" class="tm-count">0/' + kbb.MEMO_MAX + '</span></div>' +
       '<input type="text" id="hb-a-memo" maxlength="' + kbb.MEMO_MAX + '" aria-describedby="hb-a-mh hb-a-cnt" value=""><p id="hb-a-mh" class="tm-note">개인정보를 적지 마세요.</p>' +
       '<div id="hb-a-err" class="ap-err" role="alert"></div></div>' +
@@ -1511,7 +1545,7 @@
     const sel = kind === 'towatch' ? '' : '<div class="tm-reason-row"><label for="hb-m-year">목표 연도 (필수)</label></div><select id="hb-m-year"><option value=""' + (o.year ? '' : ' selected') + '>고르세요</option>' +
       (o.years || []).map(function (y) { return '<option value="' + esc(y) + '"' + (String(y) === String(o.year) ? ' selected' : '') + '>' + esc(y) + '년</option>'; }).join('') + '</select>';
     const note = kind === 'towatch'
-      ? '올해 목표에서 빠지고 내 관심 기관에 들어갑니다. 구분(' + esc(r.tagName || '구분') + ')과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.'
+      ? '올해 목표에서 빠지고 내 관심 기관에 들어갑니다. ' + (r.tagName ? '구분(' + esc(r.tagName) + ')' : '구분') + '과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.'
       : (kind === 'tonext' ? '올해 입찰이 끝난 기관을 다음 회차 목표로 옮깁니다. 구분과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 남습니다.'
         : '내 관심 기관을 목표로 옮깁니다. 목표가 되면 팀의 목표 기관이 되고 내 관심에서는 빠집니다. 구분과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 남습니다.');
     return '<div class="modal-box tm-modal-box hb-dlg" role="dialog" aria-modal="true" aria-labelledby="hb-d-t"><h3 id="hb-d-t">' + kbb.MOVE_TITLE[kind] + ' — ' + esc(r.regionName) + ' ' + esc(r.name) + '</h3><div class="modal-scroll tm-m-body">' +
@@ -1953,7 +1987,7 @@
     ts.setAttribute('role', 'tabpanel');
     if (ok) ts.setAttribute('aria-labelledby', 'hb-tab-' + gs.tab); else ts.removeAttribute('aria-labelledby');   // 도구 줄(탭)이 있을 때만 — 없는 id를 가리키지 않는다(qa 11-17 P3-4)
     ts.innerHTML = kbb.goalTableHtml({ st: gs.st, code: gs.code, year: goalYear(), win: win, tab: gs.tab, rows: dRows, out: dOut, canEdit: canEdit, prep: ps.state, prepCode: prepCode,
-      sort: sorted, total: total, filtered: total > 0 && kbb.filterOn(fx), noWatch: noWatch, nGoal: rows.length, nOut: out.length, selCol: !!mode, picked: tc.pickedMap(gs.sel), drafts: gs.draft, canTag: canValueEdit, y0: U.todayDate().getFullYear() });
+      sort: sorted, total: total, filtered: total > 0 && kbb.filterOn(fx), noWatch: noWatch, nGoal: rows.length, nOut: out.length, selCol: !!mode, picked: tc.pickedMap(gs.sel), drafts: gs.draft, canTag: canValueEdit, canAim: canAimEdit, y0: U.todayDate().getFullYear() });
     paintToolbar({ tab: gs.tab, nGoal: rows.length, nWatch: wrows.length, f: f, stageName: f.stage >= 0 ? (dash.STAGES[f.stage] || {}).label : '', shown: dRows.length + dOut.length, total: total, canEdit: canEdit, loaded: ok, noWatch: noWatch, wsum: wsum });
     const band = $('hb-band');
     if (band) {
@@ -2153,6 +2187,8 @@
     const wrap = document.createElement('div');
     // 구분 칩 메뉴 = 구분 고르기만(사용자 11-25). 나머지 동작은 띠 [수정하기…] 창(바로 반영/결재 요청)과 관심 줄 [관심에서 빼기…] 단추가 맡는다.
     wrap.innerHTML = kbb.menuHtml(r, { tags: canValueEdit(r) ? tagList() : [], def: kbb.fitTag(kbb.defaultTag(r.rec, gs.sum[r.id], tagOpts()), tagList()) });
+    const isAim = btn.getAttribute('data-act') === 'aim';   // 금고 방식 칩: 같은 틀, 항목만 금고 방식
+    if (isAim) { if (!canAimEdit(r)) return; wrap.innerHTML = kbb.aimMenuHtml(r, { aims: aimList(), cur: aimNow(r) }); }
     const el = wrap.firstChild;
     const dv0 = tc.draftOf(gs.draft, r);   // 대기 중이면 그 구분에 체크 표시(menuHtml 호출 줄은 그대로 — 시험이 문자열로 고정)
     if (dv0) Array.prototype.forEach.call(el.querySelectorAll('[data-tag]'), function (b) { b.setAttribute('aria-checked', b.getAttribute('data-tag') === dv0.tagCd ? 'true' : 'false'); });
@@ -2179,6 +2215,14 @@
     el.addEventListener('click', function (ev) {
       const it = ev.target && ev.target.closest ? ev.target.closest('button') : null;
       if (!it) return;
+      if (isAim) {
+        const ac = it.getAttribute('data-aim');
+        if (ac === null) return;
+        if (ac === aimNow(r)) { closeMenu(true); return; }   // 지금 보이는 값을 다시 고르면 닫기만
+        closeMenu(true);
+        changeAim(r, ac);
+        return;
+      }
       const code = it.getAttribute('data-tag');
       if (!code) return;
       const dv = tc.draftOf(gs.draft, r);
@@ -2191,19 +2235,21 @@
     if (first) first.focus();
   }
   // ── 구분 바뀜 대기(저장 전, 사용자 11-25): 목표 줄에서 구분을 고르면 서버에 저장하지 않고 gs.draft에 담는다.
-  function chipOpts() { return { canEdit: canEditNow(), canTag: canValueEdit, drafts: gs.draft }; }
+  function chipOpts() { return { canEdit: canEditNow(), canTag: canValueEdit, canAim: canAimEdit, drafts: gs.draft }; }
   // 그 줄의 구분 칸(<td>)만 다시 그린다 — 표 전체를 다시 그리지 않아 체크박스·스크롤이 유지된다. 칩에 포커스가 있었으면 새 칩으로 되돌린다.
   function refreshChip(id) {
     const sc = $('hb-ts');
     if (!sc) return;
     const r = (gs.rows || []).filter(function (x) { return x.id === id && !x.out && x.kind !== 'WATCH'; })[0];
     if (!r) return;
-    const find = function () { const bs = sc.querySelectorAll('button.hb-tag[data-act="tag"]'); for (let i = 0; i < bs.length; i += 1) { if (bs[i].getAttribute('data-inst') === id) return bs[i]; } return null; };
-    const b = find(), td = b && b.closest ? b.closest('td') : null;
-    if (!td) return;
-    const focused = typeof document !== 'undefined' && td.contains(document.activeElement);
-    td.outerHTML = kbb.tagCellHtml(r, chipOpts());
-    if (focused) { const nb = find(); if (nb && nb.focus) nb.focus(); }
+    const find = function (act) { const bs = sc.querySelectorAll('button.hb-tag[data-act="' + act + '"]'); for (let i = 0; i < bs.length; i += 1) { if (bs[i].getAttribute('data-inst') === id) return bs[i]; } return null; };
+    ['tag', 'aim'].forEach(function (act) {   // 구분 칸과 금고 방식 칸을 각각 제자리에서 다시 그린다
+      const b = find(act), td = b && b.closest ? b.closest('td') : null;
+      if (!td) return;
+      const focused = typeof document !== 'undefined' && td.contains(document.activeElement);
+      td.outerHTML = act === 'aim' ? kbb.aimCellHtml(r, chipOpts()) : kbb.tagCellHtml(r, chipOpts());
+      if (focused) { const nb = find(act); if (nb && nb.focus) nb.focus(); }
+    });
   }
   function dropDraftChips() { tc.pruneDrafts(gs.draft, gs.sel).forEach(function (id) { refreshChip(id); }); }   // 고르기가 풀린 줄의 대기를 버리고 칩을 원래 값으로
   function draftTag(r, code) {
@@ -2249,6 +2295,25 @@
   // ── 목표 줄 구분·메모를 결재 없이 바로 고칠 수 있는가: 관심 줄은 늘, 목표 줄은 서버가 준 value_edit_mode가 DIRECT이거나 목표 모드가 DIRECT(영업부장·스위치 끔)일 때(NEXT 114)
   function isPastGoal(r) { return !!r && r.kind !== 'WATCH' && tc.isPastYear(r.targetYear, U.todayDate().getFullYear()); }   // 지난해 목표는 구분·메모를 고칠 수 없다(팀 결정, qa P2-1)
   function canValueEdit(r) { return r.kind === 'WATCH' || (!isPastGoal(r) && ((!!gs.data && gs.data.value_edit_mode === 'DIRECT') || goalMode() === 'DIRECT')); }
+  // ── 금고 방식(NEXT 114): 고르면 구분처럼 저장 전 대기(gs.draft.aimCd)에 담고 띠 [수정하기]로 저장. 지난해 목표(서버 aim_mode APPROVAL)·권한 없음은 고를 수 없다.
+  function aimList() { const t = gs.data && gs.data.codes && Array.isArray(gs.data.codes.aim_ranks) ? gs.data.codes.aim_ranks : []; return t.filter(function (x) { return x && x.code; }); }
+  function aimNow(r) { const a = tc.draftAim(gs.draft, r); return a !== undefined ? String(a) : String(r.aimCd || ''); }   // 대기 중이면 대기 값
+  function canAimEdit(r) { return !!r && r.kind !== 'WATCH' && r.aimMode === 'DIRECT' && !isPastGoal(r) && canBulkEdit() && aimList().length > 0; }
+  function changeAim(r, code) {
+    if (gs.busy || !canEditNow() || !canAimEdit(r)) return;
+    const had = !!tc.draftOf(gs.draft, r);
+    if (code === String(r.aimCd || '')) {   // 원래 값으로 되돌림: 대기의 그 칸만 지운다(고른 줄은 그대로)
+      if (had) { tc.setAimDraft(gs.draft, r, code, ''); refreshChip(r.id); paintSel(); }
+      return;
+    }
+    if (!tc.pickable(r)) return;
+    const pk = tc.pick(gs.sel, tc.entryOfRow(r));   // 자동으로 고른다(이미 골랐으면 그대로)
+    if (!pk.ok) { gs.selMsg = pk.msg; paintSel(); return; }
+    gs.selMsg = ''; gs.selNote = '';
+    const a = aimList().filter(function (z) { return z.code === code; })[0];
+    tc.setAimDraft(gs.draft, r, code, a ? a.name : '');
+    syncPickDom(); refreshChip(r.id); paintSel();
+  }
   // ── 메모 창(쓰는 창, 결재 없음 — 규격 6-3)
   function mmq(d, id) { return d.overlay.querySelector('#' + id); }
   function mmText(d, id, msg) { const e = mmq(d, id); if (e) e.textContent = msg || ''; }
@@ -2412,9 +2477,9 @@
     m.dup = null;
     m.q = m.inst.name;
     const def = kbb.fitTag(kbb.defaultTag(rec, gs.sum[id], tagOpts()), tagList());
-    m.tag = tagPre || def.tag;
+    m.tag = tagPre || '';   // 자동 제안은 고르지 않는다 — 아래 참고 안내로만
     m.tagTouched = false;
-    m.note = kbb.tagNote(def, m.inst.name);
+    m.note = kbb.tagHint(def, m.inst.name);
     m.pickText = '선택한 기관: ' + kbb.instSub(rec, gs.sum[id], tagOpts());
     m.results = [];
     m.active = -1;
@@ -2493,6 +2558,7 @@
       m.kind = it.kind === 'WATCH' ? 'WATCH' : 'GOAL';
       if (m.kind === 'GOAL') m.year = it.year;
       pickInst(m, rc, '');
+      m.note = '';   // 추천 이유(recNote)가 참고 안내다
       const rn = m.tag === 'REGAIN' ? '' : kbb.recNote(it); if (rn) m.note = (m.note ? m.note + ' ' : '') + rn;   // 추천 이유 칩은 구분이 아니다 — 근거 줄에 잇는다(규격 P1-2)
       if (!recheckTaken(m)) computeWarn(m);   // 추천이 고른 넣을 곳에 이미 있으면(예: 목표 창인데 관심 줄) 미리 안내
       m.rec.open = false;
@@ -2578,7 +2644,8 @@
     holdDlgFocus(d, 'hb-a-go');
     setDlgErr('hb-a-err', '');
     const memo = String(m.memo || '').trim() || null;
-    const body = watch ? { kind_cd: 'WATCH', tag_cd: m.tag, memo: memo } : { target_year: eff.year, tag_cd: m.tag, memo: memo };
+    const body = watch ? { kind_cd: 'WATCH', memo: memo } : { target_year: eff.year, memo: memo };
+    if (m.tag) body.tag_cd = m.tag;   // 구분을 고르지 않았으면 tag_cd 없이 보낸다(서버 NULL = '-'). 금고 방식 키는 넣기에 없다
     kbb.saveTarget(m.inst.id, body, watch ? kbb.BTN.addWatch : kbb.BTN.add).then(function (x) {
       if (dlg !== d || !host) return;
       m.busy = false;
@@ -2910,7 +2977,7 @@
     bar.hidden = false;   // 먼저 보이게 한 뒤 글을 넣는다(role=status가 보이는 상태에서 바뀐 글을 읽도록, 규격 5-6)
     const kinds = tc.kindCounts(gs.sel), off = n - pickRows().filter(function (r) { return tc.isPicked(gs.sel, r); }).length;   // off = 탭·연도·거르기 때문에 지금 화면에 없는 고른 줄
     const dn = tc.draftCount(gs.draft, gs.sel);   // 저장 전 구분 바뀜 곳 수 — 있으면 일반색 알림으로 띠에 늘 보인다(저장하거나 되돌리면 사라진다)
-    const h = tc.selStatusHtml(n, gs.selMsg, kinds, off, dn > 0 ? tc.autoPickNote(dn) : gs.selNote);
+    const h = tc.selStatusHtml(n, gs.selMsg, kinds, off, dn > 0 ? tc.autoPickNote(dn, tc.draftWhat(gs.draft, gs.sel)) : gs.selNote);
     if (stEl && stEl.hbH !== h) { stEl.innerHTML = h; stEl.hbH = h; }
     paintBulk();   // [수정하기]·[삭제하기] 켜짐·꺼진 이유(사용자 11-25 재요청)
   }
@@ -3154,6 +3221,7 @@
       if (edit) {
         const ia = tc.newItem(uid, gs.sel.by[id]);
         tc.setOp(it, 'EDIT', { tag: (tc.draftOf(gs.draft, gs.sel.by[id]) || {}).tagCd });   // 연도·메모는 지금 값, 구분은 대기 중인 값으로 미리 채운다(없으면 지금 값). 관심 줄은 고정 동작이라 그대로
+        { const da = tc.draftAim(gs.draft, gs.sel.by[id]); if (da !== undefined) it.aim = da; }   // 금고 방식 대기도 미리 채운다
         sets.edit.push(it); sets.approval.push(ia);
       } else if (p && !tc.isFixed(it)) tc.setOp(it, p.op, p);
       return it;
@@ -3257,7 +3325,7 @@
   function bulkModel(kind, s) {
     const del = kind === 'delete', y0 = U.todayDate().getFullYear();
     const row = function (e, skip) { return { name: e.name, regionName: e.regionName, skip: skip, text: skip ? (del ? tc.DEL_SKIP : tc.EDIT_SKIP) : (del ? tc.deleteLine(e, gs.draft) : tc.editLine(e, gs.draft)) }; };
-    return { kind: kind, mode: goalMode(), role: roleNow(), n: s.send.length, total: tc.selCount(gs.sel), reasons: cancelReasons(),
+    return { kind: kind, what: del ? '' : tc.draftWhat(gs.draft, gs.sel), mode: goalMode(), role: roleNow(), n: s.send.length, total: tc.selCount(gs.sel), reasons: cancelReasons(),
       thisYear: s.send.every(function (e) { return Number(e.year) === y0; }),
       rows: s.send.map(function (e) { return row(e, false); }).concat(s.skip.map(function (e) { return row(e, true); })) };
   }
@@ -3321,7 +3389,7 @@
       items = s.send.map(function (e, i) { const it = tc.newItem(i + 1, e); tc.setOp(it, 'CANCEL'); it.cancelCd = cd; it.cancelEtc = etc; return it; });
       reason = tc.deleteReason(cancelReasons(), cd, etc);
     } else {
-      items = s.send.map(function (e, i) { const it = tc.newItem(i + 1, e); tc.setOp(it, 'EDIT', { tag: tc.draftOf(gs.draft, e).tagCd }); return it; });   // 연도·메모는 지금 값, 구분만 대기 값
+      items = s.send.map(function (e, i) { const it = tc.newItem(i + 1, e); tc.setOp(it, 'EDIT', { tag: tc.draftOf(gs.draft, e).tagCd, aim: tc.draftAim(gs.draft, e) }); return it; });   // 구분·금고 방식은 대기 값, 나머지는 지금 값(바뀐 칸만 본문에 실린다)
     }
     const v = tc.validate(items, { mode: mode, reason: reason }), f = v.items[0];
     if (!v.ok) {
@@ -3341,7 +3409,7 @@
     });
   }
   function finishBulk(d, body, sent, del) {
-    const res = tc.resultOf(body, sent.length, del ? 'delete' : 'edit'), ids = sent.map(function (e) { return e.id; });
+    const res = tc.resultOf(body, sent.length, del ? 'delete' : 'edit', del ? '' : tc.draftWhatOf(gs.draft, sent)), ids = sent.map(function (e) { return e.id; });
     d.done = true;
     sent.forEach(function (e) { tc.unpickRow(gs.sel, e.id, e.targetNo); });   // 성공한 줄만 선택에서 뺀다. 보내지 않은 줄(대기 없음·관심)은 그대로 고른 채
     gs.selMsg = ''; gs.selNote = '';
@@ -3653,9 +3721,9 @@
     if (btn.classList.contains('hb-pend')) { const pr = rowOfBtn(btn, false); if (pr) openPending(pr, btn); return; }   // 결재 중 칩
     if (btn.classList.contains('hb-tag')) {
       const act = btn.getAttribute('data-act'), inst = btn.getAttribute('data-inst') || '';
-      if (act === 'tag') { if (menu && menu.btn === btn) closeMenu(true); else openMenu(btn); }
+      if (act === 'tag' || act === 'aim') { if (menu && menu.btn === btn) closeMenu(true); else openMenu(btn); }
       else if (act === 'add') openAdd({ id: inst, tag: '' });
-      else if (act === 'oadd') { closePop(false); openAdd({ id: inst, tag: 'RETAIN', kind: 'GOAL', opener: $('hb-ours-btn') }); }   // 협약 중인 기관 팝업의 줄: 목표·재유치 도전으로 채운 추가 창
+      else if (act === 'oadd') { closePop(false); openAdd({ id: inst, kind: 'GOAL', opener: $('hb-ours-btn') }); }   // 협약 중인 기관 팝업의 줄: 목표로 채운 추가 창(구분은 비워 둔다, 사용자 11-25)
       else if (act === 'owatch') { closePop(false); openAdd({ id: inst, kind: 'WATCH', opener: $('hb-ours-btn') }); }   // 국민은행 확정 줄: 관심으로 채운 추가 창(결과는 기존 관심 추가 흐름 — 관심 탭·알림)
       else if (act === 'addwatch') openAdd({ id: '', kind: 'WATCH' });
       else if (act === 'towatch') { const r = rowOfBtn(btn, false); if (r) openToWatch(r, btn, null); }   // 입찰 종료 줄 일정 칸 [관심 기관으로…] — 기관 상세 팝업 머리 단추와 같은 확인 상자(NEXT 114)
