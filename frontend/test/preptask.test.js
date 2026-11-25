@@ -1,458 +1,346 @@
 'use strict';
-// 영업 추진 준비 › 협약준비 업무(NEXT 113 1단계) — preptask.js 순수 함수·nav 대조·서버 칸 정의 대조·배선 정적 검사.
+// 영업 추진 준비 › 제안 준비 현황 › 기관 상세 '구간·단계 한 화면'(NEXT 113 2단계) — preptask.js 순수 함수·서버 칸 정의 대조·prep.js/prepboard.js 배선 정적 검사.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
 const pt = require('../js/preptask.js');
 const pb = require('../js/prepboard.js');
-const nav = require('../js/nav.js');
+const prep = require('../js/prep.js');
 
 const ROOT = path.join(__dirname, '..');
-const SRC = fs.readFileSync(path.join(ROOT, 'js', 'preptask.js'), 'utf8');
-const PB_SRC = fs.readFileSync(path.join(ROOT, 'js', 'prepboard.js'), 'utf8');
-const APP_SRC = fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8').replace(/\r\n/g, '\n');   // app.js는 CRLF — 줄 끝을 맞춰 자른다
-const HTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+function src(rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n'); }
+const SRC = src('js/preptask.js');
+const PREP_SRC = src('js/prep.js');
+const PB_SRC = src('js/prepboard.js');
+const APP_SRC = src('js/app.js');
+const HTML = src('index.html');
 const JAVA = path.join(ROOT, '..', 'kgi-ggreport-web', 'src', 'main', 'java', 'com', 'kbstar', 'kgi', 'ggreport', 'web', 'service', 'PrepBoardColumns.java');
 
+const MARKS = [{ mark_cd: 'DONE', name: '완료' }, { mark_cd: 'IN_PROGRESS', name: '진행' }, { mark_cd: 'NA', name: '대상 아님' }, { mark_cd: 'NONE', name: '시작 전' }];
 function row(o) {
   return Object.assign({ bid_case_id: 'B1', institution_name: '청주시', state_cd: 'IN_PROGRESS', state_name: '사전준비 중', ended: false,
     assignee_names: ['김영업'], can_view: true, can_check: true, is_mine: true,
     cells: {
       NOTICE_CHECK: { notice_status_name: '공고 확인' },
       INST_ANALYSIS: { mark_cd: 'DONE', marked_on: '2026-11-20', by_name: '시스템' },
-      FIN_COMMITTEE: { mark_cd: 'IN_PROGRESS', marked_on: '2026-11-21', by_name: '김영업' },
+      FIN_COMMITTEE: { mark_cd: 'IN_PROGRESS', marked_on: '2026-11-21', by_name: '김영업', rev_no: 3 },
       BOARD_SECRETARIAT: { mark_cd: 'DONE', marked_on: '2026-11-22', by_name: '김영업' },
       BOARD_AUDIT: { mark_cd: 'NA' },
     } }, o || {});
 }
-const MARKS = [{ mark_cd: 'DONE', name: '완료' }, { mark_cd: 'IN_PROGRESS', name: '진행' }, { mark_cd: 'NA', name: '대상 아님' }, { mark_cd: 'NONE', name: '시작 전' }];
+const TASKS = [
+  { task_cd: 'T1', name: '기관 정보 요약', kind_cd: 'REQUIRED', judge_cd: 'MANUAL', state: 'DONE', done_by: { emp_no: '1', name: '김영업' }, done_at: '2026-11-10T15:20:00+09:00', can_check: false, can_uncheck: true },
+  { task_cd: 'T2', name: '기관장 프로필', kind_cd: 'REQUIRED', judge_cd: 'MANUAL', state: 'TODO', can_check: true, can_uncheck: false },
+  { task_cd: 'T3', name: '수익성 분석표 확정본', kind_cd: 'REQUIRED', judge_cd: 'FACT', state: 'TODO', can_check: false },
+  { task_cd: 'T4', name: 'RFP 붙임서류', kind_cd: 'CONDITIONAL', judge_cd: 'FACT', state: 'NOT_APPLICABLE' },
+  { task_cd: 'T5', name: '이사회 자료', kind_cd: 'REQUIRED', judge_cd: 'FACT', state: 'LOCKED', locked_by: 'T3' },
+  { task_cd: 'T6', name: '이사회 발표 대본', kind_cd: 'OPTIONAL', judge_cd: 'MANUAL', state: 'PREPARING' },
+];
+function view(cd, over) {
+  return Object.assign({
+    bid_case_id: 'B1', institution_id: 'I1', institution_name: '청주시', state_cd: cd, state_name: '', progress: { done: 1, total: 3 },
+    confirmed_by: { emp_no: '1', name: '김영업' }, confirmed_at: '2026-11-10T14:02:00+09:00', emp_verified: 1,
+    board_result: null, assignees: [{ emp_no: '1', name: '김영업' }], tasks: cd === 'CONFIRMED' || cd === 'OPEN_PENDING' ? [] : TASKS,
+    open_request: null, plan_request: null,
+    viewer: { is_assignee: true, is_head: false, can_unconfirm: false, can_request_open: false, can_withdraw_open: false,
+              can_request_plan_approval: false, can_start_writing: false, can_cancel: false, can_upload: true },
+  }, over || {});
+}
+function model(v, idx, extra) {
+  return Object.assign({ view: v, history: [], attach: null, role: '영업팀', meEmp: '1', row: row(), marks: MARKS, rowState: 'none', idx: idx, markBusy: {} }, extra || {});
+}
+function idxOf(id) { return pt.STEPS.map(function (s) { return s.id; }).indexOf(id); }
 
-// ── 단계 정본 ──
-test('STEPS: 23단계, 규격 6-3 순서·이름 그대로', function () {
-  assert.deepStrictEqual(pt.STEPS.map(function (s) { return s.label; }), [
-    '입찰공고확인', '기관 정보 분석', '수익성분석', '가결위(재무)', '출심위(사업부)', '이사회 자료 작성', '이사회 발표 대본', '이사회',
-    '제안서', '발표자료', '제출서류', '제안서제출품의', 'PT', '결과발표', '우선협상', '협약서(법률)', '협약체결품의',
-    'ATM', 'KB카드', '전산구축', 'VIP 지정', '금리승인', '협약식']);
-  assert.strictEqual(new Set(pt.STEPS.map(function (s) { return s.id; })).size, 23, 'id 유일');
-});
-
-test('STEPS ↔ 서버 PrepBoardColumns: 칸 코드·라벨·종류·묶음이 같다(파일이 있을 때)', { skip: !fs.existsSync(JAVA) }, function () {
-  const src = fs.readFileSync(JAVA, 'utf8');
-  const cols = [];
-  const re = /new Col\("([A-Z0-9_]+)", "([^"]+)", (null|"[A-Z_]+"), (NOTICE|AUTO|MANUAL)\)/g;
-  let m;
-  while ((m = re.exec(src))) cols.push([m[1], m[2], m[3] === 'null' ? null : m[3].replace(/"/g, ''), m[4]]);
-  assert.strictEqual(cols.length, 27);
-  const mine = [];
+// ── 구간·단계 정본 ──
+test('PHASES·STEPS: 구간 3개, 24단계(담당자 지정 + 현업 23단계), id 유일, 구간은 이어진 덩어리', function () {
+  assert.deepStrictEqual(pt.PHASES.map(function (p) { return p.label; }), ['제안 사전준비', '협약', '협약 이후']);
+  assert.strictEqual(pt.STEPS.length, 24);
+  assert.strictEqual(pt.STEPS[0].id, 'START');
+  assert.strictEqual(pt.STEPS[0].label, '담당자 지정');
+  assert.strictEqual(new Set(pt.STEPS.map(function (s) { return s.id; })).size, 24, 'id 유일');
+  const keys = pt.PHASES.map(function (p) { return p.key; });
+  let last = 0;
   pt.STEPS.forEach(function (s) {
-    if (s.kind === 'group') s.subs.forEach(function (x) { mine.push([x.cd, x.label, s.cd, 'MANUAL']); });
-    else if (s.cd) mine.push([s.cd, s.label, null, s.kind === 'notice' ? 'NOTICE' : (s.kind === 'auto' || s.kind === 'proposal') ? 'AUTO' : 'MANUAL']);
+    const k = keys.indexOf(s.ph);
+    assert.ok(k >= last, s.label + ' 구간이 앞으로 돌아가지 않는다');
+    last = k;
   });
-  assert.deepStrictEqual(mine, cols);
-  const groups = {};
-  const gre = /g\.put\("([A-Z_]+)", "([^"]+)"\)/g;
-  while ((m = gre.exec(src))) groups[m[1]] = m[2];
-  pt.STEPS.filter(function (s) { return s.kind === 'group'; }).forEach(function (s) { assert.strictEqual(groups[s.cd], s.label, s.cd); });
-  assert.strictEqual(Object.keys(groups).length, 3);
+  assert.deepStrictEqual(pt.phaseIdxs('agree').map(function (i) { return pt.STEPS[i].label; }), ['우선협상', '협약서(법률)', '협약체결품의', '협약식']);
+  assert.deepStrictEqual(pt.phaseIdxs('after').map(function (i) { return pt.STEPS[i].label; }), ['ATM', 'KB카드', '전산구축', 'VIP 지정', '금리승인']);
+  assert.strictEqual(pt.phaseIdxs('prep').length, 15);
 });
 
-test('nav: 영업 추진 준비 메뉴에는 협약준비 task 항목이 없다(사용자 11-24) — 제안 준비 현황·이사회 자료 작성 둘뿐, 단위 task는 기관 상세 단계에서만', function () {
-  assert.strictEqual(nav.TASK_PREFIX, undefined);
-  const plan = nav.CATEGORIES.filter(function (c) { return c.id === 'plan'; })[0];
-  assert.deepStrictEqual(plan.items.map(function (i) { return i.id; }), [nav.PREP_ID, nav.BOARD_ID]);
-  plan.items.forEach(function (i) { assert.strictEqual(i.sub, '제안 준비'); assert.strictEqual(nav.badgeOf(Object.assign({ soon: true }, i)), '', i.id + ' 배지 없음'); });
-  assert.ok(!plan.items.some(function (i) { return i.id && i.id.indexOf(pt.TASK_PREFIX) === 0; }));
-  assert.strictEqual(pt.menuSteps().length, 19, '단계 정본(STEPS)은 그대로 — 상세 23단계가 쓴다');
-});
-
-test('nav.build: 영업팀 2개·재무 1개·마스터 1개, 소제목은 아무도 안 그린다(11-24)', function () {
-  const ON = { map: true, regions: true, workflow: true, chat: true, knowledge: true, tasks: true, approvals: true, admin: true };
-  function plan(ctx) { return nav.build(ON, ctx).filter(function (c) { return c.id === 'plan'; })[0]; }
-  assert.strictEqual(plan({ role: '영업팀' }).items.length, 2);
-  assert.strictEqual(plan({ role: '영업팀' }).showSubs, false);
-  assert.deepStrictEqual(plan({ role: '예산팀' }).items.map(function (i) { return i.id; }), ['soon:이사회 자료']);
-  assert.strictEqual(plan({ role: '예산팀' }).showSubs, false);
-  assert.deepStrictEqual(plan({ role: '전산팀', master: true }).items.map(function (i) { return i.id; }), ['soon:이사회 자료']);
-  function planOf(role) {
-    const ctx = { role: role };
-    return nav.limitToRole(nav.build(ON, ctx), ctx).filter(function (c) { return c.id === 'plan'; })[0];
-  }
-  assert.strictEqual(planOf('디자이너'), undefined, '디자이너는 영업 추진 준비 분류째 안 보인다');
-  ['영업팀', '영업팀장', '영업부장'].forEach(function (role) {
-    assert.strictEqual(planOf(role).items.length, 2, role);
-    assert.strictEqual(planOf(role).showSubs, false, role);
+test('STEPS ↔ 서버 PrepBoardColumns: 칸 코드 27개가 빠짐없이 한 번씩, 이름도 같다', function () {
+  const java = fs.readFileSync(JAVA, 'utf8');
+  const cols = [];
+  const re = /new Col\("([A-Z0-9_]+)",\s*"([^"]+)",\s*(null|"[A-Z_]+"),/g;
+  let m;
+  while ((m = re.exec(java))) cols.push({ cd: m[1], label: m[2], group: m[3] === 'null' ? '' : m[3].replace(/"/g, '') });
+  assert.strictEqual(cols.length, 27);
+  const mine = {};
+  pt.STEPS.forEach(function (s) {
+    if (s.subs) s.subs.forEach(function (x) { mine[x.cd] = { label: x.label, group: s.cd }; });
+    else if (s.cd) mine[s.cd] = { label: s.label, group: '' };
   });
-  ['예산팀', '예산팀장'].forEach(function (role) {
-    assert.deepStrictEqual(planOf(role).items.map(function (i) { return i.id; }), ['soon:이사회 자료'], role);
-    assert.strictEqual(planOf(role).showSubs, false, role);
+  assert.strictEqual(Object.keys(mine).length, 27);
+  cols.forEach(function (c) {
+    assert.ok(mine[c.cd], c.cd + ' 단계에 있음');
+    assert.strictEqual(mine[c.cd].label, c.label, c.cd + ' 이름');
+    assert.strictEqual(mine[c.cd].group, c.group, c.cd + ' 묶음');
   });
 });
 
-test('cdOfId·stepByCd·indexOfCd', function () {
-  assert.strictEqual(pt.cdOfId('soon:task:BOARD'), 'BOARD');
-  assert.strictEqual(pt.cdOfId('soon:task:NOTICE_CHECK'), '', '메뉴 없는 단계');
-  assert.strictEqual(pt.cdOfId('soon:이사회 자료'), '');
-  assert.strictEqual(pt.cdOfId('soon:task:NOPE'), '');
-  assert.strictEqual(pt.indexOfCd('FIN_COMMITTEE'), 3);
-  assert.strictEqual(pt.indexOfCd('CEREMONY'), 22);
-  assert.strictEqual(pt.indexOfCd('NOPE'), -1);
+test('STEPS.tasks: 준비 과제 T1~T6가 단계에 한 번씩 걸린다', function () {
+  const all = [];
+  pt.STEPS.forEach(function (s) { s.tasks.forEach(function (t) { all.push(t + '@' + s.id); }); });
+  assert.deepStrictEqual(all.sort(), ['T1@INST_ANALYSIS', 'T2@INST_ANALYSIS', 'T3@PROFIT', 'T4@SUBMIT_DOCS', 'T5@BOARD_DOC', 'T6@BOARD_SCRIPT']);
 });
 
-// ── 단계 목록 모델 ──
-test('stepsModel: 현재·읽기만·글리프·sr 글자·묶음 완료 k/n', function () {
-  const m = pt.stepsModel(row(), 3, MARKS);
-  assert.strictEqual(m.length, 23);
-  assert.strictEqual(m[3].current, true);
-  assert.strictEqual(m.filter(function (x) { return x.current; }).length, 1);
-  assert.strictEqual(m[0].ro, true); assert.strictEqual(m[8].ro, true); assert.strictEqual(m[3].ro, false);
-  assert.strictEqual(m[0].sr, '공고 확인');
-  assert.strictEqual(m[1].glyph, 'done'); assert.strictEqual(m[1].sr, '완료');
-  assert.strictEqual(m[3].glyph, 'prog'); assert.strictEqual(m[3].sr, '진행');
-  assert.strictEqual(m[4].glyph, ''); assert.strictEqual(m[4].sr, '시작 전');
-  assert.strictEqual(m[5].sr, ''); assert.strictEqual(m[6].sr, '');
-  assert.strictEqual(m[7].cnt, '완료 1/3'); assert.strictEqual(m[7].glyph, '');
-  assert.strictEqual(m[11].cnt, '완료 0/2'); assert.strictEqual(m[16].cnt, '완료 0/4');
+test('colLabel: 칸 이름, 묶음 칸은 \'묶음 › 칸\'', function () {
+  assert.strictEqual(pt.colLabel('FIN_COMMITTEE'), '가결위(재무)');
+  assert.strictEqual(pt.colLabel('CONTRACT_AUDIT'), '협약체결품의 › 감사·감시');
+  assert.strictEqual(pt.colLabel('BOARD_AUDIT'), '이사회 › 감사·감시');
+  assert.strictEqual(pt.colLabel('NOPE'), 'NOPE');
 });
 
-test('groupCount: 완료만 센다(대상 아님·진행은 세지 않는다)', function () {
-  const g = pt.groupCount(row(), pt.stepByCd('BOARD'));
-  assert.deepStrictEqual(g, { done: 1, total: 3 });
+// ── 단계 상태 ──
+test('stepState: 담당자 지정은 건 상태를 따른다', function () {
+  const s = pt.STEPS[0];
+  assert.deepStrictEqual(pt.stepState(s, view('CONFIRMED'), row(), MARKS), { glyph: '', text: '할 일', cnt: '', closed: false });
+  assert.deepStrictEqual(pt.stepState(s, view('OPEN_PENDING'), row(), MARKS), { glyph: 'prog', text: '승인 대기', cnt: '', closed: false });
+  assert.strictEqual(pt.stepState(s, view('IN_PROGRESS'), row(), MARKS).closed, true);
+  assert.strictEqual(pt.stepState(s, view('WRITING'), row(), MARKS).glyph, 'done');
+  assert.strictEqual(pt.stepState(s, view('CANCELLED'), row(), MARKS).closed, false);
 });
 
-test('stepKey: ↑↓ Home End만 처리, 끝에서 멈춤', function () {
-  assert.strictEqual(pt.stepKey(0, 'ArrowUp', 23), 0);
-  assert.strictEqual(pt.stepKey(22, 'ArrowDown', 23), 22);
-  assert.strictEqual(pt.stepKey(3, 'ArrowDown', 23), 4);
-  assert.strictEqual(pt.stepKey(3, 'ArrowUp', 23), 2);
-  assert.strictEqual(pt.stepKey(9, 'Home', 23), 0);
-  assert.strictEqual(pt.stepKey(9, 'End', 23), 22);
-  assert.strictEqual(pt.stepKey(9, 'Enter', 23), null);
-  assert.strictEqual(pt.stepKey(9, ' ', 23), null);
+test('stepState: 과제 단계는 과제 상태, 손 칸은 표의 값, 묶음은 개수', function () {
+  const v = view('IN_PROGRESS');
+  const st = function (id) { return pt.stepState(pt.STEPS[idxOf(id)], v, row(), MARKS); };
+  assert.deepStrictEqual(st('INST_ANALYSIS'), { glyph: 'prog', text: '할 일', cnt: '완료 1/2', closed: false });   // T1 완료·T2 할 일
+  assert.strictEqual(st('PROFIT').closed, false);
+  assert.strictEqual(st('BOARD_SCRIPT').text, '', '준비중 과제뿐이면 상태 없음');
+  assert.deepStrictEqual(st('FIN_COMMITTEE'), { glyph: 'prog', text: '진행', cnt: '', closed: false });
+  assert.deepStrictEqual(st('BIZ_COMMITTEE'), { glyph: '', text: '시작 전', cnt: '', closed: false });
+  assert.deepStrictEqual(st('BOARD'), { glyph: 'prog', text: '완료 1/3', cnt: '완료 1/3', closed: false });
+  assert.strictEqual(st('NOTICE_CHECK').text, '공고 확인');
+  // 묶음이 전부 완료·대상 아님이면 닫힘
+  const r2 = row({ cells: { BOARD_SECRETARIAT: { mark_cd: 'DONE' }, BOARD_AUDIT: { mark_cd: 'NA' }, BOARD_COMPLIANCE: { mark_cd: 'DONE' } } });
+  assert.strictEqual(pt.stepState(pt.STEPS[idxOf('BOARD')], v, r2, MARKS).closed, true);
+  // 과제가 아직 없으면(담당자 지정 전) 자동 칸은 표의 값
+  assert.strictEqual(pt.stepState(pt.STEPS[idxOf('INST_ANALYSIS')], view('CONFIRMED'), row(), MARKS).glyph, 'done');
+  // 제안서: 작성 중이면 진행 표시
+  assert.strictEqual(pt.stepState(pt.STEPS[idxOf('PROPOSAL')], view('WRITING'), row(), MARKS).text, '작성 중');
 });
 
-test('liveText: {기관}, {n}단계 {이름}, {상태}', function () {
-  assert.strictEqual(pt.liveText(row(), 3, MARKS), '청주시, 4단계 가결위(재무), 진행');
-  assert.strictEqual(pt.liveText(row(), 7, MARKS), '청주시, 8단계 이사회, 완료 1/3');
-  assert.strictEqual(pt.liveText(row(), 5, MARKS), '청주시, 6단계 이사회 자료 작성');
+test('defaultIdx: 처음 만나는 안 끝난 단계(입찰공고확인은 건너뜀), 취소 건은 첫 단계', function () {
+  assert.strictEqual(pt.defaultIdx(view('CONFIRMED'), row(), MARKS), 0);
+  assert.strictEqual(pt.STEPS[pt.defaultIdx(view('IN_PROGRESS'), row(), MARKS)].id, 'INST_ANALYSIS');
+  const allDone = TASKS.map(function (t) { return Object.assign({}, t, { state: 'DONE' }); });
+  assert.strictEqual(pt.STEPS[pt.defaultIdx(view('IN_PROGRESS', { tasks: allDone }), row(), MARKS)].id, 'FIN_COMMITTEE');
+  assert.strictEqual(pt.defaultIdx(view('CANCELLED'), row(), MARKS), 0);
+  assert.strictEqual(pt.defaultIdx(view('IN_PROGRESS'), null, MARKS) >= 0, true, '표의 줄이 없어도 죽지 않는다');
 });
 
-// ── 본문 모델 ──
-test('bodyModel: 손 체크 단계 — 상태·마지막 체크·안내, 체크 없으면 문구', function () {
-  const b = pt.bodyModel(row(), 3, MARKS);
-  assert.strictEqual(b.pos, '4 / 23'); assert.strictEqual(b.title, '가결위(재무)');
-  assert.deepStrictEqual(b.facts, [{ l: '상태', v: '진행' }, { l: '마지막 체크', v: '2026-11-21', mono: true, extra: '김영업' }]);
-  assert.deepStrictEqual(b.notes, ['체크는 제안 준비 현황 표에서 담당 영업이 합니다.']);
-  assert.deepStrictEqual(b.actions, []);
-  assert.strictEqual(b.prev.label, '이전: 수익성분석'); assert.strictEqual(b.next.label, '다음: 출심위(사업부)');
-  const none = pt.bodyModel(row(), 4, MARKS);
-  assert.deepStrictEqual(none.facts, [{ l: '상태', v: '시작 전' }, { l: '', v: '아직 체크하지 않았습니다.' }]);
+test('phaseModel·phaseEntryIdx: 구간 숫자와 구간 단추가 데려갈 단계', function () {
+  const v = view('IN_PROGRESS');
+  const pm = pt.phaseModel(v, row(), MARKS, idxOf('FIN_COMMITTEE'));
+  assert.deepStrictEqual(pm.map(function (p) { return [p.key, p.no, p.done, p.total, p.current]; }),
+    [['prep', 1, 1, 14, true], ['agree', 2, 0, 4, false], ['after', 3, 0, 5, false]]);   // prep: 15단계 중 입찰공고확인 제외 14, 끝난 것 = 담당자 지정
+  assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('agree', v, row(), MARKS)].id, 'PRIORITY_NEGO');
+  assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('prep', v, row(), MARKS)].id, 'INST_ANALYSIS');
+  const r = row({ cells: { PRIORITY_NEGO: { mark_cd: 'DONE' } } });
+  assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('agree', v, r, MARKS)].id, 'AGREE_LEGAL');
+  const h = pt.phasesHtml(pm);
+  assert.ok(/role="group" aria-label="진행 구간"/.test(h));
+  assert.strictEqual((h.match(/data-act="ts-phase"/g) || []).length, 3);
+  assert.ok(/data-ph="prep" aria-pressed="true"/.test(h) && /data-ph="agree" aria-pressed="false"/.test(h));
 });
 
-test('bodyModel: 개설 전 줄은 담당 영업 안내가 더 붙는다', function () {
-  const b = pt.bodyModel(row({ state_cd: 'CONFIRMED' }), 3, MARKS);
-  assert.strictEqual(b.notes.length, 2);
-  assert.strictEqual(b.notes[1], pb.T.infoPre);
-});
-
-test('bodyModel: 읽기만·자동·이사회 자료·발표 대본 단계의 안내와 단추', function () {
-  const notice = pt.bodyModel(row(), 0, MARKS);
-  assert.deepStrictEqual(notice.facts, [{ l: '공고 상태', v: '공고 확인' }]);
-  assert.deepStrictEqual(notice.notes, ['공고 판정에서 가져옵니다.']);
-  const auto = pt.bodyModel(row(), 1, MARKS);
-  assert.deepStrictEqual(auto.notes, ['사전준비 과제에서 시스템이 채웁니다.']);
-  assert.deepStrictEqual(auto.actions.map(function (a) { return a.act; }), ['prep']);
-  const prop = pt.bodyModel(row(), 8, MARKS);
-  assert.deepStrictEqual(prop.notes, ['디자이너 작업 결과로 시스템이 채웁니다.']);
-  assert.deepStrictEqual(prop.actions.map(function (a) { return a.act + ':' + a.label; }), ['workflow:제안서 진행 현황 열기']);
-  const board = pt.bodyModel(row(), 5, MARKS);
-  assert.deepStrictEqual(board.facts, []);
-  assert.deepStrictEqual(board.notes, ['이사회 자료는 이사회 자료 작성 화면에서 만들고 확정합니다.']);
-  assert.deepStrictEqual(board.actions.map(function (a) { return a.act + ':' + a.label; }), ['board:이사회 자료 작성 열기']);
-  const script = pt.bodyModel(row(), 6, MARKS);
-  assert.deepStrictEqual(script.notes, ['사전준비 상세의 \'이사회 발표 대본\' 과제에서 체크합니다.']);
-  assert.deepStrictEqual(script.actions.map(function (a) { return a.act; }), ['prep']);
-  assert.deepStrictEqual(pt.bodyModel(row(), 10, MARKS).actions.map(function (a) { return a.act; }), ['prep'], '제출서류도 T 연결');
-});
-
-test('bodyModel: 묶음 단계는 하위 칸마다 한 줄', function () {
-  const b = pt.bodyModel(row(), 7, MARKS);
-  assert.strictEqual(b.subs.length, 3);
-  assert.deepStrictEqual(b.subs[0], { label: '사무국', glyph: 'done', name: '완료', date: '2026-11-22', by: '김영업' });
-  assert.strictEqual(b.subs[1].name, '대상 아님'); assert.strictEqual(b.subs[2].name, '시작 전');
-  assert.strictEqual(b.facts.length, 0);
-});
-
-test('bodyModel: 첫·끝 단계의 이전/다음은 비활성 + 글자', function () {
-  const first = pt.bodyModel(row(), 0, MARKS);
-  assert.deepStrictEqual(first.prev, { label: '이전 단계 없음', disabled: true });
-  assert.strictEqual(first.next.disabled, false);
-  const last = pt.bodyModel(row(), 22, MARKS);
-  assert.deepStrictEqual(last.next, { label: '마지막 단계', disabled: true });
-  assert.strictEqual(last.pos, '23 / 23');
-  assert.strictEqual(last.prev.label, '이전: 금리승인');
-});
-
-// ── 마크업 ──
-test('stepsHtml: nav·ol·button, aria-current=step 하나, tabindex 0 하나(roving)', function () {
-  const h = pt.stepsHtml(pt.stepsModel(row(), 3, MARKS), 5);
-  assert.strictEqual((h.match(/aria-current="step"/g) || []).length, 1);
-  assert.ok(/data-i="3"[^>]*aria-current="step"/.test(h));
+test('stepsModel·stepsHtml: 지금 구간의 단계만, 번호는 전체 순번, 탭 정지는 지금 단계 하나', function () {
+  const v = view('IN_PROGRESS');
+  const m = pt.stepsModel(v, row(), MARKS, idxOf('AGREE_LEGAL'));
+  assert.deepStrictEqual(m.map(function (x) { return x.label; }), ['우선협상', '협약서(법률)', '협약체결품의', '협약식']);
+  assert.deepStrictEqual(m.map(function (x) { return x.no; }), [16, 17, 18, 19]);
+  const h = pt.stepsHtml(m);
   assert.strictEqual((h.match(/tabindex="0"/g) || []).length, 1);
-  assert.ok(/class="ts-step[^"]*" data-i="5" tabindex="0"/.test(h));
-  assert.strictEqual((h.match(/<button type="button" class="ts-step/g) || []).length, 23);
-  assert.ok(h.indexOf('<span class="sr-only">, 진행</span>') > 0 && h.indexOf('완료 1/3') > 0);
-  assert.ok(/class="ts-step is-ro"/.test(h), '읽기만 단계');
+  assert.strictEqual((h.match(/aria-current="step"/g) || []).length, 1);
+  assert.ok(/data-i="16" tabindex="0" aria-current="step"/.test(h));
+  const first = pt.stepsHtml(pt.stepsModel(v, row(), MARKS, 0));
+  assert.ok(/class="ts-step is-ro" data-i="1"/.test(first), '입찰공고확인은 읽기만');
 });
 
-test('detailHtml: 머리(h2#ts-title tabindex=-1)·nav 이름·사전준비 상세 열기·live·XSS 이스케이프', function () {
-  const r = row({ institution_name: '<img src=x onerror=alert(1)>', assignee_names: ['<b>김</b>'] });
-  const h = pt.detailHtml({ row: r, idx: 0, rov: 0, marks: MARKS, backLabel: '← 제안 준비 현황으로' });
-  assert.ok(/<h2 id="ts-title" tabindex="-1">/.test(h));
-  assert.ok(h.indexOf('<nav class="ts-steps" id="ts-steps" aria-label="협약준비 단계">') > 0);
-  assert.ok(h.indexOf('data-ts="back">← 제안 준비 현황으로</button>') > 0);
-  assert.ok(h.indexOf('data-ts="prep" aria-label="&lt;img src=x onerror=alert(1)&gt; 사전준비 상세 열기 — 개설 신청·준비 과제"') > 0);
-  assert.ok(h.indexOf('id="ts-live" class="sr-only" role="status"') > 0);
-  assert.ok(h.indexOf('<img') < 0 && h.indexOf('<b>김') < 0);
-  assert.ok(h.indexOf('화면 준비 중') > 0 && h.indexOf('이 단계에서 확인할 산출물은 상의해 정한 뒤 이 자리에 보입니다. 지금은 제안 준비 현황 표의 체크 기록만 보입니다.') > 0);
-  assert.ok(h.indexOf('data-ts="prev" disabled>이전 단계 없음</button>') > 0);
+test('stepKey: 같은 구간 안에서만 움직인다', function () {
+  const a = pt.phaseIdxs('agree');
+  assert.strictEqual(pt.stepKey(a[0], 'ArrowUp'), a[0]);
+  assert.strictEqual(pt.stepKey(a[0], 'ArrowDown'), a[1]);
+  assert.strictEqual(pt.stepKey(a[1], 'End'), a[a.length - 1]);
+  assert.strictEqual(pt.stepKey(a[a.length - 1], 'ArrowDown'), a[a.length - 1]);
+  assert.strictEqual(pt.stepKey(a[2], 'Home'), a[0]);
+  assert.strictEqual(pt.stepKey(a[0], 'Enter'), null);
 });
 
-test('listHtml: 단일 칸은 상태·마지막 체크·체크한 사람, 묶음은 하위 칸 머리, 열람 제한 줄은 단추 없음, 이스케이프', function () {
-  const rows = [row(), row({ bid_case_id: 'B2', institution_name: '<b>', can_view: false, is_mine: false, cells: {} })];
-  const one = pt.listHtml({ step: pt.stepByCd('FIN_COMMITTEE'), rows: rows, marks: MARKS });
-  assert.ok(one.indexOf('<th scope="col">마지막 체크</th>') > 0 && one.indexOf('<th scope="col">체크한 사람</th>') > 0);
-  assert.strictEqual((one.match(/data-ts="name"/g) || []).length, 1, '열람 제한 줄은 단추 없음');
-  assert.ok(one.indexOf('class="pb-nm-t">&lt;b&gt;') > 0);
-  assert.ok(one.indexOf('data-bid="B1"') > 0 && one.indexOf('2026-11-21') > 0 && one.indexOf('김영업') > 0);
-  assert.ok(one.indexOf('내 담당') > 0);
-  assert.ok(one.indexOf('<caption class="sr-only">가결위(재무) 기관 목록</caption>') > 0);
-  const grp = pt.listHtml({ step: pt.stepByCd('BOARD'), rows: rows, marks: MARKS });
-  assert.ok(grp.indexOf('<th scope="col">사무국</th>') > 0 && grp.indexOf('<th scope="col">준법</th>') > 0);
-  assert.ok(grp.indexOf('체크한 사람') < 0);
-  assert.ok(grp.indexOf('2026-11-22') > 0);
+test('liveText: 기관, 구간 n단계 이름, 상태', function () {
+  assert.strictEqual(pt.liveText(view('IN_PROGRESS'), row(), MARKS, idxOf('FIN_COMMITTEE')), '청주시, 제안 사전준비 5단계 가결위(재무), 진행');
 });
 
-// ── 소스 규칙 ──
-test('소스 규칙: 저장소·confirm·외부 주소·hex 없음, 화면 이름 prep_dashboard, 버튼은 open·refresh만, innerHTML은 이스케이프 조립만', function () {
-  assert.ok(!/localStorage|sessionStorage|indexedDB|document\.cookie/.test(SRC));
-  assert.ok(!/\bconfirm\(/.test(SRC) && !/https?:\/\//.test(SRC));
-  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(SRC));
-  assert.ok(!/\$\{/.test(SRC), '템플릿 문자열 보간 없음');
-  assert.ok(SRC.indexOf("'X-Screen-Id': pb.SCREEN") > 0 && pb.SCREEN === 'prep_dashboard');
-  assert.ok(SRC.indexOf("'dash_check'") < 0, '체크 저장은 이 화면에서 하지 않는다(읽기 전용)');
-  assert.ok(!/method:\s*'(PUT|POST|DELETE|PATCH)'/.test(SRC));
-  assert.ok(/load\('open'\)/.test(SRC) && /load\('refresh'\)/.test(SRC));
-  SRC.split('\n').forEach(function (line, i) {
-    if (!/\.(innerHTML|outerHTML)\s*=/.test(line)) return;
-    assert.ok(/pt\.\w+Html\(|skeletonHtml\(|stateBox\(|pb\.countHtml\(|= ''/.test(line), 'L' + (i + 1) + ': ' + line.trim());
-  });
-  assert.ok(!/innerHTML\s*=\s*[^;]*\be\.(message|detail)/.test(SRC));
+// ── 체크 권한 ──
+test('markGate: 줄 없음·끝난 건·개설 전·담당 아님은 보기만', function () {
+  assert.deepStrictEqual(pt.markGate(view('IN_PROGRESS'), row(), 'none'), { can: true, why: '' });
+  assert.strictEqual(pt.markGate(view('IN_PROGRESS'), null, 'none').why, pt.T.noRow);
+  assert.strictEqual(pt.markGate(view('IN_PROGRESS'), null, 'loading').why, pt.T.rowLoading);
+  assert.strictEqual(pt.markGate(view('CONFIRMED'), row(), 'none').why, pb.T.infoPre);
+  assert.strictEqual(pt.markGate(view('OPEN_PENDING'), row(), 'none').can, false);
+  assert.strictEqual(pt.markGate(view('IN_PROGRESS'), row({ can_check: false }), 'none').why, pb.T.infoNotMine);
+  assert.strictEqual(pt.markGate(view('IN_PROGRESS'), row({ ended: true }), 'none').why, pt.T.ended);
+  assert.strictEqual(pt.markGate(view('CANCELLED'), row(), 'none').can, false);
+});
+
+// ── 본문 ──
+test('bodyHtml 손 칸: 상태 단추 4개(눌린 값 하나)·마지막 체크·이전/다음', function () {
+  const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('FIN_COMMITTEE')));
+  assert.ok(/제안 사전준비 · 5 \/ 24/.test(h));
+  assert.ok(/<h3 class="ts-step-title" id="ts-step-title" tabindex="-1">가결위\(재무\)<\/h3>/.test(h));
+  assert.strictEqual((h.match(/data-act="mark" data-col="FIN_COMMITTEE"/g) || []).length, 4);
+  assert.strictEqual((h.match(/aria-pressed="true"/g) || []).length, 1);
+  assert.ok(/data-mk="IN_PROGRESS" aria-pressed="true"/.test(h));
+  assert.ok(/마지막 체크 2026-11-21 김영업/.test(h));
+  assert.ok(/data-act="ts-prev">이전: 수익성분석</.test(h) && /data-act="ts-next">다음: 출심위\(사업부\)</.test(h));
+});
+
+test('bodyHtml 손 칸: 체크할 수 없으면 단추 없이 값과 이유만, 저장 중이면 단추가 잠긴다', function () {
+  const ro = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('FIN_COMMITTEE'), { row: row({ can_check: false }) }));
+  assert.ok(!/data-act="mark"/.test(ro));
+  assert.ok(ro.indexOf(pb.T.infoNotMine) >= 0 && /class="ts-cell"/.test(ro));
+  const busy = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('FIN_COMMITTEE'), { markBusy: { FIN_COMMITTEE: true } }));
+  assert.strictEqual((busy.match(/aria-disabled="true"/g) || []).length, 4);
+  assert.ok(busy.indexOf(pt.T.saving) >= 0);
+  const none = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('PT'), { row: null }));
+  assert.ok(none.indexOf(pt.T.noRow) >= 0 && !/data-act="mark"/.test(none));
+});
+
+test('bodyHtml 묶음: 하위 칸마다 한 줄씩 상태 단추', function () {
+  const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('CONTRACT_APPR')));
+  assert.strictEqual((h.match(/<li data-col="CONTRACT_/g) || []).length, 4);
+  assert.strictEqual((h.match(/data-act="mark"/g) || []).length, 16);
+  assert.ok(/aria-label="협약체결품의 › 영업점안내 상태"/.test(h));
+  assert.ok(/협약 · 18 \/ 24/.test(h));
+});
+
+test('bodyHtml 담당자 지정: 확정 단계면 [개설 신청], 승인 대기면 대기 안내, 뒤에는 담당 이름', function () {
+  const c = pt.bodyHtml(model(view('CONFIRMED', { viewer: { can_request_open: true } }), 0));
+  assert.ok(/data-act="open-request-open"/.test(c) && c.indexOf(pt.T.startHint) >= 0);
+  assert.ok(/data-act="ts-prev" disabled>이전 단계 없음</.test(c));
+  const p = pt.bodyHtml(model(view('OPEN_PENDING', { open_request: { req_id: 7, status: 'PENDING' }, viewer: { can_withdraw_open: true } }), 0));
+  assert.ok(p.indexOf(prep.T.openPending) >= 0 && /data-act="withdraw" data-req="7"/.test(p));
+  const d = pt.bodyHtml(model(view('IN_PROGRESS'), 0));
+  assert.ok(d.indexOf(pt.T.startDone) >= 0 && /<dt>담당<\/dt><dd>김영업<\/dd>/.test(d));
+  assert.ok(!/open-request-open/.test(d));
+});
+
+test('bodyHtml 과제 단계: 그 단계에 걸린 과제만, 체크 단추는 prep.js 동작 이름 그대로', function () {
+  const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('INST_ANALYSIS')));
+  assert.strictEqual((h.match(/<li class="pp-task/g) || []).length, 2);
+  assert.ok(/data-act="uncheck" data-task="T1"/.test(h) && /data-act="check" data-task="T2"/.test(h));
+  assert.ok(!/data-task="T3"/.test(h));
+  const p = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('PROFIT'), { attach: [] }));
+  assert.ok(/data-task="T3"/.test(p) && /data-act="upload"/.test(p), '수익성 분석표 파일 칸');
+  const b = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('BOARD_DOC')));
+  assert.ok(/data-task="T5"/.test(b) && /data-act="to-board-doc"/.test(b));
+  const ro = pt.bodyHtml(model(view('IN_PROGRESS', { viewer: { is_assignee: false } }), idxOf('INST_ANALYSIS')));
+  assert.ok(ro.indexOf(prep.T.readonly) >= 0);
+  const pre = pt.bodyHtml(model(view('CONFIRMED'), idxOf('PROFIT')));
+  assert.ok(pre.indexOf(prep.T.tasksLater) >= 0 && !/pp-task/.test(pre));
+});
+
+test('bodyHtml 제출서류: 손 칸과 RFP 붙임서류 과제가 함께 보인다', function () {
+  const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('SUBMIT_DOCS')));
+  assert.ok(/data-act="mark" data-col="SUBMIT_DOCS"/.test(h) && /data-task="T4"/.test(h));
+});
+
+test('bodyHtml 제안서: 준비 중 건이면 승인 요청·작성 시작 줄, 담당자 지정 전이면 안내만', function () {
+  const h = pt.bodyHtml(model(view('IN_PROGRESS', { viewer: { is_assignee: true, can_request_plan_approval: true } }), idxOf('PROPOSAL')));
+  assert.ok(/data-act="plan-ask"/.test(h) && /data-act="start-ask"/.test(h));
+  const w = pt.bodyHtml(model(view('WRITING'), idxOf('PROPOSAL')));
+  assert.ok(/data-act="to-workflow"/.test(w));
+  const c = pt.bodyHtml(model(view('CONFIRMED'), idxOf('PROPOSAL')));
+  assert.ok(c.indexOf(pt.T.proposalLater) >= 0 && !/plan-ask/.test(c));
+  const last = pt.bodyHtml(model(view('IN_PROGRESS'), pt.STEPS.length - 1));
+  assert.ok(/data-act="ts-next" disabled>마지막 단계</.test(last));
+});
+
+test('caseHtml: 머리(제목·확정 취소)·알림 줄·구간 줄·단계 목록·본문이 한 화면에, 옛 5칸 단계 막대는 없다', function () {
+  const h = pt.caseHtml(model(view('CONFIRMED', { viewer: { can_unconfirm: true, can_request_open: true } }), 0));
+  assert.ok(/<h2 id="pp-case-title" class="tm-title" tabindex="-1">청주시<\/h2>/.test(h));
+  assert.ok(/data-act="unconfirm-open"/.test(h));
+  assert.ok(h.indexOf(prep.nextLine(view('CONFIRMED'))) >= 0);
+  assert.ok(/class="ts-phases"/.test(h) && /<nav class="ts-steps" id="ts-steps" aria-label="제안 사전준비 단계">/.test(h));
+  assert.ok(/<section class="ts-body" id="ts-body" aria-labelledby="ts-step-title">/.test(h));
+  assert.ok(/<div id="ts-live" class="sr-only" role="status"><\/div>/.test(h));
+  assert.ok(!/wf-stepper/.test(h), '옛 단계 막대 없음');
+  assert.strictEqual((h.match(/id="pp-case-title"/g) || []).length, 1);
+  const x = pt.caseHtml(model(view('IN_PROGRESS', { institution_name: '<b>x</b>' }), 99));
+  assert.ok(x.indexOf('<b>x</b>') < 0 && /담당자 지정/.test(x), '이름은 이스케이프, 범위 밖 번호는 첫 단계');
+});
+
+test('prep.caseHtml(옛 한 장 화면)은 조각으로 나눈 뒤에도 같은 내용을 낸다', function () {
+  const m = { view: view('IN_PROGRESS'), history: [], attach: null, role: '영업팀', meEmp: '1' };
+  const h = prep.caseHtml(m);
+  assert.ok(h.indexOf(prep.caseHeadHtml(m)) === 0);
+  assert.ok(/wf-stepper/.test(h) && (h.match(/<li class="pp-task/g) || []).length === 6);
+  assert.ok(h.indexOf(prep.taskItemHtml(prep.taskModel(TASKS[1], prep.tasksByCd(TASKS), m.view.viewer, 1), m)) > 0);
 });
 
 // ── 배선(정적) ──
-test('prepboard.js 연결: 이름 클릭·Enter는 단계 상세 우선, show()가 is-steps를 지우고 leave()는 가려진 동안 스크롤을 덮지 않는다', function () {
-  assert.ok(PB_SRC.indexOf('function openRow(row)') > 0 && PB_SRC.indexOf('root.preptask.openFromBoard({ row: row, data: B.data, hooks: hooks') > 0);
-  assert.ok(/if \(row && row\.can_view !== false && canOpen\(\)\) \{ e\.preventDefault\(\); openRow\(row\); \}/.test(PB_SRC));
-  assert.ok(/if \(row && row\.can_view !== false\) openRow\(row\);/.test(PB_SRC));
-  const show = PB_SRC.slice(PB_SRC.indexOf('pb.show = function'), PB_SRC.indexOf('pb.leave = function'));
-  assert.ok(show.indexOf("classList.remove('is-steps')") > 0 && show.indexOf("classList.remove('is-steps')") < show.indexOf('B.hooks = hooks'));
-  const leave = PB_SRC.slice(PB_SRC.indexOf('pb.leave = function'), PB_SRC.indexOf('pb.reset = function'));
-  assert.ok(leave.indexOf("contains('is-steps')") > 0);
-  assert.ok(PB_SRC.slice(PB_SRC.indexOf('pb.reset = function')).indexOf("classList.remove('is-steps')") > 0);
+test('배선: 표의 기관 이름 → prep.enterCase에 그 줄·값 이름표·조회 범위를 넘긴다', function () {
+  assert.ok(/B\.hooks\.openCase\(str\(row\.bid_case_id\), str\(row\.institution_name\), \{ row: row, marks: B\.data \? B\.data\.marks : \[\], scope: B\.scope \}\);/.test(PB_SRC));
+  assert.ok(/function enterCase\(bid, name, bd\) \{/.test(PREP_SRC));
+  assert.ok(!/openFromBoard|is-steps/.test(PB_SRC + PREP_SRC + SRC), '옛 단계 틀 경로는 없다');
 });
 
-test('app.js 연결: showSoon에 task 분기가 없다(메뉴 삭제 11-24), 계정 변경 때 onProfileChange, 탭 줄은 그대로', function () {
-  assert.ok(APP_SRC.indexOf('TASK_PREFIX') < 0 && APP_SRC.indexOf('isTask') < 0 && APP_SRC.indexOf('root.preptask.mount(') < 0);
-  assert.ok(/isBoard \|\| isTeam \|\| isPrep \|\| dashReady \|\| isPlans/.test(APP_SRC), 'plans.test 줄 보존');
-  assert.ok(APP_SRC.indexOf('root.preptask.onProfileChange()') > 0);
-  assert.ok(APP_SRC.indexOf('root.results.mount(resultsEl)') > 0, 'results 줄 보존');
+test('배선: paintCase는 preptask.caseHtml을 쓰고 없으면 옛 화면, 건을 새로 열면 단계 선택을 처음으로', function () {
+  assert.ok(/if \(pt && pt\.caseHtml\) \{[\s\S]*?box\.innerHTML = pt\.caseHtml\(model\);[\s\S]*?\} else \{\s*box\.innerHTML = prep\.caseHtml\(model\);/.test(PREP_SRC));
+  assert.ok(/if \(S\.stepIdx < 0\) S\.stepIdx = pt\.defaultIdx\(d\.view, model\.row, model\.marks\);/.test(PREP_SRC));
+  ['function enterCase(bid, name, bd) {', 'function selectCase(id) {', 'prep.openCase = function (bid, flash) {', 'function toBoardState() {'].forEach(function (head) {
+    const a = PREP_SRC.indexOf(head);
+    assert.ok(a > 0, head);
+    assert.ok(/resetSteps\(/.test(PREP_SRC.slice(a, a + 900)), head + ' → resetSteps');
+  });
 });
 
-test('index.html: preptask.js는 prepboard.js 뒤·app.js 앞, CSS 블록(새 hex·12px 미만·번지는 그림자·채운 주버튼 금지, 토큰 규칙)', function () {
-  const at = function (s) { return HTML.indexOf('<script src="js/' + s + '"></script>'); };
-  assert.strictEqual(HTML.split('js/preptask.js').length, 2);
-  assert.ok(at('preptask.js') > at('prepboard.js') && at('preptask.js') < at('app.js'));
-  const a = HTML.indexOf('/* 협약준비 업무 시작'), b = HTML.indexOf('/* 협약준비 업무 끝 */');
-  assert.ok(a > 0 && b > a && a > HTML.indexOf('.pb-legend[hidden]'));
-  const css = HTML.slice(a, b);
-  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/#eef1f5/g, '')), '새 hex 금지(DESIGN 패널 머리 리터럴 #eef1f5만 허용)');
-  (css.match(/font-size:\s*(\d+)px/g) || []).forEach(function (m) { assert.ok(Number(m.match(/(\d+)/)[1]) >= 12, m); });
-  assert.ok(!/box-shadow:\s*0\s/.test(css), '번지는 그림자 금지');
-  assert.ok(!/background:\s*var\(--accent-color\)\s*[;}]/.test(css), '채운 주버튼 금지');
-  ['#pp-root.is-steps #pp-board { display:none; }', '.ts-detail {', '.ts-step[aria-current="step"]', '.ts-step:focus-visible', '.ts-ph {', '.ts-pager {', '.ts-t th[scope="col"]'].forEach(function (s) { assert.ok(css.indexOf(s) >= 0, s); });
-  assert.ok(/\.ts-detail \{[^}]*grid-template-columns:232px minmax\(0,1fr\)/.test(css));
-  assert.ok(/\.ts-ph \{[^}]*repeating-linear-gradient\(45deg/.test(css), '준비중 빗금 45도');
-  assert.ok(HTML.indexOf('.nav-soon-tag') > 0, '배지 CSS는 그대로(이사회 발표 대본이 쓴다)');
+test('배선: 단계·구간·이전/다음·칸 체크 동작 이름이 화면과 처리 양쪽에 있다', function () {
+  ['ts-phase', 'ts-prev', 'ts-next', 'mark', 'to-board-doc'].forEach(function (act) {
+    assert.ok(SRC.indexOf('data-act="' + act + '"') >= 0, act + ' 화면');
+    assert.ok(PREP_SRC.indexOf("case '" + act + "':") >= 0, act + ' 처리');
+  });
+  assert.ok(/if \(t\.classList\.contains\('ts-step'\)\) \{ selectStep\(/.test(PREP_SRC));
+  assert.ok(/r\.addEventListener\('keydown', onStepKey\);/.test(PREP_SRC));
 });
 
-// ── 가짜 문서로 보는 동작 ──
-function fakeDoc() {
-  const doc = { els: {}, focused: null };
-  function make(id) {
-    const cls = new Set();
-    const n = { id: id, style: {}, hidden: false, innerHTML: '', textContent: '', attrs: {}, listeners: {}, kids: [] };
-    n.classList = { add: function (c) { cls.add(c); }, remove: function (c) { cls.delete(c); }, contains: function (c) { return cls.has(c); } };
-    n.getAttribute = function (k) { return Object.prototype.hasOwnProperty.call(n.attrs, k) ? n.attrs[k] : null; };
-    n.setAttribute = function (k, v) { n.attrs[k] = String(v); };
-    n.removeAttribute = function (k) { delete n.attrs[k]; };
-    n.addEventListener = function (t, f) { n.listeners[t] = f; };
-    n.focus = function () { doc.focused = n.id; };
-    n.scrollIntoView = function () {};
-    n.querySelector = function () { return null; };
-    n.querySelectorAll = function () { return []; };
-    n.appendChild = function (c) { n.kids.push(c); if (c.id) doc.els[c.id] = c; return c; };
-    n.insertBefore = n.appendChild;
-    return n;
-  }
-  doc.add = function (id) { const n = make(id); doc.els[id] = n; return n; };
-  doc.getElementById = function (id) { return doc.els[id] || null; };
-  doc.createElement = function () { return make(''); };
-  doc.querySelectorAll = function () { return []; };
-  doc.body = make('body');
-  return doc;
-}
-// preptask.js를 vm 안에서 브라우저처럼(self = 전역) 실행한다. 상태 P가 시험마다 새로 만들어진다.
-function sandbox(opt) {
-  const o = opt || {};
-  const sb = { document: fakeDoc(), logic: require('../js/logic.js'), prepboard: pb, fetched: 0, who: { emp: o.emp || 'E1', team: o.team || '영업팀' } };
-  sb.store = { loadSession: function () { return { emp: sb.who.emp }; }, loadProfile: function () { return { team: sb.who.team }; } };
-  sb.fetch = function () {
-    sb.fetched += 1;
-    return o.data ? Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve(o.data); } }) : new Promise(function () {});
-  };
-  sb.self = sb;
-  vm.createContext(sb);
-  vm.runInContext(SRC, sb);
-  return sb;
-}
-function clickOf(attrs, closest) {
-  const b = { classList: { contains: function () { return false; } }, getAttribute: function (k) { return Object.prototype.hasOwnProperty.call(attrs, k) ? attrs[k] : null; } };
-  b.closest = function (s) { return s === 'button' ? b : ((closest || {})[s] || null); };
-  return { target: b };
-}
-function tick() { return new Promise(function (r) { setImmediate(r); }); }
-
-test('bodyHtml: 라벨 없는 줄은 dl 밖 p.ts-note로(dt 없는 dd 없음)', function () {
-  const h = pt.bodyHtml(row(), 4, MARKS);
-  assert.ok(h.indexOf('<dt>상태</dt><dd>시작 전</dd>') > 0);
-  assert.ok(h.indexOf('<p class="ts-note">아직 체크하지 않았습니다.</p>') > h.indexOf('</dl>'));
-  assert.ok(!/<div><dd>/.test(h));
-  assert.ok(h.indexOf('<p class="ts-note">체크는 제안 준비 현황 표에서 담당 영업이 합니다.</p>') > 0);
+test('배선: 칸 체크는 표와 같은 주소·화면 이름표, 같은 값·저장 중이면 요청하지 않는다', function () {
+  const a = PREP_SRC.indexOf('function onMark(cd, mark) {');
+  const b = PREP_SRC.indexOf('// o.popup: 건을 연 경우에만 true(');
+  assert.ok(a > 0 && b > a);
+  const f = PREP_SRC.slice(a, b);
+  assert.ok(/S\.markBusy\[cd\]\) return;/.test(f));
+  assert.ok(/if \(cur\.mark === mark\) return;/.test(f));
+  assert.ok(/req\('PUT', base\(id\) \+ '\/board-checks\/' \+ encodeURIComponent\(cd\), \{ mark_cd: mark, base_rev: cur\.revNo \}, ui\('prep_dashboard', 'dash_check'\)\)/.test(f));
+  assert.ok(/row\.cells\[cd\] = prev;/.test(f), '실패하면 되돌린다');
+  assert.ok(PB_SRC.indexOf("'/prep/board-checks/'") > 0, '표의 주소와 같다');
 });
 
-test('openFromBoard(가짜 문서): is-steps를 붙이고 경로 2 틀을 비우고 제목에 포커스, 돌아가기는 ctx.back(bid)를 한 번 부른다', function () {
-  const sb = sandbox();
-  const d = sb.document;
-  const pp = d.add('pp-root'); d.add('pp-modal');
-  const ts = d.add('ts-root'); ts.innerHTML = '<p>옛 목록</p>';
-  d.add('ts-title');
-  const back = [];
-  const ok = sb.preptask.openFromBoard({ row: row(), data: { marks: MARKS }, hooks: {}, back: function (id) { back.push(id); } });
-  assert.strictEqual(ok, true);
-  assert.ok(pp.classList.contains('is-steps'));
-  assert.strictEqual(ts.innerHTML, '');
-  assert.strictEqual(d.focused, 'ts-title');
-  const dt = d.getElementById('ts-detail-pp');
-  assert.ok(dt && dt.innerHTML.indexOf('청주시') > 0);
-  dt.listeners.click(clickOf({ 'data-ts': 'back' }));
-  assert.deepStrictEqual(back, ['B1']);
-  assert.strictEqual(dt.innerHTML, '');
+test('배선: preptask.js는 순수 함수만(문서·요청을 만지지 않는다), 스크립트 순서는 prep → prepboard → preptask', function () {
+  assert.ok(!/document\.|fetch\(|addEventListener/.test(SRC));
+  const a = HTML.indexOf('js/prep.js'), b = HTML.indexOf('js/prepboard.js'), c = HTML.indexOf('js/preptask.js');
+  assert.ok(a > 0 && b > a && c > b);
+  assert.ok(!/preptask\.mount|preptask\.onProfileChange/.test(APP_SRC), 'app.js는 preptask를 직접 부르지 않는다');
 });
 
-test('openFromBoard(가짜 문서): 그리다 던지면 is-steps를 지우고 false(표가 가려진 채 남지 않는다)', function () {
-  const sb = sandbox();
-  const d = sb.document;
-  const pp = d.add('pp-root'); d.add('pp-modal');
-  const bad = row();
-  Object.defineProperty(bad, 'institution_name', { get: function () { throw new Error('boom'); } });
-  const ok = sb.preptask.openFromBoard({ row: bad, data: { marks: MARKS }, hooks: {}, back: function () {} });
-  assert.strictEqual(ok, false);
-  assert.ok(!pp.classList.contains('is-steps'));
-  assert.strictEqual(d.getElementById('ts-detail-pp').innerHTML, '');
-});
-
-test('경로 2(가짜 문서): mount는 포커스를 옮기지 않고, 이름 클릭은 그 task 단계로 상세, 돌아가기는 같은 기관 이름에 포커스', async function () {
-  const sb = sandbox({ data: { marks: MARKS, rows: [row()], scope: 'mine' } });
-  const d = sb.document;
-  const host = d.add('ts-root');
-  d.add('ts-list-title');
-  const lv = d.add('ts-list-v'), dt = d.add('ts-detail-t');
-  d.add('ts-title');
-  const scroll = d.add('ts-scroll'), nm = d.add('nm-b1');
-  const tr = { getAttribute: function (k) { return k === 'data-bid' ? 'B1' : null; }, querySelector: function (s) { return s === '.pb-nm' ? nm : null; } };
-  scroll.querySelectorAll = function (s) { return s === 'tr[data-bid]' ? [tr] : []; };
-  sb.preptask.mount(host, 'FIN_COMMITTEE', '가결위(재무)');
-  assert.strictEqual(d.focused, null, '목록 mount는 포커스를 옮기지 않는다');
-  await tick();
-  assert.ok(scroll.innerHTML.indexOf('data-bid="B1"') > 0);
-  host.listeners.click(clickOf({ 'data-ts': 'name' }, { tr: tr }));
-  assert.strictEqual(lv.hidden, true);
-  assert.strictEqual(dt.hidden, false);
-  assert.ok(/data-i="3"[^>]*aria-current="step"/.test(dt.innerHTML), '처음 단계 = 그 task(가결위 = 4번째)');
-  assert.strictEqual(d.focused, 'ts-title');
-  host.listeners.click(clickOf({ 'data-ts': 'back' }));
-  assert.strictEqual(dt.hidden, true);
-  assert.strictEqual(dt.innerHTML, '');
-  assert.strictEqual(lv.hidden, false);
-  assert.strictEqual(d.focused, 'nm-b1');
-});
-
-test('onProfileChange(가짜 문서): 같은 사람이면 그대로, 사람이 바뀌어도 soon 탭이 숨어 있으면 다시 받지 않고, 보일 때만 다시 받는다', function () {
-  const sb = sandbox();
-  const d = sb.document;
-  const host = d.add('ts-root');
-  const tab = d.add('tab-soon'); tab.classList.add('active');
-  sb.preptask.mount(host, 'FIN_COMMITTEE', '가결위(재무)');
-  assert.strictEqual(sb.fetched, 1);
-  host.innerHTML = 'X';
-  sb.preptask.onProfileChange();
-  assert.strictEqual(host.innerHTML, 'X', '같은 사람이면 아무것도 하지 않는다');
-  assert.strictEqual(sb.fetched, 1);
-  sb.who.emp = 'E2';
-  tab.classList.remove('active');
-  sb.preptask.onProfileChange();
-  assert.strictEqual(host.innerHTML, '', '앞 계정의 틀은 비운다');
-  assert.strictEqual(sb.fetched, 1, '숨은 화면은 요청하지 않는다');
-  sb.preptask.mount(host, 'FIN_COMMITTEE', '가결위(재무)');
-  assert.strictEqual(sb.fetched, 2);
-  tab.classList.add('active');
-  sb.who.emp = 'E3';
-  sb.preptask.onProfileChange();
-  assert.strictEqual(sb.fetched, 3, '보이는 task 화면은 새 계정으로 다시 받는다');
-  assert.ok(host.innerHTML.indexOf('ts-list-v') > 0);
-});
-
-test('app.showSoon(가짜 문서): 옛 task id를 줘도 task 화면을 열지 않고 기본 안내(soon-plain)로 떨어진다(메뉴 삭제 11-24)', function () {
-  const start = APP_SRC.indexOf('  app.showSoon = function');
-  const end = APP_SRC.indexOf('\n  };\n', start) + 5;
-  assert.ok(start > 0 && end > start);
-  const body = APP_SRC.slice(start, end);
-  const d = fakeDoc();
-  ['tab-soon', 'soon-title', 'soon-badge', 'soon-note', 'soon-plain', 'bd-root', 'tm-root', 'pp-root'].forEach(function (id) { d.add(id); });
-  const calls = [];
-  const r = { nav: nav, preptask: { cdOf: pt.cdOf, host: function () { calls.push('host'); return null; }, mount: function () { calls.push('mount'); } } };
-  const app = new Function('root', 'document', 'let navActiveId; const app = { onTabChange: function () {} };\n' + body + '\nreturn app;')(r, d);
-  app.showSoon('soon:task:PT', '라벨');
-  assert.deepStrictEqual(calls, []);
-  assert.strictEqual(d.getElementById('soon-plain').style.display, '');
-});
-
-test('prepboard 대체 경로: preptask가 없으면 이름 클릭이 hooks.openCase(bid, 이름)로 간다', async function () {
-  const d = fakeDoc();
-  const sec = d.add('pp-board');
-  global.document = d;
-  try {
-    const calls = [];
-    const hooks = {
-      req: function () { return Promise.resolve({ columns: [], groups: {}, marks: MARKS, rows: [row()] }); },
-      roleLabel: '', openCase: function (b, n) { calls.push([b, n]); }, openMap: function () {},
-    };
-    assert.strictEqual(pb.show(hooks), true);
-    await tick();
-    const tr = { getAttribute: function (k) { return k === 'data-bid' ? 'B1' : null; } };
-    sec.listeners.click(clickOf({ 'data-pb': 'open' }, { tr: tr }));
-    assert.deepStrictEqual(calls, [['B1', '청주시']]);
-  } finally { delete global.document; }
+test('CSS: 구간 줄·상태 단추 규칙이 있고, 없앤 경로 2 규칙은 남지 않았다', function () {
+  ['.ts-phases', '.ts-phase[aria-pressed="true"]', '.ts-marks', '.ts-mk[aria-pressed="true"]', '.ts-detail', '.ts-steps', '.ts-body', '.ts-pager'].forEach(function (sel) {
+    assert.ok(HTML.indexOf(sel) > 0, sel);
+  });
+  ['#ts-root', '.ts-listv', '#ts-detail-pp', '#ts-detail-t', '.ts-t ', '.ts-ph '].forEach(function (sel) {
+    assert.ok(HTML.indexOf(sel) < 0, sel + ' 없음');
+  });
 });

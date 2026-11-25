@@ -255,7 +255,6 @@
     if (root.prep && root.prep.onProfileChange) root.prep.onProfileChange();      // 제안서 사전준비·지도 팝오버 캐시도 같다
     if (root.plans && root.plans.onProfileChange) root.plans.onProfileChange();   // 기관 사업계획 현황·상세 캐시도 같다
     if (root.results && root.results.onProfileChange) root.results.onProfileChange();   // 협약 성과 응답·거르기도 앞 사용자의 것을 버린다
-    if (root.preptask && root.preptask.onProfileChange) root.preptask.onProfileChange();   // 협약준비 업무 목록·단계 상세도 앞 사용자의 것을 버린다
     app.applyMenuPermissions();
     if (app.paintUserArea) app.paintUserArea();
     // 워크플로 탭이 이미 그려져 있으면 승인·반려 버튼의 권한 표시를 새 계정에 맞춘다.

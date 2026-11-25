@@ -1583,21 +1583,18 @@
   @media screen and (max-width:880px) { .pb-meta { margin-left:0; } .pb-bar #pb-q { width:100%; } .pb-scope { width:100%; } .pb-sc { flex:1 1 0; } }
   .pb-legend[hidden] { display:none; }
   /* 협약준비 업무 시작(NEXT 113) — 규격 design-reviewer 2026-11-24_1504_ab6354bd 6-4. 새 변수·새 hex 없음(#eef1f5는 DESIGN 패널 머리 리터럴), 최소 12px, 번지는 그림자·채운 주버튼 없음 */
-  #pp-root.is-steps #pp-board { display:none; }
-  #ts-root { width:100%; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:10px; align-self:stretch; }   /* 보조: 경로 2 자리(#pp-root와 같은 틀) */
-  #ts-root [hidden] { display:none !important; }
-  .ts-listv { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:8px; }   /* 보조 */
-  .ts-dhost { flex:1 1 auto; min-height:0; flex-direction:column; }   /* 보조: 상세 틀을 담는 자리(두 경로 공용) */
-  #ts-detail-pp { display:none; }
-  #pp-root.is-steps #ts-detail-pp { display:flex; }
-  #ts-detail-t { display:flex; }
-  .pb-bar #ts-q { width:200px; }   /* 보조 */
-  #ts-err:empty { display:none; }   /* 보조 */
-  .ts-detail { display:grid; grid-template-columns:232px minmax(0,1fr); gap:12px; flex:1 1 auto; min-height:0; }
-  .ts-casehead { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
-  .ts-casehead h2 { margin:0; font-size:16px; font-weight:700; letter-spacing:-.01em; }
-  .ts-casehead .ts-who { font-size:12px; color:var(--muted); margin-top:2px; }
-  .ts-steps { overflow-y:auto; min-height:0; padding:4px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); }
+  .ts-phases { display:flex; gap:6px; margin:10px 0; }
+  .ts-phase { flex:1 1 0; min-width:0; display:flex; align-items:center; gap:8px; min-height:40px; padding:6px 12px; text-align:left; font:inherit; font-size:13px; color:var(--fg);
+    background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); cursor:pointer; }
+  .ts-phase:hover { background:var(--bg); }
+  .ts-phase[aria-pressed="true"] { background:var(--panel); border-color:var(--accent-color); box-shadow:inset 0 -3px 0 var(--accent-color); font-weight:700; }
+  .ts-phase:focus-visible { outline:2px solid var(--accent-color); outline-offset:1px; }
+  .ts-pno { flex:0 0 auto; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font:700 12px var(--mono); color:var(--muted);
+    border:1px solid var(--line); border-radius:var(--r); background:var(--panel); }
+  .ts-phase[aria-pressed="true"] .ts-pno { color:var(--accent-color); border-color:var(--accent-color); }
+  .ts-pname { flex:1 1 auto; min-width:0; word-break:keep-all; }
+  .ts-detail { display:grid; grid-template-columns:232px minmax(0,1fr); gap:12px; align-items:start; }
+  .ts-steps { position:sticky; top:0; padding:4px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); }
   .ts-steps ol { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px; }
   .ts-step { display:grid; grid-template-columns:22px 14px minmax(0,1fr) auto; align-items:center; gap:6px; width:100%; min-height:32px;
     padding:6px 8px; text-align:left; font-size:13px; color:var(--fg); background:transparent; border:0; border-radius:var(--r);
@@ -1609,7 +1606,7 @@
   .ts-no { text-align:right; }
   .ts-name { word-break:keep-all; line-height:1.3; }
   .ts-step.is-ro .ts-name { color:var(--muted); }
-  .ts-body { min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding:14px 16px;
+  .ts-body { min-width:0; min-height:260px; display:flex; flex-direction:column; gap:12px; padding:14px 16px;
     background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
   .ts-step-title { margin:0; font-size:15px; font-weight:700; letter-spacing:-.01em; }
   .ts-facts { display:flex; flex-wrap:wrap; gap:4px 16px; margin:0; font-size:13px; }
@@ -1618,20 +1615,20 @@
   .ts-note { margin:0; font-size:12px; color:var(--muted); }   /* 보조 */
   .ts-acts { display:flex; flex-wrap:wrap; gap:8px; }   /* 보조 */
   .ts-subs { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; font-size:13px; }   /* 보조: 묶음 단계의 하위 칸 한 줄씩 */
-  .ts-subs li { display:grid; grid-template-columns:14px 96px 72px 92px minmax(0,1fr); align-items:center; gap:8px; }
-  .ts-subs .m { font:400 12px var(--mono); }
-  .ts-ph { padding:20px 16px; font-size:13px; color:var(--muted); border:1px solid var(--line); border-radius:var(--r);
-    background:repeating-linear-gradient(45deg, color-mix(in srgb, var(--muted) 10%, transparent) 0 2px, transparent 2px 4px); }
-  .ts-ph b { display:block; margin-bottom:4px; font-size:14px; color:var(--fg); }
+  .ts-subs li { display:grid; grid-template-columns:96px auto minmax(0,1fr); align-items:center; gap:10px; }
+  .ts-markrow { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+  .ts-marks { display:inline-flex; flex-wrap:wrap; align-items:center; gap:4px; }
+  .ts-mk { display:inline-flex; align-items:center; gap:4px; min-height:30px; padding:4px 10px; font:inherit; font-size:13px; color:var(--fg);
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--r); cursor:pointer; }
+  .ts-mk:hover { background:var(--bg); }
+  .ts-mk[aria-pressed="true"] { border-color:var(--accent-color); box-shadow:inset 0 0 0 1px var(--accent-color); font-weight:700; }
+  .ts-mk[aria-disabled="true"] { opacity:.55; cursor:default; }
+  .ts-mk:focus-visible { outline:2px solid var(--accent-color); outline-offset:1px; }
+  .ts-last, .ts-saving { font-size:12px; color:var(--muted); }
+  .ts-body .pp-tasks { margin:0; }
+  .ts-body .pp-end { margin-top:0; }
   .ts-pager { display:flex; justify-content:space-between; gap:8px; margin-top:auto; padding-top:12px; border-top:1px solid var(--line); }
-  .ts-t { width:100%; border-collapse:separate; border-spacing:0; }   /* 보조: 경로 2 표 */
-  .ts-t thead th { position:sticky; top:0; z-index:2; }
-  .ts-t th[scope="col"] { background:#eef1f5; font-size:12px; font-weight:700; text-align:left; }
-  .ts-t td, .ts-t th { padding:6px 10px; border-bottom:1px solid var(--line); font-size:13px; }
-  .ts-t tbody th { text-align:left; font-weight:400; background:var(--panel); vertical-align:top; }
-  .ts-t tr.is-ended td, .ts-t tr.is-ended th { color:var(--muted); }
   .ts-cell { display:inline-flex; align-items:center; gap:4px; }
-  .ts-d { font:400 12px var(--mono); color:var(--muted); }
   /* 협약준비 업무 끝 */
 
   #tab-approvals.active, #tab-admin.active, #tab-myinfo.active { overflow:auto; gap:10px; }

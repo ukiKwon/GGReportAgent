@@ -25,6 +25,7 @@
   prep.TABS = [{ key: 'active', label: '진행 중' }, { key: 'closed', label: '취소·중단' }];
   prep.STATE_ORDER = ['CONFIRMED', 'OPEN_PENDING', 'IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING', 'CANCELLED'];
   const TASK_STATES = ['IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING'];
+  prep.TASK_STATES = TASK_STATES;   // preptask.js가 '읽기 전용' 안내 줄 판정에 쓴다
   const AFTER_PLAN = ['APPROVAL_PENDING', 'WRITABLE', 'WRITING'];   // 사전준비 승인 요청 뒤 — 완료 취소는 확인 줄을 한 번 거친다
 
   // ── 문구 (규격 §5) ───────────────────────────────────────────────
@@ -715,11 +716,9 @@
   };
 
   // m: { view, history, attach, role, meEmp, confirm, uploading, showVoid }
-  prep.caseHtml = function (m) {
+  // 머리: 기관 이름·상태 배지·확정/담당 줄·[확정 취소]/[중단]
+  prep.caseHeadHtml = function (m) {
     const v = m.view || {};
-    const vw = v.viewer || {};
-    const tasks = Array.isArray(v.tasks) ? v.tasks : [];
-    const byCd = tasksByCd(tasks);
     const badge = prep.stateBadge(v.state_cd, v.state_name);
     const bt = prep.boardTag(v.board_result);
     const names = (Array.isArray(v.assignees) ? v.assignees : []).map(function (a) { return str(a.name); }).filter(Boolean);
@@ -729,10 +728,14 @@
         (v.emp_verified === 0 ? ' <span class="ad-badge muted" title="' + esc(T.selfReport) + '">자기신고</span>' : ''));
     }
     meta.push(names.length ? '담당 ' + esc(names.join(', ')) : esc(T.noAssignees));   // '담당 담당 미정' 겹침 방지(ce 리허설 관찰 11-24)
-    let h = '<div class="tm-case-head"><div><div class="pp-titlerow"><h2 id="pp-case-title" class="tm-title" tabindex="-1">' + esc(str(v.institution_name)) + '</h2>' +
+    return '<div class="tm-case-head"><div><div class="pp-titlerow"><h2 id="pp-case-title" class="tm-title" tabindex="-1">' + esc(str(v.institution_name)) + '</h2>' +
       '<span class="pp-badges">' + badgeHtml(badge) + (bt ? badgeHtml(bt) : '') + '</span></div>' +
       '<div class="tm-meta">' + meta.join(' · ') + '</div></div>' + prep.headActionHtml(v, m.role) + '</div>';
-    h += prep.stepsHtml(prep.stepModel(v, m.history));
+  };
+  // 알림 줄: 입찰 없음 사실 줄 · 다음 한 걸음 · 지난 개설 신청 · 취소 사유
+  prep.caseNoticeHtml = function (m) {
+    const v = m.view || {};
+    let h = '';
     const nb = prep.nobidOf(v);
     if (nb) h += prep.nobidBannerHtml(nb, !!m.canNotice);   // 입찰 없음 사실 줄 — 단계 막대 뒤, 다음 한 걸음 앞
     const next = prep.nextLine(v);
@@ -741,8 +744,37 @@
     if (past) h += '<p class="pp-next">' + esc(past) + '</p>';
     if (v.state_cd === 'CANCELLED') {
       const ev = prep.lastEvent(m.history, ['UNCONFIRM', 'CANCEL']);
-      h += '<div class="pp-banner" role="note">' + esc(T.cancelBanner(badge.text, ev ? str(ev.reason).trim() : '')) + '</div>';
+      h += '<div class="pp-banner" role="note">' + esc(T.cancelBanner(prep.stateBadge(v.state_cd, v.state_name).text, ev ? str(ev.reason).trim() : '')) + '</div>';
     }
+    return h;
+  };
+  // 준비 과제 한 줄(<li>). t = prep.taskModel 결과.
+  prep.taskItemHtml = function (t, m) {
+    const v = m.view || {};
+    const vw = v.viewer || {};
+    let act = '';
+    if (t.act === 'check') {
+      act = '<button type="button" class="pp-act" data-act="check" data-task="' + esc(t.cd) + '" aria-label="\'' + esc(t.name) + '\' 완료로 표시">완료로 표시</button>';
+    } else if (t.act === 'uncheck') {
+      act = '<button type="button" class="pp-act" data-act="uncheck" data-task="' + esc(t.cd) + '" aria-label="\'' + esc(t.name) + '\' 완료 취소">완료 취소</button>';
+    }
+    const askUncheck = m.confirm && m.confirm.kind === 'uncheck' && m.confirm.task === t.cd;
+    const showFiles = t.cd === 'T3' && m.attach && (t.state === 'TODO' || t.state === 'DONE');
+    return '<li class="pp-task ' + t.cls + '" data-task="' + esc(t.cd) + '"><div class="pp-task-head">' + glyphHtml(t.glyph) +
+      '<span class="pp-task-no">' + t.no + '</span><b>' + esc(t.name) + '</b>' +
+      (t.preparing ? '<span class="pp-prep-tag">준비중</span>'
+        : '<span class="pp-kind">' + esc(t.stateWord) + (t.kindText ? ' · ' + esc(t.kindText) : '') + '</span>') + act + '</div>' +
+      (t.sub ? '<div class="pp-task-sub">' + esc(t.sub) + '</div>' : '') +
+      (askUncheck ? confirmHtml(T.uncheckConfirm, 'uncheck-no', 'uncheck-ok', '완료 취소하기', '그대로 두기', t.cd, '완료 취소 확인') : '') +
+      (showFiles ? prep.filesHtml({ rows: m.attach, viewer: vw, meEmp: m.meEmp, role: m.role, stateCd: v.state_cd, uploading: m.uploading, showVoid: m.showVoid }) : '') + '</li>';
+  };
+  // 옛 한 장짜리 상세(5칸 단계 막대 + 과제 목록). 구간·단계 화면(preptask.js)이 없을 때의 대체 경로다.
+  prep.caseHtml = function (m) {
+    const v = m.view || {};
+    const vw = v.viewer || {};
+    const tasks = Array.isArray(v.tasks) ? v.tasks : [];
+    const byCd = tasksByCd(tasks);
+    let h = prep.caseHeadHtml(m) + prep.stepsHtml(prep.stepModel(v, m.history)) + prep.caseNoticeHtml(m);
     if (tasks.length) {
       const models = tasks.map(function (t, i) { return prep.taskModel(t, byCd, vw, i); });
       const pr = v.progress || {};
@@ -750,23 +782,7 @@
       h += '<div class="pp-sec-head">준비 과제 <span class="tm-n">' + done + '/' + total + '</span>' + pipsHtml(done, total) +
         '<small>준비중·해당 없음 과제는 세지 않습니다</small></div>';
       if (TASK_STATES.indexOf(v.state_cd) >= 0 && !vw.is_assignee) h += '<p class="pp-next">' + esc(T.readonly) + '</p>';
-      h += '<ol class="pp-tasks" aria-label="준비 과제">' + models.map(function (t) {
-        let act = '';
-        if (t.act === 'check') {
-          act = '<button type="button" class="pp-act" data-act="check" data-task="' + esc(t.cd) + '" aria-label="\'' + esc(t.name) + '\' 완료로 표시">완료로 표시</button>';
-        } else if (t.act === 'uncheck') {
-          act = '<button type="button" class="pp-act" data-act="uncheck" data-task="' + esc(t.cd) + '" aria-label="\'' + esc(t.name) + '\' 완료 취소">완료 취소</button>';
-        }
-        const askUncheck = m.confirm && m.confirm.kind === 'uncheck' && m.confirm.task === t.cd;
-        const showFiles = t.cd === 'T3' && m.attach && (t.state === 'TODO' || t.state === 'DONE');
-        return '<li class="pp-task ' + t.cls + '" data-task="' + esc(t.cd) + '"><div class="pp-task-head">' + glyphHtml(t.glyph) +
-          '<span class="pp-task-no">' + t.no + '</span><b>' + esc(t.name) + '</b>' +
-          (t.preparing ? '<span class="pp-prep-tag">준비중</span>'
-            : '<span class="pp-kind">' + esc(t.stateWord) + (t.kindText ? ' · ' + esc(t.kindText) : '') + '</span>') + act + '</div>' +
-          (t.sub ? '<div class="pp-task-sub">' + esc(t.sub) + '</div>' : '') +
-          (askUncheck ? confirmHtml(T.uncheckConfirm, 'uncheck-no', 'uncheck-ok', '완료 취소하기', '그대로 두기', t.cd, '완료 취소 확인') : '') +
-          (showFiles ? prep.filesHtml({ rows: m.attach, viewer: vw, meEmp: m.meEmp, role: m.role, stateCd: v.state_cd, uploading: m.uploading, showVoid: m.showVoid }) : '') + '</li>';
-      }).join('') + '</ol>';
+      h += '<ol class="pp-tasks" aria-label="준비 과제">' + models.map(function (t) { return prep.taskItemHtml(t, m); }).join('') + '</ol>';
     } else if (v.state_cd === 'CONFIRMED' || v.state_cd === 'OPEN_PENDING') {
       h += '<p class="wf-empty">' + esc(T.tasksLater) + '</p>';
     }
@@ -926,7 +942,8 @@
              modal: null, confirm: null, showVoid: false, uploading: false, busy: false,
              seq: 0, listSeq: 0, flash: '', refocus: '', focusTitle: false, withdrawing: false,
              nb: null, nbSeen: '',   // nb: 열린 입찰 없음 팝업 { id, round, rev, sending } · nbSeen: 이미 띄운 건|회차|판정 번호
-             view: 'board', fromBoard: false, pendingCase: false, boardName: '' };   // 제안 준비 현황 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
+             view: 'board', fromBoard: false, pendingCase: false, boardName: '',
+             board: null, boardLoading: false, boardSeq: 0, stepIdx: -1, stepAuto: true, markBusy: {}, live: '' };   // 구간·단계 화면(preptask.js): board = { row, marks, scope }(제안 준비 현황 표의 그 줄), stepIdx -1 = '지금 할 단계'로 자동   // 제안 준비 현황 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
   }
   let S = freshState();
   let reqSeq = 0;   // 요청 번호는 S 밖에서 단조 증가 — 계정 전환으로 S가 새로 만들어져도 옛 응답 번호와 겹치지 않는다(seq·listSeq 공용)
@@ -1005,6 +1022,12 @@
   }
   function toBoardState() {
     S.view = 'board'; S.fromBoard = false; S.selected = ''; S.detail = null; S.seq = ++reqSeq; S.confirm = null; S.nbSeen = ''; S.boardName = '';
+    resetSteps(null);
+  }
+  // 건을 새로 열 때: 표가 넘긴 줄이 있으면 그것으로, 없으면 상세를 받은 뒤 loadBoardRow가 채운다.
+  function resetSteps(bd) {
+    S.board = bd && bd.row ? { row: bd.row, marks: Array.isArray(bd.marks) ? bd.marks : [], scope: str(bd.scope) } : null;
+    S.boardLoading = false; S.boardSeq = ++reqSeq; S.stepIdx = -1; S.stepAuto = true; S.markBusy = {}; S.live = '';
   }
   function boardHooks() {
     const role = myRole();
@@ -1012,10 +1035,11 @@
              openMap: function () { if (root.app && root.app.openNavItem) root.app.openNavItem('map'); } };
   }
   // 표의 기관 이름 → 같은 자리에서 상세. 상세를 여는 요청의 화면 이름은 prep_dashboard.
-  function enterCase(bid, name) {
+  function enterCase(bid, name, bd) {
     if (root.prepboard && root.prepboard.leave) root.prepboard.leave();
     S.view = 'case'; S.fromBoard = true; S.selected = String(bid); S.nbSeen = ''; S.tab = 'active'; S.query = ''; S.detail = null;
     S.boardName = typeof name === 'string' ? name : '';
+    resetSteps(bd);
     S.modal = null; S.confirm = null; S.showVoid = false; S.focusTitle = true;
     clearQueryBox();
     clearNotices();
@@ -1122,9 +1146,20 @@
         : '<p class="wf-empty">' + esc(T.detailErr) + '</p><button type="button" id="pp-retry-detail">' + esc(T.retry) + '</button>');
       return;
     }
-    box.innerHTML = prep.caseHtml({ view: d.view, history: d.history, attach: d.attach, role: myRole(), meEmp: myEmp(),
+    const model = { view: d.view, history: d.history, attach: d.attach, role: myRole(), meEmp: myEmp(),
       confirm: S.confirm, uploading: S.uploading, showVoid: S.showVoid, withdrawing: S.withdrawing,
-      canNotice: nbCanNotice(prep.nobidOf(d.view)) });
+      canNotice: nbCanNotice(prep.nobidOf(d.view)) };
+    const pt = root.preptask;
+    if (pt && pt.caseHtml) {   // 구간·단계 한 화면(NEXT 113 2단계)
+      const bd = S.board || {};
+      model.row = bd.row || null; model.marks = bd.marks || []; model.rowState = S.boardLoading ? 'loading' : 'none';
+      if (S.stepIdx < 0) S.stepIdx = pt.defaultIdx(d.view, model.row, model.marks);
+      model.idx = S.stepIdx; model.markBusy = S.markBusy;
+      box.innerHTML = pt.caseHtml(model);
+      if (S.live) { const lv = el('ts-live'); if (lv) lv.textContent = S.live; S.live = ''; }
+    } else {
+      box.innerHTML = prep.caseHtml(model);
+    }
     afterPaint();
   }
   // 다시 그린 뒤 포커스: 확인 줄이 열렸으면 안전한 쪽(취소) 버튼, 아니면 요청된 자리.
@@ -1140,6 +1175,103 @@
       if (!t) t = el('pp-case-title');
       if (t) t.focus();
     }
+  }
+
+  // ── 구간·단계 화면: 단계 고르기·표의 그 줄 받기·칸 체크 ──
+  function stepCtx() {
+    const d = S.detail, bd = S.board || {};
+    return root.preptask && d && d.view ? { pt: root.preptask, v: d.view, row: bd.row || null, marks: bd.marks || [] } : null;
+  }
+  // 비동기 응답으로 다시 그릴 때: 지금 포커스가 놓인 단추를 다시 찾아 준다(다시 그리면 단추가 새로 만들어진다).
+  function focusKey() {
+    const a = document.activeElement, box = el('pp-case');
+    if (!a || !box || !box.contains(a) || !a.getAttribute) return '';
+    if (a.id) return '#' + a.id;
+    if (a.classList && a.classList.contains('ts-step')) return '.ts-step[data-i="' + a.getAttribute('data-i') + '"]';
+    const act = a.getAttribute('data-act');
+    if (!act) return '';
+    let sel = '[data-act="' + act + '"]';
+    ['data-col', 'data-mk', 'data-task', 'data-ph', 'data-attach'].forEach(function (k) {
+      const val = a.getAttribute(k);
+      if (val && /^[\w:.-]+$/.test(val)) sel += '[' + k + '="' + val + '"]';
+    });
+    return sel;
+  }
+  function repaintKeep() {
+    if (!S.detail || S.detail.loading || S.detail.err) return;
+    if (!S.refocus && !S.focusTitle && !S.confirm) S.refocus = focusKey();
+    paintCase();
+  }
+  function selectStep(i, refocus) {
+    const c = stepCtx();
+    if (!c || !(i >= 0 && i < c.pt.STEPS.length)) return;
+    S.stepIdx = i; S.stepAuto = false; S.confirm = null;
+    S.refocus = refocus || '.ts-step[data-i="' + i + '"]';
+    S.live = c.pt.liveText(c.v, c.row, c.marks, i);
+    paintCase();
+  }
+  // [이전]/[다음] — 누른 단추에 포커스를 남긴다(연달아 누를 수 있게). 끝에서 그 단추가 꺼지면 반대 단추로.
+  function stepBy(d) {
+    const c = stepCtx();
+    if (!c) return;
+    const i = S.stepIdx + d, last = c.pt.STEPS.length - 1;
+    const keep = d > 0 ? (i >= last ? 'ts-prev' : 'ts-next') : (i <= 0 ? 'ts-next' : 'ts-prev');
+    selectStep(i, '[data-act="' + keep + '"]');
+  }
+  // 제안 준비 현황 표의 그 줄(손으로 체크하는 칸의 값·체크 권한). scope를 주면 그 범위만, 없으면 내 작업 → 부서 순으로 찾는다.
+  function loadBoardRow(id, scope) {
+    const pbd = root.prepboard;
+    if (!root.preptask || !pbd || !pbd.boardUrl) return;
+    const token = S.boardSeq = ++reqSeq;
+    const order = pbd.scopeValid(scope) ? [scope] : ['mine', 'dept'];
+    if (!S.board) S.boardLoading = true;
+    (function next(k) {
+      req('GET', pbd.boardUrl(order[k], true), undefined, ui('prep_dashboard', 'refresh')).then(function (d) {
+        if (token !== S.boardSeq || S.selected !== id) return;
+        const rows = d && Array.isArray(d.rows) ? d.rows : [];
+        const row = rows.filter(function (r) { return r && str(r.bid_case_id) === id; })[0] || null;
+        if (!row && k + 1 < order.length) { next(k + 1); return; }
+        S.boardLoading = false;
+        if (row && !Object.keys(S.markBusy).length) {   // 칸을 저장하는 중이면 그 응답이 값을 맞춘다
+          S.board = { row: row, marks: Array.isArray(d.marks) ? d.marks : [], scope: order[k] };
+          if (S.stepAuto) S.stepIdx = -1;
+        }
+        repaintKeep();
+      }).catch(function () {
+        if (token !== S.boardSeq || S.selected !== id) return;
+        S.boardLoading = false;
+        repaintKeep();
+      });
+    })(0);
+  }
+  // 칸 체크 — 제안 준비 현황 표와 같은 주소·같은 화면 이름표로 저장한다(서버 감사 허용 목록이 prep_dashboard/dash_check).
+  function onMark(cd, mark) {
+    const c = stepCtx(), pbd = root.prepboard, bd = S.board;
+    if (!c || !pbd || !bd || !bd.row || !S.selected || !cd || S.markBusy[cd]) return;
+    const id = S.selected, row = bd.row, s0 = S;
+    const cur = c.pt.cellState(row, cd, bd.marks);
+    if (cur.mark === mark) return;   // 같은 값은 요청하지 않는다
+    const prev = row.cells && row.cells[cd] ? row.cells[cd] : { mark_cd: 'NONE', rev_no: 0 };
+    const label = c.pt.colLabel(cd);
+    S.markBusy[cd] = true;
+    clearNotices();
+    row.cells = row.cells || {};
+    row.cells[cd] = Object.assign({}, prev, { mark_cd: mark });   // 고른 값을 바로 그린다
+    repaintKeep();
+    req('PUT', base(id) + '/board-checks/' + encodeURIComponent(cd), { mark_cd: mark, base_rev: cur.revNo }, ui('prep_dashboard', 'dash_check')).then(function (res) {
+      if (s0 !== S || S.selected !== id || S.board !== bd) return;
+      delete S.markBusy[cd];
+      row.cells[cd] = Object.assign({}, prev, res && res.cell && typeof res.cell === 'object' ? res.cell : { mark_cd: mark });
+      if (!res || res.saved !== false) setFlash(pbd.saveOk(label, pbd.markName(bd.marks, mark)));
+      repaintKeep();
+    }).catch(function (e) {
+      if (s0 !== S || S.selected !== id || S.board !== bd) return;
+      delete S.markBusy[cd];
+      row.cells[cd] = prev;
+      if (e && e.status === 401) { paintGate({ text: T.login }); return; }
+      setPerr(pbd.saveError(e && e.status, e && e.detail && typeof e.detail === 'object' ? str(e.detail.code) : '', { inst: caseName() || str(row.institution_name), col: label }));
+      repaintKeep();
+    });
   }
 
   // o.popup: 건을 연 경우에만 true(목록 선택·화면 열림·다시 시도). 쓰기 뒤 재조회는 옵션 없음 = 입찰 없음 팝업을 또 띄우지 않는다.
@@ -1163,6 +1295,8 @@
       if (token !== S.seq) return;
       S.detail = d;
       paintCase();
+      if (!S.board) loadBoardRow(id, '');                 // 지도·현황판에서 바로 연 건: 표의 그 줄을 받아 온다
+      else if (!popup) loadBoardRow(id, S.board.scope);   // 쓰기 뒤: 체크 권한·자동 칸이 바뀌었을 수 있다
       if (popup) maybeNobid();
     }).catch(function (e) {
       if (token !== S.seq) return;
@@ -1175,6 +1309,7 @@
     const row = rowOf(id);
     if (row && !row.canView) { clearNotices(); setPerr(T.noView); return; }
     S.selected = id;
+    resetSteps(null);
     S.modal = null;
     S.confirm = null;
     S.showVoid = false;
@@ -1611,6 +1746,7 @@
     const t = e.target && e.target.closest ? e.target.closest('button, a') : null;
     if (!t) return;
     if (t.classList.contains('tm-item')) { selectCase(t.getAttribute('data-id')); return; }
+    if (t.classList.contains('ts-step')) { selectStep(Number(t.getAttribute('data-i')), ''); return; }
     if (t.getAttribute('data-tab')) {
       S.tab = t.getAttribute('data-tab') === 'closed' ? 'closed' : 'active';
       markTabs();
@@ -1621,6 +1757,15 @@
     const cd = t.getAttribute('data-task');
     switch (act) {
       case 'open-map': if (root.app && root.app.openNavItem) root.app.openNavItem('map'); return;
+      case 'ts-phase': {
+        const c = stepCtx(), ph = t.getAttribute('data-ph');
+        if (c) selectStep(c.pt.phaseEntryIdx(ph, c.v, c.row, c.marks), '.ts-phase[data-ph="' + ph + '"]');
+        return;
+      }
+      case 'ts-prev': stepBy(-1); return;
+      case 'ts-next': stepBy(1); return;
+      case 'mark': if (t.getAttribute('aria-disabled') !== 'true') onMark(t.getAttribute('data-col'), t.getAttribute('data-mk')); return;
+      case 'to-board-doc': if (root.app && root.app.openNavItem && root.nav) root.app.openNavItem(root.nav.BOARD_ID); return;
       case 'back': if (boardOn()) backToBoard(); return;
       case 'check': onCheck(cd, true); return;
       case 'uncheck': onUncheckAsk(cd); return;
@@ -1681,6 +1826,16 @@
     t.checked = S.modal.sel.indexOf(emp) >= 0;
     updateModalUi();
   }
+  // 단계 목록 ↑↓·Home·End — 포커스만 옮긴다(고르기는 Enter·Space = 단추의 click).
+  function onStepKey(e) {
+    const b = e.target && e.target.closest ? e.target.closest('.ts-step') : null;
+    if (!b || !root.preptask) return;
+    const i = root.preptask.stepKey(Number(b.getAttribute('data-i')), e.key);
+    if (i === null || i === undefined) return;
+    e.preventDefault();
+    const t = el('pp-case').querySelector('.ts-step[data-i="' + i + '"]');
+    if (t) t.focus();
+  }
   function onModalKey(e) {
     if ((!S.modal && !S.nb) || e.key !== 'Tab') return;      // Esc는 wire()의 document 핸들러가 처리
     const list = Array.prototype.filter.call(el('pp-modal').querySelectorAll('button, input, textarea, a[href]'), function (n) {
@@ -1698,6 +1853,7 @@
     r.addEventListener('click', onClick);
     r.addEventListener('input', onInput);
     r.addEventListener('change', onChange);
+    r.addEventListener('keydown', onStepKey);
     // 파일 고르는 숨은 입력 — 보이는 <button>이 .click()한다(display:none 입력을 label로 감싸지 않는다).
     const inp = document.createElement('input');
     inp.type = 'file';
@@ -1788,6 +1944,7 @@
     S.fromBoard = false;
     S.pendingCase = true;
     S.boardName = '';
+    resetSteps(null);
     clearQueryBox();
     const ok = !!(root.app && root.app.openNavItem && root.app.openNavItem(root.nav.PREP_ID));
     if (!ok) { S.flash = ''; S.pendingCase = false; S.view = 'board'; }

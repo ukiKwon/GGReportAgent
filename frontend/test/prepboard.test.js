@@ -838,7 +838,7 @@ test('상세 복귀(d): pb.show(h, {reload:true}) → 요청 1회, 이전 범위
 
 // qa P3-7 — 표에서 상세를 열 때 숨은 왼쪽 목록(GET /preps)을 부르지 않는다. 옛 화면(refresh)은 그대로.
 test('enterCase(P3-7): 표에서 연 상세는 /preps 목록을 부르지 않는다, 옛 화면 refresh는 loadList 유지', function () {
-  const a = PREP_SRC.indexOf('function enterCase(bid, name) {');
+  const a = PREP_SRC.indexOf('function enterCase(bid, name, bd) {');
   const b = PREP_SRC.indexOf('function backToBoard()');
   assert.ok(a > 0 && b > a, 'enterCase 범위');
   const body = PREP_SRC.slice(a, b);
@@ -851,10 +851,11 @@ test('enterCase(P3-7): 표에서 연 상세는 /preps 목록을 부르지 않는
 });
 
 // qa P3-a·P3-b — 이름은 표가 넘기고(제목·모달), 표에서 연 상세는 쓰기 뒤에도 /preps를 부르지 않는다.
-test('P3-b 동작: 이름 버튼 클릭 → hooks.openCase(bid, 기관 이름)', withDom(async function () {
+test('P3-b 동작: 이름 버튼 클릭 → hooks.openCase(bid, 기관 이름, 그 줄·값 이름표·조회 범위)', withDom(async function () {
   const calls = [];
   const h = deferredHooks();
-  h.openCase = function (bid, name) { calls.push([bid, name]); };
+  let extra = null;
+  h.openCase = function (bid, name, bd) { calls.push([bid, name]); extra = bd; };
   pb.show(h, {});
   h.pend[0](boardData('청주시'));
   await flush();
@@ -864,6 +865,7 @@ test('P3-b 동작: 이름 버튼 클릭 → hooks.openCase(bid, 기관 이름)',
     closest: function (s) { return s === 'button' ? btn : s === 'tr' ? tr : null; } };
   ENV.L.click({ target: btn });
   assert.deepStrictEqual(calls, [['B1', '청주시']]);
+  assert.ok(extra && extra.row && extra.row.bid_case_id === 'B1' && Array.isArray(extra.marks) && typeof extra.scope === 'string', '상세가 표를 다시 받지 않게 그 줄을 넘긴다');
 }));
 
 test('P3-a 소스: reloadList는 표에서 연 상세(fromBoard)에서 목록을 생략, handleError·doAct는 reloadList, refresh는 loadList 유지', function () {
@@ -879,8 +881,8 @@ test('P3-a 소스: reloadList는 표에서 연 상세(fromBoard)에서 목록을
   assert.ok(/paintList\(\);\s*loadList\(\);/.test(r), 'refresh의 목록 호출 유지');
 });
 
-test('P3-b 소스: enterCase(bid, name)가 이름을 보관, caseName()이 제목·모달에 쓰인다', function () {
-  assert.ok(/function enterCase\(bid, name\) \{/.test(PREP_SRC), 'enterCase 인자');
+test('P3-b 소스: enterCase(bid, name, bd)가 이름을 보관, caseName()이 제목·모달에 쓰인다', function () {
+  assert.ok(/function enterCase\(bid, name, bd\) \{/.test(PREP_SRC), 'enterCase 인자');
   assert.ok(/S\.boardName = typeof name === 'string' \? name : '';/.test(PREP_SRC), '이름 보관');
   assert.ok(/function caseName\(\) \{ const row = rowOf\(S\.selected\); return row \? row\.name : S\.boardName; \}/.test(PREP_SRC), 'caseName 정의');
   const p = PREP_SRC.slice(PREP_SRC.indexOf('function paintCase()'), PREP_SRC.indexOf('box.innerHTML = prep.caseHtml('));
