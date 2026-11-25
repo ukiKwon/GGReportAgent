@@ -2,7 +2,7 @@
   'use strict';
   // 영업 추진 준비 › 제안 준비 현황 › 기관 상세의 '구간·단계' 틀(NEXT 113 2단계, 사용자 11-25).
   // 기관을 누르면 화면은 하나다 — 옛 '사전준비 상세'(담당자 지정·준비 과제·승인)와 '23단계 틀'을 합쳤다.
-  //   구간 3개(제안 사전준비 → 협약 → 협약 이후) 안에 단계가 순서대로 놓이고, 단계 본문에서 그 단계의 일을 바로 한다.
+  //   구간 3개(입찰 자료확인 → 제안 준비 → 협약 이행 준비) 안에 단계가 순서대로 놓이고, 단계 본문에서 그 단계의 일을 바로 한다.
   //   · 담당자 지정·준비 과제·승인·작성 시작 = prep.js의 조각(endHtml·taskItemHtml)을 그 단계 본문에 그대로 싣는다(동작은 prep.js가 처리).
   //   · 손으로 체크하는 칸 = 본문의 상태 단추(data-act="mark") — 제안 준비 현황 표와 같은 주소로 저장한다(prep.js onMark).
   // 이 파일은 순수 함수만 둔다(node 시험 대상). 상태·요청·이벤트는 prep.js가 가진다(paintCase가 caseHtml을 부른다).
@@ -16,12 +16,12 @@
   function str(v) { return v == null ? '' : String(v); }
 
   // ── 구간·단계 정본 ───────────────────────────────────────────────
-  // 구간 나눔은 사용자 11-25 "제안서를 쓰기 위한 사전 단계(제안서 작성 포함) · 협약일 · 협약일 이후". 단계 순서는 엑셀 칸 순서 그대로(협약식이 맨 끝 — 사용자 11-25 확정).
+  // 구간 이름은 사용자 11-25 "입찰 자료확인 · 제안 준비 · 협약 이행 준비"(담당자 지정~수익성분석 / 가결위~결과발표 / 우선협상~협약식). 단계 순서는 엑셀 칸 순서 그대로(협약식이 맨 끝 — 사용자 11-25 확정).
   // 어느 단계가 어느 구간인지는 아래 ph 값으로 바꾼다.
   pt.PHASES = [
-    { key: 'prep', label: '제안 사전준비' },
-    { key: 'agree', label: '협약' },
-    { key: 'after', label: '협약 이후' },
+    { key: 'bid', label: '입찰 자료확인' },
+    { key: 'prep', label: '제안 준비' },
+    { key: 'agree', label: '협약 이행 준비' },
   ];
   // cd = 서버 PrepBoardColumns 칸 코드(묶음은 묶음 코드, 칸이 아닌 단계는 ''). tasks = 이 단계 본문에 싣는 사전준비 과제 코드.
   // kind: start(담당자 지정)·notice(읽기만)·auto(과제가 채움)·board(이사회 자료)·script(발표 대본)·proposal(제안서)·manual(담당 영업 체크)·group(묶음 체크)
@@ -30,10 +30,10 @@
   }
   function sub(cd, label) { return { cd: cd, label: label }; }
   pt.STEPS = [
-    step('', '담당자 지정', 'start', 'prep', { id: 'START' }),
-    step('NOTICE_CHECK', '입찰공고확인', 'notice', 'prep'),
-    step('INST_ANALYSIS', '기관 정보 분석', 'auto', 'prep', { tasks: ['T1', 'T2'] }),
-    step('PROFIT', '수익성분석', 'auto', 'prep', { tasks: ['T3'] }),
+    step('', '담당자 지정', 'start', 'bid', { id: 'START' }),
+    step('NOTICE_CHECK', '입찰공고확인', 'notice', 'bid'),
+    step('INST_ANALYSIS', '기관 정보 분석', 'auto', 'bid', { tasks: ['T1', 'T2'] }),
+    step('PROFIT', '수익성분석', 'auto', 'bid', { tasks: ['T3'] }),
     step('FIN_COMMITTEE', '가결위(재무)', 'manual', 'prep'),
     step('BIZ_COMMITTEE', '출심위(사업부)', 'manual', 'prep'),
     step('', '이사회 자료 작성', 'board', 'prep', { id: 'BOARD_DOC', tasks: ['T5'] }),
@@ -48,12 +48,12 @@
     step('PRIORITY_NEGO', '우선협상', 'manual', 'agree'),
     step('AGREE_LEGAL', '협약서(법률)', 'manual', 'agree'),
     step('CONTRACT_APPR', '협약체결품의', 'group', 'agree', { subs: [sub('CONTRACT_AUDIT', '감사·감시'), sub('CONTRACT_STRATEGY', '전략'), sub('CONTRACT_PROPERTY', '재산상이익'), sub('CONTRACT_BRANCH', '영업점안내')] }),
-    step('ATM', 'ATM', 'manual', 'after'),
-    step('KB_CARD', 'KB카드', 'manual', 'after'),
-    step('IT_BUILD', '전산구축', 'manual', 'after'),
-    step('VIP', 'VIP 지정', 'manual', 'after'),
-    step('RATE_APPROVAL', '금리승인', 'manual', 'after'),
-    step('CEREMONY', '협약식', 'manual', 'after'),
+    step('ATM', 'ATM', 'manual', 'agree'),
+    step('KB_CARD', 'KB카드', 'manual', 'agree'),
+    step('IT_BUILD', '전산구축', 'manual', 'agree'),
+    step('VIP', 'VIP 지정', 'manual', 'agree'),
+    step('RATE_APPROVAL', '금리승인', 'manual', 'agree'),
+    step('CEREMONY', '협약식', 'manual', 'agree'),
   ];
   pt.clampIdx = function (i) {
     const n = Number(i);
