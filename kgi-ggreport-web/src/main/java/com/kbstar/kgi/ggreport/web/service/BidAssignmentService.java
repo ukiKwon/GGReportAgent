@@ -283,6 +283,18 @@ public class BidAssignmentService {
         return planChange(bidCaseId, addIn, removeIn, me, true);
     }
 
+    /** 지금 활성 담당자의 사번 목록(권한 판정용 — 화면 응답에 그대로 싣지 않는다). */
+    List<String> activeEmpNos(String bidCaseId) {
+        List<String> out = new ArrayList<>();
+        if (bidCaseId == null || bidCaseId.isEmpty() || bidCaseId.length() > 64) {
+            return out;
+        }
+        for (BidAssigneeView v : mapper.selectActiveAssignees(bidCaseId)) {
+            out.add(v.getEmpNo());
+        }
+        return out;
+    }
+
     /** withApprover=false 면 결재자를 정하지 않는다(결재 없는 변경 — 검증은 같다, ChangePlan.approver 는 null). */
     private ChangePlan planChange(String bidCaseId, List<String> addIn, List<String> removeIn, SysUser me,
                                   boolean withApprover) {

@@ -19,11 +19,12 @@ public final class BoardUiIds {
     public static final String H_BUTTON = "X-Button-Id";
 
     public static final Set<String> SCREENS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
-            "board_list", "board_write", "board_review", "approvals_inbox", "approvals_mine")));
+            "board_list", "board_write", "board_review", "approvals_inbox", "approvals_mine",
+            "prep_detail")));   // 제안 준비 현황 › 기관 상세의 이사회 일정 등록(meeting_save)
     public static final Set<String> BUTTONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
             "open", "refresh", "create", "save_version", "submit", "withdraw", "rework", "result_save",
             "snapshot_open", "history_open", "review_open", "acts_open", "approve", "reject", "cancel_request",
-            "confirmed_docx")));
+            "confirmed_docx", "meeting_save")));
 
     private BoardUiIds() {
     }

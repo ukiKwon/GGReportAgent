@@ -64,6 +64,15 @@ public final class PrepUiIds {
         return new BoardUiIds.Ui(sv ? s : BoardUiIds.UNKNOWN, bv ? b : BoardUiIds.UNKNOWN, sv && bv);
     }
 
+    /** [담당자 변경] 전용 — 화면 prep_detail, 버튼 assignee_change 일 때만 그 값, 아니면 UNKNOWN·ui_valid=false(거절하지 않는다 — forStart 와 같다). */
+    public static BoardUiIds.Ui forAssigneeChange(HttpServletRequest req) {
+        String s = clean(req.getHeader(BoardUiIds.H_SCREEN));
+        String b = clean(req.getHeader(BoardUiIds.H_BUTTON));
+        boolean sv = START_SCREEN.equals(s);
+        boolean bv = "assignee_change".equals(b);
+        return new BoardUiIds.Ui(sv ? s : BoardUiIds.UNKNOWN, bv ? b : BoardUiIds.UNKNOWN, sv && bv);
+    }
+
     private static String clean(String v) {
         return v == null ? null : v.trim();
     }

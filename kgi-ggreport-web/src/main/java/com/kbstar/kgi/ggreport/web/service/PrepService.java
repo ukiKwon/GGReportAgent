@@ -569,9 +569,40 @@ public class PrepService {
      * 담당자 변경(결재 없음, 사용자 결정 2026-11-25) — 바꾼 즉시 반영하고 쪽지함으로 알린다.
      * 받는 사람: 새로 들어온 사람·빠진 사람·남은 담당자·바꾼 사람의 같은 팀 영업팀장(바꾼 본인은 뺀다). 쪽지에는 인원 수만 싣고 사유·사번은 싣지 않는다
      * (사유는 배정 이력 BID_ASSIGN_LOG 에 남는다). 받을 사람이 없어도(혼자 담당·팀장 본인) 변경은 된다.
+     *
+     * <p>바꿀 수 있는 사람(security 11-25 F1) — 결재가 없으므로 변경 신청보다 좁다: <b>지금 담당자</b>, 또는 <b>이 건의 팀장</b>
+     * (확정자·지금 담당자 중 누군가의 같은 팀 영업팀장 — 사전준비 시작 권한과 같은 기준, 다른 팀 팀장은 403).
+     * 담당자가 아닌 팀장은 자기 자신을 담당자로 넣지 못한다(옛 결재의 '승인자=수혜자 거부'를 잇는다 — 팀장을 넣으려면 지금 담당자가 한다).
+     * 상태(F5): 사전준비 중·작성 가능·작성 중인 건만. 기획 승인 대기 중에는 409(결재 중인 구성을 바꾸지 않는다), 사전준비 행이 없는 옛 건은 404.
+     * 성공 감사 줄(F2)은 같은 트랜잭션에서 쓴다 — 감사가 실패하면 변경 전체가 되돌아간다(500).</p>
      */
     @Transactional
-    public Map<String, Object> changeAssignees(SysUser me, Actor actor, String bidCaseId, PrepIn.AssigneeChange in) {
+    public Map<String, Object> changeAssignees(SysUser me, Actor actor, String bidCaseId, PrepIn.AssigneeChange in, BoardUiIds.Ui ui) {
+        requireSales(me);
+        BidPrep p = bidCaseId == null || bidCaseId.isEmpty() || bidCaseId.length() > 64 ? null : mapper.lockPrep(bidCaseId);
+        if (p == null || !canSee(me, p)) {
+            throw ApiException.notFound("prep not found");
+        }
+        String before = p.getStateCd();
+        if (APPROVAL_PENDING.equals(before)) {
+            throw coded(409, "PLAN_PENDING", "기획 승인을 기다리는 중에는 담당자를 바꿀 수 없습니다. 승인이 끝나거나 요청을 회수한 뒤 다시 하세요.");
+        }
+        if (!IN_PROGRESS.equals(before) && !WRITABLE.equals(before) && !WRITING.equals(before)) {
+            throw stateChanged();
+        }
+        List<String> current = assignments.activeEmpNos(bidCaseId);
+        boolean assignee = current.contains(me.getEmpNo());
+        if (!assignee) {
+            if (!isLead(me) || !isCaseLead(me, p, current)) {
+                throw new ApiException(403, "담당자 변경은 지금 담당자 또는 이 건의 영업팀장만 할 수 있습니다.");
+            }
+            List<String> adds = in == null || in.getAddEmpNos() == null ? Collections.<String>emptyList() : in.getAddEmpNos();
+            for (String e : adds) {
+                if (e != null && me.getEmpNo().equals(e.trim())) {
+                    throw new ApiException(403, "담당자가 아닌 영업팀장은 자기 자신을 담당자로 넣을 수 없습니다. 지금 담당자가 지정해야 합니다.");
+                }
+            }
+        }
         String reason = BoardMaterialService.checkedText(in == null ? null : in.getReason(), 200, "변경 사유", true);
         if (!Pii.scan(reason).isEmpty()) {
             throw new ApiException(422, "사유에 개인정보로 보이는 값이 있습니다. 지우고 다시 입력하세요.");   // 검출값은 싣지 않는다
@@ -603,7 +634,26 @@ public class PrepService {
         out.put("assignee_count", remaining.size());
         out.put("notified_count", to.size());
         out.put("can_view", isLead(me) || isHead(me) || remaining.contains(me.getEmpNo()));   // 스스로 빠졌으면 상세는 더 못 본다
+        audit.record(bidCaseId, "ASSIGNEE_CHANGE", "OK", before, null, actor, ui);   // 같은 트랜잭션 — 감사 줄이 실패하면 변경 전체가 되돌아간다
         return out;
+    }
+
+    /** 이 건의 팀장인가 — 확정자 또는 지금 담당자 중 누군가의 같은 팀 영업팀장이 나(사전준비 시작 권한과 같은 결재선 기준). */
+    private boolean isCaseLead(SysUser me, BidPrep p, List<String> current) {
+        if (hasStartAuthority(me, p)) {
+            return true;
+        }
+        for (String e : current) {
+            SysUser u = users.selectByEmpNo(e);
+            if (u == null || isLead(u)) {
+                continue;
+            }
+            SysUser lead = assignments.sameTeamLead(u);
+            if (lead != null && lead.getEmpNo().equals(me.getEmpNo())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void sendStartNotice(SysUser me, String bid, List<String> targets, Set<String> to) {

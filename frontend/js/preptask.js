@@ -665,7 +665,8 @@
         // 담당자는 여러 명일 수 있다. 변경은 이 화면에서(사용자 11-25) — 담당자 고르기 창을 지금 담당자가 골라진 채로 연다.
         const as = (Array.isArray(v.assignees) ? v.assignees : []).filter(function (a) { return a && str(a.name); });
         const vw = v.viewer || {};
-        const canChange = PROPOSAL_STATES.indexOf(sc) >= 0 && (vw.is_assignee === true || m.role === prep.LEAD);
+        // 기획 승인 대기 중에는 서버가 막는다(409) — 단추도 내지 않는다. 팀장은 이 건의 팀장일 때만 서버가 받아 준다.
+        const canChange = ['IN_PROGRESS', 'WRITABLE', 'WRITING'].indexOf(sc) >= 0 && (vw.is_assignee === true || m.role === prep.LEAD);
         h += note(T.startDone) + '<div class="ts-sec"><h4 class="ts-sec-h">' + esc(T.assigneeCount(as.length)) + '</h4>' +
           (as.length ? '<ul class="ts-people">' + as.map(function (a) {
             return '<li><b>' + esc(a.name) + '</b>' + (str(a.position) ? '<span class="ts-note">' + esc(a.position) + '</span>' : '') + '</li>';

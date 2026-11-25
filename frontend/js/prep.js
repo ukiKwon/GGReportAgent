@@ -1509,7 +1509,7 @@
     // 일정 등록은 날짜만 적는다(자료 확정 전에도 — 상태·결과는 그대로). 결과 등록은 이사회 자료 화면의 '의결 결과 입력'과 같은 주소.
     const call = sched
       ? bfetch(mat.itemUrl(sm.d.material_id) + '/meeting-date', { method: 'POST',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, mat.headers(mat.UI.WRITE, mat.BTN.RESULT)), body: JSON.stringify({ meeting_date: date }) })
+          headers: Object.assign({ 'Content-Type': 'application/json' }, mat.headers('prep_detail', 'meeting_save')), body: JSON.stringify({ meeting_date: date }) })
           .then(function (resp) { return resp.json().catch(function () { return null; }).then(function (body) { return { ok: resp.ok, status: resp.status, body: body }; }); })
       : mat.actCall(bfetch, 'result', sm.d.material_id, { result: result, date: date });
     call.then(function (r) {

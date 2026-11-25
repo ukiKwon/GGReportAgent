@@ -462,7 +462,9 @@ public class PrepAttachApiTest {
         String path = "/bidcases/" + bid + "/prep/assignees/change";
         int notesBefore = count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림'");
         assertEquals(403, postJson(path, DESIGNER, "{\"add_emp_nos\":" + arr(MEMBER) + ",\"reason\":\"인사 이동\"}").getResponse().getStatus());
-        assertEquals(403, postJson(path, MEMBER, "{\"add_emp_nos\":" + arr(MEMBER) + ",\"reason\":\"인사 이동\"}").getResponse().getStatus());   // 담당이 아닌 영업팀원
+        assertEquals(404, postJson(path, MEMBER, "{\"add_emp_nos\":" + arr(MEMBER) + ",\"reason\":\"인사 이동\"}").getResponse().getStatus());   // 담당이 아닌 영업팀원 — 건이 없는 것처럼 숨긴다
+        // 담당자가 아닌 영업팀장은 자기 자신을 넣지 못한다(security 11-25 F1 — 옛 결재의 '승인자=수혜자 거부')
+        assertEquals(403, postJson(path, LEAD, "{\"add_emp_nos\":" + arr(LEAD) + ",\"reason\":\"직접 맡음\"}").getResponse().getStatus());
         assertEquals(400, postJson(path, MEMBER2, "{\"add_emp_nos\":" + arr(MEMBER) + "}").getResponse().getStatus());   // 사유 필수
         assertEquals(400, postJson(path, MEMBER2, "{\"remove_emp_nos\":" + arr(MEMBER2) + ",\"reason\":\"혼자 빠짐\"}").getResponse().getStatus());   // 한 명은 남아야
         assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", bid));

@@ -169,7 +169,9 @@ public class PrepController {
     public Map<String, Object> changeAssignees(@PathVariable String bidCaseId, @RequestBody(required = false) PrepIn.AssigneeChange body,
                                                HttpServletRequest req) {
         Actor actor = Actor.of(req);
-        return run(req, bidCaseId, "ASSIGNEE_CHANGE", null, me -> prep.changeAssignees(me, actor, bidCaseId, body));
+        BoardUiIds.Ui ui = PrepUiIds.forAssigneeChange(req);   // prep_detail/assignee_change 만 유효
+        // 성공 감사 줄은 서비스가 같은 트랜잭션에서 쓴다(security 11-25 F2) — 여기서는 실패 줄만 남긴다
+        return run(req, bidCaseId, "ASSIGNEE_CHANGE", null, null, ui, true, me -> prep.changeAssignees(me, actor, bidCaseId, body, ui));
     }
 
     /** 상세(6) — PrepView + nobid_notice(입찰 없음 알림, 048). 비담당은 404. 접근 이력 DETAIL 끝에 nobid=Y|N|-(읽기 실패) 만 붙인다. */

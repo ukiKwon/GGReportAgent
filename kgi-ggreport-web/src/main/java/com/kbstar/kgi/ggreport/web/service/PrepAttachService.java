@@ -65,6 +65,18 @@ public class PrepAttachService {
     private static final String TASK_T3 = "T3";
     private static final String TASK_T4 = "T4";
     /** 과제가 아닌 단계 자료(사용자 2026-11-25): 입찰공고 원본 · 이사회 추가 자료 · 이사회 결과 문서. 보관·검사·권한은 과제 첨부와 같다. */
+    /** 선정 평가표 읽기 상한(security 11-25 F3) — 최근 5개, 파일당 30MB, 결과 기억 200건(가장 오래 안 쓴 것부터 버린다). */
+    static final int SCORING_MAX_FILES = 5;
+    static final long SCORING_MAX_BYTES = 30L * 1024 * 1024;
+    private static final Map<String, ScoringTable.Result> SCORING_CACHE =
+            new LinkedHashMap<String, ScoringTable.Result>(64, 0.75f, true) {
+                private static final long serialVersionUID = 1L;
+
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, ScoringTable.Result> eldest) {
+                    return size() > 200;
+                }
+            };
     static final String KIND_NOTICE = "NOTICE";
     static final String KIND_BOARD_ADD = "BOARD_ADD";
     static final String KIND_BOARD_RES = "BOARD_RES";
@@ -239,8 +251,11 @@ public class PrepAttachService {
      * 응답: found, reason(NO_FILE 올린 파일 없음 · NOT_FOUND 읽을 수 있는 파일에 표가 없음), files(살펴본 파일 수),
      * 찾았으면 attach_id·file·kind(TABLE 행·칸 그대로 / LINES 줄 단위)·rows·total('계' 줄의 숫자)·page(PDF 쪽).
      * 값은 고치지 않는다 — 화면이 '원문 대조 필요'로 보인다. 파일을 읽지 못하면(없음·무결성) 그 파일은 건너뛴다.
+     *
+     * <p>부하 상한(security 11-25 F3): 최근 {@link #SCORING_MAX_FILES}개·파일당 {@link #SCORING_MAX_BYTES} 이하만 읽고, 파싱은
+     * {@link ScoringTable#extractTimed} 의 시간 상한 안에서 한다. 결과는 첨부 번호+해시로 기억해 같은 파일을 다시 파싱하지 않는다
+     * (첨부는 바뀌지 않는다 — 무효 처리된 파일은 후보에서 빠진다). 트랜잭션을 열지 않는다 — 파일 읽기·파싱 동안 DB 연결을 잡지 않는다.</p>
      */
-    @Transactional(readOnly = true)
     public Map<String, Object> scoring(SysUser me, String bidCaseId) {
         requireViewer(me, bidCaseId);
         List<BidPrepAttach> cands = new ArrayList<>();
@@ -252,9 +267,28 @@ public class PrepAttachService {
             }
         }
         cands.sort((x, y) -> Long.compare(y.getAttachId(), x.getAttachId()));   // 최근에 올린 것부터
+        if (cands.size() > SCORING_MAX_FILES) {
+            cands = new ArrayList<>(cands.subList(0, SCORING_MAX_FILES));
+        }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("files", cands.size());
         for (BidPrepAttach a : cands) {
+            if (a.getSizeBytes() > SCORING_MAX_BYTES) {
+                continue;
+            }
+            String cacheKey = a.getAttachId() + ":" + a.getSha256();
+            ScoringTable.Result hit;
+            boolean known;
+            synchronized (SCORING_CACHE) {
+                known = SCORING_CACHE.containsKey(cacheKey);
+                hit = SCORING_CACHE.get(cacheKey);
+            }
+            if (known) {
+                if (hit != null) {
+                    return scoringFound(out, a, hit);
+                }
+                continue;
+            }
             Path path = pathOf(a.getStoreKey());
             byte[] bytes;
             try {
@@ -270,20 +304,31 @@ public class PrepAttachService {
                 LOG.error("prep attach hash mismatch id={}", a.getAttachId());
                 continue;
             }
-            ScoringTable.Result t = ScoringTable.extract(a.getExtCd(), bytes);
+            ScoringTable.Timed timed = ScoringTable.extractTimed(a.getExtCd(), bytes);
+            if (timed.isTimedOut()) {
+                continue;   // 시간 안에 못 읽은 파일은 기억하지 않는다(다음에 다시 시도)
+            }
+            ScoringTable.Result t = timed.getResult();
+            synchronized (SCORING_CACHE) {
+                SCORING_CACHE.put(cacheKey, t);
+            }
             if (t != null) {
-                out.put("found", true);
-                out.put("attach_id", a.getAttachId());
-                out.put("file", a.getOrigName());
-                out.put("kind", t.getKind());
-                out.put("rows", t.getRows());
-                out.put("total", t.getTotal());
-                out.put("page", t.getPage());
-                return out;
+                return scoringFound(out, a, t);
             }
         }
         out.put("found", false);
         out.put("reason", cands.isEmpty() ? "NO_FILE" : "NOT_FOUND");
+        return out;
+    }
+
+    private static Map<String, Object> scoringFound(Map<String, Object> out, BidPrepAttach a, ScoringTable.Result t) {
+        out.put("found", true);
+        out.put("attach_id", a.getAttachId());
+        out.put("file", a.getOrigName());
+        out.put("kind", t.getKind());
+        out.put("rows", t.getRows());
+        out.put("total", t.getTotal());
+        out.put("page", t.getPage());
         return out;
     }
 

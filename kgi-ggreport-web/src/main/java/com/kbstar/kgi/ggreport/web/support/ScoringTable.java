@@ -66,6 +66,45 @@ public final class ScoringTable {
         public int getPage() { return page; }
     }
 
+    /** 파싱 시간 상한(초) — 넘기면 그 파일은 건너뛴다. 일꾼은 2개뿐이라 한꺼번에 몰려도 서버 일꾼을 다 쓰지 않는다. */
+    static final int TIMEOUT_SECONDS = 15;
+    private static final java.util.concurrent.ExecutorService POOL = java.util.concurrent.Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "scoring-table");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** 시간 상한 안에서 읽은 결과. timedOut 이면 result 는 뜻이 없다. */
+    public static final class Timed {
+        private final Result result;
+        private final boolean timedOut;
+
+        Timed(Result result, boolean timedOut) {
+            this.result = result;
+            this.timedOut = timedOut;
+        }
+
+        public Result getResult() { return result; }
+        public boolean isTimedOut() { return timedOut; }
+    }
+
+    /** {@link #extract} 를 시간 상한({@link #TIMEOUT_SECONDS}) 안에서 돌린다. 넘기면 작업을 끊고 timedOut. */
+    public static Timed extractTimed(String ext, byte[] data) {
+        java.util.concurrent.Future<Result> f = POOL.submit(() -> extract(ext, data));
+        try {
+            return new Timed(f.get(TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS), false);
+        } catch (java.util.concurrent.TimeoutException e) {
+            f.cancel(true);
+            return new Timed(null, true);
+        } catch (java.util.concurrent.ExecutionException e) {
+            return new Timed(null, false);   // 읽기 실패 — 표 없음으로 본다
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            f.cancel(true);
+            return new Timed(null, true);
+        }
+    }
+
     /** 확장자(ext: hwpx·pdf)에 맞는 방법으로 읽는다. 그 밖의 형식·못 찾음·읽기 실패는 null. */
     public static Result extract(String ext, byte[] data) {
         String e = ext == null ? "" : ext.toLowerCase(Locale.ROOT);
