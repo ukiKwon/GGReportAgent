@@ -239,6 +239,9 @@ test('bodyHtml 담당자 지정: 확정 단계면 [개설 신청], 승인 대기
   const d = pt.bodyHtml(model(view('IN_PROGRESS'), 0));
   assert.ok(d.indexOf(pt.T.startDone) >= 0 && /<dt>담당<\/dt><dd>김영업<\/dd>/.test(d));
   assert.ok(!/open-request-open/.test(d));
+  // 결재 없는 시작(can_start_prep): [담당자 지정], 옛 [개설 신청] 단추는 없다
+  const s = pt.bodyHtml(model(view('CONFIRMED', { viewer: { can_start_prep: true, can_request_open: false } }), 0));
+  assert.ok(/data-act="prep-start-open"/.test(s) && !/open-request-open/.test(s) && s.indexOf(pt.T.startHint) >= 0);
 });
 
 test('bodyHtml 과제 단계: 그 단계에 걸린 과제만, 체크 단추는 prep.js 동작 이름 그대로', function () {
@@ -346,4 +349,19 @@ test('CSS: 구간 줄·상태 단추 규칙이 있고, 없앤 경로 2 규칙은
   ['#ts-root', '.ts-listv', '#ts-detail-pp', '#ts-detail-t', '.ts-t ', '.ts-ph '].forEach(function (sel) {
     assert.ok(HTML.indexOf(sel) < 0, sel + ' 없음');
   });
+});
+
+test('제안서 단계: 입찰 자료확인 구간에 안 끝난 단계가 있으면 알리기만 한다(막지 않음)', function () {
+  const v = view('IN_PROGRESS', { viewer: { is_assignee: true, can_request_plan_approval: true } });
+  assert.deepStrictEqual(pt.openBefore(v, row(), MARKS), ['기관 정보 분석', '수익성분석', '가결위(재무)', '출심위(사업부)', '이사회 자료 작성', '이사회']);   // 발표 대본은 준비중 과제뿐이라 닫힌 것으로 본다
+  const h = pt.bodyHtml(model(v, idxOf('PROPOSAL')));
+  assert.ok(h.indexOf('입찰 자료확인 구간에 아직 안 끝난 단계가 있습니다: 기관 정보 분석, 수익성분석') >= 0);
+  assert.ok(/data-act="plan-ask"/.test(h) && !/data-act="plan-ask"[^>]*disabled/.test(h), '단추는 그대로 켜져 있다');
+  assert.deepStrictEqual(pt.openBefore(v, null, MARKS), [], '표의 줄이 없으면 알리지 않는다');
+  assert.ok(pt.bodyHtml(model(v, idxOf('PROPOSAL'), { row: null })).indexOf('아직 안 끝난 단계') < 0);
+  const done = TASKS.map(function (t) { return Object.assign({}, t, { state: 'DONE' }); });
+  const cells = {};
+  ['FIN_COMMITTEE', 'BIZ_COMMITTEE', 'BOARD_SECRETARIAT', 'BOARD_AUDIT', 'BOARD_COMPLIANCE'].forEach(function (c) { cells[c] = { mark_cd: c === 'BOARD_AUDIT' ? 'NA' : 'DONE' }; });
+  assert.deepStrictEqual(pt.openBefore(view('IN_PROGRESS', { tasks: done }), row({ cells: cells }), MARKS), []);
+  assert.ok(pt.bodyHtml(model(view('CANCELLED'), idxOf('PROPOSAL'))).indexOf('아직 안 끝난 단계') < 0);
 });

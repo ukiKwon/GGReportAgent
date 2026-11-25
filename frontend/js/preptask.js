@@ -98,6 +98,7 @@
     boardHint: '이사회 자료는 이사회 자료 작성 화면에서 만들고 확정합니다. 확정되면 이 단계가 완료됩니다.',
     proposalHint: '필수 준비 과제를 마친 뒤 제안서 작성을 시작합니다. 작성은 [제안서 진행 현황]에서 세 팀이 함께 합니다.',
     proposalLater: '담당자 지정이 끝나면 여기에서 제안서 작성을 시작합니다.',
+    openBefore: function (names) { return '입찰 자료확인 구간에 아직 안 끝난 단계가 있습니다: ' + names.join(', ') + '. 작성 시작을 막지는 않으니 확인만 하세요.'; },
     openBoard: '이사회 자료 작성 열기',
     noRow: '제안 준비 현황 표의 체크 기록을 불러오지 못해 보기만 합니다. [← 제안 준비 현황으로] 돌아가 다시 여세요.',
     rowLoading: '체크 기록을 불러오는 중…',
@@ -192,6 +193,13 @@
       if (!pt.stepState(s, view, row, marks).closed) return i;
     }
     return pt.STEPS.length - 1;
+  };
+  // 제안서 작성 전에 끝나 있어야 하는 '입찰 자료확인' 구간의 안 끝난 단계 이름(사용자 11-25: 업무상 그렇게 되므로 시스템은 막지 않고 알리기만 한다).
+  // 표의 그 줄을 못 받았으면 손 칸의 값을 모르므로 빈 목록(잘못 알리지 않는다). 읽기만 하는 입찰공고확인과 선택 과제인 이사회 발표 대본은 뺀다.
+  pt.openBefore = function (view, row, marks) {
+    if (!row) return [];
+    return pt.STEPS.filter(function (s) { return s.ph === 'bid' && s.kind !== 'notice' && s.kind !== 'script' && !pt.stepState(s, view, row, marks).closed; })
+      .map(function (s) { return s.label; });
   };
   // 구간 단추를 눌렀을 때 갈 단계 = 그 구간의 첫 '안 끝난 단계', 없으면 구간 첫 단계
   pt.phaseEntryIdx = function (key, view, row, marks) {
@@ -333,7 +341,8 @@
     } else if (s.kind === 'manual' || s.kind === 'group') {
       h += note(s.kind === 'group' ? T.groupHint : T.manualHint) + markBlock(m, s, gate) + note(gate.why) + tasksBlock(m, s);
     } else if (s.kind === 'proposal') {
-      h += note(T.proposalHint) + '<dl class="ts-facts"><div><dt>제안서(디자인 최종)</dt><dd>' + stateSpan(pt.cellState(m.row, s.cd, m.marks)) + '</dd></div></dl>' +
+      const open = v.state_cd === 'CANCELLED' ? [] : pt.openBefore(v, m.row, m.marks);
+      h += note(T.proposalHint) + (open.length ? '<p class="pp-next" role="note">' + esc(T.openBefore(open)) + '</p>' : '') + '<dl class="ts-facts"><div><dt>제안서(디자인 최종)</dt><dd>' + stateSpan(pt.cellState(m.row, s.cd, m.marks)) + '</dd></div></dl>' +
         (PROPOSAL_STATES.indexOf(str(v.state_cd)) >= 0 ? prep.endHtml(v, ctx) : (v.state_cd === 'CANCELLED' ? '' : note(T.proposalLater)));
     } else {   // auto·board·script — 준비 과제를 여기에서 처리한다
       if (s.kind === 'board') h += note(T.boardHint);
