@@ -26,6 +26,11 @@ test('regionCardHtml: 경계 데이터 없는 시도는 열기 단추 없이 별
   assert.ok(h.indexOf('<div class="rg-open">') >= 0 && h.indexOf('구/시군 경계 준비중') >= 0 && h.indexOf('class="rg-open" data-code') < 0);
 });
 
+test('시도 카드 hover 강조는 열 수 있는 카드(열기 단추 있음)에만', function () {
+  assert.ok(html.indexOf('.rg-card:has(button.rg-open):hover {') >= 0);
+  assert.ok(html.indexOf('.rg-card:hover {') < 0);
+});
+
 test('drawPinBar 빈 안내문: 별 그림에 접근 이름 "별"', function () {
   const bar = { innerHTML: '' };
   const prevDoc = global.document, prevLoad = store.loadWatch;
@@ -43,7 +48,7 @@ test('CSS: 별 24×24 이상, 열기 단추 카드 전체 영역, 쪽지 단추 
   assert.ok(/\.nt-act button \{[^}]*min-height:24px/.test(html));
   assert.ok(/input\[type=number\], input\[type=search\], input:not\(\[type\]\)/.test(html));
   assert.ok(/\.hb-stgs \{[^}]*padding:8px 16px/.test(html));
-  assert.ok(html.indexOf('border-radius:1px') < 0);
+  assert.ok(/\.bd-w-prog \{[^}]*border-radius:var\(--r\)/.test(html) && /#hb-ours \.waf i \{[^}]*border-radius:var\(--r\)/.test(html));
   assert.ok(/#ld-hero h1\{[^}]*letter-spacing:-\.02em/.test(html) && /\.lg-say \{[^}]*letter-spacing:-\.02em/.test(html));
   assert.ok(/#landing-view h2\{[^}]*text-wrap:balance/.test(html));
 });
