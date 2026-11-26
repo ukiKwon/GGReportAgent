@@ -208,6 +208,7 @@ test('H. 4-4 결과 알림: 띠 아래 순서·상태 영역 밖 버튼·옮긴 
   assert.strictEqual(kbb.seeWatchHtml(), '<button type="button" class="hb-tag" id="hb-see-watch" data-see="watch">내 관심 탭에서 보기</button>');
   assert.ok(/function flash\(msg, act, kind\) \{[\s\S]*?\$\('hb-flash-act'\)[\s\S]*?msg && act === 'watch' \? kbb\.seeWatchHtml\(\) : ''/.test(k));
   assert.ok(!/const toWatch = m\.cmd === 'towatch'/.test(k) && !/toWatch && !noWatchNow\(\)\) \{ gs\.focusNext = \{ note: true \}/.test(k));   // 줄 단추 목표→관심 갈래는 없다(사용자 11-26, qa P3-2) — 이 창은 관심→목표만
+  assert.ok(k.indexOf("'towatch': '내 관심으로 옮기기'") < 0 && k.indexOf('moveWatch') < 0);   // 닿지 않던 towatch 갈래·상수 제거(사용자 11-26)
   assert.ok(/gs\.focusNext = \{ inst: r\.id, reveal: true \};\s*gs\.just = \{ inst: r\.id \};/.test(k));   // 관심→목표: 그 줄 강조
   assert.ok(/say\(kbb\.flashMoved\(r\.name, 'GOAL', m\.year\)[^\n]*, false, ''\)/.test(k));
   assert.ok(/if \(f\.note\) \{[^}]*\$\('hb-see-watch'\)[^}]*\$\('hb-add'\)[\s\S]*?return;\s*\}/.test(k));                                  // 포커스: [관심 탭에서 보기], 없으면 [목표 기관 추가]

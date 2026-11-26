@@ -376,7 +376,7 @@
 
   // ── 순수: 올해 목표 기관(design-reviewer 11-17 acfdd5da 6-A~6-E, 사용자 11-17) ──────────────────────
   kbb.SCREEN = 'bid_board';
-  kbb.BTN = { add: 'add_bid_target', tag: 'change_target_tag', cancel: 'cancel_bid_target', addWatch: 'add_watch_target', edit: 'edit_bid_target', nextYear: 'goal_next_year', moveGoal: 'move_to_goal', moveWatch: 'move_to_watch' };
+  kbb.BTN = { add: 'add_bid_target', tag: 'change_target_tag', cancel: 'cancel_bid_target', addWatch: 'add_watch_target', edit: 'edit_bid_target', nextYear: 'goal_next_year', moveGoal: 'move_to_goal' };
   kbb.KIND = { GOAL: 'GOAL', WATCH: 'WATCH' };
   kbb.TAG = { RETAIN: '재유치 도전', REGAIN: '되찾기 도전', NEW: '신규유치 도전' };
   kbb.DEADLINE_SOON = 30;       // '접수 마감 30일 안' 타일
@@ -1532,20 +1532,18 @@
       '<div class="tm-m-actions"><span id="hb-a-why" class="tm-why"></span><button type="button" id="hb-a-cancel">취소</button>' +
       '<button type="button" id="hb-a-go" class="pp-next-btn" disabled aria-describedby="hb-a-why">' + (watch ? '내 관심에 넣기' : '목표에 넣기') + '</button></div></div>';
   };
-  // 옮기기 확인 창(규격 6-11). kind = 'towatch'|'togoal', r = goalRow, o = { years:[선택할 연도], year(기본값) }. '다음 회차 목표로'는 사용자 11-26 결정으로 없앴다.
-  kbb.MOVE_TITLE = { towatch: '내 관심으로 옮기기', togoal: '목표로 옮기기' };
+  // 옮기기 확인 창(규격 6-11). kind = 'togoal'(관심→목표)만 연다. r = goalRow, o = { years:[선택할 연도], year(기본값) }. 목표→관심은 줄 단추가 없고 기관 상세 팝업 머리·띠로만 한다(사용자 11-26).
+  kbb.MOVE_TITLE = { togoal: '목표로 옮기기' };
   kbb.moveGoText = function (kind) { return kbb.MOVE_TITLE[kind]; };
-  kbb.moveState = function (kind, m) {
-    if (kind !== 'towatch' && !Number(m.year)) return { canGo: false, why: '목표 연도를 고르세요.' };
+  kbb.moveState = function (m) {
+    if (!Number(m.year)) return { canGo: false, why: '목표 연도를 고르세요.' };
     return m.busy ? { canGo: false, why: '' } : { canGo: true, why: '' };
   };
   kbb.moveDialogHtml = function (kind, r, o) {
     o = o || {};
-    const sel = kind === 'towatch' ? '' : '<div class="tm-reason-row"><label for="hb-m-year">목표 연도 (필수)</label></div><select id="hb-m-year"><option value=""' + (o.year ? '' : ' selected') + '>고르세요</option>' +
+    const sel = '<div class="tm-reason-row"><label for="hb-m-year">목표 연도 (필수)</label></div><select id="hb-m-year"><option value=""' + (o.year ? '' : ' selected') + '>고르세요</option>' +
       (o.years || []).map(function (y) { return '<option value="' + esc(y) + '"' + (String(y) === String(o.year) ? ' selected' : '') + '>' + esc(y) + '년</option>'; }).join('') + '</select>';
-    const note = kind === 'towatch'
-      ? '올해 목표에서 빠지고 내 관심 기관에 들어갑니다. ' + (r.tagName ? '구분(' + esc(r.tagName) + ')' : '구분') + '과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.'
-      : '내 관심 기관을 목표로 옮깁니다. 목표가 되면 팀의 목표 기관이 되고 내 관심에서는 빠집니다. 구분과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 남습니다.';
+    const note = '내 관심 기관을 목표로 옮깁니다. 목표가 되면 팀의 목표 기관이 되고 내 관심에서는 빠집니다. 구분과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 남습니다.';
     return '<div class="modal-box tm-modal-box hb-dlg" role="dialog" aria-modal="true" aria-labelledby="hb-d-t"><h3 id="hb-d-t">' + kbb.MOVE_TITLE[kind] + ' — ' + esc(r.regionName) + ' ' + esc(r.name) + '</h3><div class="modal-scroll tm-m-body">' +
       '<p class="tm-note">' + note + '</p>' + sel + '<div id="hb-m-err" class="ap-err" role="alert"></div></div>' +
       '<div class="tm-m-actions"><span id="hb-m-why" class="tm-why"></span><button type="button" id="hb-m-cancel">취소</button>' +
@@ -2683,12 +2681,12 @@
   function paintMove() {
     const d = dlg;
     if (!d || d.kind !== 'move') return;
-    const m = d.m, s = kbb.moveState(m.cmd, m);
+    const m = d.m, s = kbb.moveState(m);
     const go = dq('hb-m-go'); if (go) { go.disabled = !s.canGo; go.textContent = m.busy ? '저장 중…' : kbb.moveGoText(m.cmd, m.year); }
     const cb = dq('hb-m-cancel'); if (cb) cb.disabled = !!m.busy;
     const why = dq('hb-m-why'); if (why) why.textContent = s.why;
   }
-  // cmd = 'togoal'(관심→목표). 'towatch'(목표→관심) 줄 단추는 없어졌다(사용자 11-26)
+  // cmd는 'togoal'(관심→목표)뿐. 목표→관심 줄 단추는 없어졌다(사용자 11-26)
   function openMove(cmd, r, opener) {
     if (dlg || !canEditNow() || gs.busy) return;
     const years = selYears();
@@ -2710,7 +2708,7 @@
   }
   function submitMove(d) {
     const m = d.m, r = m.r;
-    if (dlg !== d || !kbb.moveState(m.cmd, m).canGo) return;
+    if (dlg !== d || !kbb.moveState(m).canGo) return;
     m.busy = true;
     paintMove();
     holdDlgFocus(d, 'hb-m-go');
@@ -2863,7 +2861,7 @@
   function isApproval() { return goalMode() === 'APPROVAL'; }
   function roleNow() { try { return String((root.store.loadProfile() || {}).team || '').trim(); } catch (e) { return ''; } }
   function dlgFallback() { return $('hb-pickall') || $('hb-goals'); }
-  function moveChange(r, cmd, opener) {   // 관심 줄 [목표로 옮기기…](결재 모드) → 일괄 요청 창을 그 줄 하나가 미리 채워진 채로(규격 6-3). 목표 → 관심은 줄 단추 없이 띠 [관심 기관으로]·기관 상세 팝업 머리로만 한다(사용자 11-26)
+  function moveChange(r, opener) {   // 관심 줄 [목표로 옮기기…](결재 모드) → 일괄 요청 창을 그 줄 하나가 미리 채워진 채로(규격 6-3). 목표 → 관심은 줄 단추 없이 띠 [관심 기관으로]·기관 상세 팝업 머리로만 한다(사용자 11-26)
     return { rows: [r], op: 'TO_GOAL', year: r.movable || 0, opener: opener };
   }
   // ── 고르기(체크박스): 눌러도 표를 다시 그리지 않는다(포커스·스크롤 유지) — 줄 클래스·띠만 고친다
@@ -3745,7 +3743,7 @@
       else if (act === 'oadd') { closePop(false); openAdd({ id: inst, kind: 'GOAL', opener: $('hb-ours-btn') }); }   // 협약 중인 기관 팝업의 줄: 목표로 채운 추가 창(구분은 비워 둔다, 사용자 11-25)
       else if (act === 'owatch') { closePop(false); openAdd({ id: inst, kind: 'WATCH', opener: $('hb-ours-btn') }); }   // 국민은행 확정 줄: 관심으로 채운 추가 창(결과는 기존 관심 추가 흐름 — 관심 탭·알림)
       else if (act === 'addwatch') openAdd({ id: '', kind: 'WATCH' });
-      else if (act === 'togoal') { const r = rowOfBtn(btn, false); if (r && isApproval()) openChange(moveChange(r, act, btn)); else if (r) openMove(act, r, btn); }
+      else if (act === 'togoal') { const r = rowOfBtn(btn, false); if (r && isApproval()) openChange(moveChange(r, btn)); else if (r) openMove(act, r, btn); }
       else if (act === 'unwatch') { const r = rowOfBtn(btn, false); if (r && r.kind === 'WATCH') openCancel(r, btn); }   // 관심 줄 [관심에서 빼기…] — 구분 메뉴에서 옮겨 온 개인 동작(결재 없음, 사용자 11-25)
       else if (btn.id === 'hb-see-watch') seeWatch();
       else if (btn.id === 'hb-sclr') { gs.f.stage = -1; renderGoals(); }

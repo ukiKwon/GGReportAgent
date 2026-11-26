@@ -326,15 +326,14 @@ test('옮기기: /move 주소·머리글(move_to_goal·move_to_watch), 확인 �
     assert.strictEqual(calls[1].init.headers['X-Button-Id'], 'add_watch_target');
   } finally { kbb.env.fetch = keep; }
   const r = { regionName: '서울', name: '동작구청<b>', tagName: '재유치 도전' };
-  const w = kbb.moveDialogHtml('towatch', r, {});
-  assert.ok(w.indexOf('<h3 id="hb-d-t">내 관심으로 옮기기 — 서울 동작구청&lt;b&gt;</h3>') > 0 && w.indexOf('올해 목표에서 빠지고 내 관심 기관에 들어갑니다. 구분(재유치 도전)과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.') > 0);
-  assert.ok(w.indexOf('hb-m-year') < 0 && w.indexOf('>내 관심으로 옮기기</button>') > 0 && w.indexOf('class="pp-next-btn"') > 0);
   const g = kbb.moveDialogHtml('togoal', r, { years: [2026, 2027, 2028], year: 0 });
   assert.ok(g.indexOf('<option value="" selected>고르세요</option>') > 0 && g.indexOf('>목표로 옮기기</button>') > 0);
-  assert.deepStrictEqual(kbb.moveState('togoal', { year: 0 }), { canGo: false, why: '목표 연도를 고르세요.' });
-  assert.deepStrictEqual(kbb.moveState('towatch', { year: 0 }), { canGo: true, why: '' });
-  assert.deepStrictEqual(kbb.moveState('towatch', { busy: true }), { canGo: false, why: '' });
+  assert.deepStrictEqual(kbb.moveState({ year: 0 }), { canGo: false, why: '목표 연도를 고르세요.' });
+  assert.deepStrictEqual(kbb.moveState({ year: 2027 }), { canGo: true, why: '' });
+  assert.deepStrictEqual(kbb.moveState({ year: 2027, busy: true }), { canGo: false, why: '' });
   assert.strictEqual(kbb.moveGoText('togoal'), '목표로 옮기기');
+  assert.deepStrictEqual(Object.keys(kbb.MOVE_TITLE), ['togoal']);
+  assert.strictEqual(kbb.BTN.moveWatch, undefined);
 });
 
 test('추가 창: 넣을 곳(목표·관심) 라디오, 관심이면 연도 줄 숨김·제목 바뀜, 이미 걸린 기관·올해 입찰 종료 표시, 중복 알림 문장, 막힘 이유', function () {
@@ -387,7 +386,8 @@ test('협약 중인 기관 팝업 줄: [목표에 넣기]는 해당 줄에만, �
 
 test('소스 구조: 새 버튼 id·역할, 보안(서버 글 textContent·esc, 근거 코드는 고정 문장), 접근성(탭·필터·팝업·inert), 새 hex·변수 없음', function () {
   const k = src('js/kbboard.js');
-  ['add_watch_target', 'edit_bid_target', 'goal_next_year', 'move_to_goal', 'move_to_watch'].forEach(function (b) { assert.ok(k.indexOf("'" + b + "'") > 0, b); });
+  ['add_watch_target', 'edit_bid_target', 'goal_next_year', 'move_to_goal'].forEach(function (b) { assert.ok(k.indexOf("'" + b + "'") > 0, b); });
+  assert.ok(k.indexOf("'move_to_watch'") < 0);   // 목표→관심 줄 단추 상수 없앰(NEXT 114 ③)
   const j = path.join(ROOT, '..', 'kgi-ggreport-web', 'src', 'main', 'java', 'com', 'kbstar', 'kgi', 'ggreport', 'web', 'support', 'TargetUiIds.java');
   if (fs.existsSync(j)) { const t = fs.readFileSync(j, 'utf8'); Object.keys(kbb.BTN).forEach(function (n) { assert.ok(t.indexOf('"' + kbb.BTN[n] + '"') > 0, kbb.BTN[n]); }); }
   // 팝업: 뒤는 inert, 닫을 때(closePop) 정확히 inert를 풀고, 화면을 떠나거나 계정이 바뀌어도 closePop을 거친다(qa 4절 4)

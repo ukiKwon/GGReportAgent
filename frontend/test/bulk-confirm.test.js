@@ -76,7 +76,8 @@ test('towatch 상자: 기관 하나·결재면 사유 칸(textarea)·바로 반�
   assert.ok(h.indexOf('노원구청을 올해 목표에서 빼고 내 관심 기관으로 옮기도록 팀장 결재를 요청하시겠습니까?') > 0);
   assert.ok(h.indexOf('구분(재유치 도전)과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.') > 0);
   assert.ok(h.indexOf('<textarea id="tc-reason"') > 0 && h.indexOf('class="dlg-go">결재 요청</button>') > 0 && h.indexOf('tc-bd-items') < 0);
-  assert.ok(h.indexOf('영업팀장이 결재합니다. 결재가 끝나면 옮겨지고, 그때까지 이 기관은 구분도 고칠 수 없습니다') > 0);
+  assert.ok(h.indexOf('영업팀장이 결재합니다. 결재가 끝나면 옮겨지고, 그때까지 이 기관은 구분·금고 방식도 고칠 수 없습니다') > 0);
+  assert.ok(tc.toWatchHint('APPROVAL', '영업팀').indexOf('구분·금고 방식도') > 0 && tc.toWatchHint('APPROVAL', '영업팀').indexOf('구분도') < 0);
   const hd = tc.bulkDialogHtml(Object.assign({}, m, { mode: 'DIRECT', role: '영업부장' }));
   assert.ok(hd.indexOf('tc-reason') < 0 && hd.indexOf('class="dlg-go">옮기기</button>') > 0 && hd.indexOf('바로 옮기시겠습니까?') > 0);
   assert.ok(tc.bulkDialogHtml(Object.assign({}, m, { name: '<i>x</i>' })).indexOf('<i>x') < 0);
@@ -133,9 +134,7 @@ test('메모 보존: 일괄 저장 본문은 memo 키를 보내지 않고(서버
   tc.setDraft(d, A, 'NEW', '신규유치 도전');
   const it = tc.newItem(1, A); tc.setOp(it, 'EDIT', { tag: tc.draftOf(d, A).tagCd });
   assert.deepStrictEqual(tc.buildBody([it], { mode: 'DIRECT' }).items[0], { institution_id: 'A', op_cd: 'EDIT', target_no: 1, base_rev_no: 2, target_year: 2026, tag_cd: 'NEW', owner_emp_no: 'E1' });
-  const nx = tc.newItem(1, A); tc.setOp(nx, 'NEXT');   // 다음 회차도 EDIT 본문 — memo 키 없음
-  assert.strictEqual(Object.prototype.hasOwnProperty.call(tc.buildBody([nx], { mode: 'DIRECT' }).items[0], 'memo'), false);
-  assert.ok(K.indexOf('memo: r.memo || null') < 0);   // 관심 칩(valueBody)·tonext 본문에 memo 기본값 없음(valueBody 값 시험은 tchange.test.js)
+  assert.ok(K.indexOf('memo: r.memo || null') < 0);   // 관심 칩(valueBody) 본문에 memo 기본값 없음(valueBody 값 시험은 tchange.test.js)
   const w = tc.newItem(1, A); tc.setOp(w, 'TO_WATCH');
   assert.deepStrictEqual(tc.buildBody([w], { mode: 'APPROVAL', reason: 'r' }).items[0], { institution_id: 'A', op_cd: 'TO_WATCH', target_no: 1, base_rev_no: 2 });
   const c = tc.newItem(2, A); tc.setOp(c, 'CANCEL'); c.cancelCd = 'X';

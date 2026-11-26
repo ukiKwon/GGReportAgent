@@ -20,7 +20,7 @@
   tc.MAX_ITEMS = 20; tc.REASON_MAX = 200; tc.MEMO_MAX = 100; tc.ETC_MAX = 50; tc.ETC_CD = 'ETC';
   tc.BTN = { change: 'submit_target_change', carry: 'carry_targets', term: 'set_term_start', values: 'save_target_values' };   // 서버 TargetUiIds(values = 일괄 창 [수정하기], NEXT 114)
   tc.OPS = ['ADD', 'EDIT', 'CANCEL', 'TO_WATCH', 'TO_GOAL'];
-  // NEXT 는 화면 안에서만 쓰는 이름: 서버에는 op EDIT + 연도 +1 로 가고(구분·메모 그대로), 결재함 카드·창에서 '다음 회차 목표로'로 보인다(NEXT 114 규격 6-4B).
+  // NEXT 는 결재함 옛 카드 이름 짓기(cardOpName)용으로만 남긴다: 서버에는 op EDIT + 연도 +1 로 간 옛 요청을 '다음 회차 목표로'로 읽는다. 새 요청 입구는 없다(사용자 11-26).
   const OP_LONG = { ADD: '목표에 넣기', EDIT: '목표 고치기', CANCEL: '목표에서 빼기', TO_WATCH: '관심으로 옮기기', TO_GOAL: '목표로 옮기기', NEXT: '다음 회차 목표로' };
   const OP_SHORT = { ADD: '넣기', EDIT: '고치기', CANCEL: '빼기', TO_WATCH: '관심으로', TO_GOAL: '목표로', NEXT: '다음 회차' };
   tc.opLong = function (op) { return has(OP_LONG, op) ? OP_LONG[op] : ''; };
@@ -56,7 +56,7 @@
   };
   tc.dlgTitle = function (mode, n) { return mode === 'APPROVAL' ? '목표 기관 변경 결재 요청 — ' + n + '곳' : '목표 기관 변경 — ' + n + '곳'; };
   tc.dlgHint = function (mode, role) {
-    if (mode === 'APPROVAL') return tc.approverText(role, mode) + ' 결재가 끝날 때까지 이 기관들은 구분도 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).';
+    if (mode === 'APPROVAL') return tc.approverText(role, mode) + ' 결재가 끝날 때까지 이 기관들은 구분·금고 방식도 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).';
     return (str(role).trim() === '영업부장' ? '영업부장은 ' : '') + '결재 없이 바로 반영합니다. 반영한 사람·시각은 기록에 남습니다.';
   };
   // 구분·메모 한꺼번에 수정 창(결재 없음, 규격 6-4A)
@@ -187,10 +187,9 @@
   tc.setOp = function (it, op, pre) {
     if (tc.isFixed(it)) return it;
     pre = pre || {};
-    it.op = op === 'EDIT' || op === 'CANCEL' || op === 'TO_WATCH' || op === 'NEXT' ? op : '';
+    it.op = op === 'EDIT' || op === 'CANCEL' || op === 'TO_WATCH' ? op : '';
     it.cancelCd = ''; it.cancelEtc = '';
     if (it.op === 'EDIT') { it.year = Number(pre.year) || it.snap.year || 0; it.tag = pre.tag || it.snap.tagCd; it.memo = it.snap.memo; it.aim = pre.aim !== undefined ? str(pre.aim) : str(it.snap.aimCd); }
-    else if (it.op === 'NEXT') { it.year = (Number(it.snap.year) || 0) + 1; it.tag = it.snap.tagCd; it.memo = it.snap.memo; }   // 구분·메모는 그대로, 연도만 +1
     else { it.year = 0; it.tag = ''; it.memo = ''; }
     return it;
   };
@@ -213,8 +212,6 @@
         if (!Number(it.year)) { bad(it, 'year', '목표 연도를 고르세요.'); return; }
         if (str(it.memo).trim().length > tc.MEMO_MAX) { bad(it, 'memo', '메모는 ' + tc.MEMO_MAX + '자 이내로 적으세요.'); return; }
         if (Number(it.year) === Number(s.year) && it.tag === s.tagCd && str(it.aim === undefined ? s.aimCd : it.aim) === str(s.aimCd) && str(it.memo).trim() === str(s.memo).trim()) bad(it, 'edit', '고친 내용이 없습니다. 칸을 바꾸거나 이 기관을 이번 수정에서 빼세요.');
-      } else if (it.op === 'NEXT') {
-        if (!Number(it.year)) bad(it, 'year', '목표 연도를 고르세요.');
       } else if (it.op === 'CANCEL') {
         if (!it.cancelCd) { bad(it, 'cancelCd', '빼는 사유를 고르세요.'); return; }
         if (it.cancelCd === tc.ETC_CD) {
@@ -233,7 +230,7 @@
     const b = { institution_id: it.id, op_cd: it.op };
     if (it.op === 'ADD') { b.target_year = Number(it.year); if (it.tag) b.tag_cd = it.tag; b.memo = str(it.memo).trim() || null; return b; }   // 구분은 비워 둘 수 있다(사용자 11-25). 금고 방식 키는 ADD에 없다(서버 400)
     b.target_no = it.snap.targetNo; b.base_rev_no = it.snap.revNo;
-    if (it.op === 'EDIT' || it.op === 'NEXT') { b.op_cd = 'EDIT'; b.target_year = Number(it.year); b.tag_cd = it.tag; b.owner_emp_no = it.snap.ownerEmpNo || null; if (it.op === 'EDIT' && it.aim !== undefined && str(it.aim) !== str(it.snap.aimCd)) b.aim_rank_cd = str(it.aim); }   // NEXT = EDIT + 연도 +1(서버는 모른다). memo 키는 보내지 않는다 — 서버가 '키 없음 = 지금 값 유지'(BidTargetRules.keepUnsent)라 금칙어가 든 옛 메모에 걸리지 않는다(qa 11-25 P2-1)
+    if (it.op === 'EDIT') { b.op_cd = 'EDIT'; b.target_year = Number(it.year); b.tag_cd = it.tag; b.owner_emp_no = it.snap.ownerEmpNo || null; if (it.aim !== undefined && str(it.aim) !== str(it.snap.aimCd)) b.aim_rank_cd = str(it.aim); }   // memo 키는 보내지 않는다 — 서버가 '키 없음 = 지금 값 유지'(BidTargetRules.keepUnsent)라 금칙어가 든 옛 메모에 걸리지 않는다(qa 11-25 P2-1)
     else if (it.op === 'CANCEL') { b.cancel_reason_cd = it.cancelCd; b.cancel_reason_etc = it.cancelCd === tc.ETC_CD ? str(it.cancelEtc).trim() : null; }
     else if (it.op === 'TO_GOAL') b.target_year = Number(it.year);
     return b;
@@ -500,7 +497,7 @@
   // [목표 기관에서 제외] 창 공통 문장(라디오 아래)
   tc.dropNote = function (m) { return m.mode === 'APPROVAL' ? '어느 쪽이든 ' + tc.approverShort(m.role) + ' 요청으로 올라갑니다.' : '어느 쪽이든 결재 없이 바로 반영됩니다.'; };
   tc.toWatchHint = function (mode, role) {
-    return mode === 'APPROVAL' ? tc.approverText(role, mode) + ' 결재가 끝나면 옮겨지고, 그때까지 이 기관은 구분도 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).' : tc.dlgHint('DIRECT', role);
+    return mode === 'APPROVAL' ? tc.approverText(role, mode) + ' 결재가 끝나면 옮겨지고, 그때까지 이 기관은 구분·금고 방식도 고칠 수 없습니다(요청자 취소·영업부장 반려로 풀림).' : tc.dlgHint('DIRECT', role);
   };
   tc.toWatchFact = function (tagName) { return (str(tagName) ? '구분(' + str(tagName) + ')' : '구분') + '과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.'; };
   tc.deleteReason = function (reasons, cd, etc) {   // 결재 사유(서버 필수): 고른 빼는 사유에서 만든다(고정 문구라 개인정보 검사에 걸리지 않는다)
@@ -643,8 +640,6 @@
           return '<option value="' + esc(x.code) + '"' + (x.code === it.cancelCd ? ' selected' : '') + '>' + esc(x.name) + '</option>';
         }).join('') + '</select>' + (it.cancelCd === tc.ETC_CD ? '<label for="' + id('etc') + '">기타 사유</label><input id="' + id('etc') + '"' + u + ' data-f="cancelEtc" maxlength="' + tc.ETC_MAX + '" value="' + esc(it.cancelEtc) + '">' : '')
         : '<span class="tc-memo">빼는 사유 목록을 받지 못했습니다. 목록을 다시 불러온 뒤 시도하세요.</span>');
-    } else if (it.op === 'NEXT') {
-      dd = '<span class="mono">' + esc(it.year) + '</span> 목표 · 구분·메모 그대로';
     } else if (it.op === 'TO_WATCH') {
       dd = '관심 기관(연도 없음)';
     } else if (it.op === 'TO_GOAL') {

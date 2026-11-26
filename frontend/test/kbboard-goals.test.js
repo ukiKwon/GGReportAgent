@@ -464,7 +464,7 @@ test('saveTarget·cancelTarget: 주소·POST·머리글(X-Screen-Id bid_board, X
 });
 
 test('버튼 이름은 서버 허용값(TargetUiIds)과 같다', function () {
-  assert.deepStrictEqual(kbb.BTN, { add: 'add_bid_target', tag: 'change_target_tag', cancel: 'cancel_bid_target', addWatch: 'add_watch_target', edit: 'edit_bid_target', nextYear: 'goal_next_year', moveGoal: 'move_to_goal', moveWatch: 'move_to_watch' });
+  assert.deepStrictEqual(kbb.BTN, { add: 'add_bid_target', tag: 'change_target_tag', cancel: 'cancel_bid_target', addWatch: 'add_watch_target', edit: 'edit_bid_target', nextYear: 'goal_next_year', moveGoal: 'move_to_goal' });
   assert.strictEqual(kbb.SCREEN, 'bid_board');
   const f = path.join(ROOT, '..', 'kgi-ggreport-web', 'src', 'main', 'java', 'com', 'kbstar', 'kgi', 'ggreport', 'web', 'support', 'TargetUiIds.java');
   if (!fs.existsSync(f)) return;
