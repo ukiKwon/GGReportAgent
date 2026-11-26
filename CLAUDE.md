@@ -44,6 +44,7 @@ Claude Code가 이 저장소에서 일할 때의 지침이다. **1~6절은 매 �
 - **`handoff/NEXT.md`** — 열린 항목만 모은 이월 기억장치. 항목 단위로 부분 수정(Edit)하고 통째로 다시 쓰지 않는다(동시 편집 충돌 방지).
   - 항목마다 **출처 summary 참조**(`YYYY-MM-DD_summary.md`의 `## Session HH:mm`)와 **재개 정보**(브랜치·어디까지·다음 한 걸음)를 담는다 — 최신 summary 주입은 다음 작업과 무관할 수 있어 NEXT가 자기완결적이어야 한다.
   - 항목은 현재·다음 한 걸음·자세히(포인터) 3줄로 유지한다. 긴 이력·시험 과정은 `handoff/agents/` 보고서나 `handoff/archive/`로 옮긴다.
+  - **작업할 파일 경로를 반드시 적는다**(NEXT 항목·START '이어갈 일' 모두, 작업 시작·마무리 때마다): 클래스 이름·약칭만 쓰지 말고 저장소 기준 경로(`frontend/js/prep.js`, `kgi-ggreport-web/src/main/java/.../PrepService.java`, 근거 보고서 `handoff/agents/<역할>/…md`) — 다음 세션·다른 작업자가 그 경로로 파일을 찾아 이어 가기 위해서다(2026-11-26 사용자).
   - 해소한 항목은 NEXT에서 지워 `done.md` 맨 아래로 옮기고 그 세션 summary에 항목·방법(커밋 해시)을 기록한다. 해소 전에는 지우지 않는다. 진행 중이면 상태와 출처 참조만 갱신한다.
   - 새 미해결 항목은 바로 추가한다. 에이전트가 맡을 항목에는 `[담당: <agent>]` 태그를 붙인다(에이전트는 자기 태그 항목과 지정된 번호만 읽는다).
 - **`handoff/YYYY-MM-DD_summary.md`** — 하루 1파일, 작업 5개를 끝낼 때마다·마무리 때 한 일·결정·남은 것을 쓴다. 같은 날이면 아래에 `## Session HH:mm`을 이어 붙이며 **기존 섹션은 고치거나 지우지 않는다**(append-only). SessionStart 훅은 NEXT와 파일명 기준 최근 summary(`^\d{4}-\d{2}-\d{2}_summary\.md$`)를 주입한다.
