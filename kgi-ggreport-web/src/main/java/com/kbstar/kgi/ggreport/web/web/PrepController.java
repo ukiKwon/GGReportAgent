@@ -318,7 +318,8 @@ public class PrepController {
                                                 HttpServletRequest req) {
         Actor actor = Actor.of(req);
         Long id = body == null || body.getAttachId() == null || body.getAttachId() < 1 ? null : body.getAttachId();
-        return run(req, bidCaseId, "T3_SET", "T3", id, me -> prep.setConfirmedFile(me, actor, bidCaseId, body));
+        return run(req, bidCaseId, "T3_SET", "T3", id, PrepUiIds.forT3Set(req), false,   // t3_set·prep_detail/next_t3_set 만 유효
+                me -> prep.setConfirmedFile(me, actor, bidCaseId, body));
     }
 
     /** T3 확정본 해제(8). */
@@ -376,7 +377,7 @@ public class PrepController {
     /** 첨부 무효 처리(12) — 올린 담당자, 확정본이면 409. */
     @PostMapping("/bidcases/{bidCaseId}/prep/attachments/{attachId}/void")
     public Map<String, Object> voidAttachment(@PathVariable String bidCaseId, @PathVariable String attachId,
-                                              @RequestBody PrepIn.Reason body, HttpServletRequest req) {
+                                              @RequestBody(required = false) PrepIn.Reason body, HttpServletRequest req) {   // 사유 선택 — 본문 없는 요청도 허용
         Actor actor = Actor.of(req);
         return run(req, bidCaseId, "ATTACH_VOID", null, PrepAttachService.parseId(attachId),
                 me -> attach.voidAttach(me, actor, bidCaseId, attachId, body));

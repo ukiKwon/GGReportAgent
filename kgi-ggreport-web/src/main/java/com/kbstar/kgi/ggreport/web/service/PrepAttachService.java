@@ -376,13 +376,13 @@ public class PrepAttachService {
 
     /**
      * 무효 처리(논리 삭제) — 올린 사람이면서 지금 활성 담당자이거나 영업팀장일 때만(사용자 결정 2026-11-11). 이미 무효면 409 STATE_CHANGED, 확정본이면 409 ATTACH_IN_USE.
-     * 사유 필수(1~200자, 개인정보 422). 파일은 지우지 않는다.
+     * 사유는 선택(비면 이력에 '(사유 없음)', 있으면 1~200자·개인정보 422). 파일은 지우지 않는다. 화면 문구는 '삭제'.
      */
     @Transactional
     public Map<String, Object> voidAttach(SysUser me, Actor actor, String bidCaseId, String attachIdRaw, PrepIn.Reason in) {
         boolean lead = BidAssignmentService.LEAD_ROLE.equals(me.getRole() == null ? "" : me.getRole().trim());
         if (!lead && !assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {
-            throw new ApiException(403, "첨부를 올린 담당자 또는 영업팀장만 무효 처리할 수 있습니다.");
+            throw new ApiException(403, "첨부를 올린 담당자 또는 영업팀장만 삭제할 수 있습니다.");
         }
         requirePrep(bidCaseId);
         String state = mapper.selectStateForUpdate(bidCaseId);
@@ -398,15 +398,17 @@ public class PrepAttachService {
             throw ApiException.notFound("attachment not found");
         }
         if (!lead && !me.getEmpNo().equals(a.getUploadedBy())) {
-            throw new ApiException(403, "첨부를 올린 담당자 또는 영업팀장만 무효 처리할 수 있습니다.");
+            throw new ApiException(403, "첨부를 올린 담당자 또는 영업팀장만 삭제할 수 있습니다.");
         }
         if (a.getValidYn() != 1) {
             throw stateChanged();
         }
         if (mapper.countRefUse(bidCaseId, id) > 0) {
-            throw coded(409, "ATTACH_IN_USE", "확정본으로 지정된 첨부는 무효 처리할 수 없습니다. 먼저 확정본 지정을 해제하세요.");
+            throw coded(409, "ATTACH_IN_USE", "확정본으로 지정된 첨부는 삭제할 수 없습니다. 먼저 확정본 지정을 해제하세요.");
         }
-        String reason = BoardMaterialService.checkedText(in == null ? null : in.getReason(), 200, "사유", true);
+        // 사유는 선택 — 비었거나 공백뿐이면 이력에 '(사유 없음)'. 있으면 길이 1~200·개인정보 검사 그대로(checkedText 는 빈 값이면 null).
+        String reasonIn = BoardMaterialService.checkedText(in == null ? null : in.getReason(), 200, "사유", false);
+        String reason = reasonIn == null ? "(사유 없음)" : reasonIn;
         String now = Times.nowIso();
         if (mapper.voidAttach(bidCaseId, id, me.getEmpNo(), now) != 1) {
             throw stateChanged();

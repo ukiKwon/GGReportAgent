@@ -190,6 +190,7 @@
   <a href="#c134">134 빈 표 — 0건이어도 머리 줄 + 빈 행 1줄, 안내 문장은 표 아래(공통 화면), 배정 이력 빈 사유 '—' 가운데</a>
   <a href="#c135">135 시작화면 입찰 일정 표 — 칸 잘림 해소·판정 기록 표기·[기본 순서로]</a>
   <a href="#c136">136 전 화면 글꼴 — 맑은 고딕에서 KB금융 본문체·제목체로</a>
+  <a href="#c137">137 기관 상세 — 단계별 완료 조건 줄, [다음] 확인 창, 무효 처리 → 삭제, 자기신고·샘플 필요 제거</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2677,6 +2678,23 @@
 <p style="font-family:'KBFG Display Bold','KB금융 제목체 Bold','Malgun Gothic',sans-serif;font-size:16px;margin:0 0 6px">기관별 입찰 일정</p>
 <p style="font-size:13px;margin:0 0 4px">경기 <span style="font-family:'KBFG Text Bold','KB금융 본문체 Bold','Malgun Gothic',sans-serif">가평군청</span> · <span style="font-family:'KBFG Text Medium','KB금융 본문체 Medium','Malgun Gothic',sans-serif">공고 전</span> · 2026-12-31 (목)</p>
 <p style="font-size:12px">본문은 KB금융 본문체(보통 → Light, 약한 강조 → Medium, 굵게 → Bold), 14px 이상 제목은 KB금융 제목체 Bold. 숫자·날짜 칸도 본문체(숫자 폭 고정). 본문 농도는 맑은 고딕과 거의 같고(−5%) 글자 폭은 약 10% 좁아 줄바꿈이 줄었습니다. KB글꼴이 설치된 PC는 내려받지 않고, 없으면 한 번 내려받거나 맑은 고딕으로 보입니다. (이 칸은 KB글꼴이 설치된 PC에서만 KB글꼴로 보입니다.)</p></div></div></div>
+</div>
+</section>
+<section class="ch" id="c137">
+<h2>137 기관 상세 — 단계별 완료 조건 줄, [다음] 확인 창, '무효 처리' → '삭제', 자기신고·샘플 필요 제거 (2026-11-27, NEXT 131)</h2>
+<div class="why">왜: 사용자 11-26 밤 피드백입니다. [다음]으로 넘겨도 체크가 안 뜨는 이유가 화면에 없었고, '무효 처리'는 뜻이 애매했고, '자기신고' 태그와 '샘플 필요!' 상자는 불필요했습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+<p style="font-size:14px;font-weight:700;margin:0 0 6px">4. 수익성분석</p>
+<p style="font-size:13px;margin:0 0 4px">분석표.xlsx · 이영업 <span style="border:1px solid #c6cad0;border-radius:2px;padding:0 4px;font-size:11px;color:#464c53">자기신고</span> · <span style="border:1px solid #c6cad0;border-radius:2px;padding:1px 6px;font-size:12px">무효 처리</span></p>
+<p style="font-size:13px;border:1px solid #c6cad0;padding:8px 12px;margin:6px 0">[다음] → "현재 상태를 저장하고 다음 단계(가결위)로 넘어갑니다." [닫기] [확인]</p>
+<p style="font-size:12px">2단계 말고는 [다음]이 아무것도 저장하지 않는데 저장한다고 말했습니다. 무엇을 해야 완료인지는 단계마다 다른 곳에 흩어져 있었습니다. 3단계에는 이미 받은 샘플을 기다린다는 '샘플 필요!' 상자가 남아 있었습니다.</p></div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+<p style="font-size:14px;font-weight:700;margin:0 0 6px">4. 수익성분석</p>
+<p style="font-size:13px;border:1px solid #c6cad0;background:#f6f7f9;padding:8px 12px;margin:0 0 6px"><b>완료 조건</b> 수익성 분석표를 올린 뒤 [확정본으로 지정]을 누르면 완료로 표시됩니다. 올리기만 해서는 완료되지 않습니다.</p>
+<p style="font-size:13px;margin:0 0 4px">분석표.xlsx · 이영업 · <span style="border:1px solid #c6cad0;border-radius:2px;padding:1px 6px;font-size:12px">삭제</span></p>
+<p style="font-size:13px;border:1px solid #c6cad0;padding:8px 12px;margin:6px 0"><b>확정본 지정</b><br>'분석표.xlsx' 파일을 수익성 분석표 확정본으로 지정하시겠습니까?<br>[닫기] [지정하지 않고 넘어가기] <b>[지정하고 넘어가기]</b></p>
+<p style="font-size:12px">23단계 모두 제목 바로 아래 같은 자리에 '완료 조건' 한 줄이 있고, 완료되면 ✓ '완료로 표시됨'으로 바뀝니다. [다음] 창은 "넘어가는 것만으로는 지금 단계가 완료로 표시되지 않습니다"라고 말하고 단추는 [넘어가기]입니다. 4단계에서 확정본 없이 넘기면 지정할지 묻고(여러 개면 최근 파일이 먼저 골라진 목록), 7단계에서 일정이 비면 "이사회 일정 전인가요?"를 묻습니다. '삭제'는 목록에서 빠지되 누가·언제 지웠는지 기록에 남고 사유는 선택입니다. 8단계 결과 문서 밑에 개최일 줄이 생겼습니다(안건 번호 자리는 그 옆). 조건 줄 글자 대비 약 15:1(계산값, 화면 실측 전).</p></div></div></div>
 </div>
 </section>
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>

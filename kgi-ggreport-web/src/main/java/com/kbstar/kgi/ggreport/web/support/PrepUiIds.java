@@ -38,7 +38,24 @@ public final class PrepUiIds {
     /** 발표 대본 Word 감사용(NEXT 113 ⑤) — prep_detail/script_docx. 일반 BUTTONS 에는 넣지 않는다. */
     public static final String SCRIPT_BUTTON = "script_docx";
 
+    /** 기관 상세 4단계 [다음] 창의 [지정하고 넘어가기] 감사용 — prep_detail/next_t3_set. 일반 BUTTONS 에는 넣지 않는다(다른 끝점이 받지 않게). */
+    public static final String NEXT_T3_SET_BUTTON = "next_t3_set";
+
     private PrepUiIds() {
+    }
+
+    /**
+     * T3 확정본 지정(PUT …/tasks/T3/confirmed-file) 전용 — 기존 t3_set(일반 판정 {@link #of} 그대로) 과 prep_detail/next_t3_set 둘만 유효.
+     * next_t3_set 은 화면이 prep_detail 일 때만 유효하고, 다른 화면 짝이면 버튼이 UNKNOWN·ui_valid=false. 거절(400)하지 않는다. ⚠️ 자기신고 값.
+     */
+    public static BoardUiIds.Ui forT3Set(HttpServletRequest req) {
+        String s = clean(req.getHeader(BoardUiIds.H_SCREEN));
+        String b = clean(req.getHeader(BoardUiIds.H_BUTTON));
+        if (NEXT_T3_SET_BUTTON.equals(b)) {
+            boolean sv = START_SCREEN.equals(s);
+            return new BoardUiIds.Ui(sv ? s : (s != null && SCREENS.contains(s) ? s : BoardUiIds.UNKNOWN), sv ? b : BoardUiIds.UNKNOWN, sv);
+        }
+        return of(req);
     }
 
     /** [사전준비 시작] 전용 — 화면 prep_detail, 버튼 open_start 일 때만 그 값, 아니면 UNKNOWN·ui_valid=false. 거절(400)은 하지 않는다(forConfirm 과 같은 이유). */

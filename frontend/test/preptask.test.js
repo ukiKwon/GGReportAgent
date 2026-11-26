@@ -51,6 +51,10 @@ function model(v, idx, extra) {
   return Object.assign({ view: v, history: [], attach: null, role: '영업팀', meEmp: '1', row: row(), marks: MARKS, rowState: 'none', idx: idx, markBusy: {} }, extra || {});
 }
 function idxOf(id) { return pt.STEPS.map(function (s) { return s.id; }).indexOf(id); }
+// 제목 아래 '완료 조건' 줄(F7)을 뺀 본문 — 같은 클래스(ts-okline is-note)를 쓰는 다른 줄을 검사할 때 쓴다
+function noCond(h) {
+  return h.replace(/<p class="ts-okline is-note" role="note">(?:<svg[^>]*>.*?<\/svg>)?<span><b>(?:완료 조건|완료로 표시됨|대상 아님으로 표시됨)<\/b>.*?<\/span><\/p>/, '');
+}
 
 // ── 구간·단계 정본 ──
 test('PHASES·STEPS: 구간 3개, 23단계(담당자 지정 + 현업 단계 — 이사회 자료·발표 대본은 이사회 준비 한 단계), id 유일, 구간은 이어진 덩어리', function () {
@@ -378,8 +382,21 @@ test('[다음]: 채운 강조 단추, 확인 팝업 문구는 다음 단계 이�
   assert.ok(/<button type="button" class="ts-go" data-act="ts-next">다음: 출심위\(사업부\)</.test(h));
   const a = pt.nextAskHtml(idxOf('FIN_COMMITTEE'));
   assert.ok(/role="dialog" aria-modal="true"/.test(a));
-  assert.ok(a.indexOf('현재 상태를 저장하고 다음 단계(출심위(사업부))로 넘어갑니다.') > 0);
-  assert.ok(/id="pp-nx-no">닫기</.test(a) && /id="pp-nx-ok" class="ts-go">확인</.test(a));
+  // 사실대로: 넘어가는 것만으로는 지금 단계가 완료로 표시되지 않는다(F7). '저장'했다고 말하지 않는다.
+  assert.ok(a.indexOf('&#39;출심위(사업부)&#39; 단계로 넘어갑니다. 넘어가는 것만으로는 지금 단계가 완료로 표시되지 않습니다.') > 0 && a.indexOf('저장') < 0);
+  assert.ok(/id="pp-nx-no">닫기</.test(a) && /id="pp-nx-ok" class="ts-go">넘어가기</.test(a));
+  // 지금 단계가 이미 닫혔으면 첫 문장만
+  const closedRow = row({ cells: { FIN_COMMITTEE: { mark_cd: 'DONE' } } });
+  const closed = pt.nextAskHtml(idxOf('FIN_COMMITTEE'), { view: view('IN_PROGRESS'), row: closedRow, marks: MARKS });
+  assert.ok(closed.indexOf('단계로 넘어갑니다.</p>') > 0 && closed.indexOf('완료로 표시되지 않습니다') < 0);
+  const openRow = pt.nextAskHtml(idxOf('FIN_COMMITTEE'), { view: view('IN_PROGRESS'), row: row(), marks: MARKS });
+  assert.ok(openRow.indexOf('완료로 표시되지 않습니다') > 0, '진행 중이면 닫히지 않은 것으로 본다');
+  // 2단계에서 확인이 기록될 때만 다른 문안·단추
+  const n2 = pt.nextAskHtml(1, { noticeDue: true });
+  assert.ok(n2.indexOf('&#39;기관 정보 분석&#39; 단계로 넘어가면서 입찰공고확인을 &#39;확인 완료&#39;로 기록합니다. 누가·언제 확인했는지 남습니다.') > 0);
+  assert.ok(/id="pp-nx-no">닫기</.test(n2) && /id="pp-nx-ok" class="ts-go">확인하고 넘어가기</.test(n2));
+  const n2plain = pt.nextAskHtml(1, { noticeDue: false });
+  assert.ok(n2plain.indexOf('입찰공고확인을') < 0 && />넘어가기</.test(n2plain), '기록 조건이 아니면(빠진 항목·담당 아님) 일반 문안');
   assert.strictEqual(pt.nextAskHtml(pt.STEPS.length - 1), '', '마지막 단계는 팝업 없음');
   assert.ok(/case 'ts-next': openNextAsk\(\); return;/.test(PREP_SRC) && /case 'pp-nx-ok': closeNextAsk\(true\); break;/.test(PREP_SRC));
   assert.ok(/if \(S\.nextAsk\) \{ e\.preventDefault\(\); closeNextAsk\(false\); return; \}/.test(PREP_SRC), 'Esc로 닫힌다');
@@ -423,8 +440,8 @@ test('bodyHtml 입찰공고확인: 기관정보 내용(읽기 전용)·누락 �
   assert.ok(/data-nav="board">입찰 현황판</.test(g) && /data-nav="notice">입찰 공고 현황</.test(g) && !/data-nav="map"/.test(g) && g.indexOf('지역별 공고현황') < 0);
   assert.ok(!/data-act="mark"/.test(g), '이 단계에서는 고치지 않는다');
   const ok = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { row: todoRow, notice: { state: 'ok', html: '', gaps: [] } }));
-  assert.ok(ok.indexOf('공고 자료(입찰 예정일·공고일·접수 마감일·공고 링크)에 빠진 것이 없습니다. [다음]을 누르면') > 0 && ok.indexOf('확인이 필요한 항목') < 0);
-  assert.ok(ok.indexOf('class="ts-okline"') > 0 && ok.indexOf('is-note') < 0 && ok.indexOf('누락되거나 미확인인') < 0, 'G=0·B=0이면 초록 줄(체크 글리프)');
+  assert.ok(ok.indexOf('공고 자료(입찰 예정일·공고일·접수 마감일·공고 링크)에 빠진 것이 없습니다.</span>') > 0 && noCond(ok).indexOf('[다음]을 누르면') < 0 && ok.indexOf('확인이 필요한 항목') < 0, '[다음]·기록 설명은 완료 조건 줄로 옮겼다');
+  assert.ok(noCond(ok).indexOf('class="ts-okline"') > 0 && noCond(ok).indexOf('is-note') < 0 && ok.indexOf('누락되거나 미확인인') < 0, 'G=0·B=0이면 초록 줄(체크 글리프)');
   assert.ok(ok.indexOf('<dt>공고 상태</dt>') < 0 && g.indexOf('<dt>공고 상태</dt>') < 0, '2단계 본문에 머리 줄 공고 상태가 없다');
   const viewer = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { row: row({ can_check: false, cells: todoRow.cells }), notice: { state: 'ok', html: '', gaps: [] } }));
   assert.ok(viewer.indexOf(pt.T.noticeOkView) > 0, '담당이 아니면 기록은 담당이 남긴다고 알린다');
@@ -583,14 +600,16 @@ test('2단계 확인 항목: 공고 진행(마감·입찰 없음은 붉은 줄)�
   // 본문: 확인 항목이 누락 목록·기관정보 내용보다 위, 원본 파일 묶음이 있다
   const b = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', gaps: [], html: '<div>공고</div>', checks: past }, noticeFiles: '<div class="pp-files" data-kind="NOTICE"></div>',
     row: row({ cells: { NOTICE_CHECK: { notice_status_name: '공고 확인', notice_ok: true } } }) }));
-  assert.ok(b.indexOf('class="ts-chk"') > 0 && b.indexOf('class="ts-chk"') < b.indexOf('class="ts-okline is-note"') && b.indexOf('class="ts-okline is-note"') < b.indexOf('class="ts-notice"'));
+  const bn = noCond(b);   // 제목 아래 완료 조건 줄을 뺀 본문
+  assert.ok(bn.indexOf('class="ts-chk"') > 0 && bn.indexOf('class="ts-chk"') < bn.indexOf('class="ts-okline is-note"') && bn.indexOf('class="ts-okline is-note"') < bn.indexOf('class="ts-notice"'));
+  assert.ok(b.indexOf('class="ts-okline is-note"') < b.indexOf('class="ts-chk"'), '완료 조건 줄은 제목 바로 아래, 확인 항목보다 위');
   // B>0·G=0: 초록 대신 중립 줄 — 범위를 밝히고 '누락되거나 미확인인' 단언을 하지 않는다
-  assert.ok(b.indexOf('위에 붉게 표시한 2건은 확인만 하면 되고') > 0 && b.indexOf('누락되거나 미확인인') < 0 && b.indexOf('class="ts-okline"') < 0);
+  assert.ok(b.indexOf('위에 붉게 표시한 2건은 확인만 하면 됩니다.') > 0 && b.indexOf('[다음]을 누르면 &#39;확인 완료&#39;로 기록됩니다') < 0 && b.indexOf('누락되거나 미확인인') < 0 && bn.indexOf('class="ts-okline"') < 0);
   const bView = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', gaps: [], html: '', checks: past }, row: row({ can_check: false, cells: { NOTICE_CHECK: { notice_status_name: '공고 확인' } } }) }));
   assert.ok(bView.indexOf(pt.T.noticeNoteView(2)) > 0);
   // G>0: 주황만, 초록·중립 줄은 없다
   const bGap = pt.bodyHtml(model(view('IN_PROGRESS'), 1, { notice: { state: 'ok', gaps: ['공고 링크 없음'], html: '', checks: past }, row: row({ cells: { NOTICE_CHECK: { notice_status_name: '공고 확인' } } }) }));
-  assert.ok(bGap.indexOf('class="ts-gaps"') > 0 && bGap.indexOf('ts-okline') < 0);
+  assert.ok(bGap.indexOf('class="ts-gaps"') > 0 && noCond(bGap).indexOf('ts-okline') < 0);
   assert.ok(/\.ts-okline\.is-note \{ color:var\(--fg\)/.test(HTML) && /\.ts-name \{ white-space:normal/.test(HTML));
   assert.ok(b.indexOf('>공고 원본 파일</h4><div class="pp-files" data-kind="NOTICE">') > 0);
   assert.ok(/\.ts-chk li\.is-bad \{ color:var\(--red\)/.test(HTML));
@@ -858,14 +877,16 @@ test('3단계 선정 평가표: 공고 원본에서 옮겨 온 표를 그대로,
   assert.ok(pt.scoringHtml({ state: 'err' }).indexOf(pt.T.scErr) > 0);
   assert.ok(pt.scoringHtml(undefined).indexOf(pt.T.scLoading) > 0);
   assert.ok(pt.scoringHtml({ state: 'hidden' }).indexOf(pt.T.scHidden) > 0);
-  // 본문: 과제 아래에 평가표 묶음, 위에 '샘플 필요!'
+  // 본문: 과제 아래에 평가표 묶음. '샘플 필요!' 상자는 뺐다(F3, 사용자 11-26)
   const b = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('INST_ANALYSIS'), { docs: {}, scoring: { state: 'ok', data: data } }));
-  assert.ok(b.indexOf('class="ts-need"') > 0 && b.indexOf('class="ts-need"') < b.indexOf('class="pp-tasks'));
+  assert.ok(b.indexOf('샘플 필요') < 0 && b.indexOf('ts-need') < 0 && b.indexOf('Word 양식 샘플') < 0, '3단계에 샘플 필요 상자가 없다');
+  assert.ok(!pt.T.needTag && !pt.T.needSummary && SRC.indexOf('function need(') < 0, '문구 키와 그리는 함수도 지웠다');
+  assert.ok(b.indexOf(pt.T.foldHint) > 0 && pt.T.foldHint === '아래 내용을 읽고, 비어 있으면 [작성 시작], 고칠 것이 있으면 [수정하기]로 고칩니다.');
   assert.ok(b.indexOf('>선정 평가표 (공고 원본에서 옮겨 옴)</h4>') > b.indexOf('class="pp-tasks'));
   // 배선
   assert.ok(/req\('GET', base\(id\) \+ '\/notice-scoring', undefined, ui\('prep_detail', 'scoring_read'\)\)/.test(PREP_SRC));
   assert.ok(/if \(kind === 'NOTICE'\) S\.sc = null;/.test(PREP_SRC), '공고 원본을 올리면 다시 읽는다');
-  assert.ok(/\.ts-need \{[^}]*border:1px dashed var\(--orange\)/.test(HTML));
+  assert.ok(HTML.indexOf('.ts-need') < 0, '쓰지 않는 .ts-need CSS도 지웠다');
 });
 
 // ── 11-26: 2단계 기관 정보 판정이 직접 입력 약정을 보고, 담당자 변경 409 문구가 상황을 말한다 ──
@@ -885,6 +906,197 @@ test('instFacts: 직접 입력 약정만 있어도 금고 은행·약정 기간�
   assert.strictEqual(wait.term, undefined);
   const off = prep.instFacts(rec, D, new Date('2026-11-26'), 'I1', null, bc);
   assert.strictEqual(off.bank, false, '서버 모드가 아니면(약정 응답 자체가 없으면) 예전과 같다');
+});
+
+// ── 11-27 기관 상세 피드백 묶음 1 (design-reviewer 2026-11-27_0003_a559dee7 F4·F6·F7·F8) ──
+function att(id, name, o) {
+  return Object.assign({ attach_id: id, task_cd: 'T3', name: name, valid: true, confirmed: false, pii_state: 'CHECKED',
+    uploaded_by: { emp_no: '1', name: '김영업' }, uploaded_at: '2026-11-25T09:00:00+09:00', size_bytes: 10 }, o || {});
+}
+const PROFIT_IDX = idxOf('PROFIT');
+
+test('F4 확정본 지정 확인: 묻는 조건(4단계·담당자·끝난 건 아님·목록을 받음·유효 T3 1개 이상·확정본 없음)', function () {
+  const v = view('IN_PROGRESS');
+  const one = [att(1, 'a.xlsx')];
+  assert.deepStrictEqual(pt.confirmAskFiles(PROFIT_IDX, v, one).map(function (r) { return r.attach_id; }), [1]);
+  assert.strictEqual(pt.confirmAskFiles(PROFIT_IDX - 1, v, one), null, '다른 단계');
+  assert.strictEqual(pt.confirmAskFiles(PROFIT_IDX, view('IN_PROGRESS', { viewer: { is_assignee: false } }), one), null, '담당자가 아니면 묻지 않는다');
+  assert.strictEqual(pt.confirmAskFiles(PROFIT_IDX, view('CANCELLED'), one), null, '끝난 건');
+  assert.strictEqual(pt.confirmAskFiles(PROFIT_IDX, v, null), null, '첨부 목록이 아직 오지 않았거나 실패');
+  assert.strictEqual(pt.confirmAskFiles(PROFIT_IDX, v, undefined), null);
+  assert.strictEqual(pt.confirmAskFiles(PROFIT_IDX, v, []), null, '파일 0개');
+  assert.strictEqual(pt.confirmAskFiles(PROFIT_IDX, v, [att(1, 'x', { valid: false })]), null, '삭제한 파일만');
+  assert.strictEqual(pt.confirmAskFiles(PROFIT_IDX, v, [att(1, 'x', { task_cd: 'NOTICE' })]), null, '다른 종류 파일은 세지 않는다');
+  assert.strictEqual(pt.confirmAskFiles(PROFIT_IDX, v, [att(1, 'a.xlsx', { confirmed: true }), att(2, 'b.xlsx')]), null, '확정본이 이미 있다');
+  // 삭제한 파일·다른 종류가 섞여도 유효 T3만 센다, 최근 순(같은 시각이면 나중 번호가 위)
+  const mixed = [att(1, 'old.xlsx', { uploaded_at: '2026-11-25T09:00:00+09:00' }), att(2, 'new.xlsx', { uploaded_at: '2026-11-25T10:00:00+09:00' }),
+    att(3, 'same.xlsx', { uploaded_at: '2026-11-25T10:00:00+09:00' }), att(4, 'gone.xlsx', { valid: false, uploaded_at: '2026-11-26T10:00:00+09:00' }), att(5, 'n.pdf', { task_cd: 'NOTICE' })];
+  assert.deepStrictEqual(pt.confirmAskFiles(PROFIT_IDX, v, mixed).map(function (r) { return r.attach_id; }), [3, 2, 1]);
+});
+
+test('F4 확정본 지정 창(파일 1개): 문구·단추 순서·채운 주버튼·오류 줄, 공통 팝업 대신 뜬다', function () {
+  const v = view('IN_PROGRESS');
+  const h = pt.nextAskHtml(PROFIT_IDX, { view: v, row: row(), marks: MARKS, attach: [att(7, '수익성<b>.xlsx')] });
+  assert.ok(/class="modal-box tm-modal-box ts-ask" role="dialog" aria-modal="true" aria-labelledby="ts-ask-t" aria-describedby="ts-ask-d"/.test(h));
+  assert.ok(h.indexOf('<h3 id="ts-ask-t">확정본 지정</h3>') > 0);
+  assert.ok(h.indexOf('&#39;수익성&lt;b&gt;.xlsx&#39; 파일을 수익성 분석표 확정본으로 지정하시겠습니까?') > 0, '파일 이름은 이스케이프');
+  assert.ok(h.indexOf('확정본을 지정해야 &#39;수익성분석&#39; 단계가 완료로 표시됩니다. 지정하지 않고 넘어가도 나중에 이 단계의 파일 목록에서 지정할 수 있습니다.') > 0);
+  assert.ok(/<p id="ts-ask-err" class="ap-err" role="alert"><\/p>/.test(h));
+  const no = h.indexOf('id="pp-nx-no">닫기<'), skip = h.indexOf('id="pp-nx-skip">지정하지 않고 넘어가기<'), set = h.indexOf('id="pp-nx-set" class="ts-go" data-attach="7">지정하고 넘어가기<');
+  assert.ok(no > 0 && skip > no && set > skip, '[닫기] [지정하지 않고 넘어가기] [지정하고 넘어가기] 순서, 마지막만 채움');
+  assert.ok(h.indexOf('id="pp-nx-ok"') < 0 && h.indexOf('type="radio"') < 0, '공통 팝업 단추도 라디오도 없다');
+  assert.ok(h.indexOf('개인정보 경고') < 0);
+  const warn = pt.nextAskHtml(PROFIT_IDX, { view: v, attach: [att(7, 'a.xlsx', { pii_note: '이메일 2' })] });
+  assert.ok(warn.indexOf('<p class="tm-note"><span class="wf-badge gap">개인정보 경고: 이메일 2</span></p>') > 0);
+  // 조건이 안 맞으면 공통 팝업(담당자 아님·확정본 있음·파일 없음·목록 없음)
+  [{ view: view('IN_PROGRESS', { viewer: { is_assignee: false } }), attach: [att(7, 'a')] }, { view: v, attach: [att(7, 'a', { confirmed: true })] },
+   { view: v, attach: [] }, { view: v, attach: null }].forEach(function (o, k) {
+    const g = pt.nextAskHtml(PROFIT_IDX, o);
+    assert.ok(g.indexOf('id="pp-nx-set"') < 0 && /id="pp-nx-ok" class="ts-go">넘어가기</.test(g), '공통 ' + k);
+  });
+});
+
+test('F4 확정본 지정 창(파일 여러 개): 라디오 목록, 맨 위(가장 최근)가 기본 선택, 올린 시각·사람·경고', function () {
+  const v = view('IN_PROGRESS');
+  const h = pt.nextAskHtml(PROFIT_IDX, { view: v, attach: [att(1, 'old.xlsx'), att(2, 'new.xlsx', { uploaded_at: '2026-11-26T10:30:00+09:00', uploaded_by: { emp_no: '2', name: '배지아' }, pii_note: '전화번호 1' })] });
+  assert.ok(h.indexOf('올린 수익성 분석표 2개 중 확정본으로 지정할 파일을 고르세요.') > 0);
+  assert.ok(h.indexOf('<legend>확정본으로 지정할 파일</legend>') > 0);
+  assert.strictEqual((h.match(/type="radio" name="ts-ask-file"/g) || []).length, 2);
+  assert.strictEqual((h.match(/ checked>/g) || []).length, 1);
+  assert.ok(/value="2" checked> new\.xlsx<\/label>/.test(h) && /value="1"> old\.xlsx<\/label>/.test(h), '최근 파일이 먼저, 기본 선택');
+  assert.ok(h.indexOf('배지아') > 0 && h.indexOf('<span class="wf-badge gap">개인정보 경고: 전화번호 1</span>') > 0);
+  assert.ok(h.indexOf('<div class="modal-scroll tm-m-body">') > 0 && /id="pp-nx-set" class="ts-go" data-attach="2">/.test(h), '단추도 최근 파일을 가리킨다');
+  assert.ok(h.indexOf('id="ts-ask-err"') > 0 && h.indexOf('id="pp-nx-skip"') > 0);
+});
+
+test('F4 배선: 같은 확정본 지정 요청·창 전용 버튼 이름 next_t3_set, 진행 중 잠금·성공 시 알림 뒤 넘어가기·실패 시 창 유지', function () {
+  assert.ok(/case 'pp-nx-set': onNextSet\(\); break;/.test(PREP_SRC) && /case 'pp-nx-skip': closeNextAsk\(true\); break;/.test(PREP_SRC));
+  const a = PREP_SRC.indexOf('function onNextSet() {'), b = PREP_SRC.indexOf('function nextAskToSched() {');
+  assert.ok(a > 0 && b > a);
+  const f = PREP_SRC.slice(a, b);
+  assert.ok(f.indexOf("req('PUT', base(id) + '/tasks/T3/confirmed-file', { attach_id: Number(attachId) }, ui('prep_detail', 'next_t3_set'))") > 0, '기존 확정본 지정 경로 + 창 전용 버튼 이름(파일 목록의 t3_set과 감사에서 구분)');
+  assert.ok(PREP_SRC.indexOf("ui('prep_detail', 't3_set')") > 0, '파일 목록의 지정 단추는 t3_set 그대로');
+  assert.ok(f.indexOf("setAttribute('aria-disabled', 'true')") > 0 && f.indexOf('pt.T.askSetBusy') > 0 && f.indexOf('if (!S.nextAsk || S.nextBusy || !S.selected) return;') > 0, '진행 중에는 세 단추 모두 막고 글자를 바꾼다');
+  assert.ok(f.indexOf("다른 요청을 처리하는 중입니다. 잠시 뒤 다시 눌러 주세요.") > f.indexOf('if (S.busy) {') && f.indexOf("el('ts-ask-err')") > 0, '다른 요청 중이면 창 안에 이유를 쓴다(조용히 무시하지 않는다)');
+  assert.ok(f.indexOf('const mine = S.nextSeq = ++reqSeq;') > 0 && (f.match(/if \(S\.nextSeq !== mine\) return;/g) || []).length === 2, '요청 토큰: 성공·실패 응답 모두 늦게 오면 무시');
+  assert.ok(/S\.nextSeq = 0;/.test(PREP_SRC), '새 창·화면 재진입 때 토큰을 비운다');
+  assert.ok(f.indexOf('setFlash(T.okSetConfirmed(name));') > 0 && f.indexOf('stepBy(1);') > f.indexOf('setFlash(T.okSetConfirmed(name));'), '성공: 알림 → 다음 단계');
+  assert.ok(f.indexOf('S.refocus = st.sel; S.live = st.live;') > f.indexOf('stepBy(1);') && f.indexOf('S.refocus = st.sel; S.live = st.live;') < f.indexOf('loadDetail(id);'), '성공: loadDetail 앞에 포커스·알림을 다시 건다(ⓖ)');
+  const sb = PREP_SRC.slice(PREP_SRC.indexOf('function stepBy(d) {'), PREP_SRC.indexOf('// 제안 준비 현황 표의 그 줄'));
+  assert.ok(sb.indexOf('return { sel: sel, live: live };') > 0 && sb.indexOf("'[data-act=\"' + keep + '\"]'") > 0, 'stepBy가 고른 포커스 대상과 알림 문장을 돌려준다');
+  assert.ok(f.indexOf("prep.errorInfo(e && e.status, e && e.detail, curTasks(), 'attach')") > 0 && f.indexOf('pt.T.askSetFail(info.text)') > 0 && f.indexOf("info.after === 'reload'") > 0, '실패: 원인 문장을 창 안에, reload 계열은 닫고 다시 불러온다');
+  assert.ok(/if \(!S\.nextAsk \|\| S\.nextBusy\) return;/.test(PREP_SRC), '지정 중에는 Esc·바깥 클릭을 무시한다');
+  assert.ok(/S\.nextAsk = false; S\.nextBusy = false;/.test(PREP_SRC), '화면이 다시 열리면 잠금을 푼다');
+  assert.strictEqual(prep.T.okSetConfirmed('a.xlsx'), '\'a.xlsx\' 파일을 수익성 분석표 확정본으로 지정했습니다.');
+  assert.strictEqual(pt.T.askSetBusy, '지정하는 중…');
+  assert.strictEqual(pt.T.askSetFail('원인.'), '확정본으로 지정하지 못했습니다. 원인.');
+});
+
+test('F6 이사회 일정 확인: 7단계·자료 있음·담당자(canMeeting)·일정 비어 있음·결과 전일 때만', function () {
+  const BOARD = { state: 'ok', canMeeting: true, meeting: '', resultCd: '' };
+  const at = idxOf('BOARD_DOC');
+  assert.strictEqual(pt.schedAsk(at, BOARD), true);
+  assert.strictEqual(pt.schedAsk(at, Object.assign({}, BOARD, { resultCd: 'SCHEDULED' })), true, '의결 예정은 결과가 아니다');
+  assert.strictEqual(pt.schedAsk(at, Object.assign({}, BOARD, { meeting: '2026-12-03' })), false, '일정이 있다');
+  assert.strictEqual(pt.schedAsk(at, Object.assign({}, BOARD, { canMeeting: false })), false, '담당자가 아니다');
+  assert.strictEqual(pt.schedAsk(at, Object.assign({}, BOARD, { resultCd: 'PASSED' })), false);
+  assert.strictEqual(pt.schedAsk(at, Object.assign({}, BOARD, { resultCd: 'REJECTED' })), false);
+  ['none', 'loading', 'err'].forEach(function (st) { assert.strictEqual(pt.schedAsk(at, { state: st, canMeeting: true }), false, st); });
+  assert.strictEqual(pt.schedAsk(at, null), false);
+  assert.strictEqual(pt.schedAsk(at - 1, BOARD), false, '다른 단계');
+  const h = pt.nextAskHtml(at, { view: view('IN_PROGRESS'), board: BOARD });
+  assert.ok(h.indexOf('<h3 id="ts-ask-t">이사회 일정</h3>') > 0 && h.indexOf('>이사회 일정 전인가요?</p>') > 0);
+  assert.ok(h.indexOf('날짜가 정해졌으면 [일정 등록하기]를 눌러 먼저 적어 두세요. 일정을 적지 않아도 다음 단계로 넘어갈 수 있습니다.') > 0);
+  assert.ok(/<button type="button" id="pp-nx-ok">일정 전이라 넘어가기<\/button><button type="button" id="pp-nx-sched" class="ts-go">일정 등록하기<\/button>/.test(h));
+  assert.ok(h.indexOf('id="pp-nx-no"') < 0, '두 단추만');
+  const plain = pt.nextAskHtml(at, { view: view('IN_PROGRESS'), board: Object.assign({}, BOARD, { meeting: '2026-12-03' }) });
+  assert.ok(plain.indexOf('id="pp-nx-sched"') < 0 && /id="pp-nx-ok" class="ts-go">넘어가기</.test(plain), '일정이 있으면 공통 팝업');
+  // 배선: [일정 등록하기] = 창을 닫고 날짜 칸으로(넘어가지 않는다), [일정 전이라 넘어가기] = 넘어가기
+  assert.ok(/case 'pp-nx-sched': nextAskToSched\(\); break;/.test(PREP_SRC));
+  const f = PREP_SRC.slice(PREP_SRC.indexOf('function nextAskToSched() {'), PREP_SRC.indexOf('function closeNextAsk(go) {'));
+  assert.ok(f.indexOf("el('ts-sched-date')") > 0 && f.indexOf('d.focus()') > 0 && f.indexOf('scrollIntoView') > 0 && f.indexOf('stepBy') < 0);
+  assert.ok(f.indexOf("querySelector('[data-act=\"ts-next\"]')") > f.indexOf('else {'), '날짜 칸이 없으면 [다음]으로 포커스');
+  assert.ok(/board: cs\.id === 'BOARD_DOC' \? stepBoard\(\) : null/.test(PREP_SRC));
+});
+
+test('F7 완료 조건 줄: 23단계 모두 제목 바로 아래, 완료 전·완료·대상 아님 세 모양, 끝난 건은 없음', function () {
+  const v = view('IN_PROGRESS');
+  pt.STEPS.forEach(function (s, i) {
+    const h = pt.bodyHtml(model(v, i, { board: { state: 'none' } }));
+    assert.ok(h.indexOf('</h3><p class="ts-okline is-note" role="note">') > 0, i + 1 + '단계 ' + s.label + ' — 제목 바로 아래');
+    assert.strictEqual(pt.condHtml(s, view('CANCELLED'), row(), MARKS), '', s.label + ' 끝난 건은 줄 없음');
+    assert.ok(pt.condText(s, v) !== '', s.label);
+  });
+  // 완료 전
+  const fin = idxOf('FIN_COMMITTEE');
+  const todo = pt.bodyHtml(model(v, fin));
+  assert.ok(todo.indexOf('<p class="ts-okline is-note" role="note"><span><b>완료 조건</b> 담당 영업이 아래에서 &#39;완료&#39;를 고르면 완료로 표시됩니다(해당 없으면 &#39;대상 아님&#39;). 고르는 즉시 저장되고 제안 준비 현황 표에도 보입니다.</span></p>') > 0);
+  assert.ok(todo.indexOf('이 단계를 마쳤으면 상태를 고릅니다') < 0, '옛 manualHint 줄은 없다');
+  // 완료: 같은 그림 + '완료로 표시됨'
+  const done = pt.condHtml(pt.STEPS[fin], v, row({ cells: { FIN_COMMITTEE: { mark_cd: 'DONE' } } }), MARKS);
+  assert.ok(/^<p class="ts-okline is-note" role="note"><svg class="pb-g done"[^>]*aria-hidden="true">.*<\/svg><span><b>완료로 표시됨<\/b> <span class="ts-note">담당 영업이 아래에서/.test(done));
+  // 대상 아님으로 닫힘
+  const na = pt.condHtml(pt.STEPS[fin], v, row({ cells: { FIN_COMMITTEE: { mark_cd: 'NA' } } }), MARKS);
+  assert.ok(/<svg class="pb-g na"/.test(na) && na.indexOf('<b>대상 아님으로 표시됨</b>') > 0 && na.indexOf('담당 영업이 아래에서') > 0);
+  // 진행(IN_PROGRESS 칸)은 아직 완료 전 모양
+  assert.ok(pt.condHtml(pt.STEPS[fin], v, row(), MARKS).indexOf('<b>완료 조건</b>') > 0);
+  // 문안: 단계별
+  const T = pt.T.cond;
+  const txt = function (id, vw) { return pt.condText(pt.STEPS[idxOf(id)], vw || v); };
+  assert.strictEqual(txt('START'), '개설 신청이 승인되어 담당자가 정해지면 완료로 표시됩니다.', '개설 신청 방식');
+  assert.strictEqual(txt('START', view('IN_PROGRESS', { viewer: { can_start_prep: true, can_request_open: false } })), '담당자를 지정하면 완료로 표시됩니다.');
+  assert.strictEqual(txt('START', view('OPEN_PENDING', { viewer: { can_start_prep: false, can_request_open: false } })), '개설 신청이 승인되어 담당자가 정해지면 완료로 표시됩니다.', '개설 대기 건은 새 흐름 판정이어도 승인 문안');
+  assert.strictEqual(txt('START', view('CONFIRMED', { viewer: { can_start_prep: true, can_request_open: false } })), '담당자를 지정하면 완료로 표시됩니다.');
+  // 자동 판정(수익성 분석표 T3 완료)·묶음(이사회 3칸 대상 아님)도 '표시됨' 모양
+  const profitDone = pt.condHtml(pt.STEPS[idxOf('PROFIT')], view('IN_PROGRESS', { tasks: TASKS.map(function (t) { return t.task_cd === 'T3' ? Object.assign({}, t, { state: 'DONE' }) : t; }) }), row(), MARKS);
+  assert.ok(profitDone.indexOf('<b>완료로 표시됨</b>') > 0 && /<svg class="pb-g done"/.test(profitDone), '자동 판정 단계: 완료로 표시됨');
+  const boardNa = pt.condHtml(pt.STEPS[idxOf('BOARD')], v, row({ cells: { BOARD_SECRETARIAT: { mark_cd: 'NA' }, BOARD_AUDIT: { mark_cd: 'NA' }, BOARD_COMPLIANCE: { mark_cd: 'NA' } } }), MARKS);
+  assert.ok(boardNa.indexOf('<b>대상 아님으로 표시됨</b>') > 0 && /<svg class="pb-g na"/.test(boardNa), '묶음 단계: 3칸 모두 대상 아님 → 대상 아님으로 표시됨');
+  assert.strictEqual(pt.condHtml(pt.STEPS[idxOf('BOARD')], v, row({ cells: {} }), MARKS).indexOf('<b>완료 조건</b>') > 0, true, '묶음 단계: 칸이 비면 완료 전');
+  assert.strictEqual(txt('NOTICE_CHECK'), '공고 자료에 빠진 것이 없을 때 담당 영업이 [다음]을 누르면 \'확인 완료\'로 표시됩니다. 누가·언제 확인했는지 남습니다.');
+  assert.strictEqual(txt('INST_ANALYSIS'), '아래 두 준비 과제에서 모두 [완료로 표시]를 누르면 이 단계도 완료로 표시됩니다.');
+  assert.strictEqual(txt('PROFIT'), '수익성 분석표를 올린 뒤 [확정본으로 지정]을 누르면 완료로 표시됩니다. 올리기만 해서는 완료되지 않습니다.');
+  assert.strictEqual(txt('BOARD_DOC'), '이사회 자료가 확정되면 완료로 표시됩니다. 일정 등록·추가 자료·발표 대본은 완료 표시와 상관없습니다.');
+  assert.strictEqual(txt('BOARD'), '담당 영업이 아래 \'부서별 확인\' 3칸(사무국, 감사·감시, 준법)을 모두 \'완료\'나 \'대상 아님\'으로 고르면 완료로 표시됩니다. 결과 등록과 결과 문서는 기록으로 남길 뿐 완료 표시와 상관없습니다.');
+  assert.strictEqual(txt('PROPOSAL'), '디자이너가 제안서 최종본을 완료하면 자동으로 완료로 표시됩니다. 이 화면에서는 체크하지 않습니다.');
+  assert.strictEqual(txt('SUBMIT_DOCS'), T.manual + ' 아래 준비 과제는 완료 표시에 영향이 없습니다.');
+  assert.strictEqual(txt('SUBMIT_APPR'), '담당 영업이 아래 2칸을 모두 \'완료\'나 \'대상 아님\'으로 고르면 완료로 표시됩니다. 고르는 즉시 저장되고 제안 준비 현황 표에도 보입니다.');
+  assert.ok(txt('CONTRACT_APPR').indexOf('아래 4칸을') > 0, '칸 수는 subs 개수');
+  ['FIN_COMMITTEE', 'BIZ_COMMITTEE', 'PRESENT_DOC', 'PT', 'RESULT', 'PRIORITY_NEGO', 'AGREE_LEGAL', 'ATM', 'KB_CARD', 'IT_BUILD', 'VIP', 'RATE_APPROVAL', 'CEREMONY'].forEach(function (id) {
+    assert.strictEqual(txt(id), T.manual, id);
+  });
+  // 옛 안내 키·호출은 없다, 함께 다듬은 문구
+  assert.ok(pt.T.manualHint === undefined && pt.T.groupHint === undefined && SRC.indexOf('T.manualHint') < 0 && SRC.indexOf('T.groupHint') < 0);
+  assert.strictEqual(pt.T.boardHint, '이사회 자료는 이사회 자료 작성 화면에서 만들고 확정합니다.');
+  assert.ok(pt.bodyHtml(model(v, idxOf('BOARD_DOC'), { board: { state: 'none' } })).indexOf(pt.T.boardHint) > 0);
+  assert.strictEqual(pt.T.noticeNote(2), '공고 자료(입찰 예정일·공고일·접수 마감일·공고 링크)에 빠진 것은 없습니다. 위에 붉게 표시한 2건은 확인만 하면 됩니다.');
+  assert.strictEqual(pt.T.noticeNoteView(2), '공고 자료(입찰 예정일·공고일·접수 마감일·공고 링크)에 빠진 것은 없습니다. 위에 붉게 표시한 2건을 확인하세요.');
+  // 구획 제목·안내 문구의 '이사회 자료 작성'은 이번에 바꾸지 않는다(사용자 답 대기)
+  assert.strictEqual(pt.T.secDoc, '이사회 자료 작성');
+});
+
+test('F8 결과 문서 밑 개최일 줄: 결과 뒤 개최일·결과 전 일정(예정)·날짜 없음(등록 전 + 누가 적나)·자료 상태 아니면 줄 없음', function () {
+  const base = { state: 'ok', id: 12, confirmed: true, html: '', resultCd: 'PASSED', meeting: '2026-12-03', canResult: true };
+  assert.strictEqual(pt.resDateHtml(base), '<dl class="ts-facts"><div><dt>개최일</dt><dd><span class="m">2026-12-03</span></dd></div></dl>');
+  assert.strictEqual(pt.resDateHtml(Object.assign({}, base, { resultCd: 'REJECTED' })).indexOf('<dt>개최일</dt>') > 0, true);
+  const sched = pt.resDateHtml(Object.assign({}, base, { resultCd: 'SCHEDULED' }));
+  assert.ok(sched.indexOf('<dt>이사회 날짜(예정)</dt><dd><span class="m">2026-12-03</span></dd>') > 0 && sched.indexOf('<dt>개최일</dt>') < 0);
+  assert.ok(pt.resDateHtml(Object.assign({}, base, { resultCd: '' })).indexOf('이사회 날짜(예정)') > 0, '결과 전에 일정만 있는 경우');
+  const none = pt.resDateHtml(Object.assign({}, base, { resultCd: '', meeting: '' }));
+  assert.ok(none.indexOf('<dt>개최일</dt><dd>등록 전</dd>') > 0 && none.indexOf('<p class="ts-note">개최일은 위 &#39;이사회 결과 등록&#39;에서 의결 결과와 함께 적습니다.</p>') > 0);
+  const view2 = pt.resDateHtml(Object.assign({}, base, { resultCd: '', meeting: '', canResult: false }));
+  assert.ok(view2.indexOf('등록 전') > 0 && view2.indexOf(pt.T.schedView) > 0 && view2.indexOf('개최일은 위') < 0);
+  assert.ok(pt.resDateHtml(Object.assign({}, base, { meeting: '<b>' })).indexOf('&lt;b&gt;') > 0 && pt.resDateHtml(Object.assign({}, base, { meeting: '<b>' })).indexOf('<b>') < 0, '날짜 값도 이스케이프');
+  ['loading', 'err', 'none'].forEach(function (st) { assert.strictEqual(pt.resDateHtml({ state: st, meeting: '2026-12-03' }), '', st); });
+  assert.strictEqual(pt.resDateHtml(undefined), '');
+  // 본문: 결과 문서 블록 뒤, 부서별 확인 앞
+  const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('BOARD'), { board: base, resFiles: '<div class="pp-files" data-kind="BOARD_RES"></div>' }));
+  const files = h.indexOf('data-kind="BOARD_RES"'), date = h.indexOf('<dt>개최일</dt><dd><span class="m">2026-12-03</span></dd>'), marks = h.indexOf('>부서별 확인</h4>');
+  assert.ok(files > 0 && date > files && marks > date, '결과 문서 → 개최일 → 부서별 확인');
+  assert.ok(h.indexOf('>이사회 결과 문서 보관</h4>') < date);
+  assert.ok(h.indexOf('칸마다 상태를 고릅니다') < 0, '8단계 부서별 확인의 옛 안내 줄은 완료 조건 줄로 옮겼다');
+  // 안건 번호는 주석 자리만 — 저장 자리가 없다(planner Q2)
+  assert.ok(SRC.indexOf('<dt>안건 번호</dt>') > 0 && h.indexOf('안건 번호') < 0);
 });
 
 test('2단계 본문: 약정 값과 기관장 카드를 paneParts에 넘긴다', function () {

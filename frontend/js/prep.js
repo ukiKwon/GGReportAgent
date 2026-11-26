@@ -100,7 +100,6 @@
     piiTitle: '올린 파일에 주민등록번호·카드번호 같은 개인정보가 들어 있는지 서버가 자동으로 살핀 결과입니다.',
     uploadWait: '검사하는 데 시간이 걸릴 수 있습니다.',
     uncheckedWhy: '글자를 읽을 수 없는 파일(스캔 PDF 등)이라 개인정보 검사를 하지 못했습니다.',
-    selfReport: '로그인 신원을 확인하지 않은 기록입니다',
     cancelBanner: function (stateName, reason) {
       return '\'' + stateName + '\'' + (reason ? ' — 사유: ' + reason : '');   // 사유가 null(열람 권한 밖)이면 사유 칸을 생략한다
     },
@@ -120,10 +119,10 @@
     okAbort: '사전준비를 중단했습니다. 담당 배정이 풀렸습니다.',
     okWithdraw: '개설 신청을 회수했습니다. 담당자를 다시 지명해 [개설 신청]을 올릴 수 있습니다.',
     okUpload: function (f) { return '\'' + f + '\'을 올렸습니다.'; },
-    okSetConfirmed: function (f) { return '\'' + f + '\'을 수익성 분석표 확정본으로 지정했습니다.'; },
+    okSetConfirmed: function (f) { return '\'' + f + '\' 파일을 수익성 분석표 확정본으로 지정했습니다.'; },
     okClearConfirmed: function (f) { return '\'' + f + '\'의 확정본 지정을 해제했습니다.'; },
-    okVoid: function (f) { return '\'' + f + '\'을 무효 처리했습니다.'; },
-    warnTail: ' 필요 없는 정보면 지운 파일을 다시 올리고 이 파일은 무효 처리하세요.',
+    okVoid: function (f) { return '\'' + f + '\' 파일을 삭제했습니다.'; },
+    warnTail: ' 필요 없는 정보면 그 부분을 지운 파일을 다시 올리고, 이 파일은 삭제하세요.',
     // 입찰 없음 알림(NEXT 98-1, design 11-19 6장). 날짜·기록자는 서버 값만, 새 부서 이름은 '영업부서'
     nbFact: '이 기관의 이번 회차 입찰 공고 상태는 \'입찰 없음(연장·지정)\'입니다',
     nbBanner: '이 기관은 이번 회차 입찰 공고가 \'입찰 없음(연장·지정)\'으로 기록되어 있습니다',
@@ -167,8 +166,8 @@
     UNSUPPORTED_FORMAT: { text: '올릴 수 있는 형식은 HWPX·PDF·xlsx·docx입니다. HWP·구형 오피스 파일은 그 형식으로 다시 저장해 올리세요.', after: 'keep' },
     FORMAT_MISMATCH: { text: '파일 내용이 확장자와 맞지 않습니다. 원래 프로그램에서 열어 HWPX·PDF·xlsx·docx로 다시 저장해 올리세요.', after: 'keep' },
     ACTIVE_CONTENT: { text: '매크로·스크립트가 들어 있는 파일은 올릴 수 없습니다. 매크로를 뺀 xlsx·docx나 일반 PDF로 저장해 올리세요.', after: 'keep' },
-    ATTACH_IN_USE: { text: '확정본으로 지정한 파일은 무효 처리할 수 없습니다. 먼저 [확정본 해제]를 하세요.', after: 'keep' },
-    ATTACH_NOT_ELIGIBLE: { text: '이 파일은 확정본으로 지정할 수 없습니다(무효 처리됐거나 다른 과제의 파일). 목록을 다시 불러왔습니다.', after: 'reload' },
+    ATTACH_IN_USE: { text: '확정본으로 지정한 파일은 삭제할 수 없습니다. 먼저 [확정본 해제]를 하세요.', after: 'keep' },
+    ATTACH_NOT_ELIGIBLE: { text: '이 파일은 확정본으로 지정할 수 없습니다(삭제됐거나 다른 과제의 파일). 목록을 다시 불러왔습니다.', after: 'reload' },
     FILE_MISSING: { text: '파일이 서버에 없습니다. 시스템 관리자에게 알리세요.', after: 'keep' },
   };
   prep.ERR_BY_CODE = ERR_BY_CODE;
@@ -620,7 +619,7 @@
     if (a.download) h += b('download', '내려받기');
     if (a.setConfirmed) h += ' ' + b('setconfirm', '확정본으로 지정');
     if (a.clearConfirmed) h += ' ' + b('clearconfirm', '확정본 해제');
-    if (a.voidIt) h += ' ' + b('void-open', '무효 처리');
+    if (a.voidIt) h += ' ' + b('void-open', '삭제');
     return h;
   }
 
@@ -655,18 +654,18 @@
           return '<tr><td class="pp-fname">' + esc(str(r.name)) + '<br><span class="pp-fsize">' + esc(prep.formatSize(r.size_bytes)) + '</span></td>' +
             '<td>' + (r.confirmed ? '<span class="wf-badge ok">확정본</span>' : '<span class="pp-fsize">' + (K.pick ? '올림' : '보관') + '</span>') + '</td>' +
             '<td>' + piiCell(r) + '</td>' +
-            '<td>' + esc(who) + (r.emp_verified === false ? ' <span class="ad-badge muted" title="' + esc(T.selfReport) + '">자기신고</span>' : '') + '</td>' +
+            '<td>' + esc(who) + '</td>' +
             '<td><span class="pp-fsize">' + esc(prep.stamp(r.uploaded_at)) + '</span></td>' +
             '<td>' + fileActions(r, a) + '</td></tr>';
         }).join('') + '</tbody></table></div>';
     }
     if (voided.length && task === 'T3') {
       h += '<button type="button" class="link-btn pp-fmore" data-act="toggle-void" aria-expanded="' + (m.showVoid ? 'true' : 'false') + '">' +
-        esc(m.showVoid ? '무효 처리한 파일 숨기기' : '무효 처리한 파일 ' + voided.length + '개 보기') + '</button>';
+        esc(m.showVoid ? '삭제한 파일 숨기기' : '삭제한 파일 ' + voided.length + '개 보기') + '</button>';
       if (m.showVoid) {
         h += '<div class="tm-tbl-wrap"><table class="ad-table"><tbody>' + voided.map(function (r) {
           const who = r.voided_by && r.voided_by.name ? r.voided_by.name : '';
-          return '<tr class="pp-void"><td class="pp-fname">' + esc(str(r.name)) + '</td><td>무효 · ' + esc(who) + ' ' + esc(prep.stamp(r.voided_at)) + '</td></tr>';
+          return '<tr class="pp-void"><td class="pp-fname">' + esc(str(r.name)) + '</td><td>삭제 · ' + esc(who) + ' ' + esc(prep.stamp(r.voided_at)) + '</td></tr>';
         }).join('') + '</tbody></table></div>';
       }
     }
@@ -775,8 +774,7 @@
     const names = (Array.isArray(v.assignees) ? v.assignees : []).map(function (a) { return str(a.name); }).filter(Boolean);
     const meta = [];
     if (v.confirmed_by && v.confirmed_by.name) {
-      meta.push('확정 ' + esc(v.confirmed_by.name) + ' ' + esc(prep.stamp(v.confirmed_at)) +
-        (v.emp_verified === 0 ? ' <span class="ad-badge muted" title="' + esc(T.selfReport) + '">자기신고</span>' : ''));
+      meta.push('확정 ' + esc(v.confirmed_by.name) + ' ' + esc(prep.stamp(v.confirmed_at)));
     }
     meta.push(names.length ? '담당 ' + esc(names.join(', ')) : esc(T.noAssignees));   // '담당 담당 미정' 겹침 방지(ce 리허설 관찰 11-24)
     return '<div class="tm-case-head"><div><div class="pp-titlerow"><h2 id="pp-case-title" class="tm-title" tabindex="-1">' + esc(str(v.institution_name)) + '</h2>' +
@@ -850,10 +848,10 @@
     if (kind === 'open') return (i.change ? '담당자 변경 — ' : i.direct ? '담당자 지정 — ' : '개설 신청 — ') + str(i.name);
     if (kind === 'unconfirm') return '제안 확정 취소 — ' + str(i.name);
     if (kind === 'abort') return '사전준비 중단 — ' + str(i.name);
-    return '파일 무효 처리 — ' + str(i.fileName);
+    return '파일 삭제 — ' + str(i.fileName);
   };
   prep.modalGoLabel = function (kind, direct, change) {
-    return { open: change ? '담당자 변경' : direct ? '사전준비 시작' : '개설 신청 올리기', unconfirm: '확정 취소하기', abort: '중단하기', 'void': '무효 처리하기' }[kind] || '확인';
+    return { open: change ? '담당자 변경' : direct ? '사전준비 시작' : '개설 신청 올리기', unconfirm: '확정 취소하기', abort: '중단하기', 'void': '삭제하기' }[kind] || '확인';
   };
   prep.modalCancelLabel = function (kind) { return kind === 'open' ? '취소' : '닫기'; };
 
@@ -861,7 +859,7 @@
     return '<div class="tm-reason-row"><label for="pp-reason">' + esc(label) + '</label><span id="pp-rcount" class="tm-count">' +
       str(m.reason).length + '/' + prep.REASON_MAX + '</span></div>' +
       '<textarea id="pp-reason" rows="3" maxlength="' + prep.REASON_MAX + '" aria-describedby="pp-rhint pp-rcount"' +
-      (m.kind === 'open' ? '' : ' aria-required="true"') + '>' + esc(m.reason) + '</textarea>' +
+      (m.kind === 'open' || m.kind === 'void' ? '' : ' aria-required="true"') + '>' + esc(m.reason) + '</textarea>' +
       '<p id="pp-rhint" class="tm-note">' + esc(hint) + '</p>';
   }
 
@@ -902,8 +900,8 @@
         (i.writing ? '<li>이미 만들어진 세 팀 작업은 그대로 남습니다.</li>' : '') + '</ul>' +
         reasonBlock(m, '중단 사유 (필수)', '사유에는 개인정보를 적지 마세요.');
     }
-    return '<p class="tm-note">무효 처리한 파일은 목록에서 숨겨지고 확정본으로 지정할 수 없습니다. 기록은 남습니다.</p>' +
-      reasonBlock(m, '무효 사유 (필수)', '사유에는 개인정보를 적지 마세요.');
+    return '<p class="tm-note">삭제하면 목록에서 빠지고 확정본으로 지정할 수 없습니다. 누가·언제 삭제했는지는 기록에 남습니다.</p>' +
+      reasonBlock(m, '삭제 사유 (선택)', '비워 두면 \'(사유 없음)\'으로 기록됩니다. 사유에는 개인정보를 적지 마세요.');
   };
 
   prep.openPicksHtml = function (m, meEmp) {
@@ -912,7 +910,7 @@
 
   prep.modalHtml = function (m, info) {
     const go = prep.modalGoLabel(m.kind, !!m.direct, !!m.change);
-    const goCls = m.kind === 'abort' ? ' class="pp-danger"' : (m.kind === 'open' ? ' class="pp-next-btn"' : '');
+    const goCls = m.kind === 'abort' || m.kind === 'void' ? ' class="pp-danger"' : (m.kind === 'open' ? ' class="pp-next-btn"' : '');
     return '<div class="modal-box tm-modal-box" role="dialog" aria-modal="true" aria-labelledby="pp-m-title">' +
       '<h3 id="pp-m-title">' + esc(prep.modalTitle(m.kind, Object.assign({}, info, { direct: !!m.direct, change: !!m.change }))) + '</h3>' +
       '<div class="modal-scroll tm-m-body">' + prep.modalBodyHtml(m, info) + '<div id="pp-m-err" class="ap-err" role="alert"></div></div>' +
@@ -935,6 +933,8 @@
       }
       return { canGo: n >= 1 && m.candState === 'ok' && !busy, why: n < 1 ? tm.T.assignWhy : '', count: n + '/' + prep.MAX + '명' };
     }
+    // 파일 삭제는 사유가 선택(비우면 서버가 '사유 없음'으로 기록) — 길이 상한만 본다
+    if (m.kind === 'void') return { canGo: reason.length <= prep.REASON_MAX && !busy, why: '', count: '' };
     return { canGo: reason.length >= 1 && reason.length <= prep.REASON_MAX && !busy, why: reason ? '' : '사유를 적으세요.', count: '' };
   };
 
@@ -1036,7 +1036,7 @@
              seq: 0, listSeq: 0, flash: '', refocus: '', focusTitle: false, withdrawing: false,
              nb: null, nbSeen: '',   // nb: 열린 입찰 없음 팝업 { id, round, rev, sending } · nbSeen: 이미 띄운 건|회차|판정 번호
              view: 'board', fromBoard: false, pendingCase: false, boardName: '',
-             board: null, boardLoading: false, boardSeq: 0, stepIdx: -1, stepAuto: true, markBusy: {}, live: '', sum: null, foldOpen: {}, nextAsk: false };   // 구간·단계 화면(preptask.js): board = { row, marks, scope }(제안 준비 현황 표의 그 줄), stepIdx -1 = '지금 할 단계'로 자동   // 제안 준비 현황 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
+             board: null, boardLoading: false, boardSeq: 0, stepIdx: -1, stepAuto: true, markBusy: {}, live: '', sum: null, foldOpen: {}, nextAsk: false, nextBusy: false };   // 구간·단계 화면(preptask.js): board = { row, marks, scope }(제안 준비 현황 표의 그 줄), stepIdx -1 = '지금 할 단계'로 자동   // 제안 준비 현황 표(prepboard.js)가 있을 때: view 'board'(표) | 'case'(같은 자리 상세). fromBoard: 표에서 연 상세
   }
   let S = freshState();
   let reqSeq = 0;   // 요청 번호는 S 밖에서 단조 증가 — 계정 전환으로 S가 새로 만들어져도 옛 응답 번호와 겹치지 않는다(seq·listSeq 공용)
@@ -1588,20 +1588,91 @@
       S.res = { busy: false, err: T.errResult }; S.refocus = sel; paintCase();
     });
   }
-  // [다음] 확인 팝업(사용자 11-25: 단계마다 공통) — [확인]이면 다음 단계로, [닫기]·Esc·바깥 클릭이면 그대로.
+  // [다음] 확인 팝업(사용자 11-25: 단계마다 공통) — [넘어가기]면 다음 단계로, [닫기]·Esc·바깥 클릭이면 그대로.
+  // 4단계는 확정본 지정 확인(F4), 7단계는 이사회 일정 확인(F6)이 공통 팝업 대신 뜬다(design-reviewer 11-27 0003).
   function openNextAsk() {
     const c = stepCtx();
     if (!c || S.modal || S.nb || S.nextAsk || !c.pt.nextAskHtml) return;
-    const html = c.pt.nextAskHtml(S.stepIdx);
+    const cs = c.pt.STEPS[c.pt.clampIdx(S.stepIdx)];
+    const noticeDue = cs.kind === 'notice' && !!c.pt.noticeConfirmDue &&
+      c.pt.noticeConfirmDue(S.stepIdx, c.v, c.row, S.boardLoading ? 'loading' : 'none', noticeInfo(c.v, c.row));
+    const html = c.pt.nextAskHtml(S.stepIdx, { view: c.v, row: c.row, marks: c.marks, attach: S.detail && S.detail.attach,
+      board: cs.id === 'BOARD_DOC' ? stepBoard() : null, noticeDue: noticeDue });
     if (!html) return;
     S.nextAsk = true;
+    S.nextBusy = false;
+    S.nextSeq = 0;        // 새 창 = 새 요청 구간(옛 요청의 늦은 응답은 토큰이 달라 무시된다)
     const box = el('pp-modal');
     box.innerHTML = html;
     box.style.display = '';
-    const ok = el('pp-nx-ok'); if (ok) ok.focus();
+    // 첫 포커스 = 창이 권하는 동작: 지정(1개)·고른 라디오(여러 개)·일정 등록·넘어가기
+    const first = el('pp-nx-set') && document.querySelector('#pp-modal input[name="ts-ask-file"]:checked') || el('pp-nx-set') || el('pp-nx-sched') || el('pp-nx-ok');
+    if (first) first.focus();
+  }
+  // 4단계 [지정하고 넘어가기]: 확정본 지정 요청 → 성공하면 알림을 띄우고 다음 단계로, 실패하면 창을 열어 둔 채 원인을 보인다.
+  function onNextSet() {
+    if (!S.nextAsk || S.nextBusy || !S.selected) return;
+    if (S.busy) {
+      const eb = el('ts-ask-err');
+      if (eb) eb.textContent = '다른 요청을 처리하는 중입니다. 잠시 뒤 다시 눌러 주세요.';
+      return;
+    }
+    const radio = document.querySelector('#pp-modal input[name="ts-ask-file"]:checked');
+    const setBtn = el('pp-nx-set');
+    const attachId = radio ? radio.value : (setBtn ? setBtn.getAttribute('data-attach') : '');
+    if (!attachId) return;
+    const id = S.selected, name = attachName(attachId), pt = root.preptask;
+    const btns = ['pp-nx-no', 'pp-nx-skip', 'pp-nx-set'].map(el).filter(Boolean);
+    function lock(on) {
+      btns.forEach(function (b) { if (on) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled'); });
+      if (setBtn) setBtn.textContent = on ? pt.T.askSetBusy : pt.T.askSetGo;
+    }
+    S.nextBusy = true;
+    const mine = S.nextSeq = ++reqSeq;      // 요청마다 토큰 — 화면을 떠났다 돌아온 뒤 늦게 온 응답이 새 창을 건드리지 않게
+    lock(true);
+    const er = el('ts-ask-err'); if (er) er.textContent = '';
+    req('PUT', base(id) + '/tasks/T3/confirmed-file', { attach_id: Number(attachId) }, ui('prep_detail', 'next_t3_set')).then(function () {
+      if (S.nextSeq !== mine) return;
+      S.nextBusy = false;
+      if (!S.nextAsk) return;
+      S.nextAsk = false;
+      const box = el('pp-modal'); box.style.display = 'none'; box.innerHTML = '';
+      if (S.selected !== id) return;
+      setFlash(T.okSetConfirmed(name));
+      invalidateCache();
+      const st = stepBy(1);          // 먼저 옮기고(S.stepIdx 유지), 이어서 최신 상세를 다시 받는다
+      if (st) { S.refocus = st.sel; S.live = st.live; }      // loadDetail의 '불러오는 중' 그리기가 포커스·알림을 지우지 않게 다시 건다(doAct와 같은 방식)
+      loadDetail(id);
+      reloadList();
+    }).catch(function (e) {
+      if (S.nextSeq !== mine) return;
+      S.nextBusy = false;
+      if (!S.nextAsk) return;
+      const info = prep.errorInfo(e && e.status, e && e.detail, curTasks(), 'attach');
+      if (info.after === 'reload' || info.after === 'closeReload') {
+        S.nextAsk = false;
+        const box = el('pp-modal'); box.style.display = 'none'; box.innerHTML = '';
+        setPerr(info.text);
+        if (S.selected) loadDetail(S.selected);
+        reloadList();
+        return;
+      }
+      lock(false);
+      const er2 = el('ts-ask-err'); if (er2) er2.textContent = pt.T.askSetFail(info.text);
+      if (setBtn) setBtn.focus();
+    });
+  }
+  // 7단계 [일정 등록하기]: 창을 닫고 날짜 칸으로(넘어가지 않는다)
+  function nextAskToSched() {
+    if (!S.nextAsk || S.nextBusy) return;
+    S.nextAsk = false;
+    const box = el('pp-modal'); box.style.display = 'none'; box.innerHTML = '';
+    const d = el('ts-sched-date');
+    if (d) { d.focus(); if (d.scrollIntoView) d.scrollIntoView({ block: 'center' }); }
+    else { const b = el('pp-case').querySelector('[data-act="ts-next"]'); if (b) b.focus(); }
   }
   function closeNextAsk(go) {
-    if (!S.nextAsk) return;
+    if (!S.nextAsk || S.nextBusy) return;       // 지정 요청 중에는 Esc·바깥 클릭을 무시한다
     S.nextAsk = false;
     const box = el('pp-modal'); box.style.display = 'none'; box.innerHTML = '';
     if (go) {
@@ -1628,7 +1699,10 @@
     if (!c) return;
     const i = S.stepIdx + d, last = c.pt.STEPS.length - 1;
     const keep = d > 0 ? (i >= last ? 'ts-prev' : 'ts-next') : (i <= 0 ? 'ts-next' : 'ts-prev');
-    selectStep(i, '[data-act="' + keep + '"]');
+    const sel = '[data-act="' + keep + '"]';
+    const live = i >= 0 && i <= last ? c.pt.liveText(c.v, c.row, c.marks, i) : '';
+    selectStep(i, sel);
+    return { sel: sel, live: live };      // 호출자가 이어서 상세를 다시 받을 때 포커스·알림을 되살리는 데 쓴다
   }
   // 제안 준비 현황 표의 그 줄(손으로 체크하는 칸의 값·체크 권한). scope를 주면 그 범위만, 없으면 내 작업 → 부서 순으로 찾는다.
   function loadBoardRow(id, scope) {
@@ -2375,6 +2449,9 @@
       case 'pp-retry-list': S.listState = 'loading'; paintList(); loadList(); break;
       case 'pp-retry-detail': if (S.selected) loadDetail(S.selected, { popup: true }); break;
       case 'pp-nx-ok': closeNextAsk(true); break;
+      case 'pp-nx-skip': closeNextAsk(true); break;       // 4단계: 지정하지 않고 넘어가기
+      case 'pp-nx-set': onNextSet(); break;               // 4단계: 확정본으로 지정하고 넘어가기
+      case 'pp-nx-sched': nextAskToSched(); break;        // 7단계: 일정 등록하러 닫기
       case 'pp-nx-no': closeNextAsk(false); break;
       case 'pp-m-cancel': requestClose(); break;
       case 'pp-m-go': onModalGo(); break;
@@ -2420,6 +2497,12 @@
     if ((!S.modal && !S.nb && !S.nextAsk) || e.key !== 'Tab') return;      // Esc는 wire()의 document 핸들러가 처리
     const list = Array.prototype.filter.call(el('pp-modal').querySelectorAll('button, input, textarea, a[href]'), function (n) {
       return !n.disabled && n.getClientRects().length > 0;
+    }).filter(function (n, i, arr) {
+      // 같은 name의 라디오 묶음은 Tab 정차 지점이 하나 — 고른 것(없으면 첫 번째)만 센다
+      if (n.type !== 'radio' || !n.name) return true;
+      const grp = arr.filter(function (m) { return m.type === 'radio' && m.name === n.name; });
+      const on = grp.filter(function (m) { return m.checked; })[0] || grp[0];
+      return n === on;
     });
     if (!list.length) return;
     const first = list[0], last = list[list.length - 1];
@@ -2484,7 +2567,7 @@
     const who = whoNow();
     if (who !== S.who) { S = freshState(); S.who = who; clearQueryBox(); if (root.prepboard && root.prepboard.reset) root.prepboard.reset(); }
     if (boardOn()) { if (S.pendingCase) S.pendingCase = false; else toBoardState(); }   // 메뉴로 들어오면 표부터. 지도·현황판이 openCase로 열면 상세
-    const md = el('pp-modal'); md.style.display = 'none'; md.innerHTML = ''; S.modal = null; S.nextAsk = false;
+    const md = el('pp-modal'); md.style.display = 'none'; md.innerHTML = ''; S.modal = null; S.nextAsk = false; S.nextBusy = false; S.nextSeq = 0;
     S.nb = null; nbRelease();
     S.confirm = null;
     clearNotices();

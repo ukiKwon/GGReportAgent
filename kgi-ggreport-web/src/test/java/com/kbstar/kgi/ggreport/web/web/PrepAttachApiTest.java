@@ -733,8 +733,9 @@ public class PrepAttachApiTest {
 
         // 해제된 뒤에는 무효 처리 가능(올린 사람만), 무효가 된 첨부는 다시 지정할 수 없다
         assertEquals(403, postJson("/bidcases/" + bid + "/prep/attachments/" + id + "/void", MEMBER, "{\"reason\":\"x\"}").getResponse().getStatus());
-        assertEquals(400, postJson("/bidcases/" + bid + "/prep/attachments/" + id + "/void", MEMBER2, "{\"reason\":\"\"}").getResponse().getStatus());
+        assertEquals(400, postJson("/bidcases/" + bid + "/prep/attachments/" + id + "/void", MEMBER2, "{\"reason\":\"" + repeat("가", 201) + "\"}").getResponse().getStatus());   // 201자 거부 유지
         assertEquals(422, postJson("/bidcases/" + bid + "/prep/attachments/" + id + "/void", MEMBER2, "{\"reason\":\"연락처 010-1234-5678\"}").getResponse().getStatus());
+        assertEquals(1, count("SELECT VALID_YN FROM BID_PREP_ATTACH WHERE ATTACH_ID=?", id));   // 거부된 요청은 삭제하지 않았다
         MvcResult voided = postJson("/bidcases/" + bid + "/prep/attachments/" + id + "/void", MEMBER2, "{\"reason\":\"잘못 올림\"}");
         assertEquals(text(voided), 200, voided.getResponse().getStatus());
         assertEquals(0, count("SELECT VALID_YN FROM BID_PREP_ATTACH WHERE ATTACH_ID=?", id));
@@ -751,6 +752,90 @@ public class PrepAttachApiTest {
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='T3_SET' AND OUTCOME='OK' AND ATTACH_ID=?", bid, id));
         assertEquals(2, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ATTACH_VOID' AND OUTCOME='BLOCKED' AND ATTACH_ID=?", bid, id));   // 확정본 거부 + 이미 무효
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ATTACH_VOID' AND OUTCOME='OK' AND ATTACH_ID=?", bid, id));
+    }
+
+    private static String repeat(String s, int n) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < n; i++) {
+            b.append(s);
+        }
+        return b.toString();
+    }
+
+    @Test
+    public void 사유_없이_삭제해도_200이고_이력_사유는_사유_없음이다() throws Exception {
+        String bid = opened();
+        String base = "/bidcases/" + bid + "/prep/attachments/";
+        long a1 = uploaded(bid, MEMBER2, "T4", "붙임1.pdf", pdf("First attached document pages", false));
+        long a2 = uploaded(bid, MEMBER2, "T4", "붙임2.pdf", pdf("Second attached document pages", false));
+        long a3 = uploaded(bid, MEMBER2, "T4", "붙임3.pdf", pdf("Third attached document pages", false));
+
+        MvcResult empty = postJson(base + a1 + "/void", MEMBER2, "{\"reason\":\"\"}");
+        assertEquals(text(empty), 200, empty.getResponse().getStatus());
+        MvcResult blank = postJson(base + a2 + "/void", MEMBER2, "{\"reason\":\"   \"}");
+        assertEquals(text(blank), 200, blank.getResponse().getStatus());
+        MvcResult noKey = postJson(base + a3 + "/void", MEMBER2, "{}");
+        assertEquals(text(noKey), 200, noKey.getResponse().getStatus());
+        for (long id : new long[]{a1, a2, a3}) {
+            assertEquals(0, count("SELECT VALID_YN FROM BID_PREP_ATTACH WHERE ATTACH_ID=?", id));
+            assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='ATTACH_VOID' AND ATTACH_ID=? AND REASON='(사유 없음)'", bid, id));
+        }
+    }
+
+    @Test
+    public void 본문이_아예_없는_삭제도_200이고_이력_사유는_사유_없음이다() throws Exception {
+        String bid = opened();
+        long id = uploaded(bid, MEMBER2, "T4", "붙임1.pdf", pdf("First attached document pages", false));
+        MvcResult r = mockMvc.perform(as(post("/bidcases/" + bid + "/prep/attachments/" + id + "/void"), MEMBER2)).andReturn();   // 본문·Content-Type 없음
+        assertEquals(text(r), 200, r.getResponse().getStatus());
+        assertEquals(0, count("SELECT VALID_YN FROM BID_PREP_ATTACH WHERE ATTACH_ID=?", id));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='ATTACH_VOID' AND ATTACH_ID=? AND REASON='(사유 없음)'", bid, id));
+    }
+
+    @Test
+    public void 정확히_200자_사유로_삭제하면_200이고_그대로_저장된다() throws Exception {
+        String bid = opened();
+        long id = uploaded(bid, MEMBER2, "T4", "붙임1.pdf", pdf("First attached document pages", false));
+        String reason = repeat("가", 200);
+        MvcResult r = postJson("/bidcases/" + bid + "/prep/attachments/" + id + "/void", MEMBER2, "{\"reason\":\"" + reason + "\"}");
+        assertEquals(text(r), 200, r.getResponse().getStatus());
+        assertEquals(0, count("SELECT VALID_YN FROM BID_PREP_ATTACH WHERE ATTACH_ID=?", id));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='ATTACH_VOID' AND ATTACH_ID=? AND REASON=?", bid, id, reason));
+    }
+
+    @Test
+    public void 삭제_권한이_없으면_403_메시지는_삭제로_안내하고_무효라는_말은_없다() throws Exception {
+        String bid = opened();
+        long id = uploaded(bid, MEMBER2, "T4", "붙임1.pdf", pdf("First attached document pages", false));
+        MvcResult r = postJson("/bidcases/" + bid + "/prep/attachments/" + id + "/void", MEMBER, "{}");   // 담당 아닌 영업팀원
+        assertEquals(403, r.getResponse().getStatus());
+        String body = text(r);
+        assertTrue(body, body.contains("삭제"));
+        assertFalse(body, body.contains("무효"));
+        assertEquals(1, count("SELECT VALID_YN FROM BID_PREP_ATTACH WHERE ATTACH_ID=?", id));
+    }
+
+    /** 4단계 [다음] 창의 [지정하고 넘어가기] — 감사 버튼은 prep_detail/next_t3_set. 다른 화면 짝·허용 밖 id 는 UNKNOWN·ui_valid=0. */
+    @Test
+    public void 확정본_지정_감사에_next_t3_set_버튼이_그대로_남는다() throws Exception {
+        String bid = opened();
+        long id = uploaded(bid, MEMBER2, "T3", "확정본.xlsx", xlsx("분석"));
+        String path = "/bidcases/" + bid + "/prep/tasks/T3/confirmed-file";
+        String body = "{\"attach_id\":" + id + "}";
+        String[][] cases = {{"prep_detail", "next_t3_set"}, {"prep_list", "next_t3_set"}, {"prep_detail", "bogus_btn"}, {"prep_detail", "t3_set"}};
+        for (String[] c : cases) {
+            MvcResult set = mockMvc.perform(as(put(path).contentType(MediaType.APPLICATION_JSON).content(body)
+                    .header("X-Screen-Id", c[0]).header("X-Button-Id", c[1]), MEMBER2)).andReturn();
+            assertEquals(text(set), 200, set.getResponse().getStatus());
+            MvcResult clear = mockMvc.perform(as(delete(path), MEMBER2)).andReturn();
+            assertEquals(text(clear), 200, clear.getResponse().getStatus());
+        }
+        String q = "SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='T3_SET' AND OUTCOME='OK'"
+                + " AND SCREEN_ID=? AND BUTTON_ID=? AND UI_VALID=? AND ATTACH_ID=?";
+        assertEquals(1, count(q, bid, "prep_detail", "next_t3_set", 1, id));
+        assertEquals(1, count(q, bid, "prep_list", "UNKNOWN", 0, id));      // next_t3_set 은 prep_detail 에서만 유효
+        assertEquals(1, count(q, bid, "prep_detail", "UNKNOWN", 0, id));    // 허용 목록 밖 id 는 원문을 저장하지 않는다
+        assertEquals(1, count(q, bid, "prep_detail", "t3_set", 1, id));     // 기존 동작 유지
     }
 
     @Test

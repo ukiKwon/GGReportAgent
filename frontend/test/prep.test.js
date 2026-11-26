@@ -242,7 +242,8 @@ test('errorInfo: 코드별 문구·후속 동작, NOT_READY 이름 치환, BAD_V
   assert.strictEqual(e(409, { code: 'PLAN_PENDING' }).after, 'closeReload');
   assert.strictEqual(e(409, { code: 'STATE_CHANGED' }).after, 'closeReload');
   assert.strictEqual(e(409, { code: 'NOT_MANUAL' }).after, 'reload');
-  assert.strictEqual(e(409, { code: 'ATTACH_IN_USE' }).text, '확정본으로 지정한 파일은 무효 처리할 수 없습니다. 먼저 [확정본 해제]를 하세요.');
+  assert.strictEqual(e(409, { code: 'ATTACH_IN_USE' }).text, '확정본으로 지정한 파일은 삭제할 수 없습니다. 먼저 [확정본 해제]를 하세요.');
+  assert.ok(e(409, { code: 'ATTACH_NOT_ELIGIBLE' }).text.indexOf('(삭제됐거나 다른 과제의 파일)') > 0 && e(409, { code: 'ATTACH_NOT_ELIGIBLE' }).after === 'reload');
   // OPEN_PENDING은 어디서 났는지에 따라 문구가 다르다
   assert.ok(e(409, { code: 'OPEN_PENDING' }, [], 'unconfirm').text.indexOf('먼저 회수하세요') > 0);
   assert.ok(e(409, { code: 'OPEN_PENDING' }, [], 'open').text.indexOf('이미 올라가 있습니다') > 0);
@@ -361,7 +362,7 @@ test('QA·디자인 후속: 중단 건 무효 처리 불가, T3 파일만, 확�
 });
 
 test('소스: 첨부·지도 확정은 PrepUiIds 허용값을 보낸다', function () {
-  ['attach_upload', 'attach_download', 'attach_void', 't3_set', 't3_clear'].forEach(function (id) {
+  ['attach_upload', 'attach_download', 'attach_void', 't3_set', 'next_t3_set', 't3_clear'].forEach(function (id) {
     assert.ok(SRC.indexOf("'" + id + "'") > 0, id);
   });
   // 지도 상세 팝업의 [확정]은 dashboard.js가 공용 postConfirm에 화면 이름 map_popover를 실어 보낸다
@@ -380,12 +381,17 @@ test('filesHtml: 검사 칸·확정본 배지·무효 파일 접기·빈 상태�
   assert.ok(h.indexOf('개인정보 경고: 이메일 2') > 0);
   assert.ok(h.indexOf('검사 못 함') > 0 && h.indexOf('스캔 PDF') > 0);
   assert.ok(h.indexOf('확정본</span>') > 0);
-  assert.ok(h.indexOf('자기신고') > 0);
-  assert.ok(h.indexOf('무효 처리한 파일 1개 보기') > 0 && h.indexOf('옛본.xlsx') < 0);
+  assert.ok(h.indexOf('자기신고') < 0, '자기신고 배지는 기관 상세에서 뺐다(F1) — emp_verified:false여도 없다');
+  assert.ok(h.indexOf('<td>김영업</td>') > 0 && h.indexOf('ad-badge muted') < 0);
+  assert.ok(h.indexOf('삭제한 파일 1개 보기') > 0 && h.indexOf('옛본.xlsx') < 0 && h.indexOf('무효') < 0);
   assert.ok(h.indexOf('data-act="upload"') > 0 && h.indexOf('1.4MB') > 0);
-  // 확정본 행에는 [무효 처리]가 없고, 다른 행에는 올린 본인이 아니므로 없다
+  // 확정본 행에는 [삭제]가 없고, 다른 행에는 올린 본인이 아니므로 없다
   assert.strictEqual((h.match(/data-act="void-open"/g) || []).length, 0);
-  assert.ok(prep.filesHtml({ rows: rows, viewer: { is_assignee: true }, meEmp: ME, showVoid: true }).indexOf('무효 · 김영업') > 0);
+  const shown = prep.filesHtml({ rows: rows, viewer: { is_assignee: true }, meEmp: ME, showVoid: true });
+  assert.ok(shown.indexOf('삭제 · 김영업') > 0 && shown.indexOf('삭제한 파일 숨기기') > 0);
+  // 올린 본인이 올린 확정 아닌 행에는 [삭제] 단추(이름 '삭제', 읽는 이름에 파일 이름)
+  const mine = prep.filesHtml({ rows: [Object.assign({}, rows[1], { uploaded_by: { emp_no: ME, name: '김영업' } })], viewer: { is_assignee: true }, meEmp: ME });
+  assert.ok(/data-act="void-open" data-attach="2" aria-label="'스캔\.pdf' 삭제">삭제<\/button>/.test(mine));
   assert.ok(prep.filesHtml({ rows: [], viewer: {}, meEmp: ME }).indexOf('아직 올린 파일이 없습니다') > 0);
   assert.strictEqual(prep.filesHtml({ rows: [], viewer: { can_upload: false }, meEmp: ME }).indexOf('data-act="upload"'), -1);
   const up = prep.filesHtml({ rows: [], viewer: { can_upload: true }, meEmp: ME, uploading: true });
@@ -395,7 +401,7 @@ test('filesHtml: 검사 칸·확정본 배지·무효 파일 접기·빈 상태�
 test('uploadOkText: 개인정보 경고가 있으면 종류·건수와 안내를 덧붙인다', function () {
   assert.strictEqual(prep.uploadOkText('a.xlsx', { pii: { warnings: [] } }), '\'a.xlsx\'을 올렸습니다.');
   const t = prep.uploadOkText('a.xlsx', { pii: { warnings: ['이메일 2', '전화번호 1'] } });
-  assert.ok(t.indexOf('이메일 2건·전화번호 1건이 들어 있습니다.') > 0 && t.indexOf('무효 처리하세요') > 0);
+  assert.ok(t.indexOf('이메일 2건·전화번호 1건이 들어 있습니다.') > 0 && t.indexOf('이 파일은 삭제하세요.') > 0 && t.indexOf('그 부분을 지운 파일을 다시 올리고') > 0 && t.indexOf('무효') < 0);
 });
 
 // ── 지도 팝오버·현황판 공용 ──
@@ -605,8 +611,8 @@ test('modalState·modalHtml: 개설 신청(1~10명)·확정 취소·중단(빨�
   assert.ok(oh.indexOf('개설 신청 올리기') > 0 && oh.indexOf('data-emp="1"') > 0);
   const full = prep.modalHtml(Object.assign({}, open, { sel: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] }), {});
   assert.ok(full.indexOf('10/10명') > 0 && full.indexOf('최대 10명까지') > 0);
-  // 사유가 필수인 모달
-  ['unconfirm', 'abort', 'void'].forEach(function (k) {
+  // 사유가 필수인 모달(파일 삭제는 선택 — 아래 따로)
+  ['unconfirm', 'abort'].forEach(function (k) {
     assert.strictEqual(prep.modalState({ kind: k, reason: '  ' }, false).canGo, false, k);
     assert.strictEqual(prep.modalState({ kind: k, reason: '사유' }, false).canGo, true, k);
     assert.strictEqual(prep.modalState({ kind: k, reason: 'x'.repeat(201) }, false).canGo, false, k);
@@ -618,7 +624,30 @@ test('modalState·modalHtml: 개설 신청(1~10명)·확정 취소·중단(빨�
   const un = prep.modalHtml({ kind: 'unconfirm', reason: '' }, { name: '노원구청' });
   assert.ok(un.indexOf('다시 확정하면 같은 건이 되살아납니다.') > 0 && un.indexOf('pp-danger') < 0 && un.indexOf('확정 취소하기') > 0);
   const vd = prep.modalHtml({ kind: 'void', reason: '' }, { fileName: 'a.xlsx' });
-  assert.ok(vd.indexOf('파일 무효 처리 — a.xlsx') > 0 && vd.indexOf('기록은 남습니다.') > 0 && vd.indexOf('무효 처리하기') > 0);
+  assert.ok(vd.indexOf('파일 삭제 — a.xlsx') > 0 && vd.indexOf('누가·언제 삭제했는지는 기록에 남습니다.') > 0 && vd.indexOf('삭제하기') > 0 && vd.indexOf('무효') < 0);
+  assert.ok(/id="pp-m-go" class="pp-danger" disabled aria-describedby="pp-m-why">삭제하기</.test(vd), '삭제하기는 빨간 단추(pp-danger)');
+  assert.ok(vd.indexOf('삭제 사유 (선택)') > 0 && vd.indexOf('비워 두면 &#39;(사유 없음)&#39;으로 기록됩니다. 사유에는 개인정보를 적지 마세요.') > 0);
+  assert.ok(vd.indexOf('aria-required') < 0 && vd.indexOf('(필수)') < 0, '선택 입력이라 필수 표시가 없다');
+  assert.ok(prep.modalHtml({ kind: 'unconfirm', reason: '' }, {}).indexOf('aria-required="true"') > 0, '다른 사유 창은 그대로 필수');
+});
+
+test('파일 삭제 창: 사유를 비워도 삭제할 수 있다(길이 상한·처리 중만 막는다), 요청 본문은 빈 문자열 사유', function () {
+  const st = function (reason, busy) { return prep.modalState({ kind: 'void', reason: reason }, !!busy); };
+  assert.deepStrictEqual(st('', false), { canGo: true, why: '', count: '' });
+  assert.strictEqual(st('   ', false).canGo, true, '공백만 적어도 비운 것으로 본다');
+  assert.strictEqual(st('중복 파일', false).canGo, true);
+  assert.strictEqual(st('x'.repeat(200), false).canGo, true);
+  assert.strictEqual(st('x'.repeat(201), false).canGo, false, '길이 상한 검사는 유지');
+  assert.strictEqual(st('', true).canGo, false, '처리 중');
+  // 다른 사유 필수 창은 그대로
+  assert.strictEqual(prep.modalState({ kind: 'abort', reason: '' }, false).canGo, false);
+  assert.strictEqual(prep.modalGoLabel('void'), '삭제하기');
+  assert.strictEqual(prep.modalTitle('void', { fileName: 'a.xlsx' }), '파일 삭제 — a.xlsx');
+  assert.strictEqual(prep.modalCancelLabel('void'), '닫기');
+  // 배선: 사유가 비면 reason을 빈 문자열로 보낸다(서버가 '사유 없음'으로 기록) — 문구 키는 새 이름
+  assert.ok(/'\/void', \{ reason: reason \}, ui\('prep_detail', 'attach_void'\)\)/.test(SRC), '요청 본문·감사 버튼 이름은 그대로');
+  assert.strictEqual(prep.T.okVoid('a.xlsx'), '\'a.xlsx\' 파일을 삭제했습니다.');
+  assert.strictEqual(prep.T.okSetConfirmed('a.xlsx'), '\'a.xlsx\' 파일을 수익성 분석표 확정본으로 지정했습니다.');
 });
 
 // ── 사전준비 시작(결재 없는 담당자 지정) ──
