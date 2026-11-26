@@ -88,7 +88,7 @@ test('예외: 사업명·분야 줄·문맥 줄·요청 문장·요약 값·입�
 });
 
 test('칸 안 flex·버튼은 가운데를 따른다', function () {
-  assert.ok(/justify-content:\s*center/.test(rule('.pt-tt .pt-cell')));
+  assert.ok(/justify-content:\s*flex-start/.test(rule('.pt-tt .pt-cell')) && /text-align:\s*left/.test(rule('.pt-tt tbody th[scope=row]')));   // 시작화면 행 머리 기관 이름 칸은 몸통만 왼쪽(사용자 11-26)
   assert.ok(/text-align:\s*inherit/.test(rule('.mn-open')));
   assert.ok(/text-align:\s*inherit/.test(rule('.pb-nm')));
 });
