@@ -177,6 +177,7 @@
   <a href="#c121">121 입찰 현황판 — 구분 오른쪽 '금고 방식' 칸, 구분은 비워 두고 참고 안내만, '구분 미정' 거르기·세기</a>
   <a href="#c122">122 메뉴 이름 '지역별 공고현황' → '예상 공고현황'(지도 탭·제목과 맞춤)</a>
   <a href="#c123">123 기관장 카드 — 경력 '현직' 확인란·끝 칸 잠금, Word 요약본/날짜정보 포함 선택</a>
+  <a href="#c124">124 표 정렬 — 머리값은 모두 가운데, 금액만 오른쪽, 나머지 칸 가운데(입찰 현황판 표는 다음)</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2488,6 +2489,23 @@
 <div class="ba">
 <div class="col before"><header>전</header><div class="body"><div class="mock"><p style="font-size:12px">경력 입력: 시작 · 끝('모르면 비워 두세요') — 끝을 비우면 현직인지 미상인지 구분 없음</p><p style="font-size:12px">Word 내려받기: 한 가지 양식</p></div></div></div>
 <div class="col after"><header>후</header><div class="body"><div class="mock"><p style="font-size:12px">경력 입력: 시작 · 끝('끝(연도 또는 연-월)') · <b>☐ 현직</b> — 체크하면 끝 칸이 회색으로 잠기고 카드에 '~현재', 끝을 비우면 '~미상'. 학력은 현직 칸 없음.</p><p style="font-size:12px">Word 내려받기: <b>요약본</b>(연도·일자 없음, 기본) / <b>날짜정보 포함</b>(예: 마산공업고등학교 졸업(2026.01), 현직 (2018.07 ~ 현재), 끝 모름 (2018.07 ~ 미상))</p></div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c124">
+<h2>124 표 정렬 통일 — 머리값 가운데·금액 오른쪽 (2026-11-26, 사용자 "표의 열(머리값)은 무조건 가운데, 금액은 오른쪽", design-reviewer 전수 조사, qa 조건부 통과 → P2 반영)</h2>
+<div class="why">왜: 데이터 표 42개 중 머리와 칸이 모두 가운데인 표는 2개뿐이었습니다. 시스템 관리·결재·팀 표는 왼쪽, 사업계획 예산·반입 건수·요약 숫자는 오른쪽, 협약 성과 머리는 칸 아래·왼쪽에 붙어 있어 화면마다 눈이 가는 자리가 달랐습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#6b6b6b"><th style="text-align:left;padding:4px">기관</th><th style="text-align:left;padding:4px">상태</th><th style="text-align:right;padding:4px">예산(백만원)</th></tr><tr><td style="text-align:left;padding:4px;border-top:1px solid #ddd">○○시청</td><td style="text-align:left;padding:4px;border-top:1px solid #ddd">요청됨</td><td style="text-align:right;padding:4px;border-top:1px solid #ddd">12,300</td></tr></table>
+<p class="hint12">표마다 기본 규칙에 text-align:left(일부 right·머리 bottom)가 박혀 있었음.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#6b6b6b"><th style="text-align:center;padding:4px">기관</th><th style="text-align:center;padding:4px">상태</th><th style="text-align:center;padding:4px">예산(백만원)</th></tr><tr><td style="text-align:center;padding:4px;border-top:1px solid #ddd">○○시청</td><td style="text-align:center;padding:4px;border-top:1px solid #ddd">요청됨</td><td style="text-align:right;padding:4px;border-top:1px solid #ddd">12,300</td></tr></table>
+<p style="font-size:12px">적용: 공통 .ad-table(시스템 관리·결재함·이사회 자료 목록·대결·제안팀·내 정보 등 21개), 시작화면, 회의록 발언자, 협약 성과, 제안서 진행, 서식 점검, 기관 사업계획(사업표·창·수집 요청·반입 대기), 제안 준비 현황·단계 상세·파일, 요약 양식, 예상 공고현황 더보기 창.</p>
+<p style="font-size:12px">금액 오른쪽: 사업계획 예산, 요약 표 MMDA 연평잔·자금수익, 요약 양식 연도별 금액(머리는 가운데). 건수·횟수·배점은 가운데. 왼쪽 예외: 사업명+내용, 이력 사유, 목표 변경 메모, 요약 값, 인용 문맥, 요약 양식 입력 칸, 분야·요청 묶음 제목 줄. 이사회 자료·엑셀 원본 표는 원본 정렬 그대로.</p>
+<p class="legend-note">남은 것: 입찰 현황판 목표·관심 표(.hb-tt)는 담당 세션 작업이 끝난 뒤 같은 규칙으로. 색·크기 변화 없음, 새 변수 0. 화면 시험 2123/2123(표 정렬 시험 table-center 10건). 렌더 실측은 브라우저가 비는 때 design-reviewer.</p>
+</div></div></div>
 </div>
 </section>
 
