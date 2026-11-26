@@ -643,7 +643,7 @@
 
 ### 120. 입찰 현황판 '제안 진행' 띠 재정의 — {제안 준비 전·제안 준비·제안 제출 및 대기·협약 예정·협약 완료} + 끝난 건 (사용자 11-25) [담당: ca(kbboard·dashboard) / db(prepboard·prep.js) / backend-dev+security]
 - **현재(11-26 ca)**: 1차 화면 6546df00 — 띠 5칸, 3~5칸·탈락은 점선 '—', 끝난 건 단추(중단 = state_name '중단(미참여)', 입찰 없음 타행), 표 준비 단계 두 줄 132px, 모든 열 정렬, 설명회 칸 삭제(사용자 11-26), node 2192/0, design_history 131. 시안 승인 기록 handoff/sessions/2026-11-26_0921_ca.md.
-- **다음 한 걸음**: ① 2차 서버(backend-dev): '제안서 제출' 칸·결과발표 선정/탈락·협약식 값 + /preps에 opened_at(중단 판정)·건 연도·금고 방식 SORT_NO → db prepboard·prep.js → ca 2차(STAGES_UNKNOWN 비우기, END_KNOWN.fail, 입찰 없음+국민은행 → 협약 예정 숫자) ② 기획 판정: 진행 기록이 있는 기관이 입찰 없음+타행이면 끝난 건으로 갈지, D2 '제안 준비 전'과 띠 '제안 준비 전' 집합 차이 ③ 다른 세션 파일 noticerec.js '진행 중인 제안(제안 준비 전 단계)' 문구 알림 ④ 1280/1440 실측(tr.grp 32px·안내 줄 수·기관 열) ⑤ NEXT 118 확정 시 '승인 대기 n' 빼기.
+- **다음 한 걸음**: ① 2차 서버(backend-dev): '제안서 제출' 칸·결과발표 선정/탈락·협약식 값 + /preps에 opened_at(중단 판정)·건 연도·금고 방식 SORT_NO → db prepboard·prep.js → ca 2차(STAGES_UNKNOWN 비우기, END_KNOWN.fail, 입찰 없음+국민은행 → 협약 예정 숫자) ② 기획 판정: 진행 기록이 있는 기관이 입찰 없음+타행이면 끝난 건으로 갈지, D2 '제안 준비 전'과 띠 '제안 준비 전' 집합 차이 ③ (해소: noticerec.js 문장 — main 위임으로 ca가 고침) ④ 1280/1440 실측(tr.grp 32px·안내 줄 수·기관 열) ⑤ NEXT 118 확정 시 '승인 대기 n' 빼기.
 - **자세히**: handoff/agents/frontend-dev/2026-11-26_1313_ace4e775.md·1320_ace4e775.md, handoff/agents/qa-verifier/2026-11-26_1355_afb18297.md, handoff/agents/design-reviewer/2026-11-26_1352_a2565240.md·2026-11-25_1720_a222b5f9.md, planner 2026-11-25 ac4d2ab9.
 
 ### 121. 결재 없는 담당자 변경·평가표·일정 — security 11-25 후속 [담당: db — backend-dev(Opus: 권한·감사) → security 재검토 / 화면 머리글은 db]

@@ -143,8 +143,16 @@ test('sectionHtml: 연결 상태별, 읽기 전용, 입력 칸, NO_BID·DELAYED 
   assert.ok(dl.includes('다음 확인일<span class="req">(필수)</span>') && dl.includes('min="2026-11-17"'));
   const er = nr.sectionHtml(it, { state: 'ok', canEdit: true, today: '2026-11-16', draft: { status: 'CLOSED', next: '', opinion: '' }, errs: { opinion: '의견을 적으세요.' } });
   assert.ok(er.includes('aria-invalid="true"') && er.includes('의견을 적으세요.'));
-  const cf = nr.sectionHtml(it, { state: 'ok', canEdit: true, today: '2026-11-16', draft: { status: 'CLOSED', next: '', opinion: 'a' }, cf: { stage: '사전준비' } });
-  assert.ok(cf.includes('id="db-rec-cf-yes"') && cf.includes('진행 중인 제안(사전준비 단계)이 있습니다.'));
+  const cf = nr.sectionHtml(it, { state: 'ok', canEdit: true, today: '2026-11-16', draft: { status: 'CLOSED', next: '', opinion: 'a' }, cf: { stage: '제안 준비' } });
+  assert.ok(cf.includes('id="db-rec-cf-yes"') && cf.includes('진행 중인 제안(제안 준비 단계)이 있습니다.'));
+  // 실제 dashboard 칸 이름: CONFIRMED는 '제안 준비 전' → 괄호 없음, IN_PROGRESS는 괄호 있음
+  const lab = function (cd) { return dash.STAGES[dash.stageOf(cd)].label; };
+  const mk = function (cd) { return nr.sectionHtml(it, { state: 'ok', canEdit: true, today: '2026-11-16', draft: { status: 'CLOSED', next: '', opinion: 'a' }, cf: { stage: lab(cd) } }); };
+  const cfBefore = mk('CONFIRMED');
+  assert.strictEqual(lab('CONFIRMED'), '제안 준비 전');
+  assert.ok(cfBefore.includes('진행 중인 제안이 있습니다.') && !cfBefore.includes('진행 중인 제안('));
+  const cfIp = mk('IN_PROGRESS');
+  assert.ok(cfIp.includes('진행 중인 제안(' + lab('IN_PROGRESS') + ' 단계)이 있습니다.'));
   // N-3: 목록(current) 요청이 실패·거부면 '영업팀이 기록합니다'가 아니라 불러오지 못했다고 말한다
   [['error', 0, '공고 상태 목록을 불러오지 못해 기록 칸을 열지 않았습니다. 화면을 새로 고치세요.'],
     ['denied', 401, '로그인이 필요합니다. 다시 로그인하면 기록 칸이 열립니다.'],

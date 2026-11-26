@@ -247,7 +247,7 @@
     if (v.err) h += '<p class="db-rec-alert full" id="' + P + 'db-rec-alert" role="alert" tabindex="-1">' + esc(v.err) + '</p>';
     if (v.cf) {
       h += '<div class="db-confirm full" role="group" aria-labelledby="' + P + 'db-rec-cf-t"><span id="' + P + 'db-rec-cf-t">' +
-        (v.cf.stage ? '진행 중인 제안(' + esc(v.cf.stage) + ' 단계)이 있습니다. ' : '진행 중인 제안이 있습니다. ') + esc(def ? def.label : '') + ' 상태로 기록할까요?</span>' +
+        (v.cf.stage && v.cf.stage !== '제안 준비 전' ? '진행 중인 제안(' + esc(v.cf.stage) + ' 단계)이 있습니다. ' : '진행 중인 제안이 있습니다. ') + esc(def ? def.label : '') + ' 상태로 기록할까요?</span>' +
         '<div class="db-act-row"><button type="button" class="db-next" id="' + P + 'db-rec-cf-yes">기록하기</button><button type="button" id="' + P + 'db-rec-cf-no">취소</button></div></div>';
     } else {
       h += '<div class="db-rec-btns full"><button type="button" class="db-next" id="' + P + 'db-rec-save"' + (busy ? ' disabled' : '') + '>' + (busy ? '저장 중…' : '기록 저장') + '</button>' +
