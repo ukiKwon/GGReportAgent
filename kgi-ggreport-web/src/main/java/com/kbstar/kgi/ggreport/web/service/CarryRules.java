@@ -7,21 +7,21 @@ import java.time.MonthDay;
 import java.util.*;
 
 /**
- * 자동 이월 판정(NEXT 105, 사용자 11-20). 목표 연도 Y 의 판정일 = RFP 협약 개시일(INST_BID_TERM), 없으면 (Y+1)년 기본일.
- * 판정일 전 = 보류(이월 안 함, 이미 한 이월은 거둠). 판정일 뒤: SUCCESS = 없음, FAIL = Y+1 관심, 그 밖 = Y+1 목표. 귀속은 ResultYearRules.
+ * 자동 이월 판정(NEXT 105, 사용자 11-20; 11-26 미달성→다음 해 목표 이월 폐지). 목표 연도 Y 의 판정일 = RFP 협약 개시일(INST_BID_TERM), 없으면 (Y+1)년 기본일.
+ * 판정일 전 = 보류(관심 이월은 안 함, 이미 한 관심 이월은 거둠). 판정일 뒤: FAIL(다른 은행 약정) = 담당자 관심 이월, 그 밖(SUCCESS·미달성) = 없음. 귀속은 ResultYearRules.
+ * 옛 GOAL 이월 행(ACTION_CD=CARRY, 첫 구분 GOAL)은 읽기만 하고 거두지도 새로 만들지도 않는다.
  */
 final class CarryRules {
     static final class Decision {
-        String verdict, carryKind; Integer carryYear; boolean due; LocalDate judgeFrom;
+        String verdict, carryKind; boolean due; LocalDate judgeFrom;
         final List<BidTarget> revoke = new ArrayList<BidTarget>();
         boolean isEmpty() { return carryKind == null && revoke.isEmpty(); }
     }
     private CarryRules() { }
 
+    /** 11-26 — 다른 은행 약정(FAIL)만 관심으로 넘긴다. 미달성(약정 없음)은 다음 해 목표로 넘기지 않는다(기관은 3·4년 단위). */
     static String neededKind(String verdict) {
-        if (verdict == null || TargetResultRules.SUCCESS.equals(verdict)) return null;
-        if (TargetResultRules.FAIL.equals(verdict)) return BidTargetRules.KIND_WATCH;
-        return BidTargetRules.KIND_GOAL;
+        return TargetResultRules.FAIL.equals(verdict) ? BidTargetRules.KIND_WATCH : null;
     }
 
     static LocalDate judgeFrom(int year, Map<Integer, String> starts, MonthDay dflt) {
@@ -83,7 +83,7 @@ final class CarryRules {
             boolean alive = !BidTargetService.ACTION_CANCEL.equals(t.getActionCd());
             if (isCarryOf(t, source.getTargetNo())) {
                 String kind = BidTargetRules.KIND_WATCH.equals(t.getFirstKindCd()) ? BidTargetRules.KIND_WATCH : BidTargetRules.KIND_GOAL;
-                if (alive && BidTargetService.ACTION_CARRY.equals(t.getActionCd()) && !kind.equals(need)) { d.revoke.add(t); continue; }
+                if (alive && BidTargetService.ACTION_CARRY.equals(t.getActionCd()) && BidTargetRules.KIND_WATCH.equals(kind) && !kind.equals(need)) { d.revoke.add(t); continue; }   // 11-26 — 옛 GOAL 이월 행은 거두지 않는다(그대로 둠)
                 if (kind.equals(need) && !autoRevoked(t)) blocked = true;
             }
             if (!alive) continue;
@@ -93,10 +93,7 @@ final class CarryRules {
             }
             if (BidTargetRules.isCurrent(t, thisYear)) blocked = true;
         }
-        if (need != null && !blocked) {
-            d.carryKind = need;
-            d.carryYear = BidTargetRules.KIND_GOAL.equals(need) ? Integer.valueOf(y + 1) : null;
-        }
+        if (need != null && !blocked) d.carryKind = need;   // 11-26 — 관심(WATCH)뿐, 목표 연도 없음
         return d;
     }
 }

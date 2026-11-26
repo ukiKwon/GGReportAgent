@@ -151,7 +151,7 @@ public class BidTargetService {
             v.put("term_start", has ? tm.getTermStart() : null);                 // RFP 협약 개시일(기록)
             v.put("term_rev_no", tm == null ? 0 : tm.getRevNo());                // 개시일 저장의 base_rev_no
             v.put("judge_from", has ? tm.getTermStart()
-                    : settings.getCarryDefaultStart().atYear(year + 1).toString());   // 달성 판정·이월 기준일(기록 없으면 추정)
+                    : settings.getCarryDefaultStart().atYear(year + 1).toString());   // 협약 성과 달성 판정일·관심 이월 기준일(기록 없으면 추정)
             v.put("judge_from_assumed", !has);
             v.put("change_mode", goalMode);
             v.put("aim_mode", aimMode(t, edit, goalMode, thisYear));   // 063 — 이 줄의 금고 방식 고르기: DIRECT|APPROVAL|null
@@ -563,7 +563,7 @@ public class BidTargetService {
     }
 
     /**
-     * 자동 이월(사용자 11-20 ②④) — 결재 없음(사용자가 정한 자동 규칙). ⚠️ @Transactional 을 붙이지 않는다:
+     * 자동 관심 이월(사용자 11-20 ②④, 11-26 목표 이월 폐지) — 결재 없음(사용자가 정한 자동 규칙). ⚠️ @Transactional 을 붙이지 않는다:
      * 후보는 읽기 트랜잭션, 쓰기는 기관마다 새 트랜잭션이고 첫 문장이 기관 잠금(S2). 한 기관이 409 면 그 기관만 건너뛴다.
      */
     public Map<String, Object> carry(final Actor actor, final BoardUiIds.Ui ui) {
@@ -612,7 +612,7 @@ public class BidTargetService {
             if (newNo > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, src);
             BidTarget row = new BidTarget();
             row.setInstitutionId(inst); row.setTargetNo(newNo); row.setRevNo(1); row.setActionCd(ACTION_CARRY);
-            row.setKindCd(d.carryKind); row.setTargetYear(d.carryYear);   // 목표 = 원천 연도+1, 관심 = NULL
+            row.setKindCd(d.carryKind); row.setTargetYear(null);          // 11-26 — 이월은 관심뿐(목표 연도 NULL)
             row.setTagCd(src.getTagCd()); row.setMemo(src.getMemo()); row.setOwnerEmpNo(src.getOwnerEmpNo()); row.setOwnerName(src.getOwnerName());   // 이어받은 값은 다시 검사하지 않는다
             row.setAimRankCd(src.getAimRankCd());   // 063 — 금고 방식도 잇는다(팀 결정 11-25)
             row.setCarryFromNo(src.getTargetNo()); row.setCarryBasisCd(d.verdict);

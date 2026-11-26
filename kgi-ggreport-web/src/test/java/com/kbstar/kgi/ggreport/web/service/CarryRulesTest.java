@@ -42,11 +42,11 @@ public class CarryRulesTest {
         return CarryRules.decide(src, all, lines, st, today, DFLT);
     }
 
-    @Test public void 개시일_기록_없고_기본일_뒤_약정_없음은_다음_해_목표() {
+    @Test public void 개시일_기록_없고_기본일_뒤_약정_없음은_이월_없음() {   // 11-26 미달성 이월 폐지
         BidTarget s = goal(1, 2029);
         CarryRules.Decision d = decide(s, Arrays.asList(s), null, NONE, LocalDate.of(2030, 1, 2));
         assertTrue(d.due); assertEquals("UNREGISTERED", d.verdict);
-        assertEquals("GOAL", d.carryKind); assertEquals(Integer.valueOf(2030), d.carryYear);
+        assertNull(d.carryKind); assertTrue(d.isEmpty());
     }
 
     @Test public void 기본일_전이면_보류() {
@@ -68,30 +68,36 @@ public class CarryRulesTest {
         assertEquals("SUCCESS", d.verdict); assertNull(d.carryKind);
         // 개시일 기록이 없으면 104 추정(3월 시작 = 시작 연도 2030 귀속)이라 2029 목표는 줄 없음
         CarryRules.Decision n = decide(s, Arrays.asList(s), lines, NONE, LocalDate.of(2030, 3, 1));
-        assertEquals("UNREGISTERED", n.verdict); assertEquals("GOAL", n.carryKind);
+        assertEquals("UNREGISTERED", n.verdict); assertNull(n.carryKind);
     }
 
     @Test public void 다른_은행_약정은_FAIL_관심으로() {
         BidTarget s = goal(1, 2029);
         CarryRules.Decision d = decide(s, Arrays.asList(s), Arrays.asList(line("B03", "2030-01-01")), NONE, LocalDate.of(2030, 1, 2));
-        assertEquals("FAIL", d.verdict); assertEquals("WATCH", d.carryKind); assertNull(d.carryYear);
+        assertEquals("FAIL", d.verdict); assertEquals("WATCH", d.carryKind);
     }
 
-    @Test public void 손_안_탄_이월이_있는데_개시일을_미래로_고치면_거둔다() {
+    @Test public void 옛_목표_이월_행은_개시일을_미래로_고쳐도_거두지_않는다() {   // 11-26 — 옛 행은 그대로 둔다
         BidTarget s = goal(1, 2029), c = carried(2, 1, "GOAL", "CARRY", null);
         CarryRules.Decision d = decide(s, Arrays.asList(s, c), null, starts(2029, "2030-06-01"), LocalDate.of(2030, 1, 2));
+        assertTrue(d.revoke.isEmpty()); assertNull(d.carryKind);
+    }
+
+    @Test public void 손_안_탄_관심_이월이_있는데_개시일을_미래로_고치면_거둔다() {
+        BidTarget s = goal(1, 2029), c = carried(2, 1, "WATCH", "CARRY", null);
+        CarryRules.Decision d = decide(s, Arrays.asList(s, c), Arrays.asList(line("B03", "2030-01-01")), starts(2029, "2030-06-01"), LocalDate.of(2030, 1, 2));
         assertEquals(1, d.revoke.size()); assertNull(d.carryKind);
     }
 
-    @Test public void 올해_원천은_개시일_뒤_다음_해_목표_원천_자신은_막지_않는다() {
+    @Test public void 올해_원천은_개시일_뒤에도_미달성이면_다음_해_목표를_만들지_않는다() {
         BidTarget s = goal(1, 2030);
         CarryRules.Decision d = decide(s, Arrays.asList(s), null, starts(2030, "2030-07-01"), LocalDate.of(2030, 7, 2));
-        assertEquals("GOAL", d.carryKind); assertEquals(Integer.valueOf(2031), d.carryYear);
+        assertEquals("UNREGISTERED", d.verdict); assertNull(d.carryKind); assertTrue(d.isEmpty());
     }
 
-    @Test public void 사람별_관심은_목표_이월을_막지_않는다() {   // 061
+    @Test public void 미달성이면_다른_주인_관심이_있어도_아무것도_넘기지_않는다() {   // 061 + 11-26
         BidTarget s = goal(1, 2029), w = watch(2); w.setWatchEmpNo("3918264");
-        assertEquals("GOAL", decide(s, Arrays.asList(s, w), null, NONE, LocalDate.of(2030, 1, 2)).carryKind);
+        assertNull(decide(s, Arrays.asList(s, w), null, NONE, LocalDate.of(2030, 1, 2)).carryKind);
     }
 
     @Test public void 이월_관심은_같은_주인_관심이_있을_때만_막힌다() {   // 061
@@ -129,20 +135,20 @@ public class CarryRulesTest {
     }
 
     @Test public void 사람이_뺀_이월은_다시_넘기지_않는다() {
-        BidTarget s = goal(1, 2029), c = carried(2, 1, "GOAL", "CANCEL", "DROPPED");
-        CarryRules.Decision d = decide(s, Arrays.asList(s, c), null, NONE, LocalDate.of(2030, 1, 2));
+        BidTarget s = goal(1, 2029), c = carried(2, 1, "WATCH", "CANCEL", "DROPPED");
+        CarryRules.Decision d = decide(s, Arrays.asList(s, c), Arrays.asList(line("B03", "2030-01-01")), NONE, LocalDate.of(2030, 1, 2));
         assertNull(d.carryKind);
     }
 
-    @Test public void 자동_취소된_이월은_다시_미달성이면_다시_넘긴다() {
-        BidTarget s = goal(1, 2029), c = carried(2, 1, "GOAL", "CANCEL", "CARRY_REVOKED");
-        CarryRules.Decision d = decide(s, Arrays.asList(s, c), null, NONE, LocalDate.of(2030, 1, 2));
-        assertEquals("GOAL", d.carryKind);
+    @Test public void 자동_취소된_이월은_다시_FAIL이면_다시_넘긴다() {
+        BidTarget s = goal(1, 2029), c = carried(2, 1, "WATCH", "CANCEL", "CARRY_REVOKED");
+        CarryRules.Decision d = decide(s, Arrays.asList(s, c), Arrays.asList(line("B03", "2030-01-01")), NONE, LocalDate.of(2030, 1, 2));
+        assertEquals("WATCH", d.carryKind);
     }
 
-    @Test public void 이월_구분이_바뀌면_거두고_새로_넘긴다() {
-        BidTarget s = goal(1, 2029), c = carried(2, 1, "GOAL", "CARRY", null);
+    @Test public void 옛_목표_이월이_올해_목표로_남아_있으면_FAIL이어도_거두지도_관심을_만들지도_않는다() {
+        BidTarget s = goal(1, 2029), c = carried(2, 1, "GOAL", "CARRY", null);   // 목표 연도 2030 = 올해(현재)
         CarryRules.Decision d = decide(s, Arrays.asList(s, c), Arrays.asList(line("B03", "2030-01-01")), NONE, LocalDate.of(2030, 1, 2));
-        assertEquals(1, d.revoke.size()); assertEquals("WATCH", d.carryKind);
+        assertEquals("FAIL", d.verdict); assertTrue(d.revoke.isEmpty()); assertNull(d.carryKind);
     }
 }

@@ -659,18 +659,17 @@ public class TargetChangeApiTest {
                 + " AND AIM_RANK_CD='SINGLE' AND APPROVAL_REQ_ID=?", id));
     }
 
-    @Test public void 자동_이월은_목표와_관심_모두_금고_방식을_이어받는다() throws Exception {
+    @Test public void 자동_이월은_관심_이월만_금고_방식을_이어받는다() throws Exception {
         final int Y = y();
-        target("jongno", 1, 1, "SAVE", "GOAL", Y - 1, null);   // 약정 없음 → 올해 목표로 이월(자동_이월과_자동_취소 시험과 같은 바탕)
+        target("jongno", 1, 1, "SAVE", "GOAL", Y - 1, null);   // 약정 없음(미달성) → 이월 없음
         target("mapo", 1, 1, "SAVE", "GOAL", Y - 1, null);
-        line("mapo", 1, "B03", Y + "-01-01");                  // 약정 있음 → 관심으로 이월
+        line("mapo", 1, "B03", Y + "-01-01");                  // 다른 은행 약정 → 관심으로 이월
         jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='FIRST' WHERE INSTITUTION_ID='jongno' AND TARGET_NO=1");
         jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='SECOND' WHERE INSTITUTION_ID='mapo' AND TARGET_NO=1");
         MvcResult c = send(SALES, "/bid-targets/carry", "bid_board", "carry_targets", null);
         assertEquals(raw(c), 200, status(c));
-        assertEquals(2, json(c).path("carried").asInt());
-        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TARGET_NO=2 AND REV_NO=1"
-                + " AND ACTION_CD='CARRY' AND KIND_CD='GOAL' AND AIM_RANK_CD='FIRST'"));
+        assertEquals(1, json(c).path("carried").asInt());
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TARGET_NO=2"));
         assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='mapo' AND TARGET_NO=2 AND REV_NO=1"
                 + " AND ACTION_CD='CARRY' AND KIND_CD='WATCH' AND AIM_RANK_CD='SECOND'"));
     }
@@ -769,38 +768,32 @@ public class TargetChangeApiTest {
 
     @Test public void 자동_이월과_자동_취소() throws Exception {
         final int Y = y();
-        target("jongno", 1, 1, "SAVE", "GOAL", Y - 1, null);
+        target("jongno", 1, 1, "SAVE", "GOAL", Y - 1, null);   // 미달성 — 이월 없음(11-26)
         target("jung", 1, 1, "SAVE", "GOAL", Y - 1, null);
         line("jung", 1, "B02", Y + "-01-01");
         target("mapo", 1, 1, "SAVE", "GOAL", Y - 1, null);
         line("mapo", 1, "B03", Y + "-01-01");
         target("nowon", 1, 1, "SAVE", "GOAL", Y - 1, null);
-        target("nowon", 2, 1, "SAVE", "GOAL", Y, null);   // 061 — 관심은 사람별이라 이월을 막지 못한다. '현재 목표가 있으면 이월 안 함'은 올해 목표로 시험
-        assertEquals(2, json(getAs(SALES, "/bid-targets")).path("carry_due").asInt());
+        target("nowon", 2, 1, "SAVE", "GOAL", Y, null);
+        assertEquals(1, json(getAs(SALES, "/bid-targets")).path("carry_due").asInt());   // mapo 하나
         assertEquals(0, json(getAs(DESIGNER, "/bid-targets")).path("carry_due").asInt());
         MvcResult c = send(SALES, "/bid-targets/carry", "bid_board", "carry_targets", null);
         assertEquals(raw(c), 200, status(c));
-        assertEquals(2, json(c).path("carried").asInt()); assertEquals(0, json(c).path("revoked").asInt());
-        assertEquals("bid-target carry carried=2 revoked=0 skipped=0",
+        assertEquals(1, json(c).path("carried").asInt()); assertEquals(0, json(c).path("revoked").asInt());
+        assertEquals("bid-target carry carried=1 revoked=0 skipped=0",
                 jdbc.queryForList("SELECT DETAIL FROM ACCESS_LOG WHERE EVENT_TYPE='API' AND HTTP_METHOD='POST' ORDER BY LOG_ID DESC", String.class).get(0));
-        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TARGET_NO=2 AND REV_NO=1 AND ACTION_CD='CARRY'"
-                + " AND KIND_CD='GOAL' AND TARGET_YEAR=? AND CARRY_FROM_NO=1 AND CARRY_BASIS_CD='UNREGISTERED' AND BUTTON_ID='carry_targets'", Y));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TARGET_NO=2"));   // 미달성 → 다음 해 목표 없음
         assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='mapo' AND TARGET_NO=2 AND KIND_CD='WATCH'"
-                + " AND TARGET_YEAR IS NULL AND ACTION_CD='CARRY' AND CARRY_BASIS_CD='FAIL' AND WATCH_EMP_NO='3918264'"));   // 061 — 이월 관심 주인 = 원천의 처음 입력자(주 담당·요청자 없음)
+                + " AND TARGET_YEAR IS NULL AND ACTION_CD='CARRY' AND CARRY_BASIS_CD='FAIL' AND WATCH_EMP_NO='3918264' AND BUTTON_ID='carry_targets'"));
         assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID IN ('jung') AND TARGET_NO=2"));
-        boolean carried = false;
-        for (JsonNode it : json(getAs(SALES, "/bid-targets")).path("items")) {
-            if ("jongno".equals(it.path("institution_id").asText())) carried = it.path("carried").asBoolean();
-        }
-        assertTrue(carried);
         MvcResult again = send(SALES, "/bid-targets/carry", "bid_board", "carry_targets", null);
         assertEquals(0, json(again).path("carried").asInt());
-        // 판정이 바뀌면(국민은행 약정 등록) 손 안 탄 이월을 거둔다
-        line("jongno", 1, "B02", Y + "-01-01");
+        // 판정이 바뀌면(국민은행 약정 등록 — 같은 시작일·더 큰 번호가 이긴다) 손 안 탄 관심 이월을 거둔다
+        line("mapo", 2, "B02", Y + "-01-01");
         assertEquals(1, json(getAs(SALES, "/bid-targets")).path("carry_due").asInt());
         MvcResult rv = send(SALES, "/bid-targets/carry", "bid_board", "carry_targets", null);
         assertEquals(1, json(rv).path("revoked").asInt()); assertEquals(0, json(rv).path("carried").asInt());
-        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TARGET_NO=2 AND REV_NO=2"
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='mapo' AND TARGET_NO=2 AND REV_NO=2"
                 + " AND ACTION_CD='CANCEL' AND CANCEL_REASON_CD='CARRY_REVOKED'"));
         assertEquals(0, json(getAs(SALES, "/bid-targets")).path("carry_due").asInt());
     }
@@ -808,6 +801,7 @@ public class TargetChangeApiTest {
     @Test public void 결재_중인_기관은_이월을_건너뛴다() throws Exception {
         final int Y = y();
         target("jongno", 1, 1, "SAVE", "GOAL", Y - 1, null);
+        line("jongno", 1, "B03", Y + "-01-01");   // 결재가 없으면 관심 이월 후보(미달성 이월은 11-26 폐지)
         target("jung", 1, 1, "SAVE", "GOAL", Y, null);
         MvcResult r = change(SALES, req("대기", item("jongno", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")));
         assertEquals(raw(r), 200, status(r));
@@ -839,11 +833,14 @@ public class TargetChangeApiTest {
         MvcResult r = send(SALES, "/institutions/jongno/bid-terms", "bid_board", "set_term_start", b);
         assertEquals(raw(r), 201, status(r));
         assertEquals("bid-target term rev=1", jdbc.queryForList("SELECT DETAIL FROM ACCESS_LOG WHERE EVENT_TYPE='API' AND HTTP_METHOD='POST' ORDER BY LOG_ID DESC", String.class).get(0));
-        // 개시일 전이면 보류, 뒤이면 약정 없음 = 미달성 이월 후보
+        // 약정 없음(미달성)은 이월 후보가 아니다(11-26)
+        assertEquals(0, json(getAs(SALES, "/bid-targets")).path("carry_due").asInt());
+        // 같은 날 시작 다른 은행 약정 = 개시일 전이면 보류, 뒤이면 관심 이월 후보
+        line("jongno", 1, "B03", D);
         boolean due = !LocalDate.parse(Times.todayKst()).isBefore(LocalDate.parse(D));
         assertEquals(due ? 1 : 0, json(getAs(SALES, "/bid-targets")).path("carry_due").asInt());
-        // 같은 날 시작 국민은행 약정 = 그 목표 연도 달성 → 이월 없음
-        line("jongno", 1, "B02", D);
+        // 같은 날 시작 국민은행 약정(번호 큰 쪽이 이김) = 그 목표 연도 달성 → 이월 없음
+        line("jongno", 2, "B02", D);
         assertEquals(0, json(getAs(SALES, "/bid-targets")).path("carry_due").asInt());
         MvcResult list = getAs(DESIGNER, "/bid-targets?year=" + (Y - 1));
         JsonNode it = json(list).path("items").get(0);
