@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>입찰 현황판 목표 표 — 한 줄 = 입찰 건 시안 3판 (2026-11-26)</title>
+<style>
+  :root { --bg:#e9ecf0; --panel:#fff; --panel2:#f6f7f9; --line:#c3c9d1; --line-strong:#6d7882; --fg:#1e2124; --muted:#464c53;
+          --red:#bd2c0f; --orange:#8a5c00; --gray:#5c6670; --accent-color:#0b50d0; --bk-kb:#FFBC00; --r:2px;
+          --mono:Consolas,"Malgun Gothic",monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.5 "Malgun Gothic","Segoe UI",sans-serif; }
+  .doc { width:1080px; margin:0 auto; padding:24px 24px 72px; }
+  h1 { font-size:16px; font-weight:700; letter-spacing:-.01em; margin:0 0 6px; }
+  h2 { font-size:15px; font-weight:700; margin:36px 0 4px; }
+  h3 { font-size:14px; font-weight:700; margin:20px 0 6px; }
+  .lead, .why { max-width:78ch; color:var(--muted); margin:0 0 12px; }
+  .why { font-size:12px; }
+  .shot-h { display:flex; gap:8px; align-items:baseline; margin:16px 0 6px; font-size:12px; color:var(--muted); }
+  .shot-h b { font-size:13px; color:var(--fg); }
+  .frame { width:1032px; background:var(--panel); border:1px solid #aeb5bf; border-radius:var(--r); padding:16px; position:relative; }
+  .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  .mono { font-family:var(--mono); }
+  .mut { color:var(--muted); }
+
+  .tbar { display:flex; align-items:center; gap:8px; margin:0 0 12px; }
+  .tbar h4 { margin:0 auto 0 0; font-size:16px; font-weight:700; letter-spacing:-.01em; }
+  .btn { height:28px; padding:0 12px; font:12px "Malgun Gothic","Segoe UI",sans-serif; color:var(--fg); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); cursor:pointer; }
+  .btn.primary { height:32px; color:#fff; background:var(--accent-color); border-color:var(--accent-color); }
+  select.btn { padding:0 8px; }
+
+  .tools { display:flex; align-items:center; gap:6px; margin:12px 0 0; flex-wrap:wrap; }
+  .tabs { display:flex; margin-right:8px; }
+  .tabs button { height:28px; padding:0 12px; font:12px "Malgun Gothic",sans-serif; color:var(--fg); background:var(--panel2); border:1px solid var(--line-strong); border-radius:var(--r); }
+  .tabs button[aria-selected="true"] { background:var(--panel); box-shadow:inset 0 2px 0 var(--accent-color); font-weight:700; }
+  .tabs b { font:400 12px var(--mono); }
+  .tools input[type=search] { width:140px; height:28px; padding:0 8px; font:12px "Malgun Gothic",sans-serif; border:1px solid var(--line-strong); border-radius:var(--r); }
+  .tools .cnt { margin-left:auto; font-size:12px; color:var(--muted); }
+  .tools .cnt b { font:400 12px var(--mono); color:var(--fg); }
+  .tools .miss { outline:2px dashed var(--orange); outline-offset:2px; }
+  table.map { border-collapse:collapse; font-size:12px; background:var(--panel); margin-top:8px; }
+  .map th, .map td { border:1px solid var(--line); padding:6px 10px; text-align:center; vertical-align:middle; }
+  .map thead th { background:var(--panel2); }
+  .map td.l { text-align:left; }
+  .map .no { color:var(--orange); font-weight:700; }
+
+  .band { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border:1px solid var(--line); border-radius:var(--r); }
+  .k { min-height:84px; padding:12px 16px; border-left:1px solid var(--line); display:flex; flex-direction:column; gap:4px; }
+  .k:first-child { border-left:0; }
+  .k .l { font-size:12px; color:var(--muted); }
+  .k .v { font:700 16px var(--mono); }
+  .k .v span { margin-left:2px; font:400 12px "Malgun Gothic",sans-serif; color:var(--muted); }
+  .k .v.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
+  .k .s { font-size:12px; line-height:1.45; color:var(--muted); }
+  .k .s b { font:400 12px var(--mono); color:var(--fg); }
+  .bk { display:grid; grid-template-columns:auto 1fr auto; gap:2px 8px; margin:0; font-size:12px; align-items:center; }
+  .bk dt { color:var(--fg); } .bk dd { margin:0; }
+  .bk .bar { display:block; height:6px; background:var(--gray); } .bk .bar.k { background:var(--bk-kb); outline:1px solid #545045; }
+  .bk .ct b { font:400 12px var(--mono); }
+
+  .stgs { display:grid; grid-template-columns:64px repeat(5,minmax(0,1fr)); gap:6px; align-items:center; margin-top:8px; }
+  .stgs > .l { font-size:12px; color:var(--muted); }
+  .sb { display:flex; align-items:baseline; gap:6px; height:28px; padding:0 8px; font:12px "Malgun Gothic",sans-serif; color:var(--fg); background:transparent; border:1px solid var(--line-strong); border-radius:var(--r); }
+  .sb .no { font:400 12px var(--mono); color:var(--muted); }
+  .sb .ct { margin-left:auto; font:700 12px var(--mono); }
+  .sb[disabled] { color:var(--muted); border-color:var(--line); }
+  .stgs .ft { grid-column:2 / -1; display:flex; gap:12px; align-items:flex-start; }
+  .stgs .notes { flex:1; display:flex; flex-direction:column; font-size:12px; color:var(--muted); }
+  .fin { display:flex; gap:6px; align-items:baseline; height:28px; padding:0 8px; font:12px "Malgun Gothic",sans-serif; color:var(--fg); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); white-space:nowrap; }
+  .fin .ct { font:700 12px var(--mono); }
+  .fin .bd { color:var(--muted); }
+
+  .ts { margin-top:12px; overflow:auto; border:1px solid var(--line); border-radius:var(--r); }
+  table.tt { width:100%; min-width:886px; table-layout:fixed; border-collapse:separate; border-spacing:0; }
+  .tt thead th { height:40px; padding:0 8px; text-align:center; vertical-align:middle; font-size:12px; font-weight:700; color:var(--muted); background:var(--panel2); border-bottom:1px solid var(--line-strong); white-space:nowrap; }
+  .tt thead th .srt { all:unset; cursor:pointer; display:inline-flex; gap:4px; align-items:center; }
+  .tt thead th .srt svg { width:8px; height:8px; fill:none; stroke:var(--fg); stroke-width:1.4; }
+  .tt td, .tt tbody th { height:40px; padding:0 8px; text-align:center; vertical-align:middle; font-size:12px; font-weight:400; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tt tbody th { text-align:left; }
+  .tt td.ck { padding:0; }
+  .exp { all:unset; display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; margin-right:4px; vertical-align:-3px; cursor:pointer; border-radius:var(--r); }
+  .exp svg { width:8px; height:8px; fill:none; stroke:var(--muted); stroke-width:1.4; transition:transform .2s; }
+  .exp[aria-expanded="true"] svg { transform:rotate(90deg); }
+  .exp:focus-visible, .nmb:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+  .nmb { all:unset; cursor:pointer; font-size:13px; font-weight:700; color:var(--fg); }
+  .rg { margin-right:6px; font-size:12px; font-weight:400; color:var(--muted); }
+  .tt tr.sel > * { background:color-mix(in srgb, var(--accent-color) 8%, var(--panel)); }
+  .tt tr.sel > td.ck { box-shadow:inset 2px 0 0 var(--accent-color); }
+  .tt tr.open > * { border-bottom-color:transparent; }
+  .tt tr.new > * { background:var(--panel2); }
+  .tt tr.det > td { height:auto; padding:8px 16px 10px 56px; text-align:left; white-space:normal; background:var(--panel2); border-bottom:1px solid var(--line); }
+  .det dl { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:0; font-size:12px; max-width:86ch; }
+  .det dt { color:var(--muted); }
+  .det dd { margin:0; color:var(--fg); }
+  .det dd.ttl { font-size:13px; font-weight:700; }
+  .det .mono { font-family:var(--mono); }
+  @media (prefers-reduced-motion: reduce) { .exp svg { transition:none; } }
+
+  .tag { display:inline-flex; align-items:center; gap:4px; min-height:24px; padding:2px 6px 2px 8px; font:12px "Malgun Gothic",sans-serif; color:var(--fg); background:transparent; border:1px solid var(--line-strong); border-radius:var(--r); }
+  .tag svg { width:8px; height:8px; fill:none; stroke:var(--muted); stroke-width:1.4; }
+  .tag.ro { padding:2px 8px; }
+  .tag.lock { padding:2px 8px; color:var(--muted); border-color:var(--line); }
+  .tag.draft { border-style:dashed; border-color:var(--accent-color); }
+  .two-l { display:flex; flex-direction:column; align-items:center; gap:2px; line-height:16px; }
+  .soon { display:inline-flex; align-items:center; gap:4px; padding:0 6px; font:12px/16px var(--mono); color:var(--red); border:1px solid var(--red); border-radius:var(--r); background:color-mix(in srgb, var(--red) 8%, transparent); }
+  .soon svg { width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:1.4; }
+  .dt-note { font-size:12px; color:var(--muted); }
+  .ln2 { display:flex; align-items:center; justify-content:center; gap:6px; }
+  .pbar { position:relative; width:36px; height:4px; background:var(--panel2); outline:1px solid var(--line); }
+  .pbar i { position:absolute; left:0; top:0; bottom:0; background:var(--muted); }
+  .n { font:12px var(--mono); color:var(--muted); }
+  .res { display:inline-block; padding:0 6px; border:1px solid var(--gray); border-radius:var(--r); line-height:16px; }
+  .flag { display:inline-flex; align-items:center; gap:3px; font-size:12px; }
+  .flag svg { width:11px; height:11px; fill:none; stroke:currentColor; stroke-width:1.3; }
+  .flag.fix { color:var(--orange); }
+  .flag.pend { color:var(--fg); }
+  .flag.carry { color:var(--muted); }
+  .loss { margin:8px 0 0; font-size:12px; color:var(--muted); }
+
+  .selbar { display:flex; align-items:center; gap:8px; margin-top:12px; padding:10px 16px; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); box-shadow:0 -6px 16px -6px rgba(19,20,22,.22); }
+  .selbar .cnt { margin-right:auto; font-size:12px; }
+  .selbar .cnt b { font:700 12px var(--mono); }
+
+  .menu { display:inline-block; min-width:230px; padding:4px 0; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); font-size:12px; vertical-align:top; }
+  .menu div { padding:6px 12px; } .menu .on { font-weight:700; } .menu hr { margin:4px 0; border:0; border-top:1px solid var(--line); }
+  .menu .act { color:var(--accent-color); }
+  .menu .hint { padding-top:0; color:var(--muted); }
+
+  .dlg { width:560px; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
+  .dlg-h { display:flex; align-items:center; gap:8px; height:52px; padding:0 16px; background:var(--panel2); border-bottom:1px solid var(--line); }
+  .dlg-h h5 { margin:0 auto 0 0; font-size:16px; font-weight:700; }
+  .dlg-b { padding:16px; display:flex; flex-direction:column; gap:14px; }
+  .fld > .lb { display:block; margin:0 0 4px; font-size:12px; font-weight:700; }
+  .fld .req { color:var(--red); }
+  .fld input[type=text], .fld select { width:100%; height:32px; padding:0 8px; font:12px "Malgun Gothic",sans-serif; border:1px solid var(--line-strong); border-radius:var(--r); }
+  .fld input.err { border-color:var(--red); }
+  .opts { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12px; }
+  .opts label { display:inline-flex; gap:4px; align-items:center; }
+  .note { margin:4px 0 0; font-size:12px; color:var(--muted); }
+  .errl { margin:4px 0 0; font-size:12px; color:var(--red); }
+  .have { margin:0; padding:8px 12px; list-style:none; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); font-size:12px; }
+  .have li + li { margin-top:2px; }
+
+  table.ap { width:720px; border-collapse:collapse; font-size:12px; background:var(--panel); }
+  .ap caption { text-align:left; font-size:12px; color:var(--muted); padding:0 0 6px; }
+  .ap th, .ap td { border:1px solid var(--line); padding:8px 10px; text-align:center; vertical-align:middle; }
+  .ap thead th { background:var(--panel2); font-weight:700; color:var(--muted); }
+  .ap tbody th { text-align:left; font-weight:400; vertical-align:top; }
+  .ap tbody tr.multi td { vertical-align:top; }
+  .ap .sub { display:block; color:var(--muted); }
+
+  .decide { margin:16px 0; padding:12px 16px; max-width:1032px; background:color-mix(in srgb, var(--bk-kb) 12%, var(--panel)); border:1px solid var(--line-strong); border-left:3px solid var(--bk-kb); border-radius:var(--r); }
+  .decide h4, .fixed h4 { margin:0 0 6px; font-size:14px; }
+  .decide ol, .fixed ul { margin:0; padding-left:20px; } .decide li, .fixed li { margin:4px 0; max-width:92ch; }
+  .decide .rec { font-weight:700; }
+  .fixed { margin:16px 0; padding:12px 16px; max-width:1032px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--line-strong); border-radius:var(--r); font-size:12px; }
+
+  .two { display:flex; gap:24px; align-items:flex-start; }
+  table.spec { border-collapse:collapse; font-size:12px; background:var(--panel); }
+  .spec th, .spec td { border:1px solid var(--line); padding:6px 10px; text-align:center; }
+  .spec thead th { background:var(--panel2); }
+  .spec td.l { text-align:left; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>입찰 현황판 목표 표 — 한 줄 = 입찰 건 시안 (3판)</h1>
+  <p class="lead">사용자 결정(11-26): 목표 표 한 줄 = 입찰 건. 위에서 거르는 항목은 표의 열에 보이고, 끝난 건도 표에 남으며, 결재 중은 결재가 걸린 건에만 보입니다. 3판에서는 공고명을 열에서 빼고 줄을 펼치면 보이게 했고, 그만큼 생긴 폭으로 현 금고 은행 열을 살렸습니다. 기관·공고명·날짜·은행은 모두 시안용 가상 값이고 기준일은 2026-11-26입니다. 본문 폭은 1280px 화면에서 왼쪽 메뉴를 뺀 1032px입니다. 저장·결재 동작은 없습니다.</p>
+
+  <div class="fixed"><h4>확정된 것 (사용자 11-26)</h4><ul>
+    <li>한 줄 = 입찰 건. 기관 이름만 왼쪽, 나머지는 가운데. 모든 열 머리로 정렬합니다.</li>
+    <li>'상태'와 '준비 단계'는 한 열 '진행 상태'로 합칩니다(보완판 정할 것 5의 가).</li>
+    <li>공고명은 열로 두지 않고 줄을 펼치면 보입니다.</li>
+    <li>금고 방식 = 1금고 · 2금고 · 단수금고 · 주거래 · 기타. 정하지 않았으면 '-'. 1금고·2금고 나누기는 표의 금고 방식 메뉴에서만 합니다. 추가 창에는 금고 방식 고르기가 없습니다.</li>
+    <li>금고 방식 바꾸기·지우기는 결재 없이 [수정하기]로 바로 저장합니다. 새 건 넣기와 함께 보낼 때(나누기)만 결재에 올라갑니다.</li>
+    <li>머리 숫자는 큰 숫자 '9건', 아래 줄 '기관 7곳'.</li>
+    <li>금고 밖 입찰(법인카드·자금관리·기타)의 구분은 '정하지 않음'으로 시작합니다.</li>
+  </ul></div>
+
+  <!-- ① 전 -->
+  <h2>① 거르기와 목표 표 — 전과 후</h2>
+  <div class="shot-h"><b>전</b> 지금 화면 · 한 줄 = 기관 · 점선 = 고른 값이 표 어느 열에도 보이지 않는 거르기</div>
+  <div class="frame">
+    <div class="tools" style="margin:0">
+      <div class="tabs" role="tablist"><button role="tab" aria-selected="true">목표 <b>5</b></button><button role="tab" aria-selected="false">내 관심 기관 <b>3</b></button></div>
+      <input type="search" aria-label="기관명이나 지역으로 찾기" placeholder="기관명·지역">
+      <select class="btn" aria-label="구분 거르기"><option>구분 전체</option></select>
+      <select class="btn miss" aria-label="상태 거르기"><option>상태 전체</option><option>공고 중</option><option>마감 30일 안</option><option>준비 지연</option><option>판정 보류</option><option>입찰 종료</option><option>일정 모름</option><option>결재 중</option><option>자동 이월</option></select>
+      <select class="btn miss" aria-label="종류 거르기"><option>종류 전체</option><option>목표만</option><option>그 밖의 준비 기관만</option></select>
+      <span class="cnt"><b>5</b> / <b>5</b>곳</span>
+    </div>
+    <div class="ts"><table class="tt" style="min-width:816px">
+      <colgroup><col style="width:32px"><col><col style="width:166px"><col style="width:92px"><col style="width:120px"><col style="width:124px"><col style="width:132px"></colgroup>
+      <thead><tr><th><span class="sr-only">고르기</span></th><th>기관</th><th>구분</th><th>금고 방식</th><th aria-sort="ascending"><button class="srt" type="button">마감까지<svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1.5 5L4 2.5 6.5 5"/></svg></button></th><th>현 금고 은행</th><th>준비 단계</th></tr></thead>
+      <tbody>
+        <tr><td class="ck"><input type="checkbox" aria-label="가상시청 고르기"></td><th scope="row"><span class="nmb">가상시청</span></th><td><span class="tag">재유치 도전<svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td><td><span class="tag">1금고<svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td><td><span class="soon"><svg viewBox="0 0 12 12"><path d="M6 2.5l3.5 6.5h-7z"/></svg>D-14</span></td><td>국민 1금고</td><td><div class="two-l"><span>제안 준비</span><span class="ln2"><span class="pbar"><i style="width:40%"></i></span><span class="n">2/5</span></span></div></td></tr>
+        <tr><td class="ck"><input type="checkbox" aria-label="가상공단 고르기"></td><th scope="row"><span class="nmb">가상공단</span></th><td><span class="tag">신규유치 도전<svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td><td><span class="tag">-<svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td><td class="mono">D-50</td><td class="mut">확인 안 됨</td><td><div class="two-l"><span>제안 준비</span><span class="ln2"><span class="pbar"><i style="width:40%"></i></span><span class="n">2/5</span></span></div></td></tr>
+        <tr><td class="ck"><input type="checkbox" aria-label="가상구청 고르기"></td><th scope="row"><span class="nmb">가상구청</span></th><td><span class="tag ro">되찾기 도전</span> <span class="mut">이월</span></td><td><span class="tag">-<svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td><td class="mut">2027-04 공고 예정(추정)</td><td>우리</td><td><div class="two-l"><span>제안 준비 전</span><span class="ln2"><span class="pbar"><i style="width:20%"></i></span><span class="n">1/5</span></span></div></td></tr>
+        <tr><td class="ck"><input type="checkbox" aria-label="가상대학교 고르기"></td><th scope="row"><span class="nmb">가상대학교</span></th><td><span class="tag">신규유치 도전<svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td><td><span class="tag ro">주거래</span></td><td class="mut">입찰 종료</td><td>농협</td><td><span class="res">입찰 없음</span></td></tr>
+      </tbody>
+    </table></div>
+    <p class="loss">'상태'에서 '공고 중'이나 '판정 보류'를 골라도 표에서 그 말을 찾을 수 없고, '종류'는 표에 열이 없습니다. 가상시청의 2금고·법인카드 입찰은 한 줄에 묻혀 보이지 않습니다.</p>
+  </div>
+
+  <!-- 후 -->
+  <div class="shot-h"><b>후</b> 한 줄 = 입찰 건 · 공고명은 줄을 펼쳐 봄 · 현 금고 은행 열 유지 · 가상시청 1금고 줄을 펼침 · 가상시청 2건 고름</div>
+  <div class="frame">
+    <div class="tbar"><h4>입찰 현황판</h4><select class="btn" aria-label="목표 연도"><option>2026년</option></select><button class="btn" type="button">제안 사전준비</button><button class="btn primary" type="button">목표 기관 추가</button></div>
+    <div class="band">
+      <div class="k"><span class="l">2026 목표 입찰 건</span><span class="v">9<span>건</span></span><span class="s">기관 <b>7</b>곳 · 재유치 <b>2</b> · 되찾기 <b>1</b> · 신규 <b>4</b> · 구분 안 정함 <b>2</b></span></div>
+      <div class="k"><span class="l">접수 마감 30일 안</span><span class="v hot">2<span>건</span></span><span class="s">공고로 확정된 마감일만 셉니다</span></div>
+      <div class="k"><span class="l">준비 지연</span><span class="v">없음</span><span class="s">마감 30일 안인데 제안서 작성 전</span></div>
+      <div class="k"><span class="l">목표 기관의 현 금고 은행</span>
+        <dl class="bk"><dt>국민</dt><dd><span class="bar k" style="width:100%"></span></dd><dd class="ct"><b>2</b><span class="sr-only">곳</span></dd><dt>우리</dt><dd><span class="bar" style="width:50%"></span></dd><dd class="ct"><b>1</b><span class="sr-only">곳</span></dd><dt>농협</dt><dd><span class="bar" style="width:50%"></span></dd><dd class="ct"><b>1</b><span class="sr-only">곳</span></dd></dl>
+        <span class="s">금고 입찰이 있는 기관 4곳</span></div>
+    </div>
+    <div class="stgs" role="group" aria-label="제안 진행 단계, 그 밖의 제안서 준비 중인 건 1건 포함">
+      <span class="l">제안 진행</span>
+      <button class="sb" type="button" aria-pressed="false" aria-label="제안 준비 전 4건 — 표를 이 단계로 거르기"><span class="no">1</span><span>제안 준비 전</span><span class="ct">4</span></button>
+      <button class="sb" type="button" aria-pressed="false" aria-label="제안 준비 3건(그 밖의 준비 건 1건) — 표를 이 단계로 거르기"><span class="no">2</span><span>제안 준비</span><span class="ct">3</span></button>
+      <button class="sb" type="button" disabled><span class="no">3</span><span>제안 제출 및 대기</span><span class="ct">0</span></button>
+      <button class="sb" type="button" disabled><span class="no">4</span><span>협약 예정</span><span class="ct">0</span></button>
+      <button class="sb" type="button" aria-pressed="false" aria-label="협약 완료 1건 — 표를 이 단계로 거르기"><span class="no">5</span><span>협약 완료</span><span class="ct">1</span></button>
+      <div class="ft"><div class="notes"><span>그 밖의 제안서 준비 중인 건 1건 포함(표에서 구분 '목표 밖').</span><span>입찰 없음으로 끝난 1건에 제안 준비 기록이 남아 있습니다. 표의 '기록 정리 필요' 줄을 보세요.</span><span>시안은 제안 제출·선정 기록(NEXT 120 ①)이 반영된 뒤 모습입니다.</span></div>
+        <button class="fin" type="button" aria-pressed="false" aria-label="끝난 건 2건: 탈락 1건, 중단 0건, 입찰 없음(타행 유지) 1건 — 표를 끝난 건으로 거르기"><span>끝난 건</span><span class="ct">2</span><span class="bd">탈락 1 · 중단 0 · 입찰 없음(타행 유지) 1</span></button></div>
+    </div>
+
+    <div class="tools">
+      <div class="tabs" role="tablist"><button role="tab" aria-selected="true">목표 <b>9</b></button><button role="tab" aria-selected="false">내 관심 기관 <b>3</b></button></div>
+      <input type="search" aria-label="기관명이나 지역으로 찾기" placeholder="기관명·지역">
+      <select class="btn" aria-label="입찰 대상 거르기"><option>입찰 대상 전체</option><option>주거래은행·금고</option><option>자금관리</option><option>법인카드</option><option>기타</option></select>
+      <select class="btn" aria-label="구분 거르기"><option>구분 전체</option><option>재유치 도전</option><option>되찾기 도전</option><option>신규유치 도전</option><option>구분 안 정함</option><option>목표 밖 준비 건</option></select>
+      <select class="btn" aria-label="일정 거르기"><option>일정 전체</option><option>공고 중</option><option>마감 30일 안</option><option>공고 예정</option><option>일정 모름</option><option>입찰 종료</option></select>
+      <select class="btn" aria-label="진행 상태 표시 거르기"><option>진행 상태 전체</option><option>준비 지연</option><option>결재 중</option><option>자동 이월</option><option>기록 정리 필요</option></select>
+      <span class="cnt"><span class="sr-only">10건 중 10건 보임</span><span aria-hidden="true"><b>10</b> / <b>10</b>건</span></span>
+    </div>
+
+    <div class="ts"><table class="tt">
+      <caption class="sr-only">2026 목표 입찰 건 9건(기관 7곳)과 목표 밖 준비 건 1건. 기관 칸의 펼치기 단추로 공고명을 봅니다.</caption>
+      <colgroup><col style="width:32px"><col><col style="width:108px"><col style="width:92px"><col style="width:120px"><col style="width:120px"><col style="width:124px"><col style="width:140px"></colgroup>
+      <thead><tr><th><span class="sr-only">고르기</span></th>
+        <th><button class="srt" type="button">기관</button></th>
+        <th><button class="srt" type="button">입찰 대상</button></th>
+        <th><button class="srt" type="button">금고 방식</button></th>
+        <th><button class="srt" type="button">구분</button></th>
+        <th aria-sort="ascending"><button class="srt" type="button">마감까지<svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1.5 5L4 2.5 6.5 5"/></svg></button></th>
+        <th><button class="srt" type="button">현 금고 은행</button></th>
+        <th><button class="srt" type="button">진행 상태</button></th></tr></thead>
+      <tbody>
+        <tr class="sel open"><td class="ck"><input type="checkbox" checked aria-label="가상시청 주거래은행·금고 1금고 고르기"></td>
+          <th scope="row"><button class="exp" type="button" aria-expanded="true" aria-controls="det1"><svg viewBox="0 0 8 8" aria-hidden="true"><path d="M3 1.5l2.5 2.5L3 6.5"/></svg><span class="sr-only">가상시청 주거래은행·금고 1금고 공고 접기</span></button><span class="rg">가상도</span><button class="nmb" type="button" aria-haspopup="dialog">가상시청</button></th>
+          <td>주거래은행·금고</td>
+          <td><span class="tag">1금고<svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td>
+          <td><span class="tag" title="지금 국민은행 협약 중">재유치 도전<svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td>
+          <td><div class="two-l"><span class="soon"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 2.5l3.5 6.5h-7z"/></svg>D-14</span><span class="dt-note">공고 중</span></div></td>
+          <td>국민</td>
+          <td><div class="two-l"><span>제안 준비</span><span class="ln2"><span class="pbar"><i style="width:40%"></i></span><span class="n">2/5</span></span></div></td></tr>
+        <tr class="det" id="det1"><td colspan="8"><dl>
+          <dt>공고명(RFP)</dt><dd class="ttl">가상시 2027년도 제1금고 지정 제안서 제출 안내 공고</dd>
+          <dt>공고일</dt><dd class="mono">2026-11-20</dd>
+          <dt>접수 마감</dt><dd><span class="mono">2026-12-10</span> (14일 남음)</dd>
+          <dt>주 담당</dt><dd>김영업</dd>
+        </dl></td></tr>
+
+        <tr><td class="ck"><input type="checkbox" aria-label="가상시청 주거래은행·금고 2금고 고르기, 결재 중"></td>
+          <th scope="row"><button class="exp" type="button" aria-expanded="false"><svg viewBox="0 0 8 8" aria-hidden="true"><path d="M3 1.5l2.5 2.5L3 6.5"/></svg><span class="sr-only">가상시청 주거래은행·금고 2금고 공고 펼치기</span></button><span class="rg">가상도</span><button class="nmb" type="button" aria-haspopup="dialog">가상시청</button></th>
+          <td>주거래은행·금고</td>
+          <td><span class="tag lock" title="결재 중이라 바꿀 수 없음">2금고<span class="sr-only">, 결재 중이라 바꿀 수 없음</span></span></td>
+          <td><span class="tag lock" title="결재 중이라 바꿀 수 없음">신규유치 도전<span class="sr-only">, 결재 중이라 바꿀 수 없음</span></span></td>
+          <td><div class="two-l"><span class="soon"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 2.5l3.5 6.5h-7z"/></svg>D-26</span><span class="dt-note">공고 중</span></div></td>
+          <td>우리</td>
+          <td><div class="two-l"><span>제안 준비 전</span><span class="ln2"><span class="pbar"><i style="width:20%"></i></span><span class="n">1/5</span><span class="flag pend"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="5.5" width="7" height="5"/><path d="M4 5.5V4a2 2 0 0 1 4 0v1.5"/></svg>결재 중</span></span></div></td></tr>
+
+        <tr class="sel"><td class="ck"><input type="checkbox" checked aria-label="가상시청 법인카드 고르기"></td>
+          <th scope="row"><button class="exp" type="button" aria-expanded="false"><svg viewBox="0 0 8 8" aria-hidden="true"><path d="M3 1.5l2.5 2.5L3 6.5"/></svg><span class="sr-only">가상시청 법인카드 공고 펼치기</span></button><span class="rg">가상도</span><button class="nmb" type="button" aria-haspopup="dialog">가상시청</button></th>
+          <td>법인카드</td>
+          <td class="mut"><span aria-hidden="true">—</span><span class="sr-only">금고 입찰이 아니어서 금고 방식 없음</span></td>
+          <td><span class="tag"><span aria-hidden="true">-</span><span class="sr-only">정하지 않음</span><svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td>
+          <td><div class="two-l"><span class="mono">D-33</span><span class="dt-note">공고 중</span></div></td>
+          <td class="mut"><span aria-hidden="true">—</span><span class="sr-only">금고 입찰이 아니어서 해당 없음</span></td>
+          <td><div class="two-l"><span>제안 준비 전</span><span class="ln2"><span class="pbar"><i style="width:20%"></i></span><span class="n">1/5</span></span></div></td></tr>
+
+        <tr><td class="ck"></td>
+          <th scope="row"><button class="exp" type="button" aria-expanded="false"><svg viewBox="0 0 8 8" aria-hidden="true"><path d="M3 1.5l2.5 2.5L3 6.5"/></svg><span class="sr-only">가상센터 주거래은행·금고 공고 펼치기</span></button><span class="rg">가상도</span><button class="nmb" type="button" aria-haspopup="dialog">가상센터</button></th>
+          <td>주거래은행·금고</td>
+          <td><span class="tag ro">단수금고</span></td>
+          <td class="mut">목표 밖</td>
+          <td><div class="two-l"><span class="mono">D-40</span><span class="dt-note">공고 중</span></div></td>
+          <td>신한</td>
+          <td><div class="two-l"><span>제안 준비</span><span class="ln2"><span class="pbar"><i style="width:40%"></i></span><span class="n">2/5</span></span></div></td></tr>
+
+        <tr><td class="ck"><input type="checkbox" aria-label="가상공단 자금관리 고르기"></td>
+          <th scope="row"><button class="exp" type="button" aria-expanded="false"><svg viewBox="0 0 8 8" aria-hidden="true"><path d="M3 1.5l2.5 2.5L3 6.5"/></svg><span class="sr-only">가상공단 자금관리 공고 펼치기</span></button><span class="rg">가상도</span><button class="nmb" type="button" aria-haspopup="dialog">가상공단</button></th>
+          <td>자금관리</td>
+          <td class="mut"><span aria-hidden="true">—</span><span class="sr-only">금고 입찰이 아니어서 금고 방식 없음</span></td>
+          <td><span class="tag">신규유치 도전<svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td>
+          <td><div class="two-l"><span class="mono">D-50</span><span class="dt-note">공고 중</span></div></td>
+          <td class="mut"><span aria-hidden="true">—</span><span class="sr-only">금고 입찰이 아니어서 해당 없음</span></td>
+          <td><div class="two-l"><span>제안 준비</span><span class="ln2"><span class="pbar"><i style="width:40%"></i></span><span class="n">2/5</span></span></div></td></tr>
+
+        <tr class="open"><td class="ck"><input type="checkbox" aria-label="가상구청 주거래은행·금고 금고 방식 정하지 않음 고르기"></td>
+          <th scope="row"><button class="exp" type="button" aria-expanded="true" aria-controls="det2"><svg viewBox="0 0 8 8" aria-hidden="true"><path d="M3 1.5l2.5 2.5L3 6.5"/></svg><span class="sr-only">가상구청 주거래은행·금고 공고 접기</span></button><span class="rg">가상도</span><button class="nmb" type="button" aria-haspopup="dialog">가상구청</button></th>
+          <td>주거래은행·금고</td>
+          <td><span class="tag"><span aria-hidden="true">-</span><span class="sr-only">정하지 않음</span><svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td>
+          <td><span class="tag" title="예전 국민은행 금고(2022년까지) · 지금 우리은행">되찾기 도전<svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td>
+          <td><div class="two-l"><span class="mono">2027-04</span><span class="dt-note">공고 예정(추정)</span></div></td>
+          <td>우리</td>
+          <td><div class="two-l"><span>제안 준비 전</span><span class="ln2"><span class="pbar"><i style="width:20%"></i></span><span class="n">1/5</span><span class="flag carry" title="지난해 목표에서 자동 이월">이월</span></span></div></td></tr>
+        <tr class="det" id="det2"><td colspan="8"><dl>
+          <dt>공고명(RFP)</dt><dd class="mut">공고 전 — 공고가 들어오면 여기에 공고명이 붙습니다.</dd>
+          <dt>공고 예정</dt><dd><span class="mono">2027-04</span> (추정, 지난 약정 만료일 기준)</dd>
+          <dt>주 담당</dt><dd>박영업</dd>
+        </dl></td></tr>
+
+        <tr><td class="ck"><input type="checkbox" aria-label="가상연구원 기타 연구비 관리 고르기"></td>
+          <th scope="row"><button class="exp" type="button" aria-expanded="false"><svg viewBox="0 0 8 8" aria-hidden="true"><path d="M3 1.5l2.5 2.5L3 6.5"/></svg><span class="sr-only">가상연구원 기타 연구비 관리 공고 펼치기</span></button><span class="rg">가상도</span><button class="nmb" type="button" aria-haspopup="dialog">가상연구원</button></th>
+          <td title="기타 · 연구비 관리">기타 · 연구비 관리</td>
+          <td class="mut"><span aria-hidden="true">—</span><span class="sr-only">금고 입찰이 아니어서 금고 방식 없음</span></td>
+          <td><span class="tag"><span aria-hidden="true">-</span><span class="sr-only">정하지 않음</span><svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span></td>
+          <td class="dt-note">일정 모름</td>
+          <td class="mut"><span aria-hidden="true">—</span><span class="sr-only">금고 입찰이 아니어서 해당 없음</span></td>
+          <td><div class="two-l"><span>제안 준비 전</span><span class="ln2"><span class="pbar"><i style="width:20%"></i></span><span class="n">1/5</span></span></div></td></tr>
+
+        <tr><td class="ck"><input type="checkbox" aria-label="가상군청 주거래은행·금고 단수금고 고르기, 협약 완료"></td>
+          <th scope="row"><button class="exp" type="button" aria-expanded="false"><svg viewBox="0 0 8 8" aria-hidden="true"><path d="M3 1.5l2.5 2.5L3 6.5"/></svg><span class="sr-only">가상군청 주거래은행·금고 단수금고 공고 펼치기</span></button><span class="rg">가상도</span><button class="nmb" type="button" aria-haspopup="dialog">가상군청</button></th>
+          <td>주거래은행·금고</td>
+          <td><span class="tag ro" title="공고와 이어져 바꿀 수 없음">단수금고<span class="sr-only">, 공고와 이어져 바꿀 수 없음</span></span></td>
+          <td><span class="tag ro">재유치 도전</span></td>
+          <td class="dt-note">입찰 종료</td>
+          <td>국민</td>
+          <td><div class="two-l"><span class="res">협약 완료</span><span class="n">5/5</span></div></td></tr>
+
+        <tr><td class="ck"><input type="checkbox" aria-label="가상재단 법인카드 고르기, 탈락"></td>
+          <th scope="row"><button class="exp" type="button" aria-expanded="false"><svg viewBox="0 0 8 8" aria-hidden="true"><path d="M3 1.5l2.5 2.5L3 6.5"/></svg><span class="sr-only">가상재단 법인카드 공고 펼치기</span></button><span class="rg">가상도</span><button class="nmb" type="button" aria-haspopup="dialog">가상재단</button></th>
+          <td>법인카드</td>
+          <td class="mut"><span aria-hidden="true">—</span><span class="sr-only">금고 입찰이 아니어서 금고 방식 없음</span></td>
+          <td><span class="tag ro">신규유치 도전</span></td>
+          <td class="dt-note">입찰 종료</td>
+          <td class="mut"><span aria-hidden="true">—</span><span class="sr-only">금고 입찰이 아니어서 해당 없음</span></td>
+          <td><div class="two-l"><span class="res">탈락</span><span class="dt-note">끝난 건</span></div></td></tr>
+
+        <tr><td class="ck"><input type="checkbox" aria-label="가상대학교 주거래은행·금고 주거래 고르기, 입찰 없음"></td>
+          <th scope="row"><button class="exp" type="button" aria-expanded="false"><svg viewBox="0 0 8 8" aria-hidden="true"><path d="M3 1.5l2.5 2.5L3 6.5"/></svg><span class="sr-only">가상대학교 주거래은행·금고 주거래 공고 펼치기</span></button><span class="rg">가상도</span><button class="nmb" type="button" aria-haspopup="dialog">가상대학교</button></th>
+          <td>주거래은행·금고</td>
+          <td><span class="tag ro" title="공고와 이어져 바꿀 수 없음">주거래<span class="sr-only">, 공고와 이어져 바꿀 수 없음</span></span></td>
+          <td><span class="tag ro">신규유치 도전</span></td>
+          <td class="dt-note">입찰 종료</td>
+          <td>농협</td>
+          <td><div class="two-l" title="입찰 없음(타행 유지)으로 끝났지만 제안 준비 기록이 남아 있습니다. 담당이 중단 처리하세요."><span class="res">입찰 없음</span><span class="flag fix"><svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.8"/><path d="M6 3.4v3.2M6 8.3v.3"/></svg>기록 정리 필요</span><span class="sr-only">. 입찰 없음(타행 유지)으로 끝났지만 제안 준비 기록이 남아 있습니다. 담당이 중단 처리하세요.</span></div></td></tr>
+      </tbody>
+    </table></div>
+    <div class="selbar" role="region" aria-label="고른 입찰 건 동작"><span class="cnt"><b>2</b>건 고름(기관 <b>1</b>곳)</span><button class="btn" type="button">수정하기</button><button class="btn" type="button">관심 기관으로</button><button class="btn" type="button">목표에서 제외</button></div>
+  </div>
+  <p class="why">열 폭: 고르기 32 · 기관 나머지(약 264, 최소 150 — 펼치기 단추 16 포함) · 입찰 대상 108 · 금고 방식 92 · 구분 120 · 마감까지 120(두 줄: 날짜 / 일정) · 현 금고 은행 124 · 진행 상태 140(두 줄: 단계·결과 / 막대·표시). 고정 열 합 736px, 가로로 밀지 않습니다. 현 금고 은행은 그 줄 순위의 은행(1금고 줄은 1금고 은행, 2금고 줄은 2금고 은행)이고 금고 밖 줄은 '—'입니다. 펼친 줄은 바로 아래 회색 줄에 공고명 전문·공고일·접수 마감·주 담당을 보이며, 한 번에 여러 줄을 펼칠 수 있습니다. 기관 이름 단추는 지금처럼 기관 상세 팝업을 엽니다.</p>
+
+  <h3>거르기와 열 대응</h3>
+  <table class="map">
+    <thead><tr><th>거르기(전)</th><th>표에 보였나</th><th>거르기(후)</th><th>보이는 열·자리</th></tr></thead>
+    <tbody>
+      <tr><td>찾기</td><td>보임</td><td>찾기(기관명·지역)</td><td class="l">기관(지역은 앞 글자)</td></tr>
+      <tr><td>—</td><td>—</td><td>입찰 대상</td><td class="l">입찰 대상</td></tr>
+      <tr><td>구분</td><td>보임</td><td>구분(+ 목표 밖 준비 건)</td><td class="l">구분. 목표 밖 줄은 '목표 밖'</td></tr>
+      <tr><td>종류</td><td class="no">안 보임</td><td>(구분에 합침)</td><td class="l">구분 칸 '목표 밖'</td></tr>
+      <tr><td>상태: 공고 중·마감 30일 안·입찰 종료·일정 모름·판정 보류</td><td class="no">일부 안 보임</td><td>일정</td><td class="l">마감까지 둘째 줄(공고 중 / 공고 예정(추정) / 일정 모름 / 입찰 종료), 30일 안은 ▲D-n</td></tr>
+      <tr><td>상태: 준비 지연·결재 중·자동 이월</td><td class="no">구분 칸에 섞임</td><td>진행 상태</td><td class="l">진행 상태 둘째 줄 표시(지연 / 결재 중 / 이월 / 기록 정리 필요)</td></tr>
+      <tr><td>띠 단추(5칸·끝난 건)</td><td>보임</td><td>띠 단추 그대로</td><td class="l">진행 상태 첫 줄(단계 이름 또는 결과 칩)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="decide"><h4>정할 것 A — 공고명을 보여 줄 자리</h4><ol>
+    <li><span class="rec">가(권장)</span> 줄 아래 펼침 줄(위 시안). 여러 입찰 건 중 어느 건의 공고인지 줄 위치로 바로 보이고, 표를 떠나지 않습니다. 키보드는 기관 칸 앞 펼치기 단추로, 마우스는 줄의 빈 곳으로 펼칩니다.</li>
+    <li>나. 기관 이름을 눌러 여는 기관 상세 팝업 맨 위에 '이 입찰 건' 칸(입찰 대상·금고 방식·공고명·마감)을 둡니다. 팝업은 기관 하나에 하나라, 같은 기관의 다른 건을 보려면 닫고 다른 줄에서 다시 열어야 합니다.</li></ol></div>
+
+  <div class="decide"><h4>정할 것 B — 금고 밖 줄(법인카드·자금관리·기타)의 현 금고 은행 칸</h4><ol>
+    <li><span class="rec">가(권장)</span> '—'로 둡니다(읽기: '금고 입찰이 아니어서 해당 없음'). 법인카드 줄의 은행이 그 입찰의 현 사업자로 읽히지 않게 합니다.</li>
+    <li>나. 그 기관의 금고 은행을 흐린 글자로 참고용으로 보입니다.</li></ol></div>
+
+  <h3>금고 방식 메뉴 — 고르기·지우기는 바로, 나누기는 결재</h3>
+  <div class="two">
+    <div class="menu" role="menu" aria-label="금고 방식 고르기">
+      <div class="on">● 정하지 않음 (-)</div><div>○ 1금고</div><div>○ 2금고</div><div>○ 단수금고</div><div>○ 주거래</div><div>○ 기타</div><hr><div class="act">1금고·2금고 두 건으로 나누기</div><div class="hint">주거래은행·금고 줄에서만 보입니다</div>
+    </div>
+    <div>
+      <div class="frame" style="width:760px;padding:8px">
+        <table class="tt" style="min-width:0">
+          <colgroup><col style="width:130px"><col style="width:108px"><col style="width:130px"><col></colgroup>
+          <tbody>
+            <tr><th scope="row"><span class="nmb">가상구청</span></th><td>주거래은행·금고</td><td><span class="tag draft">1금고<svg viewBox="0 0 8 8"><path d="M1.5 3l2.5 2.5L6.5 3"/></svg></span> <span class="mut">바뀜</span></td><td class="mut">공고 전</td></tr>
+            <tr class="new"><th scope="row"><span class="nmb">가상구청</span></th><td>주거래은행·금고</td><td><span class="tag draft">2금고</span> <span class="mut">새로</span></td><td class="mut">새로 넣을 건</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="selbar" style="width:760px"><span class="cnt">바뀐 2건 — 새로 넣는 건이 있어 [수정하기]를 누르면 결재에 올라갑니다.</span><button class="btn" type="button">수정하기</button></div>
+      <p class="why" style="margin-top:8px">금고 방식만 바꾸거나 '정하지 않음'으로 지운 줄은 [수정하기]를 누르면 결재 없이 바로 저장됩니다(띠 안내: '바뀐 n건을 저장합니다'). 공고와 이어져 제안이 진행 중인 줄은 칩이 잠겨 바꿀 수 없습니다.</p>
+    </div>
+  </div>
+
+  <!-- ② 머리 숫자·띠 -->
+  <h2>② 머리 숫자·띠 집계 표기</h2>
+  <table class="spec">
+    <thead><tr><th>자리</th><th>전</th><th>후</th></tr></thead>
+    <tbody>
+      <tr><td>띠 1칸 이름·값</td><td class="l">2026 목표 기관 · 5곳</td><td class="l">2026 목표 입찰 건 · 9건</td></tr>
+      <tr><td>띠 1칸 보조</td><td class="l">재유치 · 되찾기 · 신규 · 미정</td><td class="l">기관 7곳 · 재유치 · 되찾기 · 신규 · 구분 안 정함</td></tr>
+      <tr><td>마감 30일 안 · 준비 지연</td><td class="l">n곳</td><td class="l">n건</td></tr>
+      <tr><td>현 금고 은행 막대</td><td class="l">목표 기관 수</td><td class="l">그대로 기관 수(곳) + '금고 입찰이 있는 기관 m곳'</td></tr>
+      <tr><td>제안 진행 5칸·끝난 건</td><td class="l">n곳, 끝난 건은 표에서 거를 때만</td><td class="l">n건, 끝난 건도 늘 표에 남음 — 5칸 + 끝난 건 = 표 줄 수</td></tr>
+      <tr><td>도구 줄 건수</td><td class="l">5 / 5곳</td><td class="l">10 / 10건</td></tr>
+      <tr><td>하단 띠</td><td class="l">n곳 고름 · [목표 기관에서 제외]</td><td class="l">n건 고름(기관 m곳) · [목표에서 제외]</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ③ 추가 창 -->
+  <h2>③ [목표 기관 추가] 창 — 입찰 대상 고르기 (금고 방식 고르기 없음)</h2>
+  <p class="why">팝업 규격(DESIGN §104·107)대로 [취소][목표에 넣기]를 제목 줄 오른쪽에 둡니다. [목표에 넣기]는 막지 않고, 누르면 빠진 칸·겹친 칸 아래에 빨간 한 줄이 생깁니다. 아래는 가상시청에 법인카드 목표가 이미 있을 때 같은 법인카드를 또 고르고 누른 모습입니다.</p>
+  <div class="dlg" role="dialog" aria-labelledby="d1">
+    <div class="dlg-h"><h5 id="d1">목표 기관 추가</h5><button class="btn" type="button">취소</button><button class="btn primary" type="button" style="height:28px">목표에 넣기</button></div>
+    <div class="dlg-b">
+      <div class="fld"><span class="lb">넣을 곳 <span class="req">*</span></span><div class="opts"><label><input type="radio" name="k" checked> 목표</label><label><input type="radio" name="k"> 내 관심(연도 없음)</label></div></div>
+      <div class="fld"><label class="lb" for="q">기관 <span class="req">*</span></label><input type="text" id="q" value="가상시청"><p class="note">가상시청을 골랐습니다. 2026년 목표 입찰 건:</p>
+        <ul class="have"><li>주거래은행·금고 · 1금고 · 제안 준비</li><li>주거래은행·금고 · 2금고 · 제안 준비 전 · 결재 중</li><li>법인카드 · 제안 준비 전</li></ul></div>
+      <div class="fld"><label class="lb" for="y">목표 연도 <span class="req">*</span></label><select id="y"><option>2026년</option></select></div>
+      <div class="fld" role="radiogroup" aria-labelledby="s1"><span class="lb" id="s1">입찰 대상 <span class="req">*</span></span>
+        <div class="opts"><label><input type="radio" name="s"> 주거래은행·금고</label><label><input type="radio" name="s"> 자금관리</label><label><input type="radio" name="s" checked> 법인카드</label><label><input type="radio" name="s"> 기타</label></div>
+        <p class="errl" role="alert">가상시청은 2026년 법인카드 목표가 이미 있습니다. 다른 입찰 대상을 고르세요.</p></div>
+      <div class="fld"><span class="lb">기타를 고르면 보이는 칸</span><label class="lb" for="etc" style="font-weight:400">입찰 대상 이름 <span class="req">*</span></label><input type="text" id="etc" class="err" maxlength="50" value=""><p class="errl">기타 입찰 대상 이름은 1~50자로 적어 주세요.</p></div>
+      <div class="fld"><span class="lb">주거래은행·금고를 고르면 보이는 한 줄</span><p class="note" style="margin:0">금고 방식은 '-'(정하지 않음)로 들어갑니다. 공고가 나오면 표의 금고 방식에서 고르거나 1금고·2금고 두 건으로 나눕니다.</p></div>
+      <div class="fld"><span class="lb">구분 (선택)</span><div class="opts"><label><input type="radio" name="t" checked> 정하지 않음</label><label><input type="radio" name="t"> 재유치 도전</label><label><input type="radio" name="t"> 되찾기 도전</label><label><input type="radio" name="t"> 신규유치 도전</label></div>
+        <p class="note">참고: 가상시청은 지금 국민은행이 금고입니다. 금고 입찰이 아니면 은행 기록으로 구분을 짐작하지 않습니다.</p></div>
+    </div>
+  </div>
+  <p class="why">추천받기는 기관 목록 그대로 두고, 추천 근거가 공고 중인 입찰이면 그 입찰 대상을 미리 고릅니다(없으면 주거래은행·금고).</p>
+
+  <!-- ④ 결재함 카드 -->
+  <h2>④ 결재함 카드 — 건 표기</h2>
+  <div class="shot-h"><b>전</b> 기관 한 줄</div>
+  <table class="ap"><caption>바꿀 목표 기관 1곳</caption>
+    <thead><tr><th style="width:150px">기관</th><th style="width:110px">동작</th><th>이전</th><th>이후</th></tr></thead>
+    <tbody><tr><th scope="row">가상구청</th><td>목표 바꾸기</td><td>2026 목표 · 되찾기 도전</td><td>2026 목표 · 되찾기 도전<span class="sub">금고 방식: 정하지 않음 → <b>1금고</b></span></td></tr></tbody></table>
+  <div class="shot-h"><b>후</b> 건마다 한 줄 · 기관 칸 아래에 입찰 대상·금고 방식·공고 · 나누기는 두 줄이 붙어 나옴</div>
+  <table class="ap"><caption>바꿀 목표 입찰 건 2건(기관 1곳)</caption>
+    <thead><tr><th style="width:220px">기관 · 입찰 건</th><th style="width:110px">동작</th><th>이전</th><th>이후</th></tr></thead>
+    <tbody>
+      <tr class="multi"><th scope="row">가상구청<span class="sub">주거래은행·금고 · 금고 방식 정하지 않음</span><span class="sub">공고: 공고 전</span></th><td>목표 바꾸기</td><td>2026 목표 · 되찾기 도전</td><td>2026 목표 · 되찾기 도전<span class="sub">금고 방식: 정하지 않음 → <b>1금고</b></span></td></tr>
+      <tr class="multi"><th scope="row">가상구청<span class="sub">주거래은행·금고 · 2금고</span><span class="sub">공고: 공고 전</span></th><td>목표에 넣기</td><td><span aria-hidden="true">—</span><span class="sr-only">없음, 새로 넣기</span></td><td>2026 목표 · 구분 정하지 않음</td></tr>
+    </tbody></table>
+  <p class="why">금고 방식만 바꾸면 결재 없이 바로 저장되어 결재함에 오지 않습니다. 이 카드처럼 새 건 넣기와 함께 보낼 때(1금고·2금고 나누기)만 금고 방식 줄이 결재 카드에 보입니다.</p>
+</div>
+</body>
+</html>
