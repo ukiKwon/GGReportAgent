@@ -266,8 +266,8 @@
       sources: ['월/일 미확보(마감일·결과·약정 연수 미확인) — 금고지정 입찰 공고 2026-11-10(R26BK01821532), 원문 마감 칸 비어 있음(진행 중일 가능성 높음)', U('R26BK01821532'), 'https://www.changwon.ac.kr/c_h/cm/cntnts/cntntsView.do?mi=4423&cntntsId=1194'] }),
     G({ name: '경기도의료원', type: '병원', region: '41', subRegion: '31011',
       sources: ['월/일 미확보(마감일·결과 미확인) — 지정금융기관 선정 공고 2026-09-29(R26BK01748894, 변경공고 -001·-002) → 재공고 10-26(R26BK01790325, reNtceYn=Y), 원문 마감 칸 비어 있음. 공고문(hwpx)상 약정 2027-01-01~2030-12-31(4년) — 차기 약정이라 term·만료일은 결과 확인 뒤 (수집기 g2b 키워드 지정금융기관, 11-12)', U('R26BK01748894'), U('R26BK01790325'), 'https://www.medical.or.kr/suwon/contentsInfo.do?brd_mgrno=0&menu_no=1152'] }),
-    G({ name: '한국섬진흥원', bidKind: '금고', region: '46', subRegion: '36010', g2bCode: 'B554662', contractEnd: '2026-11-11', confirmed: true, receiveTo: '2026-11-23', noticeNo: 'R26BK01823903', noticeUrl: U('R26BK01823903'),
-      sources: ['기준일=공고일(2026-11-11, 나라장터 원문 확인) — **진행 중**, 제안 마감 2026-11-23 10:00, 나라장터 원문 직접 확인): 주거래은행(금고) 선정 공고 2026-11-11(R26BK01823903). 직전 회차·약정 연수 미확인', U('R26BK01823903'), 'https://www.kidi.re.kr/contents.do?id=organization'] }),
+    G({ name: '한국섬진흥원', bidKind: '금고', region: '46', subRegion: '36010', g2bCode: 'B554662', contractEnd: '2026-11-11', confirmed: true, receiveFrom: '2026-12-01', receiveTo: '2026-12-04', noticeUrl: 'https://kidi.re.kr/Tender/210', updatedAt: '2026-11-26',
+      sources: ['기준일=공고일(1차 공고 2026-11-11, 나라장터 원문 확인) — **재공고 진행 중**(한국섬진흥원 공고 제2026-84호), 제안서 접수 2026-12-01 10:00 ~ 12-04 10:00(누리집 게시물·공고문 확인 2026-11-26). 재공고 게시일·나라장터 번호 미확인. 1차 공고 R26BK01823903(접수 11-23 마감). 공고문상 운영기간 2027~2030(차기 약정이라 연수·만료일은 결과 확인 뒤)', 'https://kidi.re.kr/Tender/210', U('R26BK01823903'), 'https://www.kidi.re.kr/contents.do?id=organization'] }),
   ];
   if (typeof module !== 'undefined' && module.exports) module.exports = root.institutionsNonMuni;
 })(typeof window !== 'undefined' ? window : globalThis);
