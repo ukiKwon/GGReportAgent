@@ -632,8 +632,12 @@
 ### 119. [지역별 공고현황] 11-25 후속 — ♥ 키보드·실패 문구, 팝업 기록 qa P3, 작은 정리 [담당: bf(지역별 공고현황) — frontend-dev → frontend-dev-write, dashboard.js는 bd 허락 필요]
 - **현재**: 미처리 팝업 2단계 해소 — 팝업 안에서 공고 상태 기록 바로 저장(9cb56b3b, design_history 109, 사용자 Q-2026-11-25-12 ⓐ). 남은 것: design 0119_a86b4423 P2-1 목록 ♥가 span(키보드·이름 없음, 규격: button 24px·aria-pressed·aria-label) / P3 .rk-note keep-all·role=alert·문구, .ov-open transition:none, 미처리 꼬리 '…뺐습니다' / qa a87c0f05 P3-3(조합 중 미룬 전체 렌더가 이력 응답 repaintRc로 사라짐)·P3-4(사번 변경 시 팝업 recGuard가 먼저 소비)·P3-5(안 보이는 초안도 이탈 상자)·P3-6(저장 중 ×·Esc 무반응 안내 없음)·P3-7(화면 이동으로 닫히면 초안 묻지 않고 남김 — 기획) / design a7397b86 P2 팝업·숨은 탭 사이 id 8개 겹침(hc-*·db-bank·bk-edit) / security 하: render.js ~1432 지역 카드 esc, 061 주석 'GET /watchers', REC_POPUP_SCREEN 켤 때 NoticeUiIds 허용 목록 같은 커밋 / 퇴직 주인 관심 고아(운영 061 전) / GET /institution-plans/status 500 / kind-queue CRLF.
 - **다음 한 걸음**: ♥ P2-1·P3 묶음을 frontend-dev → -write로(지도 파일만), 팝업 P3는 bd와 순서 맞춰.
-- **0d 몫(11-25 bf 요청·사용자 "다음 할 일로")**: 메뉴 이름 '지역별 공고현황' → '예상 공고현황'(nav.js 102행 부근 + nav.test.js 113·227·485·546·549행) — bf 커밋 4fc724f4 완료(11-25 저녁 알림: #tab-btn-map·h2 #map-h = '예상 공고현황', 설명 문구가 있으면 '아직 공고 전인 기관의 예상 시기') — 다음 세션 frontend-dev-write로. 근거 design-reviewer 11-25 '예상 공고현황 화면 규격' §5-1.
 - **자세히**: handoff/sessions/2026-11-25_0130_map.md, 2026-11-25_summary Session 01:30·03:00.
+
+### 124. 표 정렬 통일 — 남은 몫 (사용자 11-26 "머리값 무조건 가운데, 금액 오른쪽") [담당: 0d — design-reviewer → frontend-dev-write → qa]
+- **현재**: 0291010a로 입찰 현황판 밖 표 전부 적용(DESIGN.md '표 정렬', design_history 124). 남은 것: 입찰 현황판 .hb-tt(ca 작업 뒤), 렌더 실측, qa P3(배점·짧은 사유 칸 예외 여부).
+- **다음 한 걸음**: ca 커밋 알림 → .hb-tt thead th center·middle, td center, .hb-stg·.hb-wacts justify center, tr.grp th 왼쪽(kbboard-goals.test.js:625·kbboard.test.js:437 순서 유지).
+- **자세히**: handoff/agents/design-reviewer/2026-11-26_* (표 정렬 전수 조사 5·6절), handoff/agents/qa-verifier/2026-11-26_* , handoff/sessions/2026-11-19_1930_0d.md '11-26'.
 
 ### 120. 입찰 현황판 '제안 진행' 띠 재정의 — {제안 준비 전·제안 준비·제안 제출 및 대기·협약 예정·협약 완료} + 끝난 건 (사용자 11-25) [담당: ca(kbboard·dashboard) / db(prepboard·prep.js) / backend-dev+security]
 - **현재**: 사용자 답 11-25 — 탈락·중단은 5칸 밖 '끝난 건'(표에 '탈락'), 제출·협약은 제안 준비 현황에서 등록(협약 완료 = 협약식 V), 입찰 없음은 현 금고 국민은행이면 협약 예정·타행이면 끝난 건. 팀 결정: 제안 준비 현황 '제안서 제출' 칸 신설(제출품의 뒤·PT 앞), '결과발표' 값 선정/탈락, 협약 예정 = 선정·우선협상 V·입찰 없음+국민은행, 중단 = 시작 뒤 CANCEL만, 띠는 039 미사용. 협약식 '대상 아님' 기관의 완료 근거 = PT 다음 '결과발표' 칸(선정)으로 본다(사용자 11-25 정정). 메뉴 이동 시 저장 전 구분 변경 확인 = 권장안대로 하기로(app.js, 다음 작업). NEXT 118(사전준비 승인 폐지)이 확정되면 '승인 대기 n' 보조 숫자는 뺀다.
