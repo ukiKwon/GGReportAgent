@@ -63,9 +63,10 @@ public interface BoardMaterialMapper {
     /** 재작성 요구(확정 상태에서): CONFIRMED 일 때만 DRAFT 로, 결과·개최일·확정 정보 해제. */
     int backToDraftFromConfirmed(@Param("id") Long id, @Param("by") String by, @Param("now") String now);
 
-    /** 결과 변경: CONFIRMED 이고 현재 결과가 from(비어 있으면 null)일 때만. meetingDate 가 null 이면 기존 개최일 유지. */
+    /** 결과 변경: CONFIRMED 이고 현재 결과가 from(비어 있으면 null)일 때만. meetingDate 가 null 이면 기존 개최일 유지. agendaSet 이 true 일 때만 안건 번호를 agendaNo(null=지움)로 쓴다. */
     int updateResult(@Param("id") Long id, @Param("from") String from, @Param("to") String to,
-                     @Param("meetingDate") String meetingDate, @Param("by") String by, @Param("now") String now);
+                     @Param("meetingDate") String meetingDate,
+                     @Param("agendaSet") boolean agendaSet, @Param("agendaNo") String agendaNo, @Param("by") String by, @Param("now") String now);
 
     /** 이사회 날짜만 바꾼다(상태·결과는 그대로). 가결·부결이 등록된 자료는 0행 — 그때는 결과 등록에서 개최일을 고친다. */
     int updateMeetingDate(@Param("id") Long id, @Param("meetingDate") String meetingDate,

@@ -58,11 +58,15 @@ public class BoardMaterialIn {
         public void setReason(String v) { this.reason = v; }
     }
 
-    /** POST /board-materials/{id}/result : {result: SCHEDULED|PASSED|REJECTED, meeting_date?} */
+    /** POST /board-materials/{id}/result : {result: SCHEDULED|PASSED|REJECTED, meeting_date?, agenda_no?(PASSED·REJECTED 일 때만; 키 없음=유지, ""=지움)} */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Result {
         private String result;
         private String meetingDate;
+        private String agendaNo;
+
+        public String getAgendaNo() { return agendaNo; }
+        public void setAgendaNo(String v) { this.agendaNo = v; }
 
         public String getResult() { return result; }
         public void setResult(String v) { this.result = v; }

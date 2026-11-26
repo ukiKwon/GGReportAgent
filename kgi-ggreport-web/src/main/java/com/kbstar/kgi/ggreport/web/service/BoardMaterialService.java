@@ -39,6 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -63,6 +64,7 @@ public class BoardMaterialService {
     static final int MAX_CELLS = 500;
     static final int MAX_NOTE = 200;
     static final int MAX_REASON = 200;
+    static final int MAX_AGENDA_NO = 30;
     static final int LIST_CAP = 300;
     static final int ACT_CAP = 500;
     static final int YEAR_MIN = 2000;
@@ -371,11 +373,32 @@ public class BoardMaterialService {
         if (meeting == null) {   // 사용자 확정 2026-11-11: 의결 예정·가결·부결 모두 개최일 필수
             throw coded(400, "MEETING_DATE_REQUIRED", "개최일을 입력하세요.");
         }
+        // 안건 번호 — 가결·부결 등록·수정 때만. 키 없음(null)=유지, ""=지움. 의결 예정으로 바꾸면 안건 번호는 비운다.
+        boolean decided = PASSED.equals(to) || REJECTED.equals(to);
+        String rawAgenda = in.getAgendaNo();
+        if (rawAgenda != null && !decided) {
+            throw coded(400, "AGENDA_NO_NOT_ALLOWED", "안건 번호는 가결·부결을 등록할 때만 입력할 수 있습니다.");
+        }
+        String oldAgenda = m.getAgendaNo();
+        boolean agendaSet = false;
+        String newAgenda = oldAgenda;
+        if (rawAgenda != null) {
+            if (rawAgenda.indexOf('\n') >= 0 || rawAgenda.indexOf('\r') >= 0) {
+                throw coded(400, "BAD_VALUE", "안건 번호에 쓸 수 없는 문자가 있습니다.");
+            }
+            newAgenda = checkedText(rawAgenda, MAX_AGENDA_NO, "안건 번호", false);
+            agendaSet = true;
+        } else if (!decided && oldAgenda != null) {
+            newAgenda = null;
+            agendaSet = true;
+        }
+        String agendaLog = Objects.equals(oldAgenda, newAgenda) ? null
+                : "안건 번호: " + (oldAgenda == null ? "(없음)" : oldAgenda) + " → " + (newAgenda == null ? "(없음)" : newAgenda);
         String now = Times.nowIso();
-        if (mapper.updateResult(m.getMaterialId(), m.getResultCd(), to, meeting, me.getEmpNo(), now) != 1) {
+        if (mapper.updateResult(m.getMaterialId(), m.getResultCd(), to, meeting, agendaSet, newAgenda, me.getEmpNo(), now) != 1) {
             throw coded(409, "CONFLICT", "다른 사람이 먼저 바꿨습니다. 새로 고친 뒤 다시 시도해 주세요.");
         }
-        mapper.insertLog(m.getMaterialId(), "RESULT", null, null, m.getResultCd(), to, meeting, null, null, null, null,
+        mapper.insertLog(m.getMaterialId(), "RESULT", null, null, m.getResultCd(), to, meeting, null, null, null, agendaLog,
                 me.getEmpNo(), verified(actor), now);
         return detail(me, id);
     }
@@ -389,6 +412,9 @@ public class BoardMaterialService {
         lockCaseOf(id);
         BoardMaterial m = loadVisible(me, id);
         requireWriter(me, m);
+        if (in != null && in.getAgendaNo() != null) {
+            throw coded(400, "AGENDA_NO_NOT_ALLOWED", "안건 번호는 가결·부결을 등록할 때만 입력할 수 있습니다.");
+        }
         String meeting = optDate(in == null ? null : in.getMeetingDate());
         if (meeting == null) {
             throw coded(400, "MEETING_DATE_REQUIRED", "이사회 날짜를 입력하세요.");
@@ -897,6 +923,7 @@ public class BoardMaterialService {
         x.put("result_cd", m.getResultCd());
         x.put("result_name", m.getResultName());
         x.put("meeting_date", m.getMeetingDate());
+        x.put("agenda_no", m.getAgendaNo());
         x.put("form_id", m.getFormId());
         x.put("form_version", m.getFormVer() == 0 ? null : m.getFormVer());
         x.put("current_snap", m.getCurSnap());

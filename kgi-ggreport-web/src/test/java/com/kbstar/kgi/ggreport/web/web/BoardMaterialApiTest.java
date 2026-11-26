@@ -1356,6 +1356,53 @@ public class BoardMaterialApiTest {
     }
 
     @Test
+    public void 안건_번호는_결과_등록때만_받고_유지_지움_되돌림_이력이_맞다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        String[] c = cell(true);
+        save(id, MEMBER, body(0, c[0], c[1], "5"), 201);
+        assertEquals(200, approveAs(submit(id, MEMBER), LEAD).getResponse().getStatus());
+        String agendaSql = "SELECT AGENDA_NO FROM BOARD_MATERIAL WHERE MATERIAL_ID=?";
+        // 결과 아닌 경로(의결 예정·일정 등록)에서 agenda_no 가 오면 400
+        assertEquals(400, setResult(id, MEMBER, "{\"result\":\"SCHEDULED\",\"meeting_date\":\"2026-12-01\",\"agenda_no\":\"제1호\"}").getResponse().getStatus());
+        assertEquals(400, send("/board-materials/" + id + "/meeting-date", MEMBER, "{\"meeting_date\":\"2026-12-01\",\"agenda_no\":\"제1호\"}").getResponse().getStatus());
+        // 등록 -> 저장·응답
+        MvcResult ok = setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-01\",\"agenda_no\":\" 제2026-12호 \"}");
+        assertEquals(text(ok), 200, ok.getResponse().getStatus());
+        assertEquals("제2026-12호", jdbc.queryForObject(agendaSql, String.class, id));
+        assertEquals("제2026-12호", json(ok).path("agenda_no").asText());
+        // 생략 -> 유지
+        assertEquals(200, setResult(id, MEMBER, "{\"result\":\"REJECTED\",\"meeting_date\":\"2026-12-02\"}").getResponse().getStatus());
+        assertEquals("제2026-12호", jdbc.queryForObject(agendaSql, String.class, id));
+        // 31자·줄바꿈 -> 400, 개인정보 -> 422 (저장 값은 그대로)
+        StringBuilder long31 = new StringBuilder();
+        for (int i = 0; i < 31; i++) {
+            long31.append('가');
+        }
+        assertEquals(400, setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-02\",\"agenda_no\":\"" + long31 + "\"}").getResponse().getStatus());
+        assertEquals(400, setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-02\",\"agenda_no\":\"제1\\n호\"}").getResponse().getStatus());
+        assertEquals(422, setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-02\",\"agenda_no\":\"900101-1234567\"}").getResponse().getStatus());
+        assertEquals("제2026-12호", jdbc.queryForObject(agendaSql, String.class, id));
+        // 변경 -> 이력 문자열에 전→후
+        assertEquals(200, setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-02\",\"agenda_no\":\"제2026-13호\"}").getResponse().getStatus());
+        boolean sawChange = false;
+        for (JsonNode h : json(read("/board-materials/" + id + "/history", MEMBER))) {
+            if ("RESULT".equals(h.path("event_cd").asText()) && h.path("reason").asText().contains("제2026-12호 → 제2026-13호")) {
+                sawChange = true;
+            }
+        }
+        assertTrue(sawChange);
+        // 빈 문자열 -> 지움
+        assertEquals(200, setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-02\",\"agenda_no\":\"\"}").getResponse().getStatus());
+        assertEquals(null, jdbc.queryForObject(agendaSql, String.class, id));
+        // 다시 적고 -> 재작성 요구(되돌림) -> null
+        assertEquals(200, setResult(id, MEMBER, "{\"result\":\"PASSED\",\"meeting_date\":\"2026-12-02\",\"agenda_no\":\"제9호\"}").getResponse().getStatus());
+        assertEquals(200, rework(id, HEAD, "확정 뒤 재확인").getResponse().getStatus());
+        assertEquals(null, jdbc.queryForObject(agendaSql, String.class, id));
+    }
+
+    @Test
     public void 결과_변경은_확정_뒤_담당자만_감사에_남는다() throws Exception {
         String bc = newCase();
         assign(bc, MEMBER);

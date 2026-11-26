@@ -100,6 +100,8 @@
     okResult: '이사회 결과를 등록했습니다.',
     errDate: '날짜를 고르세요.',
     errResult: '등록하지 못했습니다. 잠시 뒤 다시 하세요.',
+    errAgenda: '안건 번호는 30자 이내 한 줄로 적어 주세요.',
+    errAgendaNot: '안건 번호는 가결·부결을 등록할 때만 적을 수 있습니다.',
     piiOk: '이상 없음',
     piiTitle: '올린 파일에 주민등록번호·카드번호 같은 개인정보가 들어 있는지 서버가 자동으로 살핀 결과입니다.',
     uploadWait: '검사하는 데 시간이 걸릴 수 있습니다.',
@@ -1574,14 +1576,21 @@
     return { state: 'ok', id: d.material_id, statusName: str(d.status_name), snapNo: Number(d.current_snap) || 0,
              saved: mat.savedLabel ? mat.savedLabel(d) : '', confirmed: d.confirmed_snap != null, html: html,
              resultCd: str(d.result_cd), meeting: mat.dateOf ? str(mat.dateOf(d.meeting_date)) : str(d.meeting_date).slice(0, 10),
+             agendaNo: str(d.agenda_no),
              canResult: !!(d.viewer && d.viewer.can_set_result === true), canMeeting: !!(d.viewer && d.viewer.can_set_meeting === true),
              resBusy: !!rs.busy, resErr: str(rs.err) };
   }
   // 이사회 일정 등록(sched: 결과 = 의결 예정)·결과 등록 — 이사회 자료 화면의 '의결 결과 입력'과 같은 주소(누가·언제는 자료 이력에 남는다).
+  // 결과 등록 본문. 안건 번호는 가결·부결일 때만 넣는다(빈 칸이면 "" = 지움). 의결 예정이면 키를 넣지 않는다.
+  function resultBody(result, date, agEl) {
+    const b = { result: result, meeting_date: date || null };
+    if ((result === 'PASSED' || result === 'REJECTED') && agEl) b.agenda_no = str(agEl.value).trim();
+    return b;
+  }
   function onBoardResult(sched) {
     const mat = root.boardMat, sm = S.mat, id = S.selected;
     if (!mat || !mat.actCall || !sm || sm.state !== 'ok' || !sm.d || (S.res && S.res.busy)) return;
-    const dateEl = el(sched ? 'ts-sched-date' : 'ts-res-date'), cdEl = el('ts-res-cd');
+    const dateEl = el(sched ? 'ts-sched-date' : 'ts-res-date'), cdEl = el('ts-res-cd'), agEl = sched ? null : el('ts-res-agenda');
     const date = str(dateEl && dateEl.value).trim();
     const result = sched ? 'SCHEDULED' : str(cdEl && cdEl.value);
     const sel = '[data-act="' + (sched ? 'board-sched' : 'board-result') + '"]';
@@ -1593,11 +1602,17 @@
       ? bfetch(mat.itemUrl(sm.d.material_id) + '/meeting-date', { method: 'POST',
           headers: Object.assign({ 'Content-Type': 'application/json' }, mat.headers('prep_detail', 'meeting_save')), body: JSON.stringify({ meeting_date: date }) })
           .then(function (resp) { return resp.json().catch(function () { return null; }).then(function (body) { return { ok: resp.ok, status: resp.status, body: body }; }); })
-      : mat.actCall(bfetch, 'result', sm.d.material_id, { result: result, date: date });
+      : bfetch(mat.itemUrl(sm.d.material_id) + '/result', { method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, mat.headers(mat.UI.WRITE, mat.BTN.RESULT)), body: JSON.stringify(resultBody(result, date, agEl)) })
+          .then(function (resp) { return resp.json().catch(function () { return null; }).then(function (body) { return { ok: resp.ok, status: resp.status, body: body }; }); });
     call.then(function (r) {
       if (S.res !== mine || S.selected !== id) return;
       if (!r || !r.ok) {
-        const msg = r && r.body && typeof r.body === 'object' ? str(r.body.message || r.body.error) : '';
+        const b = r && r.body && typeof r.body === 'object' ? r.body : null;
+        const code = b ? str(b.code || (b.detail && b.detail.code)) : '';
+        let msg = b ? str(b.message || b.error) : '';
+        if (!sched && code === 'AGENDA_NO_NOT_ALLOWED') msg = T.errAgendaNot;
+        else if (!sched && code === 'BAD_VALUE' && agEl && !agEl.disabled && str(agEl.value) !== '') msg = T.errAgenda;
         S.res = { busy: false, err: msg || T.errResult }; S.refocus = sel; paintCase(); return;
       }
       S.res = null; S.mat = null;   // 자료를 다시 읽는다
@@ -2497,6 +2512,7 @@
   function onChange(e) {
     const t = e.target;
     if (t && t.id === 'pp-file') { onFileChosen(); return; }
+    if (t && t.id === 'ts-res-cd') { const ag = el('ts-res-agenda'); if (ag) ag.disabled = str(t.value) === 'SCHEDULED'; return; }   // 안건 번호는 가결·부결일 때만
     const emp = t && t.getAttribute ? t.getAttribute('data-emp') : null;
     if (!emp || !S.modal || S.modal.kind !== 'open' || !t.closest('#pp-open-picks')) return;
     S.modal.sel = tm.togglePick(S.modal.sel, emp, prep.MAX);

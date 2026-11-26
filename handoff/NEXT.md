@@ -643,3 +643,8 @@
 - **현재**(11-27 새벽): 점검 끝(비평 22/32, 기술 14/20), **묶음 1~3 적용·커밋**(design_history 139) — '›'·'·' 글꼴 폴백, 검색 칸 테두리, 현황판 `.hb-stgs` 여백, 색 견본 정렬, radius 1px, 랜딩 제목 balance·자간, 전국 지역별 시도 카드·별 키보드 접근(render.regionCardHtml), 쪽지 `.nt-go` 보통 단추 24px. qa 조건부 통과 뒤 `:has` 미지원 대비 @supports 반영. 대화상자 머리색(P3)은 map-detail.test.js 'hex 없음' 계약과 충돌해 하지 않음.
 - **다음 한 걸음**: 묶음 4(화면 머리 4형식 통일·임박 칩 모양 통일·탭 title·접근 이름 군더더기) — design-reviewer 규격부터, prep.js·preptask.js·nav.js가 a6과 겹치니 a6 뒤. qa P3: 경계 없는 시도 카드의 hover 테두리, `.hb-stgs` 위 8·아래 14 비대칭(design-reviewer 판단). 끝나면 감지기·점검을 다시 돌려 점수 비교. 못 본 화면: 작업함·관리자·제안 준비 작업 상세·이사회 자료 작성 안쪽, `#pl-kw`·`#db-q` 검색 칸, `:has` 미지원 브라우저 실측(폐쇄망 브라우저 버전 미확인).
 - **자세히**: 점검 보고서 handoff/agents/design-reviewer/2026-11-27_0028_a0b06898.md(판정표·발견 목록·묶음), 패치안 handoff/agents/frontend-dev/2026-11-27_0111_ae81382d.md, 검증 handoff/agents/qa-verifier/(11-27 02시대 a76d0310), 캡처 `.playwright-mcp/imp-*.png`(이 PC, git 무시), 세션 기록 handoff/sessions/2026-11-26_2350_e2.md
+
+### 133. 11단계 제출서류 — RFP 제출서류 목록·서류별 올리기·현황 표 n/m (사용자 11-27 새벽) [담당: db(a6) — planner → backend-dev(Opus: 새 표·권한·감사) → security → design-reviewer → frontend-dev → -write 2개 → qa / NEXT 74 흡수]
+- **현재**: 기획 끝(선택지·권장안). 11단계는 손 체크 칸, T4 'RFP 붙임서류'는 준비 중(READY_YN=0)이나 T4 첨부 올리기는 이미 됨. 목록·짝짓기·n/m 없음. 사용자 답 대기 3건: 분모(필수만?)·7/7 자동 완료 여부·주민번호 든 서류 처리. 견본 RFP(제출서류 부분) 1~2건 필요.
+- **다음 한 걸음**: 답 3건 → backend-dev(Opus) 1차 설계(DB 069~ 예약 확인, MySQL·Oracle 쌍, 외래키 없음) → security → design-reviewer. 묶음: 1차 목록 직접 입력+서류별 올리기+n/m+[확인] / 2차 끌어다 놓기+파일 이름 짝 제안 / 3차 '공고문에서 불러오기'(규칙 추출, 원문 근거) → AI 초안은 129 뒤. 131 잔여·125 S3a 커밋 뒤 착수.
+- **자세히**: handoff/agents/planner/2026-11-27_0114_a90f728b.md(용어 후보·선택지 표·질문 3개·묶음), 관련 NEXT 74·129·131·125.

@@ -6,7 +6,7 @@
      ⚠️ FOR UPDATE 문장(lockAssignCase·selectInvolvedIds)은 집계·DISTINCT 와 함께 쓰지 않는다(Oracle 제약). -->
 <mapper namespace="com.kbstar.kgi.ggreport.web.mapper.BoardMaterialMapper">
 
-  <sql id="mcols">m.MATERIAL_ID, m.BID_CASE_ID, m.INSTITUTION_ID, m.BOARD_YEAR, m.STATUS_CD, m.RESULT_CD, m.MEETING_DATE,
+  <sql id="mcols">m.MATERIAL_ID, m.BID_CASE_ID, m.INSTITUTION_ID, m.BOARD_YEAR, m.STATUS_CD, m.RESULT_CD, m.MEETING_DATE, m.AGENDA_NO,
          m.SUBMIT_REQ_ID, m.SUBMIT_SNAP, m.CONFIRMED_SNAP, m.CONFIRMED_BY, m.CONFIRMED_AT,
          m.FORM_ID, m.FORM_VER, m.CUR_SNAP, m.LAST_SAVED_BY, m.LAST_SAVED_AT,
          m.CREATED_BY, m.CREATED_AT, m.UPDATED_BY, m.UPDATED_AT</sql>
@@ -120,13 +120,14 @@
   </update>
 
   <update id="backToDraftFromConfirmed">
-    UPDATE BOARD_MATERIAL SET STATUS_CD = 'DRAFT', RESULT_CD = NULL, MEETING_DATE = NULL, CONFIRMED_SNAP = NULL,
+    UPDATE BOARD_MATERIAL SET STATUS_CD = 'DRAFT', RESULT_CD = NULL, MEETING_DATE = NULL, AGENDA_NO = NULL, CONFIRMED_SNAP = NULL,
            CONFIRMED_BY = NULL, CONFIRMED_AT = NULL, UPDATED_BY = #{by}, UPDATED_AT = #{now}
      WHERE MATERIAL_ID = #{id} AND STATUS_CD = 'CONFIRMED'
   </update>
 
   <update id="updateResult">
     UPDATE BOARD_MATERIAL SET RESULT_CD = #{to}, MEETING_DATE = COALESCE(#{meetingDate,jdbcType=VARCHAR}, MEETING_DATE),
+           <if test="agendaSet">AGENDA_NO = #{agendaNo,jdbcType=VARCHAR},</if>
            UPDATED_BY = #{by}, UPDATED_AT = #{now}
      WHERE MATERIAL_ID = #{id} AND STATUS_CD = 'CONFIRMED'
        AND COALESCE(RESULT_CD, '-') = COALESCE(#{from,jdbcType=VARCHAR}, '-')

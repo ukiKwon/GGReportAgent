@@ -295,6 +295,9 @@
     stNoticeTodo: '확인 전',
     noticeGapsHead: function (n) { return '확인이 필요한 항목 ' + n + '건'; },
     noticeNoRec: '이 기관의 입찰 공고 자료를 찾지 못했습니다. 입찰 공고 현황에서 기관을 확인하세요.',
+    agendaNo: '안건 번호',
+    agendaPh: '제2026-12호',
+    agendaHint: '가결·부결을 등록할 때만 적습니다. 비워 두면 지웁니다.',
     noticeLoading: '입찰 공고 자료를 불러오는 중…',
     stNoticeOk: '확인 완료',
     stNoticeGap: '확인 필요',
@@ -787,6 +790,9 @@
     const v = m.view || {}, vw = v.viewer || {}, sc = str(v.state_cd);
     const t6 = tasksBlock(m, { tasks: ['T6'] });
     if (sc === 'CANCELLED' || sc === 'CONFIRMED' || sc === 'OPEN_PENDING') return note(T.scriptHint) + note(T.scriptLater) + (t6 || note(T.taskNone));
+      '<label for="ts-res-agenda">' + esc(T.agendaNo) + '</label><input type="text" id="ts-res-agenda" maxlength="30" placeholder="' + esc(T.agendaPh) + '" aria-describedby="ts-res-agenda-h" value="' + esc(b.agendaNo || '') + '"' +
+        ((cur || 'PASSED') === 'SCHEDULED' ? ' disabled' : '') + '>' +
+      '<span class="ts-note" id="ts-res-agenda-h">' + esc(T.agendaHint) + '</span>' +
     const b = m.board || {};
     // 이사회 자료는 담당 영업·영업부장만 목록에서 볼 수 있다 — 그 밖의 사람에게 '없음'은 '볼 수 없음'일 수 있어 없다고 말하지 않는다(불러오지 못함 문구로).
     const canSee = vw.is_assignee === true || vw.is_head === true;
@@ -950,8 +956,10 @@
     if (!b || b.state !== 'ok') return '';
     const res = str(b.resultCd) === 'PASSED' || str(b.resultCd) === 'REJECTED';
     const date = str(b.meeting);
-    // 후속: 안건 번호는 <div><dt>안건 번호</dt><dd><span class="m">…</span></dd></div> 를 같은 dl에 더한다(저장 자리 확정 뒤)
-    const dl = function (dt, dd) { return '<dl class="ts-facts"><div><dt>' + esc(dt) + '</dt><dd>' + dd + '</dd></div></dl>'; };
+    // 안건 번호: 결과(가결·부결)가 있을 때만 같은 dl에 더한다. 번호가 없으면 '등록 전'.
+    const ag = str(b.agendaNo);
+    const agDiv = res ? '<div><dt>' + esc(T.agendaNo) + '</dt><dd>' + (ag ? '<span class="m">' + esc(ag) + '</span>' : esc(T.dateNone)) + '</dd></div>' : '';
+    const dl = function (dt, dd) { return '<dl class="ts-facts"><div><dt>' + esc(dt) + '</dt><dd>' + dd + '</dd></div>' + agDiv + '</dl>'; };
     if (date) return dl(res ? T.dateHeld : T.dateSched, '<span class="m">' + esc(date) + '</span>');
     return dl(T.dateHeld, esc(T.dateNone)) + note(b.canResult === true ? T.dateNoneNote : T.schedView);
   };

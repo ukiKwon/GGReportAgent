@@ -8,6 +8,7 @@ public class BoardMaterial {
     private int boardYear;
     private String statusCd;
     private String meetingDate;
+    private String agendaNo;
     private String formId;
     private int formVer;
     private int curSnap;
@@ -39,6 +40,8 @@ public class BoardMaterial {
     public void setStatusCd(String v) { this.statusCd = v; }
     public String getMeetingDate() { return meetingDate; }
     public void setMeetingDate(String v) { this.meetingDate = v; }
+    public String getAgendaNo() { return agendaNo; }
+    public void setAgendaNo(String v) { this.agendaNo = v; }
     public String getFormId() { return formId; }
     public void setFormId(String v) { this.formId = v; }
     public int getFormVer() { return formVer; }

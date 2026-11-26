@@ -853,8 +853,14 @@ test('8단계 이사회 개최 및 결과: 결과 등록·결과 문서 보관·
   assert.ok(h.indexOf('data-kind="BOARD_RES"') > 0);
   assert.ok(/<option value="PASSED" selected>/.test(pt.boardResultHtml(Object.assign({}, base, { resultCd: '', meeting: '' }))), '처음에는 가결이 골라져 있다');
   assert.ok(pt.boardResultHtml(Object.assign({}, base, { confirmed: false })).indexOf(pt.T.schedNeedDoc) > 0);
+  // 안건 번호 입력: 라벨·maxlength 30·placeholder·미리 채움, 의결 예정이면 비활성
+  assert.ok(/<label for="ts-res-agenda">안건 번호<\/label><input type="text" id="ts-res-agenda" maxlength="30" placeholder="제2026-12호"[^>]*value="" disabled>/.test(h), '의결 예정이면 비활성');
+  const hp = pt.boardResultHtml(Object.assign({}, base, { resultCd: 'PASSED', agendaNo: '제2026-12호"' }));
+  assert.ok(/id="ts-res-agenda"[^>]*value="제2026-12호&quot;"><span/.test(hp) && hp.indexOf('disabled') < 0, '기존 값 미리 채움(이스케이프)');
+  assert.ok(/AGENDA_NO_NOT_ALLOWED/.test(PREP_SRC) && /b\.agenda_no = str\(agEl\.value\)\.trim\(\)/.test(PREP_SRC) && /agendaNo: str\(d\.agenda_no\)/.test(PREP_SRC));
+  assert.ok(/t\.id === 'ts-res-cd'[^\n]*ag\.disabled = str\(t\.value\) === 'SCHEDULED'/.test(PREP_SRC));
   // 배선: 이사회 자료 화면의 의결 결과와 같은 주소, 일정 등록은 '의결 예정'
-  assert.ok(/mat\.actCall\(bfetch, 'result', sm\.d\.material_id, \{ result: result, date: date \}\)/.test(PREP_SRC));
+  assert.ok(/mat\.itemUrl\(sm\.d\.material_id\) \+ '\/result'/.test(PREP_SRC) && /JSON\.stringify\(resultBody\(result, date, agEl\)\)/.test(PREP_SRC));
   assert.ok(/const result = sched \? 'SCHEDULED' : str\(cdEl && cdEl\.value\);/.test(PREP_SRC));
   assert.ok(/case 'board-sched': onBoardResult\(true\); return;/.test(PREP_SRC) && /case 'board-result': onBoardResult\(false\); return;/.test(PREP_SRC));
   assert.ok(/if \(curStep\.id === 'BOARD_DOC' \|\| curStep\.result\) model\.board = stepBoard\(\);/.test(PREP_SRC));
@@ -1078,7 +1084,10 @@ test('F7 완료 조건 줄: 23단계 모두 제목 바로 아래, 완료 전·�
 
 test('F8 결과 문서 밑 개최일 줄: 결과 뒤 개최일·결과 전 일정(예정)·날짜 없음(등록 전 + 누가 적나)·자료 상태 아니면 줄 없음', function () {
   const base = { state: 'ok', id: 12, confirmed: true, html: '', resultCd: 'PASSED', meeting: '2026-12-03', canResult: true };
-  assert.strictEqual(pt.resDateHtml(base), '<dl class="ts-facts"><div><dt>개최일</dt><dd><span class="m">2026-12-03</span></dd></div></dl>');
+  assert.strictEqual(pt.resDateHtml(base), '<dl class="ts-facts"><div><dt>개최일</dt><dd><span class="m">2026-12-03</span></dd></div><div><dt>안건 번호</dt><dd>등록 전</dd></div></dl>');
+  assert.strictEqual(pt.resDateHtml(Object.assign({}, base, { agendaNo: '제2026-12호<b>' })),
+    '<dl class="ts-facts"><div><dt>개최일</dt><dd><span class="m">2026-12-03</span></dd></div><div><dt>안건 번호</dt><dd><span class="m">제2026-12호&lt;b&gt;</span></dd></div></dl>');
+  assert.strictEqual(pt.resDateHtml(Object.assign({}, base, { resultCd: 'SCHEDULED', agendaNo: '제1호' })).indexOf('안건 번호'), -1, '결과 전에는 안건 번호 칸을 그리지 않는다');
   assert.strictEqual(pt.resDateHtml(Object.assign({}, base, { resultCd: 'REJECTED' })).indexOf('<dt>개최일</dt>') > 0, true);
   const sched = pt.resDateHtml(Object.assign({}, base, { resultCd: 'SCHEDULED' }));
   assert.ok(sched.indexOf('<dt>이사회 날짜(예정)</dt><dd><span class="m">2026-12-03</span></dd>') > 0 && sched.indexOf('<dt>개최일</dt>') < 0);
@@ -1096,8 +1105,14 @@ test('F8 결과 문서 밑 개최일 줄: 결과 뒤 개최일·결과 전 일�
   assert.ok(files > 0 && date > files && marks > date, '결과 문서 → 개최일 → 부서별 확인');
   assert.ok(h.indexOf('>이사회 결과 문서 보관</h4>') < date);
   assert.ok(h.indexOf('칸마다 상태를 고릅니다') < 0, '8단계 부서별 확인의 옛 안내 줄은 완료 조건 줄로 옮겼다');
-  // 안건 번호는 주석 자리만 — 저장 자리가 없다(planner Q2)
-  assert.ok(SRC.indexOf('<dt>안건 번호</dt>') > 0 && h.indexOf('안건 번호') < 0);
+  // 안건 번호: 결과(가결·부결) 뒤에만 개최일 옆에 — 값 또는 '등록 전'. 결과 전·날짜 없음에는 칸이 없다.
+  assert.ok(h.indexOf('<div><dt>안건 번호</dt><dd>등록 전</dd></div>') > date, '결과 뒤 번호 없음 = 등록 전');
+  const hv = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('BOARD'), { board: Object.assign({}, base, { agendaNo: '제2026-12호' }), resFiles: '' }));
+  assert.ok(hv.indexOf('<div><dt>안건 번호</dt><dd><span class="m">제2026-12호</span></dd></div>') > 0);
+  const hs = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('BOARD'), { board: Object.assign({}, base, { resultCd: 'SCHEDULED', agendaNo: '제1호', canResult: false }), resFiles: '' }));
+  assert.ok(hs.indexOf('<dt>안건 번호</dt>') < 0, '결과 전에는 안건 번호 줄이 없다');
+  const hn = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('BOARD'), { board: Object.assign({}, base, { resultCd: '', meeting: '', canResult: false }), resFiles: '' }));
+  assert.ok(hn.indexOf('안건 번호') < 0, '결과·날짜 없음에는 안건 번호가 없다');
 });
 
 test('2단계 본문: 약정 값과 기관장 카드를 paneParts에 넘긴다', function () {
