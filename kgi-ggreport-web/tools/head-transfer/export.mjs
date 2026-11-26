@@ -5,6 +5,7 @@
 // 사진은 git 에 올리지 않는다(사용자 11-13·11-24: 언론·나무위키 사진은 이 PC 전용 조건) — 묶음은 USB·사내 공유로만 옮긴다.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, all) => (v.startsWith('--') ? a.concat([[v.slice(2), all[i + 1]]]) : a), []));
 if (!args.out) { console.log('사용: node export.mjs --out <폴더> [--base http://localhost:8080] [--emp 5047192]'); process.exit(1); }
@@ -13,7 +14,7 @@ const EMP = args.emp || '5047192';
 const H = (btn) => ({ 'X-Emp-No': EMP, 'X-Screen-Id': 'head_card', 'X-Button-Id': btn });
 const OUT = path.resolve(args.out);
 // 묶음에는 사진·생년월일이 들어간다 — 저장소 폴더 안에 만들면 실수로 커밋될 수 있어 막는다(security 11-24)
-const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', '..', '..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');   // fileURLToPath: 공백·한글 경로의 % 인코딩을 풀어 준다
 if ((OUT + path.sep).toLowerCase().startsWith((REPO + path.sep).toLowerCase())) {
   console.log('저장소 폴더 안에는 묶음을 만들지 않습니다(사진·생년월일이 커밋될 수 있음). 바탕화면 등 저장소 밖 폴더를 --out 으로 주세요: ' + REPO);
   process.exit(1);
