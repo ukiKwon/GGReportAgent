@@ -84,6 +84,22 @@ public class PrepScriptService {
         public Integer getFormVer() { return formVer; }
     }
 
+    /** 문서 만들기 실패 — 어느 이사회 자료를 읽다 실패했는지(숫자·확정 여부)만 싣는다. IllegalStateException 이라 기존 500 일반 문구 처리 그대로. */
+    public static final class BuildFailed extends IllegalStateException {
+        private static final long serialVersionUID = 1L;
+        private final transient Long boardId;
+        private final boolean boardConfirmed;
+
+        BuildFailed(Long boardId, boolean boardConfirmed, Throwable cause) {
+            super("script build failed", cause);
+            this.boardId = boardId;
+            this.boardConfirmed = boardConfirmed;
+        }
+
+        public Long getBoardId() { return boardId; }
+        public boolean isBoardConfirmed() { return boardConfirmed; }
+    }
+
     private final PrepService prep;
     private final PrepFormService prepForms;
     private final PrepFormMapper forms;
@@ -114,7 +130,14 @@ public class PrepScriptService {
         BoardScriptInput x = new BoardScriptInput();
         applyHand(x, me, in == null ? new PrepScriptIn() : in);
         Basis basis = loadAuto(x, me, p, bid);
-        byte[] bytes = DocxKit.render(BoardScriptDocBuilder.build(x), DocxKit.Footer.pageNumberOnly());
+        byte[] bytes;
+        try {
+            bytes = DocxKit.render(BoardScriptDocBuilder.build(x), DocxKit.Footer.pageNumberOnly());
+        } catch (ApiException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new BuildFailed(basis.boardId, basis.boardConfirmed, e);   // 컨트롤러가 확정 자료 감사에 ERROR 한 줄을 남길 수 있게 근거를 싣는다
+        }
         return new DocOut(bytes, x.instName, x.draft, basis.boardId, basis.boardSnap, basis.boardConfirmed, basis.formVer);
     }
 
@@ -297,8 +320,8 @@ public class PrepScriptService {
         BoardMaterial chosen = null;
         boolean boardConfirmed = false;
         if (boardAccess.canViewCase(me.getEmpNo(), bid)) {
-            BoardMaterial withSnap = null;
-            BoardMaterial any = null;
+            // 같은 건에 이사회 자료가 여러 개면 최신 하나만 쓴다(질의 정렬: BOARD_YEAR 큰 것, 같으면 MATERIAL_ID 큰 것 — 사용자 11-26).
+            // 옛 연도의 확정본이 있어도 그쪽으로 넘어가지 않는다.
             int seen = 0;
             for (Long id : scripts.selectBoardIds(bid)) {
                 if (seen++ >= MAX_BOARD_ROWS) {
@@ -308,20 +331,9 @@ public class PrepScriptService {
                 if (m == null) {
                     continue;
                 }
-                if (BoardMaterialService.CONFIRMED.equals(m.getStatusCd()) && m.getConfirmedSnap() != null) {
-                    chosen = m;
-                    boardConfirmed = true;
-                    break;
-                }
-                if (withSnap == null && m.getCurSnap() >= 1) {
-                    withSnap = m;
-                }
-                if (any == null) {
-                    any = m;
-                }
-            }
-            if (chosen == null) {
-                chosen = withSnap != null ? withSnap : any;
+                chosen = m;
+                boardConfirmed = BoardMaterialService.CONFIRMED.equals(m.getStatusCd()) && m.getConfirmedSnap() != null;
+                break;
             }
         }
         BoardScriptFigures fig = null;

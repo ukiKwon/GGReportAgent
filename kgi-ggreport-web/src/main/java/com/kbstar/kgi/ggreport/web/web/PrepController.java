@@ -267,14 +267,28 @@ public class PrepController {
                                                   HttpServletRequest req) {
         Actor actor = Actor.of(req);
         BoardUiIds.Ui ui = PrepUiIds.forScript(req);                                        // prep_detail/script_docx 만 유효
-        BoardUiIds.Ui boardUi = BoardUiIds.of(req, BoardUiIds.ACT_SCRIPT_DOCX);             // 이사회 자료 감사 줄용 — 같은 짝만 유효
+        // 이사회 자료 감사 줄용 — BID_PREP_ACT 줄과 같은 판정(prep_detail/script_docx 일 때만 유효, 그 밖은 UNKNOWN·ui_valid=0)
+        BoardUiIds.Ui boardUi = ui.isValid() ? BoardUiIds.of(req, BoardUiIds.ACT_SCRIPT_DOCX) : BoardUiIds.unknown();
         PrepScriptService.DocOut out = run(req, bidCaseId, "SCRIPT_DOCX", "T6", null, ui, false, me -> {
-            PrepScriptService.DocOut d = script.docx(me, bidCaseId, body);
-            if (d.isBoardConfirmed() && d.getBoardId() != null) {
-                boardAudit.record(boardAudit.before(String.valueOf(d.getBoardId())), "SCRIPT_DOCX", "OK", actor, boardUi);
+            try {
+                return script.docx(me, bidCaseId, body);
+            } catch (PrepScriptService.BuildFailed e) {   // 확정 자료를 읽다 문서 만들기가 실패 — 자료 감사에도 ERROR 한 줄(BID_PREP_ACT ERROR 는 run 이 남긴다)
+                if (e.isBoardConfirmed() && e.getBoardId() != null) {
+                    boardScriptAuditBestEffort(e.getBoardId(), "ERROR", actor, boardUi);
+                }
+                throw e;
             }
-            return d;
         });
+        // BID_PREP_ACT OK 가 남은 뒤에 자료 감사 OK 를 쓴다 — 앞 기록이 실패하면 여기까지 오지 않아 자료 감사에만 OK 가 남는 엇갈림이 없다.
+        // 이 기록이 실패하면 ERROR 를 시도하고 500(파일 안 나감, fail-closed).
+        if (out.isBoardConfirmed() && out.getBoardId() != null) {
+            try {
+                boardAudit.record(boardAudit.before(String.valueOf(out.getBoardId())), "SCRIPT_DOCX", "OK", actor, boardUi);
+            } catch (RuntimeException e) {
+                boardScriptAuditBestEffort(out.getBoardId(), "ERROR", actor, boardUi);
+                throw e;
+            }
+        }
         req.setAttribute(AccessLogInterceptor.DETAIL, req.getAttribute(AccessLogInterceptor.DETAIL)
                 + " board=" + (out.getBoardId() == null ? "-" : out.getBoardId())
                 + " snap=" + (out.getBoardSnap() == null ? "-" : out.getBoardSnap())
@@ -366,6 +380,15 @@ public class PrepController {
         Actor actor = Actor.of(req);
         return run(req, bidCaseId, "ATTACH_VOID", null, PrepAttachService.parseId(attachId),
                 me -> attach.voidAttach(me, actor, bidCaseId, attachId, body));
+    }
+
+    /** 이사회 자료 감사(SCRIPT_DOCX) 실패 줄 — 기록이 실패해도 원래 오류를 덮지 않는다(예외 종류만 로그). */
+    private void boardScriptAuditBestEffort(Long boardId, String outcome, Actor actor, BoardUiIds.Ui ui) {
+        try {
+            boardAudit.record(boardAudit.before(String.valueOf(boardId)), "SCRIPT_DOCX", outcome, actor, ui);
+        } catch (RuntimeException ex) {
+            LOG.warn("이사회 자료 감사(SCRIPT_DOCX {})를 남기지 못했다: cause={}", outcome, ex.getClass().getSimpleName());
+        }
     }
 
     /** RFC 5987 값 인코딩(filename*) — 공백은 %20, '*' 는 %2A. */

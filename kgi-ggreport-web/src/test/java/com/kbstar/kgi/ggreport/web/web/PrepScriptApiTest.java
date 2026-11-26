@@ -107,7 +107,11 @@ public class PrepScriptApiTest {
 
     /** 이사회 자료를 만들고(담당자) 표 A·B 값을 직접 심는다. confirmed 면 확정(CONFIRMED, 확정 판 1)으로 바꾼다. */
     private long board(String bid, boolean confirmed) throws Exception {
-        MvcResult r = call(HttpMethod.POST, "/board-materials", ASSIGNEE, "{'bid_case_id':'" + bid + "','year':2026}", "board_write", "save_version");
+        return board(bid, confirmed, 2026);
+    }
+
+    private long board(String bid, boolean confirmed, int year) throws Exception {
+        MvcResult r = call(HttpMethod.POST, "/board-materials", ASSIGNEE, "{'bid_case_id':'" + bid + "','year':" + year + "}", "board_write", "save_version");
         assertEquals(r.getResponse().getContentAsString(), 201, r.getResponse().getStatus());
         long id = json(r).path("material_id").asLong();
         jdbc.update("INSERT INTO BOARD_MATERIAL_SNAP (MATERIAL_ID, SNAP_NO, VALUES_JSON, NOTE, SAVED_BY, SAVED_AT) VALUES (?,?,?,?,?,?)",
@@ -299,6 +303,39 @@ public class PrepScriptApiTest {
         // 첨부 목록 같은 다른 사전준비 주소에서 script_docx 는 UNKNOWN
         assertEquals(200, call(HttpMethod.GET, "/bidcases/" + bid + "/prep/attachments", ASSIGNEE, null, "prep_detail", "script_docx").getResponse().getStatus());
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ATTACH_LIST' AND BUTTON_ID='UNKNOWN' AND UI_VALID=0", bid));
+    }
+
+    @Test
+    public void 같은_건에_자료가_여럿이면_가장_최근_연도_하나만_쓰고_옛_확정본으로_넘어가지_않는다() throws Exception {
+        String bid = opened();
+        long old = board(bid, true, 2025);
+        long cur = board(bid, false, 2026);
+        MvcResult r = script(bid, ASSIGNEE, null);
+        body(r);
+        assertEquals("Y", r.getResponse().getHeader("X-Script-Draft"));
+        String d = lastDetail(bid);
+        assertTrue(d, d.contains(" board=" + cur + " snap=1 "));
+        assertEquals("최신이 확정 전이면 옛 확정본의 감사 줄은 없다", 0, boardActs(old, ""));
+        assertEquals(0, boardActs(cur, ""));
+        // 최신(2026)이 확정이면 확정 판 감사 한 줄, 옛 연도 초안은 쓰지 않는다
+        jdbc.update("UPDATE BOARD_MATERIAL SET STATUS_CD='CONFIRMED', CONFIRMED_SNAP=1, CONFIRMED_BY=?, CONFIRMED_AT=? WHERE MATERIAL_ID=?",
+                LEAD, "2026-11-10T09:00:00+09:00", cur);
+        jdbc.update("UPDATE BOARD_MATERIAL SET STATUS_CD='DRAFT', CONFIRMED_SNAP=NULL, CONFIRMED_BY=NULL, CONFIRMED_AT=NULL WHERE MATERIAL_ID=?", old);
+        flushCache();
+        body(script(bid, ASSIGNEE, null));
+        assertTrue(lastDetail(bid), lastDetail(bid).contains(" board=" + cur + " snap=1 "));
+        assertEquals(1, boardActs(cur, "AND OUTCOME='OK'"));
+        assertEquals(0, boardActs(old, ""));
+    }
+
+    @Test
+    public void 이사회_감사_줄도_다른_화면_짝이면_UNKNOWN이다_board_list_open() throws Exception {
+        String bid = opened();
+        long id = board(bid, true);
+        MvcResult r = call(HttpMethod.POST, "/bidcases/" + bid + "/prep/board-script-docx", ASSIGNEE, null, "board_list", "open");
+        assertEquals(200, r.getResponse().getStatus());
+        assertEquals(1, boardActs(id, "AND OUTCOME='OK' AND SCREEN_ID='UNKNOWN' AND BUTTON_ID='UNKNOWN' AND UI_VALID=0"));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='SCRIPT_DOCX' AND OUTCOME='OK' AND UI_VALID=0", bid));
     }
 
     @Test
