@@ -231,7 +231,7 @@ test('표 기본 순서: 공고 확인 필요 맨 위 → 공고(예정)일 순 
     r('y', 'open', '2026-11-10', false, 9), x, r('w', 'done', '2026-09-01', false, null)];
   assert.strictEqual(portal.tableOrder(list).map(function (x) { return x.key; }).join(''), 'xyzwvu');
 });
-test('협약 종료일만 있는 줄은 종료 6개월 전 추정, 지났으면 예상일 지남(뒤), 결과 태그가 있으면 공고 종료 묶음', function () {
+test('협약 종료일만 있는 줄은 종료 6개월 전 추정, 지났으면 추정일 지남(뒤), 결과 태그가 있으면 공고 종료 묶음', function () {
   const item = function (name, end, endDays, tag, extra) {
     return { key: '11|' + name, rec: rec(name, name, extra), name: name, region: '11', org: '지자체', group: 'kb', bank: '국민은행', end: end, endDays: endDays, tag: tag, nextBank: '' };
   };
@@ -261,19 +261,22 @@ test('공고 확인 필요 = 공고 경과 판정 목록: 같은 기관·같은 
   const pair = function (list) { return list.map(function (x) { return x[0] + ':' + x[1]; }).sort(); };
   assert.deepStrictEqual(pair(checks.map(function (r) { return [r.key, -r.ndays]; })), pair(judged.map(function (x) { return [x.key, x.days]; })));
   assert.deepStrictEqual(checks.map(function (r) { return [r.name, r.ndate, r.nest, r.ndays]; }), [['가구', p(-10), true, -10], ['다구', '', false, -7]]);
-  assert.deepStrictEqual(names(rows), ['가구', '다구', '나구']);                       // 판정 완료(나구)는 확인 필요가 아니라 예상일 지남
-  assert.deepStrictEqual([rows[2].check, rows[2].lapsed], [false, true]);
+  assert.deepStrictEqual(names(rows), ['가구', '다구', '나구']);                       // 판정 완료(나구, 공고 종료 기록)는 확인 필요가 아니라 공고 종료 묶음
+  assert.deepStrictEqual([rows[2].stage, rows[2].check, rows[2].lapsed, rows[2].ndate], ['done', false, false, '']);
   assert.deepStrictEqual(portal.scheduleRows(rows), []);
 });
-test('접수 중 공고 줄은 판정 목록에 있어도 공고 중, 결과 태그 줄은 목록에 있으면 확인 필요가 앞선다', function () {
+test('접수 중 공고 줄은 판정 목록에 있어도 공고 중, 결과 태그 줄은 목록에 있으면 확인 필요가 앞선다(칩은 공고 종료)', function () {
   const L = [rec('N1', '가구', { confirmed: true, contractEnd: p(-3), receiveTo: p(2) })];
   const model = require('../js/dashboard.js').model(L, TODAY);
   const past = [{ key: '11|가구', rec: L[0], name: '가구', endDays: -4 }, { key: '11|나구', rec: rec('B', '나구'), name: '나구', endDays: -9 }];
   const by = { '11|나구': { group: 'kb', bank: '국민은행', end: p(-9), endDays: -9, tag: 'ended', nextBank: '' } };
   const rows = portal.tableRows(model, { byKey: by, kb: [], other: [], past: past }, TODAY, null);
-  assert.deepStrictEqual(rows.map(function (r) { return [r.name, r.stage, r.check, r.tag]; }), [['나구', 'pre', true, 'ended'], ['가구', 'open', false, '']]);
+  assert.deepStrictEqual(rows.map(function (r) { return [r.name, r.stage, r.check, r.tag]; }), [['나구', 'done', true, 'ended'], ['가구', 'open', false, '']]);
+  const ended = portal.rowHtml(rows[0]);                                                // 입찰 끝남도 칩은 공고 종료, D+n·위 묶음 유지
+  assert.ok(ended.indexOf('class="pt-r"') > 0 && ended.indexOf('<span class="pt-chip end">공고 종료</span>') > 0 && ended.indexOf('<b>공고 확인 필요</b>') > 0 && ended.indexOf('D+9') > 0);
+  assert.ok(portal.tableHtml(rows, {}).indexOf('class="grp"') < 0);
 });
-test('예상일 지남: 도장·숫자 없이, 다가오는 줄 뒤·공고 종료 앞에서 협약 종료일 가까운 순, 공고까지 정렬에서는 값 없는 줄', function () {
+test('추정일 지남: 도장·숫자 없이, 다가오는 줄 뒤·공고 종료 앞에서 협약 종료일 가까운 순, 공고까지 정렬에서는 값 없는 줄', function () {
   const item = function (name, end, tag) {
     return { key: '11|' + name, rec: rec(name, name), name: name, region: '11', org: '지자체', group: 'kb', bank: '국민은행', end: end, endDays: 100, tag: tag || '', nextBank: '' };
   };
@@ -283,7 +286,7 @@ test('예상일 지남: 도장·숫자 없이, 다가오는 줄 뒤·공고 종�
   const rows = portal.tableRows({ notice: [], upcoming: [] }, { byKey: by, kb: items, other: [] }, TODAY);
   assert.deepStrictEqual(names(rows), ['바구', '마구', '라구', '사구']);
   const h = portal.rowHtml(rows[1]);
-  assert.ok(h.indexOf('<td class="mut">예상일 지남</td>') > 0 && h.indexOf('ov-stamp') < 0 && h.indexOf('D+') < 0);
+  assert.ok(h.indexOf('<td class="mut">추정일 지남</td>') > 0 && h.indexOf('ov-stamp') < 0 && h.indexOf('D+') < 0);
   ['asc', 'desc'].forEach(function (dir) {
     assert.deepStrictEqual(names(portal.sortBy(rows, { key: 'days', dir: dir })), ['바구', '마구', '라구', '사구'], dir);
   });
@@ -291,16 +294,16 @@ test('예상일 지남: 도장·숫자 없이, 다가오는 줄 뒤·공고 종�
 test('nextSort 두 상태 토글·sortText·liveText(kind sort)', function () {
   assert.deepStrictEqual(portal.nextSort(null, 'date'), { key: 'date', dir: 'asc' });
   assert.deepStrictEqual(portal.nextSort({ key: 'date', dir: 'asc' }, 'date'), { key: 'date', dir: 'desc' });
-  assert.deepStrictEqual(portal.nextSort({ key: 'date', dir: 'desc' }, 'date'), { key: 'date', dir: 'asc' });   // 세 번째 누름은 다시 오름(기본으로 돌아가는 길은 [임박순으로])
+  assert.deepStrictEqual(portal.nextSort({ key: 'date', dir: 'desc' }, 'date'), { key: 'date', dir: 'asc' });   // 세 번째 누름은 다시 오름(기본으로 돌아가는 길은 [기본 순서로])
   assert.deepStrictEqual(portal.nextSort({ key: 'date', dir: 'desc' }, 'bank'), { key: 'bank', dir: 'asc' });
-  assert.strictEqual(portal.sortText(null), '임박순');
+  assert.strictEqual(portal.sortText(null), '기본 순서');
   assert.strictEqual(portal.sortText({ key: 'days', dir: 'desc' }), '공고까지 내림차순');
-  assert.strictEqual(portal.headNote(null), '공고 확인 필요는 맨 위, 공고 종료는 맨 아래');
+  assert.strictEqual(portal.headNote(null), '공고 확인 필요 → 공고(예정)일 순 → 추정일 지남·지연 → 공고 종료');
   assert.strictEqual(portal.headNote({ key: 'end', dir: 'asc' }), '협약 종료일 오름차순, 공고 종료는 맨 아래');
   assert.strictEqual(portal.liveText({ kind: 'sort', sort: { key: 'bank', dir: 'asc' } }, 7, 11, 9), '현 금고 은행 오름차순으로 정렬했습니다. 7곳');
-  assert.strictEqual(portal.liveText({ kind: 'sort', sort: null }, 7, 11, 9), '임박순으로 돌아갔습니다. 7곳');
+  assert.strictEqual(portal.liveText({ kind: 'sort', sort: null }, 7, 11, 9), '기본 순서로 돌아갔습니다. 7곳');
   const sk = portal.skeletonHtml();
-  assert.ok(sk.indexOf('id="pt-lr"') > 0 && sk.indexOf('id="pt-sort-reset"') > 0 && sk.indexOf('data-pt-sortreset="1" hidden>임박순으로</button>') > 0 && sk.indexOf('id="pt-live"') > 0);
+  assert.ok(sk.indexOf('id="pt-lr"') > 0 && sk.indexOf('id="pt-sort-reset"') > 0 && sk.indexOf('data-pt-sortreset="1" hidden>기본 순서로</button>') > 0 && sk.indexOf('id="pt-live"') > 0);
   const s = src('js/portal.js');
   assert.ok(/P\.sortBy\(P\.filterRows\(v\.rows, f\), S\.sort\)/.test(s));                           // 정렬은 ROW_MAX로 자르기(tableHtml) 전에
   assert.ok(/S\.sort = null; S\.errSig = ''/.test(s) && s.indexOf("'data-pt-sort'") > 0);           // 초기화·포커스 복원
@@ -315,7 +318,7 @@ test('표 한 기관 한 줄: 마감 지남·결과 확인은 공고 종료로 �
   const kbOnly = { key: '11|바구', rec: rec('B', '바구'), name: '바구', region: '11', org: '지자체', group: 'kb', bank: '국민은행', end: p(10), endDays: 10, tag: '', nextBank: '' };
   const buckets = { byKey: { '11|가구': kbItem, '11|바구': kbOnly }, kb: [kbItem, kbOnly], other: [] };
   const rows = portal.tableRows(model, buckets, TODAY);
-  assert.deepStrictEqual(names(rows), ['가구', '마구', '바구', '라구']);                        // 공고 중 → 예상일 지남 → 공고 종료
+  assert.deepStrictEqual(names(rows), ['가구', '마구', '바구', '라구']);                        // 공고 중 → 추정일 지남 → 공고 종료
   assert.deepStrictEqual([rows[2].kind, rows[2].stage, rows[2].lapsed, rows[2].ndays], ['kb', 'pre', true, null]);
   assert.strictEqual(rows[0].kind, 'notice');
   assert.strictEqual(rows[0].group, 'kb');                                                      // 공고 줄이어도 ② 거르기에 들어간다
@@ -425,6 +428,76 @@ test('공고 경과 판정 대기 = 경과 미처리 + 협약 종료일 지난 �
   const snap = { byId: { O2: { status_cd: 'CLOSED' } }, today: p(0) };
   assert.strictEqual(portal.judgeCount(model, { past: past }, snap, TODAY), 2);                // 나구는 처리됨 → 가구·다구
   assert.strictEqual(portal.judgeItems(model, { past: [] }, null, TODAY)[0].name, '가구');     // 경과 일수가 적은(최근) 기관이 먼저
+});
+
+// ── 판정 기록이 있는 경과 기관(NEXT 126 ①②④) ───────────────────────────
+function pastItem(id, name, days) { return { key: '11|' + name, rec: rec(id, name), name: name, region: '11', endDays: -days }; }
+function kbItem(name, end, tag, r) { return { key: '11|' + name, rec: r || rec(name, name), name: name, region: '11', org: '지자체', group: 'kb', bank: '국민은행', end: end, endDays: 100, tag: tag || '', nextBank: '' }; }
+function byKeyOf(items) { const by = {}; items.forEach(function (x) { by[x.key] = x; }); return by; }
+
+test('협약 종료일이 지난 기관도 판정 기록을 본다: 미처리만 확인 필요, 공고 종료·입찰 없음 = 공고 종료, 진행 = 공고 중, 지연 = 다음 확인', function () {
+  const past = [pastItem('O3', '다구', 7), pastItem('O4', '라구', 9), pastItem('O5', '마구', 11), pastItem('O6', '바구', 13), pastItem('O7', '사구', 15)];
+  const snap = { byId: { O3: { status_cd: 'CLOSED' }, O4: { status_cd: 'NO_BID' }, O5: { status_cd: 'IN_PROGRESS' },
+    O6: { status_cd: 'DELAYED', next_check_date: p(11) }, O7: { status_cd: 'DELAYED', next_check_date: p(-1) } }, today: p(0) };   // 사구는 확인일이 지나 미처리
+  const model = { notice: [], upcoming: [], overdue: [] }, buckets = { byKey: {}, kb: [], other: [], past: past };
+  assert.deepStrictEqual(names(portal.judgeItems(model, buckets, snap, TODAY)), ['사구']);
+  assert.strictEqual(portal.judgeCount(model, buckets, null, TODAY), 5);                 // 기록을 못 받으면 모두 미처리
+  assert.strictEqual(portal.judgeCount(model, buckets, { byId: { O3: { status_cd: 'ZZZ' } }, today: p(0) }, TODAY), 5);   // 모르는 상태 코드도 미처리
+  const rows = portal.tableRows(model, buckets, TODAY, snap);
+  assert.deepStrictEqual(names(rows), ['사구', '마구', '바구', '다구', '라구']);
+  assert.deepStrictEqual(rows.map(function (r) { return [r.stage, r.check, r.delayed, r.nextCheck]; }),
+    [['pre', true, false, ''], ['open', false, false, ''], ['pre', false, true, '11-30'], ['done', false, false, ''], ['done', false, false, '']]);
+  const open = portal.rowHtml(rows[1]), late = portal.rowHtml(rows[2]);
+  assert.ok(open.indexOf('<span class="pt-chip on">공고 중</span>') > 0 && open.indexOf('<td class="mut">마감일 미확인</td>') > 0);
+  assert.ok(late.indexOf('<span class="pt-chip">공고 전</span>') > 0 && late.indexOf('<td class="mut pt-next">다음 확인 <span class="pt-dd-est">11-30</span></td>') > 0);
+  assert.deepStrictEqual(portal.scheduleRows(rows), []);
+  // 예정일 경과로 처리한 기관이 협약 종료일 경과로 다시 대기에 들지 않는다
+  const L = [rec('O1', '가구', { confirmed: false, contractEnd: p(-10) })], m = require('../js/dashboard.js').model(L, TODAY);
+  assert.strictEqual(portal.judgeCount(m, { past: [pastItem('O1', '가구', 3)] }, { byId: { O1: { status_cd: 'CLOSED' } }, today: p(0) }, TODAY), 0);
+});
+test('예정일 경과 기관의 진행·지연 기록: 원래 예정일(추정 표지), 지연은 추정일 지남과 같은 묶음에서 협약 종료일 가까운 순', function () {
+  const L = [rec('O1', '가구', { confirmed: false, contractEnd: p(-10) }), rec('O2', '나구', { confirmed: false, contractEnd: p(-20) }),
+    rec('O3', '다구', { confirmed: false, contractEnd: p(-30) })];
+  const model = require('../js/dashboard.js').model(L, TODAY);
+  const items = [kbItem('가구', '2027-09-30', '', L[0]), kbItem('나구', '2027-03-31', '', L[1]), kbItem('라구', '2027-01-31')];
+  const snap = { byId: { O1: { status_cd: 'DELAYED', next_check_date: p(11) }, O2: { status_cd: 'DELAYED', next_check_date: p(11) }, O3: { status_cd: 'IN_PROGRESS' } }, today: p(0) };
+  const buckets = { byKey: byKeyOf(items), kb: items, other: [], past: [] };
+  assert.strictEqual(portal.judgeCount(model, buckets, snap, TODAY), 0);
+  const rows = portal.tableRows(model, buckets, TODAY, snap);
+  assert.deepStrictEqual(names(rows), ['다구', '라구', '나구', '가구']);
+  assert.deepStrictEqual([rows[0].stage, rows[0].ndate, rows[0].nest, rows[0].ndays], ['open', p(-30), true, null]);
+  assert.deepStrictEqual([rows[3].stage, rows[3].ndate, rows[3].nest, rows[3].ndays, rows[3].delayed, rows[3].lapsed], ['pre', p(-10), true, null, true, false]);
+  assert.deepStrictEqual([rows[1].delayed, rows[1].lapsed], [false, true]);
+});
+test('확인 필요 + 결과 태그(재유치·차기·신규 확정): 칩은 공고 종료, 맨 위·D+n 유지, 처리하면 아래 공고 종료 묶음으로', function () {
+  const L = [rec('O1', '가구', { confirmed: false, contractEnd: p(-10) }), rec('O2', '나구', { confirmed: false, contractEnd: p(-20) })];
+  const model = require('../js/dashboard.js').model(L, TODAY);
+  const items = [kbItem('가구', '2026-12-31', 'kept', L[0]), kbItem('나구', '2026-12-31', 'won', L[1]), kbItem('다구', '2026-12-31', 'next')];
+  const buckets = { byKey: byKeyOf(items), kb: items, other: [], past: [] };
+  const rows = portal.tableRows(model, buckets, TODAY, null);
+  assert.deepStrictEqual(rows.map(function (r) { return [r.name, r.stage, r.check, r.ndays]; }), [['나구', 'done', true, -20], ['가구', 'done', true, -10], ['다구', 'done', false, null]]);
+  const h = portal.rowHtml(rows[0]);
+  assert.ok(h.indexOf('class="pt-r"') > 0 && h.indexOf('<span class="pt-chip end">공고 종료</span>') > 0 && h.indexOf('<b>공고 확인 필요</b>') > 0 && h.indexOf('D+20') > 0);
+  const t = portal.tableHtml(rows, {});
+  assert.ok(t.indexOf('공고 종료 1곳</th>') > t.indexOf('data-pt-open="11|가구"'));
+  assert.deepStrictEqual(names(portal.sortBy(rows, { key: 'days', dir: 'asc' })), ['나구', '가구', '다구']);
+  const after = portal.tableRows(model, buckets, TODAY, { byId: { O1: { status_cd: 'CLOSED' } }, today: p(0) });
+  assert.deepStrictEqual(after.map(function (r) { return [r.name, r.check]; }), [['나구', true], ['가구', false], ['다구', false]]);
+});
+test('qa 11-26 시험 공백: 금고 묶음에도 있는 경과 기관은 경과의 날짜·일수, 태그 붙은 예정 줄은 공고 종료+확인된 공고일, 잘려도 묶음 제목은 전체 수', function () {
+  const L = [rec('O1', '가구', { confirmed: false, contractEnd: p(-10) })], model = require('../js/dashboard.js').model(L, TODAY);
+  const item = kbItem('가구', '2026-12-31', '', L[0]);
+  const r1 = portal.tableRows(model, { byKey: byKeyOf([item]), kb: [item], other: [], past: [] }, TODAY, null);
+  assert.deepStrictEqual([r1.length, r1[0].check, r1[0].ndate, r1[0].ndays], [1, true, p(-10), -10]);
+  const R = rec('N', '나구', { confirmed: true, contractEnd: '2026-06-01' });
+  const up = { notice: [], overdue: [], upcoming: [{ key: '11|나구', rec: R, name: '나구', region: '11', date: p(30), days: 30, confidence: '' }] };
+  const r2 = portal.tableRows(up, { byKey: byKeyOf([kbItem('나구', p(100), 'kept', R)]), kb: [], other: [] }, TODAY, null);
+  assert.deepStrictEqual([r2[0].stage, r2[0].ndate, r2[0].nest, r2[0].ndays], ['done', '2026-06-01', false, null]);
+  const many = [];
+  for (let i = 0; i < 205; i += 1) many.push(row({ key: 'x' + i, stage: i < 198 ? 'pre' : 'done' }));
+  const t = portal.tableHtml(many, {});
+  assert.strictEqual((t.match(/class="pt-r/g) || []).length, 200);
+  assert.ok(t.indexOf('공고 종료 7곳</th>') > 0 && t.indexOf('앞의 200곳만 보입니다.') > 0);
 });
 
 // ── nav 연결 ────────────────────────────────────────────────────────────
@@ -539,6 +612,18 @@ test('CSS(시작화면): 규격 9절 치수(띠 72·값 16/700·머리 40·행 4
   ['kept', 'next', 'won', 'ended'].forEach(function (t) { assert.ok(c.indexOf('.pt-chip.tag.' + t) >= 0, t); });
   assert.ok(/\.pt-k\[aria-pressed=true\] \{[^}]*inset 0 -3px 0 var\(--accent-color\)/.test(c));
 });
+test('CSS(시작화면): 열 폭 합 100·은행 18%, 이름 칸 두 줄·칩 아랫줄, 은행·다음 확인 칸 줄바꿈, 추정 D-n mono', function () {
+  const c = cssBlock(), w = {};
+  c.replace(/\.pt-tt col\.c-([a-z]+) \{ width:([\d.]+)%; \}/g, function (m, k, v) { w[k] = Number(v); return m; });
+  assert.deepStrictEqual(w, { nm: 29, stg: 11, dt: 14, dd: 14.5, end: 13.5, bank: 18 });
+  assert.ok(/\.pt-tt \.pt-cell \{[^}]*flex-wrap:wrap;[^}]*gap:0 6px/.test(c));
+  assert.ok(/\.pt-tt \.pt-cell \.pt-nm \{[^}]*line-height:18px; white-space:normal; word-break:keep-all/.test(c));
+  assert.ok(/\.pt-tt \.pt-cell \.pt-nm:not\(:last-child\) \{ line-height:24px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; \}/.test(c));
+  assert.ok(/\.pt-tt \.pt-cell \.pt-chip\.tag \{[^}]*min-height:16px; line-height:14px; height:16px; box-sizing:border-box/.test(c));
+  assert.ok(/\.pt-tt td\.pt-bank \{[^}]*white-space:normal; word-break:keep-all/.test(c));
+  assert.ok(/\.pt-tt td\.pt-next \{[^}]*white-space:normal; word-break:keep-all/.test(c));
+  assert.ok(/\.pt-dd-est \{ font:400 12px var\(--mono\); \}/.test(c));
+});
 test('portal.js 소스: confirm()·외부 주소·1인칭 없음, 서버 글자는 esc, fetch는 GET만, 쓰기 요청 없음', function () {
   const s = src('js/portal.js');
   assert.ok(!/\bconfirm\(/.test(s) && !/https?:\/\//.test(s) && s.indexOf('우리') < 0);
@@ -586,7 +671,7 @@ test('시작화면(11-19): 로그아웃·로그인 초기화, 복원 pending 보
   assert.ok(p.indexOf('시작화면') > 0 && p.indexOf('첫 화면') < 0);
   // 패널 제목·부제·개수·기간 칩(design-reviewer 11-19 1428_aab03363 5절)
   const sk = portal.skeletonHtml();
-  assert.ok(sk.indexOf('<h3 id="pt-list-h">기관별 입찰 일정</h3>') > 0 && sk.indexOf('공고 확인 필요는 맨 위, 공고 종료는 맨 아래') > 0);
+  assert.ok(sk.indexOf('<h3 id="pt-list-h">기관별 입찰 일정</h3>') > 0 && sk.indexOf('공고 확인 필요 → 공고(예정)일 순 → 추정일 지남·지연 → 공고 종료') > 0);
   assert.ok(sk.indexOf('<h3 id="pt-cal-h">날짜별 일정</h3>') > 0 && sk.indexOf('앞으로 30일, 접수 마감·공고 예정') > 0 && sk.indexOf('id="pt-cn"') > 0);
   assert.ok(sk.indexOf('<span class="pt-span" aria-hidden="true">1년</span>') > 0 && sk.indexOf('<span class="pt-span" aria-hidden="true">30일</span>') > 0);
   assert.ok(sk.indexOf('<h2 id="pt-title">시작화면</h2>') > 0 && p.indexOf("caption: '기관별 입찰 일정, ' + P.sortText(S.sort) + ', '") > 0);

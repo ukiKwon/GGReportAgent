@@ -48,8 +48,8 @@
     errSrc: { bank: '금고 약정을', approvals: '결재 목록을', assign: '배정 목록을', notice: '공고 경과 판정 기록을' },
     errMsg: function (s) { return s + ' 불러오지 못했습니다. 서버 연결을 확인한 뒤 다시 불러오세요.'; },
     retry: '다시 불러오기', unfilter: '거르기 풀기',
-    orderNote: '공고 확인 필요는 맨 위, 공고 종료는 맨 아래', doneLast: '공고 종료는 맨 아래',
-    checkNeeded: '공고 확인 필요', noDeadline: '마감일 미확인', na: '해당 없음', lapsed: '예상일 지남',
+    orderNote: '공고 확인 필요 → 공고(예정)일 순 → 추정일 지남·지연 → 공고 종료', doneLast: '공고 종료는 맨 아래',
+    checkNeeded: '공고 확인 필요', noDeadline: '마감일 미확인', na: '해당 없음', lapsed: '추정일 지남', nextCheck: '다음 확인', delayed: '지연·재공고 대기',
     doneHead: function (n) { return '공고 종료 ' + n + '곳'; },
     emptyAll: '1년 안에 다가오는 입찰이 없습니다.',
     emptyAllNote: '공고 예정일이나 협약 종료일이 확인된 기관만 이 표에 나옵니다. 전체 기관은 [전국 지역별]에서 봅니다.',
@@ -206,17 +206,20 @@
     return { mode: approver ? 'decide' : 'mine', n: n, status: a.status, partial: a.partial };
   };
 
-  // 공고 경과 판정 대기 줄(대기 패널 ②묶음): 경과 기관 중 미처리 + 협약 종료일이 지난 기관. 같은 기관은 한 번만. days = 지난 일수(D+n).
-  // 표의 '공고 확인 필요'도 이 목록 하나를 쓴다(사용자 11-26). date·est = D+n의 기준인 공고 예정일(협약 종료일 기준 줄은 예정일이 없어 '').
-  P.judgeItems = function (model, buckets, snap, today) {
+  // 경과 기관 = 예정일이 지난 기관(model.overdue) + 협약 종료일이 지난 기관(buckets.past). 같은 기관은 한 번만(예정일 경과가 먼저).
+  // days = 지난 일수(D+n). date·est = D+n의 기준인 공고 예정일(협약 종료일 기준 줄은 예정일이 없어 '').
+  P.overdueAll = function (model, buckets) {
     const seen = {}, out = [];
-    logic.splitOverdue((model && model.overdue) || [], snap, logic.localDateStr(today)).pending.forEach(function (it) {
-      if (!seen[it.key]) { seen[it.key] = true; out.push({ key: it.key, rec: it.rec, name: it.name, days: it.days, date: it.date || '', est: it.confidence !== '확정' }); }
-    });
-    ((buckets && buckets.past) || []).forEach(function (it) {
-      if (!seen[it.key]) { seen[it.key] = true; out.push({ key: it.key, rec: it.rec, name: it.name, days: -it.endDays, date: '', est: false }); }
-    });
-    return out.sort(function (a, b) { return (a.days - b.days) || nameCmp(a, b); });
+    const add = function (x) { if (!seen[x.key]) { seen[x.key] = true; out.push(x); } };
+    ((model && model.overdue) || []).forEach(function (it) { add({ key: it.key, rec: it.rec, name: it.name, days: it.days, date: it.date || '', est: it.confidence !== '확정' }); });
+    ((buckets && buckets.past) || []).forEach(function (it) { add({ key: it.key, rec: it.rec, name: it.name, days: -it.endDays, date: '', est: false }); });
+    return out;
+  };
+  // 판정 기록(logic.recordView)으로 가른 경과 기관 { pending, delayed, done }. 대기 패널과 표가 같이 쓴다.
+  P.judgeSplit = function (model, buckets, snap, today) { return logic.splitOverdue(P.overdueAll(model, buckets), snap, logic.localDateStr(today)); };
+  // 공고 경과 판정 대기 줄(대기 패널 ②묶음): 경과 기관 중 미처리만. 표의 '공고 확인 필요'도 이 목록 하나를 쓴다(사용자 11-26).
+  P.judgeItems = function (model, buckets, snap, today) {
+    return P.judgeSplit(model, buckets, snap, today).pending.sort(function (a, b) { return (a.days - b.days) || nameCmp(a, b); });
   };
   P.judgeCount = function (model, buckets, snap, today) { return P.judgeItems(model, buckets, snap, today).length; };
   // 대기 패널 ①묶음의 줄: 결재자는 처리할 건(받은 결재 can_decide + 작업물), 아니면 내가 올려 대기(PENDING). 최대 50줄.
@@ -240,11 +243,20 @@
   // kind·date·days·est·sortDate·inMonth = 30일 패널·띠 거르기용(뜻을 바꾸지 않는다). stage·ndate·nest·ndays·nsort = 표 칸용.
   // stage: pre 공고 전 / open 공고 중 / done 공고 종료. ndate 공고(예정)일, ndays = 공고 전은 예정일까지, 공고 중은 접수 마감까지.
   // check = 공고 확인 필요(P.judgeItems 목록과 같은 기관·같은 D+n, ndays 음수). 접수 중 공고가 아니면 결과 태그·마감 지난 공고보다 앞선다.
+  //   결과 태그(kept·next·won·ended)가 함께 있으면 stage만 done(칩 '공고 종료'), check·맨 위 위치는 그대로.
+  // 판정 기록이 있는 경과 기관(공고 자료 줄은 제외): 공고 종료·입찰 없음·결과 태그 = done / 공고 진행 중 = open(마감일 미확인)
+  //   / 지연·재공고 대기(다음 확인일 전) = pre + delayed·nextCheck('MM-DD').
   // lapsed = 그 목록에는 없는데 추정 예정일이 지난 줄(ndays 없음).
   P.tableRows = function (model, buckets, today, snap) {
     const seen = {}, rows = [], by = (buckets && buckets.byKey) || {}, ts = logic.localDateStr(today), ym = ts.slice(0, 7);
     const judgeList = P.judgeItems(model, buckets, snap, today), judged = {};
     judgeList.forEach(function (x) { judged[x.key] = x; });
+    const split = P.judgeSplit(model, buckets, snap, today), handledList = split.delayed.concat(split.done), handled = {};
+    handledList.forEach(function (x) {
+      const rv = logic.recordView(x.rec, snap, ts);
+      const nc = (logic.recordBrief(rv) || []).filter(function (s) { return s[1]; })[0];
+      handled[x.key] = { cd: rv.item.status_cd, date: x.date, est: x.est, nextCheck: nc ? nc[0] : '' };
+    });
     function base(it, kind, date, days, est) {
       const b = by[it.key], inSet = !!b && typeof b.endDays === 'number' && b.endDays >= 0 && b.endDays <= P.CFG.END_DAYS;
       return { key: it.key, rec: it.rec, name: it.name, region: it.region, org: dash.kindOfRec(it.rec), kind: kind, date: date, days: days, est: est,
@@ -254,10 +266,21 @@
         tag: b ? b.tag : '', nextBank: b ? b.nextBank : '' };
     }
     function put(r, stage, ndate, nest, ndays) {
+      const h = r.kind === 'notice' || r.kind === 'done' ? null : handled[r.key];   // 공고 자료 줄은 판정 기록보다 먼저
+      r.delayed = false; r.nextCheck = '';
+      if (h) {
+        if (r.tag || h.cd === 'CLOSED' || h.cd === 'NO_BID') { stage = 'done'; ndate = noticed(r.rec); nest = false; }
+        else {
+          stage = h.cd === 'IN_PROGRESS' ? 'open' : 'pre';
+          if (h.date) { ndate = h.date; nest = h.est; }
+          if (h.cd === 'DELAYED') { r.delayed = true; r.nextCheck = h.nextCheck; }
+        }
+        ndays = null;
+      }
       const j = stage === 'open' ? null : judged[r.key];
-      if (j) { stage = 'pre'; ndate = j.date; nest = !!j.date && j.est; ndays = -j.days; }
+      if (j) { stage = r.tag ? 'done' : 'pre'; ndate = j.date; nest = !!j.date && j.est; ndays = -j.days; }
       r.check = !!j;
-      r.lapsed = !j && stage === 'pre' && typeof ndays === 'number' && ndays < 0;
+      r.lapsed = !j && !h && stage === 'pre' && typeof ndays === 'number' && ndays < 0;
       if (r.lapsed) ndays = null;
       r.stage = stage; r.ndate = ndate; r.nest = nest; r.ndays = ndays;
       r.nsort = ndate ? (nest ? ndate.slice(0, 7) + '-01' : ndate) : '9999-12-31';
@@ -287,17 +310,17 @@
         put(r, 'pre', e, !!e, e ? logic.daysUntil(e, today) : null);
       });
     });
-    // 판정 목록에는 있는데 표에 줄이 없는 기관(수를 같게). kind 'judge'는 30일 패널에 들지 않는다.
-    judgeList.forEach(function (j) {
+    // 판정 목록(수를 같게)이나 판정 기록은 있는데 표에 줄이 없는 기관. kind 'judge'는 30일 패널에 들지 않는다.
+    judgeList.concat(handledList).forEach(function (j) {
       if (!seen[j.key]) put(base({ key: j.key, rec: j.rec, name: j.name, region: (j.rec && j.rec.region) || '' }, 'judge', '', null, false), 'pre', '', false, null);
     });
     return P.tableOrder(rows);
   };
   function cmp(a, b) { return a < b ? -1 : (a > b ? 1 : 0); }
-  function isDone(r) { return r.stage === 'done'; }
-  function rank(r) { return r.check ? 0 : (r.lapsed ? 2 : 1); }
+  function isDone(r) { return r.stage === 'done' && !r.check; }   // '공고 종료' 묶음. 확인 필요 줄은 칩이 공고 종료여도 위에 남는다
+  function rank(r) { return r.check ? 0 : (r.lapsed || r.delayed ? 2 : 1); }
   function tie(a, b) { return cmp(a.nsort, b.nsort) || ((a.nest ? 1 : 0) - (b.nest ? 1 : 0)) || cmp(a.ndate, b.ndate) || nameCmp(a, b); }
-  // 표 기본 순서: 공고 확인 필요 → 공고(예정)일 순 → 예상일 지남(협약 종료일 가까운 순) → 공고 종료(최근 공고 먼저, 날짜 없음 끝).
+  // 표 기본 순서: 공고 확인 필요 → 공고(예정)일 순 → 추정일 지남·지연(협약 종료일 가까운 순) → 공고 종료(최근 공고 먼저, 날짜 없음 끝).
   P.tableOrder = function (rows) {
     return rows.slice().sort(function (a, b) {
       if (isDone(a) !== isDone(b)) return isDone(a) ? 1 : -1;
@@ -314,7 +337,7 @@
     });
   };
   // 열 머리 정렬(11-19 저녁, 사용자 요청). 기본(S.sort 없음) = P.tableOrder. 공고 종료 묶음은 어떤 정렬에서도 아래.
-  // 두 상태 토글(오름 ↔ 내림), 기본으로 돌아가는 길은 [임박순으로] 단추. 값이 없는 줄은 방향과 무관하게 묶음 안 맨 아래.
+  // 두 상태 토글(오름 ↔ 내림), 기본으로 돌아가는 길은 [기본 순서로] 단추. 값이 없는 줄은 방향과 무관하게 묶음 안 맨 아래.
   // 같은 값이면 공고(예정)일 → 확정 먼저 → 이름(방향은 주 열에만). ROW_MAX로 자르기 전에 부른다(호출 쪽 paintAll).
   P.SORT_KEYS = ['stage', 'date', 'days', 'end', 'bank'];
   P.SORT_LABEL = { stage: '단계', date: '공고(예정)일', days: '공고까지', end: '협약 종료일', bank: '현 금고 은행' };
@@ -342,7 +365,7 @@
     return cur && cur.key === key ? { key: key, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { key: key, dir: 'asc' };
   };
   P.sortText = function (sort) {
-    return sort && P.SORT_LABEL[sort.key] ? P.SORT_LABEL[sort.key] + ' ' + (sort.dir === 'desc' ? '내림차순' : '오름차순') : '임박순';
+    return sort && P.SORT_LABEL[sort.key] ? P.SORT_LABEL[sort.key] + ' ' + (sort.dir === 'desc' ? '내림차순' : '오름차순') : '기본 순서';
   };
   P.headNote = function (sort) { return sort && P.SORT_LABEL[sort.key] ? P.sortText(sort) + ', ' + P.T.doneLast : P.T.orderNote; };
   // 오른쪽 일정 패널: 앞으로 SCHEDULE_DAYS일 안의 접수 마감·공고 예정(추정은 표지). 실제 날짜 순(추정도 자기 날짜), 태그 붙은 줄은 뒤.
@@ -369,7 +392,7 @@
   };
   // 규격 접근성 문구: 거르기를 켜면 '{이름} N곳으로 걸렀습니다', 풀면 '거르기를 풀었습니다. N곳', 유형 탭은 '{유형} N곳을 보여 줍니다.'
   P.liveText = function (f, n, month, total) {
-    if (f.kind === 'sort') return f.sort ? P.sortText(f.sort) + '으로 정렬했습니다. ' + n + '곳' : '임박순으로 돌아갔습니다. ' + n + '곳';
+    if (f.kind === 'sort') return f.sort ? P.sortText(f.sort) + '으로 정렬했습니다. ' + n + '곳' : '기본 순서로 돌아갔습니다. ' + n + '곳';
     if (f.kind === 'org') return (f.org === 'all' ? '전체 유형' : f.org) + ' ' + n + '곳을 보여 줍니다.';
     return f.mode === 'all' ? '거르기를 풀었습니다. ' + total + '곳' : P.MODE_LABEL(f.mode, month) + ' ' + n + '곳으로 걸렀습니다';
   };
@@ -459,7 +482,8 @@
   const NA = function () { return '<span aria-hidden="true">—</span><span class="sr-only">' + esc(P.T.na) + '</span>'; };
   // '공고까지' 칸
   function untilCell(r) {
-    if (r.stage === 'done') return '<td class="mut">' + NA() + '</td>';
+    if (isDone(r)) return '<td class="mut">' + NA() + '</td>';
+    if (r.delayed) return '<td class="mut pt-next">' + (r.nextCheck ? esc(P.T.nextCheck) + ' <span class="pt-dd-est">' + esc(r.nextCheck) + '</span>' : esc(P.T.delayed)) + '</td>';
     const known = typeof r.ndays === 'number';
     if (r.stage === 'open') return known ? '<td title="' + esc('접수 마감 ' + r.date) + '">' + ddHtml('마감 ', r.ndays) + '</td>' : '<td class="mut">' + esc(P.T.noDeadline) + '</td>';
     if (r.check) return '<td><span class="pt-late"><b>' + esc(P.T.checkNeeded) + '</b>' + stamp(-r.ndays) + '</span></td>';
@@ -472,7 +496,7 @@
     const date = r.ndate ? esc(r.nest ? r.ndate.slice(0, 7) + ' 추정' : r.ndate) : '<span class="mut">' + NA() + '</span>';
     const end = r.end ? '<td class="dt"' + (typeof r.endDays === 'number' && r.endDays < 0 ? ' title="협약 종료일 지남"' : '') + '>' + esc(r.end) + '</td>' : '<td class="mut">—</td>';
     const bank = r.bank ? '<td class="pt-bank' + (isKb(r.bank) ? ' k' : ' mut') + '" title="' + esc(r.bank) + '">' + esc(r.bank) + '</td>' : '<td class="pt-bank mut" title="미등록">미등록</td>';
-    return '<tr class="pt-r' + (r.stage === 'done' ? ' done' : '') + '"><th scope="row"><span class="pt-cell"><button type="button" class="pt-nm" data-pt-open="' + esc(r.key) + '"><span class="rg">' + esc(dash.regionName(r.region)) + '</span>' + esc(r.name) + '</button>' + tagChip(r) + '</span></th>' +
+    return '<tr class="pt-r' + (isDone(r) ? ' done' : '') + '"><th scope="row"><span class="pt-cell"><button type="button" class="pt-nm" data-pt-open="' + esc(r.key) + '"><span class="rg">' + esc(dash.regionName(r.region)) + '</span>' + esc(r.name) + '</button>' + tagChip(r) + '</span></th>' +
       '<td><span class="pt-chip' + (ph[1] ? ' ' + ph[1] : '') + '">' + esc(ph[0]) + '</span></td><td class="dt' + (r.nest ? ' est' : '') + '">' + date + '</td>' + untilCell(r) + end + bank + '</tr>';
   };
   // 열 머리: 정렬하는 열(단계·공고(예정)일·공고까지·협약 종료일·현 금고 은행)은 <th> 안 버튼(.hb-sort 모양, 현황판 kbboard thHtml과 같은 마크업), 정렬된 열에만 aria-sort. 기관 열은 글자만.
@@ -493,10 +517,10 @@
       '<colgroup><col class="c-nm"><col class="c-stg"><col class="c-dt"><col class="c-dd"><col class="c-end"><col class="c-bank"></colgroup>' +
       '<thead><tr><th scope="col">기관</th>' + P.SORT_KEYS.map(function (k) { return sortTh(k, o.sort); }).join('') + '</tr></thead><tbody>';
     if (shown.length) {
-      const doneN = rows.filter(function (r) { return r.stage === 'done'; }).length;
+      const doneN = rows.filter(isDone).length;
       let split = false;
       shown.forEach(function (r) {
-        if (!split && r.stage === 'done') { split = true; h += '</tbody><tbody><tr class="grp"><th colspan="6" scope="rowgroup">' + esc(T.doneHead(doneN)) + '</th></tr>'; }
+        if (!split && isDone(r)) { split = true; h += '</tbody><tbody><tr class="grp"><th colspan="6" scope="rowgroup">' + esc(T.doneHead(doneN)) + '</th></tr>'; }
         h += P.rowHtml(r);
       });
     } else {
@@ -574,7 +598,7 @@
       '<div id="pt-err"></div><p id="pt-live" class="sr-only" aria-live="polite"></p><p id="pt-flash" class="pt-none" role="status"></p>' +
       '<div class="pt-body"><section class="pt-pane pt-list" id="pt-list" aria-labelledby="pt-list-h">' +
       '<div class="pt-ph"><span class="pt-span" aria-hidden="true">1년</span><h3 id="pt-list-h">기관별 입찰 일정</h3><span class="n" id="pt-ln"></span><span class="r" id="pt-lr">' + P.headNote(null) + '</span>' +
-      '<button type="button" class="pt-reset" id="pt-sort-reset" data-pt-sortreset="1" hidden>임박순으로</button></div>' +
+      '<button type="button" class="pt-reset" id="pt-sort-reset" data-pt-sortreset="1" hidden>기본 순서로</button></div>' +
       '<div class="pt-tabs" id="pt-tabs" role="tablist" aria-label="기관 유형"></div><div class="pt-filter" id="pt-filter" hidden></div>' +
       '<div class="pt-sc" id="pt-sc" role="tabpanel" tabindex="0"></div><div class="pt-tf" id="pt-ltf"></div></section>' +
       '<div class="pt-side"><section class="pt-pane cal" aria-labelledby="pt-cal-h"><div class="pt-ph"><span class="pt-span" aria-hidden="true">' + P.CFG.SCHEDULE_DAYS + '일</span><h3 id="pt-cal-h">날짜별 일정</h3><span class="n" id="pt-cn"></span><span class="r">앞으로 ' + P.CFG.SCHEDULE_DAYS + '일, 접수 마감·공고 예정</span></div>' +
@@ -610,7 +634,7 @@
 
   // ── DOM(app.js가 #pt-root를 넘겨 부른다) ─────────────────────────────
   let host = null, ac = null, offNr = null;
-  const S = { seq: 0, src: {}, mode: 'all', org: 'all', sort: null, v: null, recs: {}, errSig: '' };   // sort: null = 기본 임박순
+  const S = { seq: 0, src: {}, mode: 'all', org: 'all', sort: null, v: null, recs: {}, errSig: '' };   // sort: null = 기본 순서(P.tableOrder)
   function $(id) { return host ? host.querySelector('#' + id) : null; }
   function role() { try { return (root.store.loadProfile().team || '').trim(); } catch (e) { return ''; } }
   function serverOn() { try { return !!(dash.util.serverMode() && dash.util.hasEmp()); } catch (e) { return false; } }
@@ -668,7 +692,7 @@
     if (fl) { fl.hidden = S.mode === 'all'; if (S.mode !== 'all') keep('pt-filter', P.filterHtml(S.mode, shown.length, month)); else fl.innerHTML = ''; }
     const ln = $('pt-ln'); if (ln) ln.textContent = shown.length + '곳';
     const sc = $('pt-sc'); if (sc) sc.setAttribute('aria-labelledby', 'pt-tab-' + P.tabIndex(v.types, S.org));
-    const lr = $('pt-lr'); if (lr) lr.textContent = P.headNote(S.sort);
+    const lr = $('pt-lr'); if (lr) { lr.textContent = P.headNote(S.sort); lr.title = lr.textContent; }   // 좁으면 말줄임 — 전체 글은 title
     const rb = $('pt-sort-reset'); if (rb) rb.hidden = !S.sort;
     keep('pt-sc', P.tableHtml(shown, { caption: '기관별 입찰 일정, ' + P.sortText(S.sort) + ', ' + v.rows.length + '곳 중 ' + shown.length + '곳 보임', mode: S.mode, org: S.org, month: month, total: v.rows.length, sort: S.sort }));
     const linkBtn = function (go, label, id) { return canOpen(id) ? '<button type="button" class="link-btn" data-pt-go="' + go + '">' + esc(label) + '</button>' : ''; };
@@ -696,7 +720,7 @@
     const b = $('pt-sc'); if (b) b.scrollTop = 0;
   }
 
-  // 열 머리 누름 = 두 상태 토글(오름 ↔ 내림). 다시 그린 뒤 같은 머리 단추로 포커스를 되돌린다(keep). [임박순으로]는 기본 순서로, 포커스는 직전에 정렬하던 열 머리로.
+  // 열 머리 누름 = 두 상태 토글(오름 ↔ 내림). 다시 그린 뒤 같은 머리 단추로 포커스를 되돌린다(keep). [기본 순서로]는 정렬을 풀고, 포커스는 직전에 정렬하던 열 머리로.
   function setSort(key, reset) {
     const was = S.sort;
     S.sort = reset ? null : P.nextSort(S.sort, key);

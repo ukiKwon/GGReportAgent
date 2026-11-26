@@ -188,6 +188,7 @@
   <a href="#c132">132 로그인 앞 기능 소개 랜딩 — AI/AX 7장면, 업무 흐름 27칸</a>
   <a href="#c133">133 입찰 결과 표 열 폭 정정 — 1280px에서 패널 밖으로 넘치던 것(130장 회귀) 바로잡기</a>
   <a href="#c134">134 빈 표 — 0건이어도 머리 줄 + 빈 행 1줄, 안내 문장은 표 아래(공통 화면), 배정 이력 빈 사유 '—' 가운데</a>
+  <a href="#c135">135 시작화면 입찰 일정 표 — 칸 잘림 해소·판정 기록 표기·[기본 순서로]</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2651,6 +2652,16 @@
 <p style="font-size:12px">적용(공통 화면): 제안팀 구성·배정 배정 이력·담당자(미배정), 시스템 관리 사용자·감사 기록·권한 변경 이력, 대결 지정, 내 권한(안내 없음). 빈 행 칸은 비우고 첫 칸에 스크린리더 '비어 있음'. 기록이 있는데 사유만 빈 줄은 가운데 회색 '—'.</p>
 <p class="legend-note">공통 도우미 js/tblempty.js. 불러오는 중·오류·선택 전은 그대로. 다른 화면(이사회 자료·회의록·사업계획·수집 요청·제안 준비·요약 양식·지도 더보기)은 담당 세션이 NEXT 128로 이어 적용. 화면 시험 2198/2198.</p>
 </div></div></div>
+</div>
+</section>
+<section class="ch" id="c135">
+<h2>135 시작화면 입찰 일정 표 — 칸 잘림 해소·판정 기록 표기·[기본 순서로] (2026-11-26, 128장 후속)</h2>
+<div class="why">왜: 은행명과 긴 기관명이 잘렸고, 판정을 끝낸 기관도 지난 일처럼 남았습니다. '임박순'은 확인 필요가 맨 위인 실제 순서와 맞지 않았습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center"><tr style="color:#464c53"><th>기관</th><th>공고까지</th><th>현 금고 은행</th></tr><tr><td style="text-align:left">○○지방법원 ○○…</td><td>예상일 지남</td><td>농협은행·경…</td></tr></table>
+<p style="font-size:12px">은행 칸 12%. 단추 [임박순으로].</p></div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center"><tr style="color:#464c53"><th>기관</th><th>공고까지</th><th>현 금고 은행</th></tr><tr><td style="text-align:left">○○지방법원<br>○○지원</td><td>추정일 지남</td><td>농협은행·경남은행</td></tr><tr><td style="text-align:left">○○구청</td><td>다음 확인 11-30</td><td>○○은행</td></tr></table>
+<p style="font-size:12px">은행 칸 18%, 긴 이름 두 줄. 판정 기록에 따라 '공고 중·마감일 미확인', '다음 확인 MM-DD', '공고 종료'. 단추 [기본 순서로]. 예시 이름.</p></div></div></div>
 </div>
 </section>
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>

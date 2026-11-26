@@ -2601,7 +2601,7 @@
 
   .pt-tt { width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; }
   /* 여섯 열 비율 폭 + 가운데 정렬(승인 시안 11-26). table-layout:fixed 표에서 col의 max()가 안 먹어 % 폭만 쓴다. 좌우 여백 4px, 머리글은 두 줄까지 */
-  .pt-tt col.c-nm { width:28%; } .pt-tt col.c-stg { width:13%; } .pt-tt col.c-dt { width:16%; } .pt-tt col.c-dd { width:17%; } .pt-tt col.c-end { width:14%; } .pt-tt col.c-bank { width:12%; }
+  .pt-tt col.c-nm { width:29%; } .pt-tt col.c-stg { width:11%; } .pt-tt col.c-dt { width:14%; } .pt-tt col.c-dd { width:14.5%; } .pt-tt col.c-end { width:13.5%; } .pt-tt col.c-bank { width:18%; }
   .pt-tt thead th { position:sticky; top:0; z-index:1; height:40px; padding:0 4px; text-align:center; vertical-align:middle; font-size:12px; line-height:14px; font-weight:700; color:var(--muted); background:var(--panel); border-bottom:1px solid var(--line-strong); white-space:normal; word-break:keep-all; }
   .pt-tt td, .pt-tt tbody th { height:40px; padding:0 4px; font-size:12px; font-weight:400; text-align:center; vertical-align:middle; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .pt-tt tbody th[scope=row] { text-align:left; }   /* 행 머리 기관 이름 칸은 몸통만 왼쪽, 머리값은 가운데(DESIGN 표 정렬, 사용자 11-26) */
@@ -2622,6 +2622,9 @@
   .pt-dd.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
   .pt-dd.hot .gph { width:9px; height:9px; vertical-align:-1px; }
   .pt-bank.k { color:var(--fg); font-weight:700; }
+  .pt-tt td.pt-bank { white-space:normal; word-break:keep-all; line-height:16px; }   /* '외 N'이 붙으면 두 줄(행 40px 안) */
+  .pt-tt td.pt-next { white-space:normal; word-break:keep-all; line-height:16px; }   /* '다음 확인 MM-DD'가 한 줄에 안 들어가면 두 줄 */
+  .pt-tt td.pt-next .pt-dd-est { white-space:nowrap; }
   .pt-tt tr.emp td { height:auto; padding:20px 16px; white-space:normal; text-align:center; }
   .pt-tt tr.emp:hover > * { background:transparent; }
   .pt-tt .pt-chip.on { background:color-mix(in srgb, var(--fg) 12%, var(--panel)); }   /* 표 안에서만 — 30일 패널 '접수 마감' 칩은 그대로 */
@@ -2673,7 +2676,7 @@
   /* 다음 금고 은행 태그 — .pt-chip 문법(1px 테두리, 모양+색으로 구분). 재유치 확정 = KB 옐로 채움, 신규 확정 = 초록 글자·테두리 + 12% 틴트 + ✓(굵게), 차기 확정 = 기본 글자 + 빨강 55% 섞은 테두리(굵지 않게), 입찰 끝남 = 테두리 없는 muted(.pt-chip.end와 같은 방식) */
   /* 태그 강약 = 재유치 > 신규 > 차기 > 끝남(design 11-19 대조 6-③·11-19 저녁 4-2: 사용자 '신규 확정을 초록으로, 차기 확정은 빨강 기운으로'. 반전 칩은 경과 도장과 겹쳐 안 씀, 왼쪽 막대는 선택 문법이라 안 씀). 초록은 :root --green 한 개(새 변수 1개, 글자 대비 4.5 이상) */
   .pt-chip.tag { flex:none; margin-left:0; }
-  .pt-tt .pt-cell .pt-chip.tag { margin-left:0; }   /* 태그는 이름 바로 옆에 붙인다(전엔 오른쪽 끝) */
+  .pt-tt .pt-cell .pt-chip.tag { margin-left:0; min-height:16px; line-height:14px; height:16px; box-sizing:border-box; }   /* 태그는 이름 바로 옆, 자리가 없으면 아랫줄(이름 24 + 칩 16 = 행 40) */
   /* 재유치 확정 = KB 옐로 채움 칩(국민은행이 다음에도 금고인 곳 전용). 색은 fa 세션의 :root 변수(--bk-kb*)를 따르고 대체값은 국민은행 CI(kbfg.com/kor/about/corporate/ci.htm, 사용자 11-19) */
   .pt-chip.tag.kept { background:var(--bk-kb, #ffbc00); color:var(--bk-kb-ink, #1e2124); border-color:var(--bk-kb-edge, #545045); font-weight:700; }
   .pt-chip.tag.won { color:var(--green, #1d6f3a); border-color:var(--green, #1d6f3a); background:color-mix(in srgb, var(--green, #1d6f3a) 12%, var(--panel)); font-weight:700; }
@@ -2681,9 +2684,10 @@
   @media (forced-colors:active) { .pt-chip.tag.won { color:CanvasText; border-color:Highlight; } .pt-chip.tag.next { border-color:CanvasText; } .pt-chip.tag.kept { border-color:CanvasText; } }
   .pt-chip.tag.ended { border-color:transparent; color:var(--muted); padding:0 2px; }
   .pt-chip.tag .gph { width:9px; height:9px; margin-right:3px; flex:none; }
-  /* 표 이름 칸: 이름이 길어도 태그가 잘리지 않게(이름만 말줄임), 누르는 높이 24px */
-  .pt-tt .pt-cell { display:flex; align-items:center; justify-content:flex-start; gap:6px; min-width:0; }
-  .pt-tt .pt-cell .pt-nm { display:block; flex:0 1 auto; min-width:0; min-height:24px; line-height:24px; white-space:nowrap; }
+  /* 표 이름 칸: 태그가 옆에 못 들어가면 아랫줄. 태그 없는 긴 이름은 두 줄, 태그 있는 이름은 한 줄(칸보다 길 때만 말줄임). 누르는 높이 24px */
+  .pt-tt .pt-cell { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:0 6px; min-width:0; }
+  .pt-tt .pt-cell .pt-nm { display:block; flex:0 1 auto; min-width:0; min-height:24px; line-height:18px; white-space:normal; word-break:keep-all; overflow-wrap:anywhere; }
+  .pt-tt .pt-cell .pt-nm:not(:last-child) { line-height:24px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   /* 빈 알림 줄이 띠와 본문 사이를 벌리지 않게 — #pt-flash는 role=status라 숨기지 않고 높이만 0, 간격 하나를 되돌림 */
   #pt-err:empty { display:none; }
   #pt-flash:empty { padding:0; border:0; margin-top:-12px; }
