@@ -618,5 +618,5 @@
 
 ### 128. 빈 표도 머리줄+빈 행 1줄 — 모든 표 (사용자 11-26 "값이 없으면 깡통처럼 나오지 않게, 최소한 표 규격 + 1행") [담당: 0d(공통 도우미·공통 화면) / main(board-material.js 450·451·458·461·868·916, board-minutes.js 675·1488) / f3(plans.js 188·191, plancollect.js 238·422 + plancollect.test.js:620 단언 반대로) / db(prep.js 647 — 첨부 파일 표 4화면 공통, instsummary.js 1215·1301 rowEl, prepboard.js 509 role=grid roving·aria-rowcount 주의) / bf(render.js 1486 더보기 창 0건 note) / 미정(workflow.js 415·520)]
 - **현재**: 규격 확정(design-reviewer) — thead 그대로 + `tr.tb-empty`(열 수만큼 빈 td, 첫 칸 sr-only '비어 있음', 가운데, hover 없음) + 기존 안내 문장은 문구 그대로 표 아래 `.tb-empty-note`. 로딩·오류·권한 없음·선택 전은 제외, .hb-tt·.pt-tt·.rs-tt 표 안 안내 줄은 유지. 0d 공통 도우미 `frontend/js/tblempty.js`·CSS·DESIGN '빈 표'·team/admin/deputy/myinfo 적용 끝(커밋은 세션 기록, design_history 134). 배정 이력 빈 사유 '-' → '—' 가운데(사용자 승인) 함께.
-- **다음 한 걸음**: 0d 커밋 뒤 각 담당 세션이 자기 파일 행에 `tblEmpty.rowHtml/noteHtml`(DOM은 rowEl/noteEl) 적용 → design_history 전/후 장. 사용자 열린 질문: 표 아래 안내 문장 유지 vs 단순 문장은 빼기(권장 유지).
+- **다음 한 걸음**: 0d 커밋 뒤 각 담당 세션이 자기 파일 행에 `tblEmpty.rowHtml/noteHtml`(DOM은 rowEl/noteEl) 적용 → design_history 전/후 장. 표 아래 안내 문장은 유지(사용자 11-26 "권장대로").
 - **자세히**: handoff/agents/design-reviewer/2026-11-26_1548_a0ae96f9.md(규격 3절·도우미 4절·세션별 대상표 5절·시험 영향 6절·DESIGN 문안), handoff/sessions/2026-11-19_1930_0d.md '11-26'.
