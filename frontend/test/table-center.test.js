@@ -49,7 +49,7 @@ const CENTER_RULES = [
   '.dc-hits th', '.dc-hits td', '.dc-hits .c-cnt',
   '.pl-tbl th', '.pl-tbl td', '.pl-tbl th.pl-bud', '.pl-dlg-tbl th', '.pl-dlg-tbl td',
   '.ib-table td.ib-num', '.ib-table th.ib-num',
-  '.pb-t tbody th', '.pb-t thead th.pb-corner', '.ts-doc th', '.ts-score .ts-doc thead th',
+  '.pb-t thead th.pb-corner', '.ts-doc th', '.ts-score .ts-doc thead th',
   '.isf-tbl th', '.isf-years thead th', '.isf-years th:first-child, .isf-years td:first-child', '.isf-hist th, .isf-hist td',
   '.more-table th', '.more-table td'
 ];
@@ -91,4 +91,47 @@ test('칸 안 flex·버튼은 가운데를 따른다', function () {
   assert.ok(/justify-content:\s*center/.test(rule('.pt-tt .pt-cell')));
   assert.ok(/text-align:\s*inherit/.test(rule('.mn-open')));
   assert.ok(/text-align:\s*inherit/.test(rule('.pb-nm')));
+});
+
+// ── 사용자 11-26 승인(ca f41e496e) '행 머리 이름 칸' 예외 확대: 가변 길이 기관·메뉴·항목 이름 칸은 몸통만 왼쪽, 머리값은 가운데 ──
+const NAME_LEFT = [
+  '.rs-tt tbody th[scope=row]', '.pb-t tbody th', '.ad-perms tbody th', '.wf-ov tbody td:first-child',
+  '.cr-table td.cr-inst', '.dc-hits td.c-name', '.more-table td:first-child', '.pl-dlg-tbl td:first-child',
+  '.wf-cov tr.ok > td:first-child, .wf-cov tr.gap > td:first-child, .wf-cov tr.none > td:first-child'
+];
+
+test('행 머리 이름 칸은 몸통만 왼쪽', function () {
+  NAME_LEFT.forEach(function (sel) {
+    const r = rule(sel);
+    assert.ok(/text-align:\s*left/.test(r), sel + ' 은 left 여야 한다');
+    assert.ok(!/text-align:\s*center/.test(r), sel + ' 에 center 가 남으면 안 된다');
+  });
+});
+
+test('그 표들의 머리값은 그대로 가운데', function () {
+  ['.rs-tt th, .rs-tt td', '.pb-t thead th', '.pb-t thead th.pb-corner', '.ad-table th, .ad-table td',
+    '.dc-hits th', '.more-table th', '.pl-dlg-tbl th', '.wf-cov th, .wf-cov td'
+  ].forEach(function (sel) { assert.ok(/text-align:\s*center/.test(rule(sel)), sel + ' 머리는 center'); });
+});
+
+test('왼쪽 규칙이 같은 표의 가운데 규칙보다 뒤에 있다', function () {
+  [['.more-table td', '.more-table td:first-child'], ['.pl-dlg-tbl td', '.pl-dlg-tbl td:first-child'],
+    ['.dc-hits td', '.dc-hits td.c-name'], ['.rs-tt th, .rs-tt td', '.rs-tt tbody th[scope=row]']
+    // .ad-perms tbody th 는 .ad-table th 보다 앞 줄이지만 선택자 우선순위(0,1,2 > 0,1,1)로 이긴다 — 순서 검사 제외
+  ].forEach(function (p) {
+    assert.ok(css.indexOf(p[1] + ' {') > css.indexOf(p[0] + ' {'), p[1] + ' 가 ' + p[0] + ' 뒤여야 한다');
+  });
+});
+
+test('기관 이름 칸 부제(.cr-sub)는 이름과 같은 왼쪽 선', function () {
+  assert.ok(/margin-left:\s*0/.test(rule('.cr-table td.cr-inst .cr-sub')));
+});
+
+test('짧고 고른 이름·라벨 칸과 사용자 지정 표는 가운데 유지', function () {
+  assert.ok(/\.ad-grid tbody th \{[^}]*text-align:\s*center/.test(css));          // 역할
+  assert.ok(!/\.mn-spk-tbl tbody th \{[^}]*text-align:\s*left/.test(css));         // 참석자 N
+  assert.ok(!/\.ap-changes th:first-child|\.ap-changes tbody th \{/.test(css));    // 결재 카드 1–3줄
+  assert.ok(/text-align:\s*center/.test(rule('.isf-years th:first-child, .isf-years td:first-child')));
+  assert.ok(!/\.bd-l-tbl td\.bd-l-name \{[^}]*text-align:\s*left/.test(css));      // 사용자 11-20 '목록 전체 가운데' — 질문 답 전까지
+  assert.ok(!/td\.pp-fname \{[^}]*text-align:\s*left/.test(css));                  // 사용자 11-25 '파일 표 전부 가운데' — 질문 답 전까지
 });

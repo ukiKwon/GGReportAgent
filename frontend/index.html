@@ -1113,6 +1113,7 @@
   .wf-cov tr.ok   { background:color-mix(in srgb, var(--blue) 8%, transparent); }
   .wf-cov tr.gap  { background:color-mix(in srgb, var(--orange) 8%, transparent); }
   .wf-cov tr.none { background:color-mix(in srgb, var(--red) 8%, transparent); }
+  .wf-cov tr.ok > td:first-child, .wf-cov tr.gap > td:first-child, .wf-cov tr.none > td:first-child { text-align:left; }   /* 배점표 평가항목 = 행 머리 이름 칸, 몸통만 왼쪽(사용자 11-26 승인 예외 확대). 참여 결정 표(done/current/todo 줄)는 가운데 유지 */
   .wf-badge { border-radius:var(--r); padding:1px 7px; font-size:12px; border:1px solid; white-space:nowrap; }
   .wf-badge.ok   { color:var(--blue);   border-color:var(--blue);   background:color-mix(in srgb, var(--blue) 18%, transparent); }
   .wf-badge.gap  { color:var(--orange); border-color:var(--orange); background:color-mix(in srgb, var(--orange) 18%, transparent); }
@@ -1134,6 +1135,7 @@
   .wf-ov tbody tr[data-id] { cursor:pointer; }
   .wf-ov tbody tr[data-id]:hover td { background:var(--panel2); }
   .wf-ov tr.mine td:first-child { box-shadow:inset 3px 0 0 var(--accent-color); }
+  .wf-ov tbody td:first-child { text-align:left; }   /* 기관 이름 칸 몸통만 왼쪽(사용자 11-26 승인 예외 확대) */
   .wf-open { font-size:12px; }
   .wf-log { margin-top:10px; }
   .wf-log-title { font-size:13px; margin:6px 0 2px; }
@@ -1322,6 +1324,7 @@
   .dc-up[hidden] { display:none; }
   #dc-sm-d p { margin:0 0 8px; font-size:13px; line-height:1.6; word-break:keep-all; }
   .dc-hits .c-name { overflow-wrap:anywhere; }
+  .dc-hits td.c-name { text-align:left; }   /* 기관 이름 칸 몸통만 왼쪽, 머리값(th.c-name)은 가운데 */
   .dc-ctxgo, #dg-upload.dg-ready { border-color:var(--accent-color); font-weight:700; }
   .dc-ctxgo:disabled, #dg-upload.dg-ready:disabled { border-color:var(--line-strong); font-weight:400; }   /* 꺼졌을 때는 강조를 뺀다(design 11-23) */
   .dc-ctxgo:not(:disabled):hover { border-color:var(--accent-color); }   /* 기본 hover 테두리가 강조를 덮지 않게 */
@@ -1543,7 +1546,7 @@
   .pb-t thead .pb-auto { display:block; font-weight:400; }
   .pb-t thead th.pb-corner { left:0; z-index:4; text-align:center; vertical-align:middle; padding-left:4px; border-right-color:var(--line-strong); }
   .pb-t .gs { border-left:1px solid var(--line-strong); }
-  .pb-t tbody th { position:sticky; left:0; z-index:1; box-sizing:border-box; padding:5px 10px; text-align:center; font-weight:400; vertical-align:middle;
+  .pb-t tbody th { position:sticky; left:0; z-index:1; box-sizing:border-box; padding:5px 10px; text-align:left; font-weight:400; vertical-align:middle;
     background:var(--panel); border-right:1px solid var(--line-strong); border-bottom:1px solid var(--line); }
   .pb-t td { box-sizing:border-box; height:44px; padding:0; text-align:center; vertical-align:middle; background:var(--panel); border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
   .pb-t td[data-mk="DONE"] { background:color-mix(in srgb, var(--blue) 10%, var(--panel)); }
@@ -1742,6 +1745,7 @@
   .ad-table th, .ad-table td { border-bottom:1px solid var(--line); padding:7px 10px; text-align:center; vertical-align:middle; white-space:nowrap; }
   .ad-table thead th { background:var(--panel2); color:var(--muted); font-weight:600; position:sticky; top:0; }
   .ad-perms td, .ad-perms thead th:not(:first-child) { text-align:center; }
+  .ad-perms tbody th { text-align:left; }   /* 메뉴 이름 = 행 머리 이름 칸(3–10자, 15줄 넘음), 몸통만 왼쪽. 결재 카드 .ap-changes(1–3줄)는 가운데 유지 */
   .ad-table tr.st-retired td { color:var(--muted); }
   .ad-table tr.bad td { background:color-mix(in srgb, var(--red) 10%, transparent); }
   .ad-table .mono { font-family:var(--mono); }
@@ -1831,6 +1835,7 @@
   .more-table thead tr { text-align:center; color:var(--muted); }
   .more-table th { padding:6px; text-align:center; vertical-align:middle; border-bottom:1px solid var(--line-strong); }
   .more-table td { text-align:center; vertical-align:middle; }   /* 기관·유형·지역·날짜·기간 모두 글자·날짜 칸 — 금액 열 없음(render.js:1486-1493) */
+  .more-table td:first-child { text-align:left; }   /* 기관명 칸만 왼쪽(행 머리 이름 칸 예외) */
   #doc-body pre { margin:0; white-space:pre-wrap; word-break:break-word; font-family:inherit;
                   font-size:13px; line-height:1.6; }
   #doc-body mark { background:var(--accent-color); color:#fff; border-radius:var(--r); padding:0 2px; }
@@ -2898,6 +2903,7 @@
   .pl-dlg-tbl { width:100%; border-collapse:collapse; font-size:13px; }
   .pl-dlg-tbl th { position:sticky; top:0; padding:6px 10px; font-size:12px; font-weight:400; color:var(--muted); text-align:center; vertical-align:middle; background:var(--panel2); border-bottom:1px solid var(--line-strong); }
   .pl-dlg-tbl td { padding:6px 10px; text-align:center; vertical-align:middle; border-top:1px solid var(--line); overflow-wrap:anywhere; }
+  .pl-dlg-tbl td:first-child { text-align:left; }   /* 수집 요청·반입 확인 창 모두 첫 열이 기관 이름 */
   .pl-dlg-tbl tbody tr:first-child td { border-top:0; }
   @media (max-width:880px) {
     .pl-work { grid-template-columns:1fr; }
@@ -2923,11 +2929,12 @@
   .pl-req .db-why .v { font-family:var(--mono); }
   .pl-req button { min-height:26px; }
   .cr-table td { vertical-align:middle; }
-  .cr-table td.cr-inst { white-space:normal; word-break:keep-all; min-width:11em; }
+  .cr-table td.cr-inst { white-space:normal; word-break:keep-all; min-width:11em; text-align:left; }   /* 기관 이름 칸(수집 요청·반입 대기 공통) 몸통만 왼쪽 */
   .cr-nm { font-weight:600; }
   .cr-sub { display:block; margin-top:2px; font-size:12px; color:var(--muted); }
   .cr-who .cr-sub { white-space:normal; word-break:keep-all; max-width:14em; }
   .cr-table .cr-sub { margin-left:auto; margin-right:auto; }   /* block+max-width라 가운데 칸에서 왼쪽에 붙지 않게 */
+  .cr-table td.cr-inst .cr-sub { margin-left:0; }   /* 이름 칸 부제는 이름과 같은 왼쪽 선 */
   .cr-table .v { font-family:var(--mono); }
   .cr-dom .v { display:inline-block; max-width:18ch; overflow:hidden; text-overflow:ellipsis; vertical-align:bottom; }
   td.cr-ck, th.cr-ck { width:36px; padding:0 !important; }
@@ -3018,6 +3025,7 @@
   .rs-rt col.c-kind { width:150px; } .rs-rt col.c-why { width:auto; } .rs-rt col.c-at { width:96px; }
   .rs-tt th, .rs-tt td { height:40px; padding:0 10px; vertical-align:middle; text-align:center; font-size:12px; font-weight:400; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .rs-tt thead th { position:sticky; top:0; z-index:1; padding:0 10px; vertical-align:middle; font-weight:700; color:var(--muted); background:var(--panel2); border-bottom:1px solid var(--line-strong); }
+  .rs-tt tbody th[scope=row] { text-align:left; }   /* .hb-tt와 같은 기관 이름 칸 = 몸통만 왼쪽, 머리값은 가운데(사용자 11-26 승인) */
   .rs-tt .mut, .rs-tt td.mut { color:var(--muted); }
   .rs-tt .hb-nm { all:unset; cursor:pointer; border-radius:var(--r); font-size:13px; font-weight:700; color:var(--fg); }
   .rs-tt span.hb-nm { cursor:default; }

@@ -179,6 +179,7 @@
   <a href="#c123">123 기관장 카드 — 경력 '현직' 확인란·끝 칸 잠금, Word 요약본/날짜정보 포함 선택</a>
   <a href="#c124">124 표 정렬 — 머리값은 모두 가운데, 금액만 오른쪽, 나머지 칸 가운데(입찰 현황판 표는 다음)</a>
   <a href="#c125">125 입찰 현황판 — 12개월 일정 띠와 줄 끝 단추를 빼고, 줄을 고르면 띠에 [수정하기][관심 기관으로][목표 기관에서 제외], 표 가운데 정렬(기관 이름만 왼쪽)</a>
+  <a href="#c126">126 표 정렬 — 줄을 대표하는 기관·메뉴 이름 칸만 몸통 왼쪽(입찰 결과·준비 현황·권한 관리 등 9곳)</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2533,6 +2534,21 @@
 </div>
 </section>
 
+<section class="ch" id="c126">
+<h2>126 표 정렬 — 행 머리 이름 칸만 몸통 왼쪽 (2026-11-26, 사용자 11-26 승인 예외(ca f41e496e 현황판)를 같은 성격의 표로 확대, design-reviewer 판정 A·B·C)</h2>
+<div class="why">왜: 124장에서 모든 칸을 가운데로 모은 뒤, 기관·메뉴 이름처럼 길이가 들쭉날쭉하고 줄을 대표하는 칸은 이름마다 시작 위치가 달라 위아래로 훑기 어려웠습니다. 입찰 결과 표는 210px 칸에서 말줄임된 이름이 줄마다 다른 자리에서 시작했습니다. 사용자가 현황판에서 승인한 "줄을 대표하는 긴 이름은 왼쪽"을 같은 성격의 표에 맞췄습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#6b6b6b"><th style="text-align:center;padding:4px">기관</th><th style="text-align:center;padding:4px">상태</th></tr><tr><td style="text-align:center;padding:4px;border-top:1px solid #ddd">○○시청</td><td style="text-align:center;padding:4px;border-top:1px solid #ddd">요청됨</td></tr><tr><td style="text-align:center;padding:4px;border-top:1px solid #ddd">(재)○○연구개발특구진흥재단</td><td style="text-align:center;padding:4px;border-top:1px solid #ddd">반입 대기</td></tr></table>
+<p class="hint12">이름 칸도 가운데 — 짧은 이름과 긴 이름의 시작 자리가 다름.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#6b6b6b"><th style="text-align:center;padding:4px">기관</th><th style="text-align:center;padding:4px">상태</th></tr><tr><td style="text-align:left;padding:4px;border-top:1px solid #ddd">○○시청</td><td style="text-align:center;padding:4px;border-top:1px solid #ddd">요청됨</td></tr><tr><td style="text-align:left;padding:4px;border-top:1px solid #ddd">(재)○○연구개발특구진흥재단</td><td style="text-align:center;padding:4px;border-top:1px solid #ddd">반입 대기</td></tr></table>
+<p style="font-size:12px">적용(9곳): 입찰 결과·연중에 뺀 곳(.rs-tt), 제안 준비 현황 격자(.pb-t), 권한 관리·내 정보 권한(.ad-perms 메뉴 이름), 제안서 진행 목록(.wf-ov), 수집 요청·반입 대기(.cr-table/.ib-table, 이름 아래 부제도 같은 왼쪽 선), 문서 점검 다른 기관 이름(.dc-hits), 전체 입찰건 창(.more-table), 수집 요청·반입 확인 창(.pl-dlg-tbl), 배점표 평가항목(.wf-cov). 머리값과 다른 칸은 가운데 그대로.</p>
+<p class="legend-note">가운데 유지: 사람 이름·사번·코드·날짜·'참석자 N', 키-값 라벨, 1–3줄 결재 카드 표. 시작화면(.pt-tt)은 b3, 목표 변경 확인 표(.ap-tc)는 ca 담당. 이사회 자료 목록 기관명·첨부 파일명은 사용자 답 대기(가운데 유지). 색·크기 변화 없음. 정렬 시험 15건 통과, 렌더 실측은 브라우저가 비는 때.</p>
+</div></div></div>
+</div>
+</section>
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
 </div>
 </body>
