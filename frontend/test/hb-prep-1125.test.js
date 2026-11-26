@@ -56,7 +56,7 @@ test('B 상태 표: 목표 + confirm(공고 전 포함)은 켜짐(확인 상자)
   const c = makePrepState({ sel: sel1() });
   assert.strictEqual(c.on, true); assert.strictEqual(c.open, undefined); assert.strictEqual(c.early, false);
   assert.strictEqual(c.nm, '서울 노원구청');
-  assert.strictEqual(c.why, '서울 노원구청을 확정하고 제안 준비 현황으로 갑니다.');
+  assert.strictEqual(c.why, '서울 노원구청의 제안 사전준비를 시작하고 담당자를 정하러 갑니다.');
   assert.strictEqual(makePrepState({ sel: sel1(), early: true }).early, true);   // 공고 전 목표 기관은 본문 3(평문)만 더한다
   const o = makePrepState({ sel: sel1(), act: 'open' });
   assert.deepStrictEqual([o.on, o.open, o.why], [true, true, '노원구청은 사전준비 중입니다. 누르면 그 화면으로 갑니다.']);
@@ -112,7 +112,7 @@ test('B 배선: 툴바 마크업·위치·페인트·꺼짐 클릭·확인 상�
   assert.ok(K.indexOf("if (!s.on) { flash(s.why, '', 'info'); return; }") > 0 && K.indexOf("n.classList.toggle('info', kind === 'info')") > 0
     && src('index.html').indexOf('.hb-note.info .hb-note-ck { display:none; }') > 0 && K.indexOf('#hb-ours-btn { height:32px') < 0
     && src('index.html').indexOf('#hb-ours-btn { height:32px;') > 0 && src('index.html').indexOf('.tc-ba .tc-termgo, .tc-ba select { box-sizing:border-box; height:29px; }') > 0 && K.indexOf("case 'hb-prep': prepClick(btn); break;") > 0);
-  // 확인 상자: 제목 '제안 사전준비 — {지역} {기관명}', 실행 [확정하고 이동], 취소가 첫 포커스(focusGo 없음)
+  // 확인 상자: 제목 '제안 사전준비 — {지역} {기관명}', 실행 [시작하고 이동], 취소가 첫 포커스(focusGo 없음)
   assert.ok(K.indexOf("title: '제안 사전준비 — ' + s.nm, text: lines.join('\\n'), go: dash.PREP_CONFIRM_GO, cancel: '취소'") > 0 && K.indexOf('focusGo') < 0);
   assert.ok(K.indexOf('dash.PREP_BODY2') > 0 && K.indexOf('if (s.early) lines.push(dash.PREP_BODY3);') > 0);
   assert.ok(K.indexOf('취소할 수 있습니다') < 0);   // 본문 4(취소 문장)는 서버 규칙 확인 전까지 넣지 않는다
@@ -120,7 +120,7 @@ test('B 배선: 툴바 마크업·위치·페인트·꺼짐 클릭·확인 상�
   assert.ok(K.indexOf("dash.postConfirm(e.id, 'bid_board')") > 0 && K.indexOf('if (dash.goPrep(x.body)) return;') > 0);
   assert.ok(/if \(f\.again\) \{[^}]*loadProgress\(\)\.then\(function \(\) \{ if \(host && !openPrepOf\(e\.id\)\)/.test(K));
   assert.ok(K.indexOf("say(String(f.msg || '').indexOf(e.name) >= 0 ? f.msg : e.name + ' 제안 사전준비: ' + f.msg, true);") > 0);   // P3-2 기관 이름 접두(이미 있으면 생략)
-  assert.ok(K.indexOf("'확정하는 중…'") > 0);   // 보내는 중에는 단추 글자가 바뀌고 aria-disabled
+  assert.ok(K.indexOf("'시작하는 중…'") > 0);   // 보내는 중에는 단추 글자가 바뀌고 aria-disabled
   assert.ok(K.indexOf('kbb.findOpener') > 0 && K.indexOf("classList.contains('hb-confirm')") < 0);   // 줄 [제안 확정] 클릭 분기는 없다
   // 서버 쪽 이름 규약: 이 화면은 서버 변경 없이 현재 POST /preps를 쓴다
   assert.ok(K.indexOf('/preps/') < 0 || K.indexOf("fetch('/preps") < 0);

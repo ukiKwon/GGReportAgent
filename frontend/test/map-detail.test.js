@@ -54,13 +54,13 @@ test('popupHtml(11-19 저녁 4-4·11-25): 머리 줄 [주버튼] ┃ [×] 순서
   const c = dash.popupHtml(it, Object.assign({}, o, { confirm: true }));
   assert.ok(c.bar.indexOf('id="db-cf" disabled') > 0 && c.note.indexOf('id="dm-confirm"') > 0 && c.note.indexOf('id="db-do"') > 0 && c.note.indexOf('id="db-cancel"') > 0);
   assert.ok(c.note.indexOf('id="db-cf"') < 0);   // 확인 상자 안에는 [제안 사전준비]가 없다(머리 줄에만)
-  assert.ok(c.note.indexOf('id="db-do">확정하고 이동</button>') > 0);
+  assert.ok(c.note.indexOf('id="db-do">시작하고 이동</button>') > 0);
   const early = dash.popupHtml(it, Object.assign({}, o, { confirm: true, early: true }));
   assert.ok(early.note.indexOf('class="db-confirm dm-confirm"') > 0 && early.note.indexOf('아직 입찰 공고 전인 기관입니다. 공고가 나면 일정을 다시 확인하세요.') > 0 && early.note.indexOf('계속 진행') < 0 && early.note.indexOf('early') < 0);
   const off = dash.popupHtml(it, { act: 'confirm', role: '영업팀', today: TODAY, nameId: 'dm-name', goal: true });   // 지도 팝업·포털 상세 등 현황판 밖
   assert.ok(off.bar.indexOf('id="db-cf"') < 0 && off.bar.indexOf('id="db-board"') > 0 && off.bar.indexOf('목표 기관</span>') > 0 && off.bar.indexOf('id="db-board"') < off.bar.indexOf('class="dm-sep"') && off.note === '');
   const op = dash.popupHtml(it, { act: 'open', today: TODAY });
-  assert.ok(op.bar.indexOf('id="db-open"') < op.bar.indexOf('id="dm-close"') && op.note.indexOf('이미 제안 확정되어 사전준비가 진행 중입니다.') > 0);
+  assert.ok(op.bar.indexOf('id="db-open"') < op.bar.indexOf('id="dm-close"') && op.note.indexOf('이미 제안 사전준비가 진행 중입니다.') > 0);
   const ro = dash.popupHtml(it, { act: 'none', role: '디자이너', readOnly: true, today: TODAY });
   assert.ok(ro.bar.indexOf('dm-edit') < 0 && ro.bar.indexOf('db-next') < 0 && ro.bar.indexOf('id="dm-close"') > 0);
   assert.ok(dash.paneHtml(it, { act: 'confirm', today: TODAY }).indexOf('<div class="db-act"><div class="db-act-row"><button type="button" id="db-board" aria-label="가람시청 입찰 현황판에서 열기">입찰 현황판에서 열기</button>') > 0);   // 입찰 공고 현황 안쪽 칸: 확정 대신 현황판으로(11-25)
@@ -79,7 +79,7 @@ test('confirmFail: 상태별 문구(권한 401/403·그 밖) — 현황판과 �
   assert.ok(dash.confirmFail({ r: { status: 403 }, body: null }).msg.indexOf('제안 사전준비를 시작할 권한이 없습니다(403). 로그인 사번과 권한을 확인하세요.') >= 0);
   const f = dash.confirmFail({ r: { status: 500 }, body: null });
   assert.strictEqual(f.again, false);
-  assert.ok(f.msg.indexOf('제안 확정하지 못했습니다(500)') >= 0 && f.msg.indexOf('[object') < 0);
+  assert.ok(f.msg.indexOf('제안 사전준비를 시작하지 못했습니다(오류 500)') >= 0 && f.msg.indexOf('[object') < 0);
 });
 
 // ── 가짜 DOM: 열림·닫힘·포커스 복귀 ────────────────────────────────

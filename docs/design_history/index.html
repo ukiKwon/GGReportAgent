@@ -184,6 +184,7 @@
   <a href="#c128">128 시작화면 입찰 일정 표 — 6열·단계 3값·공고 확인 필요</a>
   <a href="#c129">129 표 정렬 — 이사회 자료 목록 기관명·제안서 첨부 파일명도 몸통 왼쪽(사용자 답)</a>
   <a href="#c130">130 표 실측 후속 — 입찰 결과 열 폭 재배분, 준비 현황 머리값 꺾임, 예산 원문 문장 왼쪽</a>
+  <a href="#c131">131 입찰 현황판 — 제안 진행 띠 5칸·끝난 건·모든 열 정렬·설명회 칸 삭제(NEXT 120)</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2597,6 +2598,23 @@
 </div></div></div>
 </div>
 </section>
+<section class="ch" id="c131">
+<h2>131 입찰 현황판 — '제안 진행' 띠 5칸·끝난 건·모든 열 정렬·설명회 칸 삭제 (2026-11-26, 사용자 11-25 결정 + 11-26 시안 승인·'각 열 오름·내림 정렬'·'설명회 열 불필요', NEXT 120)</h2>
+<div class="why">왜: 제안 확정·개설 승인 단계가 없어졌는데 띠에는 그 칸이 남아 대부분 0이었고, 제출·협약까지 어디쯤인지는 보이지 않았습니다. 표의 준비 단계 칸은 이름이 '제…'로 잘렸습니다(0d 1280px 실측: 이름 자리 22px). 아직 셀 근거가 없는 단계를 0으로 보이면 '없음'으로 읽히므로 '—'로 구분했습니다. 사용자가 시안(hb_mock_120)을 승인하며 모든 열 정렬과 설명회 칸 삭제를 더했습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;font-size:12px"><span style="border:1px solid #6d7882;padding:2px 4px">1 제안 확정 <b>2</b></span><span style="border:1px solid #6d7882;padding:2px 4px">2 개설 승인 대기 <b>1</b></span><span style="border:1px solid #6d7882;padding:2px 4px">3 사전준비 <b>5</b></span><span style="border:1px solid #6d7882;padding:2px 4px">4 사전준비 승인 대기 <b>1</b></span><span style="border:1px solid #6d7882;padding:2px 4px">5 제안서 작성 <b>3</b></span></div>
+<p class="hint12">표: 기관·구분·금고 방식·마감까지·현 금고 은행·준비 단계('제…' 잘림, 막대·n/5·지연이 한 줄)·설명회(모두 '—'). 금고 방식은 정렬 안 됨. 끝난 건(탈락·중단·입찰 없음)은 어디에도 안 보임.</p>
+</div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;font-size:12px"><span style="border:1px solid #6d7882;padding:2px 4px">1 제안 준비 전 <b>3</b></span><span style="border:1px solid #6d7882;padding:2px 4px">2 제안 준비 <span style="color:#464c53">승인 대기 1</span> <b>8</b></span><span style="border:1px dashed #6d7882;padding:2px 4px;color:#464c53">3 제안 제출 및 대기 —</span><span style="border:1px dashed #6d7882;padding:2px 4px;color:#464c53">4 협약 예정 —</span><span style="border:1px dashed #6d7882;padding:2px 4px;color:#464c53">5 협약 완료 —</span></div>
+<div style="display:flex;gap:8px;align-items:center;font-size:12px;color:#464c53;margin-top:4px"><span style="flex:1">3~5칸과 탈락은 아직 세지 않습니다. 지금은 제안서를 낸 곳도 '제안 준비'에 들어 있습니다.</span><span style="border:1px solid #6d7882;padding:1px 6px;color:#1e2124"><b>끝난 건</b> <span style="color:#464c53">탈락 — · 중단 1 · 입찰 없음(타행 유지) 2</span></span></div>
+<p style="font-size:12px">표: 설명회 칸을 빼 열 6개 + 고르기, 여섯 열 모두 머리를 눌러 오름·내림 정렬(금고 방식 1금고 → 2금고 → 단수금고 → 주거래 → 빈 값, 준비 단계는 5칸 순 → 끝난 건 → 미정). 준비 단계 칸은 132px 두 줄(이름 전체 / 막대·n/5·지연), 끝난 줄은 칩 하나(탈락/중단/입찰 없음). 진행 기록 없이 입찰이 끝난 줄·입찰 없음+국민은행 줄은 '—'와 이유. '중단' = 개설 뒤 취소만(개설 전 확정 취소는 세지 않음). 메뉴 이름 '예상 공고현황' 문구 3곳 맞춤.</p>
+<p class="legend-note">숫자(계산값 — 이 세션 브라우저 연결 실패, 1280px 실측은 보충): 단계 이름 자리 22px → 112px 칸 안 최장 약 97px, 2줄째 최대 102px, 줄 높이 40px 그대로. 표 최소 폭 816px(고르기 32 + 기관 150 + 고정 634). '—'·끝난 건 글자 --muted(약 8.8:1), 점선 --line-strong. 근거 없는 수는 0이 아니라 '—'.</p>
+</div></div></div>
+</div>
+</section>
+
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
 </div>
 </body>

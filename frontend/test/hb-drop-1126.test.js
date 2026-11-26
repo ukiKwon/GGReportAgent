@@ -14,11 +14,11 @@ const E = function (id, o) { return Object.assign({ id: id, name: id + '구청',
 function sel(list) { const s = tc.newSel(); list.forEach(function (e) { tc.pick(s, e); }); return s; }
 function rule(s) { const i = CSS.indexOf(s + ' {'); assert.ok(i >= 0, s + ' 규칙이 있어야 한다'); return CSS.slice(i, CSS.indexOf('}', i)); }
 
-test('목표 표: 동작 칸·줄 끝 단추·다음 회차 입구 없음(열 7개 + 고르기 열), 관심 표 동작 칸은 그대로', function () {
+test('목표 표: 동작 칸·줄 끝 단추·다음 회차 입구 없음(열 6개 + 고르기 열), 관심 표 동작 칸은 그대로', function () {
   const base = { st: 'ok', year: 2026, tab: 'goal', rows: [], out: [], canEdit: true, cands: [] };
   const g = kbb.goalTableHtml(base);
-  assert.ok(g.indexOf('c-act') < 0 && g.indexOf('<span class="sr-only">동작</span>') < 0 && g.indexOf('colspan="7"') > 0);
-  assert.ok(kbb.goalTableHtml(Object.assign({}, base, { selCol: true })).indexOf('colspan="8"') > 0);
+  assert.ok(g.indexOf('c-act') < 0 && g.indexOf('<span class="sr-only">동작</span>') < 0 && g.indexOf('colspan="6"') > 0);
+  assert.ok(kbb.goalTableHtml(Object.assign({}, base, { selCol: true })).indexOf('colspan="7"') > 0);
   const w = kbb.goalTableHtml(Object.assign({}, base, { tab: 'watch' }));
   assert.ok(w.indexOf('<col class="c-act">') > 0 && w.indexOf('<span class="sr-only">동작</span>') > 0);
   assert.ok(K.indexOf('tonext') < 0 && K.indexOf('closedActsHtml') < 0 && K.indexOf('다음 회차 목표로…') < 0);
@@ -114,7 +114,7 @@ test('표 정렬(DESIGN 표 정렬, 사용자 11-26): .hb-tt 머리·칸 가운�
   assert.ok(/text-align:\s*left/.test(rule('.hb-tt tr.emp td')));
   assert.ok(/text-align:\s*left/.test(rule('.hb-tt.wt tbody td:nth-last-child(2)')));
   assert.ok(/justify-content:\s*center/.test(rule('.hb-tt .hb-stg')) && /justify-content:\s*center/.test(rule('.hb-tt .hb-wacts')));
-  assert.ok(/min-width:888px/.test(rule('.hb-tt')) && /min-width:1028px/.test(rule('.hb-tt.wt')));   // 쓰기 모드는 늘 고르기 열(32)이 붙는다(qa P3-4)
+  assert.ok(/min-width:816px/.test(rule('.hb-tt')) && /min-width:1028px/.test(rule('.hb-tt.wt')));   // 쓰기 모드는 늘 고르기 열(32)이 붙는다(qa P3-4)
   assert.ok(/text-align:\s*left/.test(rule('.hb-tt tbody th[scope=row]')));   // 행 머리 기관 이름 칸만 왼쪽(사용자 11-26 승인), 머리값은 위 규칙대로 가운데
   assert.ok(/padding:\s*0 6px/.test(rule('.hb-tt td.aim')));   // 금고 방식 칩 좌우 같게(design S5)
   const own = CSS.split('\n').filter(function (l) { return l.indexOf('#tc-bd .tc-opt') >= 0 || l.indexOf('#hb-seltow') >= 0; }).join('\n');

@@ -318,8 +318,8 @@
     if (Array.isArray(preps)) {
       dash.activePreps(preps).forEach(function (p) {
         const id = idOf(p); if (!id) return;
-        const s = dash.stageOf(p.state_cd || p.stateCd);
-        if (!best[id] || s > best[id].stage) best[id] = { id: id, stage: s, row: p, ov: null };
+        const cd = p.state_cd || p.stateCd, rk = dash.stateRank(cd);
+        if (!best[id] || rk > best[id].rank) best[id] = { id: id, stage: dash.stageOf(cd), rank: rk, cd: cd, row: p, ov: null };
       });
       Object.keys(best).forEach(function (id) { out.push(best[id]); });
     }
@@ -328,7 +328,7 @@
       const seen = {};
       items.forEach(function (it) {
         const id = idOf(it);
-        if (id && !it.done && (it.state || 'NONE') !== 'NONE' && !best[id] && !seen[id]) { seen[id] = true; out.push({ id: id, stage: 4, row: null, ov: it }); }
+        if (id && !it.done && (it.state || 'NONE') !== 'NONE' && !best[id] && !seen[id]) { seen[id] = true; out.push({ id: id, stage: 1, rank: 4, cd: 'WRITING', row: null, ov: it }); }
       });
     }
     return out;
@@ -466,8 +466,10 @@
   };
   // 열 머리 정렬(규격 6-5). key = nm(기관)·tag(구분)·due(마감까지)·bank(현 금고 은행)·stage(준비 단계)·next(다음 협약 종료, 관심 탭), dir = 'asc'|'desc'.
   // 같은 값이면 이름 가나다 순(방향과 무관). 값을 모르는 줄(은행 확인 안 됨·단계 없음·일정 모름)은 방향과 상관없이 맨 아래. 묶음(목표 / 목표 밖 준비)은 호출 쪽이 따로 넘긴다.
-  kbb.SORTABLE = { goal: ['nm', 'tag', 'due', 'bank', 'stage'], watch: ['nm', 'tag', 'next', 'bank'] };
-  kbb.SORT_LABEL = { nm: '기관', tag: '구분', due: '마감까지', bank: '현 금고 은행', stage: '준비 단계', next: '공고·다음 협약 종료' };
+  kbb.SORTABLE = { goal: ['nm', 'tag', 'aim', 'due', 'bank', 'stage'], watch: ['nm', 'tag', 'next', 'bank'] };
+  kbb.SORT_LABEL = { nm: '기관', tag: '구분', aim: '금고 방식', due: '마감까지', bank: '현 금고 은행', stage: '준비 단계', next: '공고·다음 협약 종료' };
+  // 금고 방식 순서(사용자 11-26): 1금고 → 2금고 → 단수금고 → 주거래 → 비어 있음(맨 아래). 저장된 값(r.aimName)만 본다 — 저장 전 대기 값으로 줄이 움직이지 않게. 모르는 이름은 주거래 뒤.
+  kbb.AIM_ORDER = ['1금고', '2금고', '단수금고', '주거래'];
   // 관심 줄 '공고·다음 협약 종료' 칸의 순위(design 11-25 6-1): 0 공고 중(마감일 확정) 1 공고 중(마감 미상) 2 마감 지남 3 확인 필요 4 공고 지연 5 다음 협약 종료 6 기록 종료 7 일정 모름.
   // wst가 없는 줄(공고 자료를 받기 전의 옛 모양)은 날짜 유무로만 5·7.
   function wRank(r) { return r.wst ? r.wst.rank : (r.nextDate ? 5 : 7); }
@@ -485,7 +487,7 @@
       nm: function (r) { return r.name; },
       tag: function (r) { return r.tagCd === 'RETAIN' ? 0 : (r.tagCd === 'REGAIN' ? 1 : (r.tagCd === 'NEW' ? 2 : null)); },
       bank: function (r) { return r.bank && !r.bank.unknown ? r.bank.name : null; },
-      stage: function (r) { return r.stage >= 0 ? r.stage : null; },
+      aim: function (r) { const n = String(r.aimName || ''); if (!n && !r.aimCd) return null; const i = kbb.AIM_ORDER.indexOf(n); return i >= 0 ? i : kbb.AIM_ORDER.length; },
       next: function (r) { return r.nextDate || null; } };
     return (rows || []).slice().sort(function (a, b) {
       if (key === 'due') {
@@ -500,6 +502,12 @@
         if ((ra === 7) !== (rb === 7)) return ra === 7 ? 1 : -1;
         if (ra === 7) return byName(a, b);
         return (sign * ((ra - rb) || wTie(a, b, ra))) || byName(a, b);
+      }
+      if (key === 'stage') {   // 5칸 순서(0~4). 끝난 건(5)은 방향과 상관없이 5칸 뒤, 단계를 못 정한 줄(-1)은 그 뒤(NEXT 120, 사용자 11-26)
+        const grp = function (r) { return r.stage >= 0 && r.stage < 5 ? 0 : (r.stage === 5 ? 1 : 2); };
+        const ga = grp(a), gb = grp(b);
+        if (ga !== gb) return ga - gb;
+        return (ga === 0 ? sign * (a.stage - b.stage) : 0) || byName(a, b);
       }
       const f = val[key];
       if (!f) return byName(a, b);
@@ -567,6 +575,44 @@
     const c = [0, 0, 0, 0, 0];
     (rows || []).forEach(function (r) { if (r.stage >= 0 && r.stage < 5) c[r.stage] += 1; });
     return c;
+  };
+  // 5칸 밖 '끝난 건'(번호 5)·보조 숫자·분류 못 한 줄. 근거가 연결되지 않은 값은 0이 아니라 null('—').
+  kbb.stageName = function (i) { return i === 5 ? '끝난 건' : ((dash.STAGES[i] || {}).label || ''); };
+  kbb.END_KNOWN = { drop: false, stop: true, nobid: true };   // 1차: 탈락(결과발표 선정/탈락)은 응답에 없다. 중단은 /preps state_name으로 센다(STOP_STATE_NAME)
+  kbb.endCounts = function (rows) {
+    const e = { drop: 0, stop: 0, nobid: 0, rows: 0 };
+    (rows || []).forEach(function (r) { if (r.stage === 5) { e.rows += 1; if (r.endKind === 'drop' || r.endKind === 'stop' || r.endKind === 'nobid') e[r.endKind] += 1; } });
+    ['drop', 'stop', 'nobid'].forEach(function (k) { if (!kbb.END_KNOWN[k]) e[k] = null; });
+    return e;
+  };
+  kbb.subCounts = function (rows) { let a = 0; (rows || []).forEach(function (r) { if (r.stage === 1 && r.appr) a += 1; }); return { approval: a }; };
+  kbb.unkCount = function (rows) { return (rows || []).filter(function (r) { return r.stage < 0 && r.unk; }).length; };
+  // 개설 뒤 중단의 표시명(서버 PrepService.stateName). 같은 CANCELLED 코드의 개설 전 건은 '확정 취소'라 끝난 건도 미분류도 아니고 무시한다.
+  // 서버 opened 칸이 생기면 교체(백엔드 이관) — 표시명에 기대는 판정은 이 상수 하나로 모은다.
+  kbb.STOP_STATE_NAME = '중단(미참여)';
+  kbb.stoppedIds = function (preps) {
+    const set = {};
+    (Array.isArray(preps) ? preps : []).forEach(function (p) {
+      if ((p.state_cd || p.stateCd) === 'CANCELLED' && String(p.state_name || p.stateName || '').trim() === kbb.STOP_STATE_NAME) { const id = idOf(p); if (id) set[id] = true; }
+    });
+    return set;
+  };
+  // 현 금고 줄 중 어느 순위든 국민은행이 있는가(2금고 포함) — 입찰 없음 줄의 끝난 건/협약 예정 후보 판정용(bankInfo는 1금고·단수만 본다).
+  kbb.hasKbLine = function (sum) {
+    const lines = sum && Array.isArray(sum.lines_now) ? sum.lines_now : [];
+    return lines.some(function (l) { return l && /국민/.test(l.bank_name || ''); });
+  };
+  // 진행 기록(entry)이 없는 목표 줄의 칸을 정한다(진행 자료를 받았을 때만, 관심·목표 밖 줄 제외). 근거 없는 줄은 억지로 칸에 넣지 않는다(stage -1 + unk 이유).
+  kbb.placeRow = function (r, ctx) {
+    if (r.stage >= 0 || r.out || r.kind === 'WATCH' || !ctx.prepOk) return r;
+    if (r.closed && r.closed.cd === 'NOTICE_NO_BID') {
+      if (r.bank.unknown) r.unk = 'bank';
+      else if (r.bank.kb || r.kbAny) r.unk = 'kb';           // 국민은행 유지(2금고 포함) = 협약 예정 후보. 1차에는 그 칸이 '—'라 어느 칸에도 넣지 않는다
+      else { r.stage = 5; r.endKind = 'nobid'; r.stageLabel = ''; }
+    } else if (ctx.stopped && ctx.stopped[r.id]) { r.stage = 5; r.endKind = 'stop'; r.stageLabel = ''; }   // 개설 뒤 중단(미참여) = 끝난 건
+    else if (r.closed) r.unk = 'closed';                       // 공고 끝남·약정 정해짐인데 제안 기록이 없어 단계를 정할 수 없다
+    else { r.stage = 0; r.stageLabel = kbb.stageName(0); }
+    return r;
   };
   // 협약 종료(다음 입찰 자리) — 관심 기관 줄(규격 6-7). 출처 순서(planner 3-1): next_term_to(039 약정) → 행안부 금고지정 끝(끝나지 않은 줄) → 기관 자료 다음 입찰 예정일(오늘 이후만) → 모름.
   kbb.NEXT_SRC = { contract: '약정', lofin: '행안부', inst: '기관 자료' };
@@ -749,9 +795,9 @@
       targetNo: t.target_no, revNo: t.rev_no, targetYear: t.target_year, tagCd: t.tag_cd || '', tagName: t.tag_name || kbb.TAG[t.tag_cd] || '', aimCd: t.aim_rank_cd || '', aimName: t.aim_rank_name || '', aimMode: t.aim_mode === 'DIRECT' || t.aim_mode === 'APPROVAL' ? t.aim_mode : '',
       memo: String(t.memo || ''), ownerEmpNo: t.owner_emp_no || '', editorName: String(t.editor_name || ''), firstEditor: String(t.first_editor_name || ''),
       savedAt: String(t.saved_at || ''), empVerified: t.emp_verified === true, canCancel: !!t.can_cancel,
-      due: due, bank: kbb.bankInfo(sum, rec, { lofin: ctx.lofin, today: ctx.today }),
+      due: due, bank: kbb.bankInfo(sum, rec, { lofin: ctx.lofin, today: ctx.today }), kbAny: kbb.hasKbLine(sum),
       prevYear: lastKb,   // 올해 이후(미래 약정 포함)는 칩이 붙지 않는다. NaN도 0(formerKbYear)
-      stage: stage, stageLabel: stage >= 0 ? ((dash.STAGES[stage] || {}).label || '') : '',
+      stage: stage, stageLabel: stage >= 0 ? kbb.stageName(stage) : '', rank: e && typeof e.rank === 'number' ? e.rank : -1, appr: !!(e && e.cd === 'APPROVAL_PENDING'), endKind: '', unk: '',
       act: stage >= 0 ? 'open' : (rec && ctx.actOf ? ctx.actOf(rec) : ''), late: null, hold: null,
       kind: t.kind_cd === 'WATCH' ? 'WATCH' : 'GOAL', closed: out ? (!(Number(ctx.year) > 0) || Number(ctx.year) === ty ? kbb.closedBasis(id, ctx.snap, ctx.today, sum) : null) : kbb.closedOf(t.bid_closed), next: null, nextDate: '', movable: 0, note: null };
     // NEXT 105: 결재 중 잠금·자동 이월·달성 판정일·협약 개시일(서버 GET /bid-targets 항목 키). 목표 밖 줄(out)은 해당 없음. 상세(change_pending_info)는 쓰기 자격자에게만 온다.
@@ -769,7 +815,7 @@
     } else if (!out && !r.closed && due.kind === 'over') r.note = kbb.screenNote(rec, { lofin: ctx.lofin, today: ctx.today });   // 화면만 아는 근거 — 줄 title에만
     if (ctx.prepOk) {
       // 지연 = 확정 마감이 기준일 안인데 제안서 작성 전. 추정일만 있으면 판정 보류(규격 6-A).
-      const dl = ctx.delayDays || kbb.DELAY_DEFAULT, writing = stage === 4;
+      const dl = ctx.delayDays || kbb.DELAY_DEFAULT, writing = r.rank === 4 || (r.stage >= 2 && r.stage < 5);   // 제안서 작성 단계(옛 4)·제출 이후 칸은 지연이 아니다
       if (due.kind === 'fixed') { r.late = due.days <= dl && !writing; r.hold = false; }
       else {
         r.late = false;
@@ -777,7 +823,7 @@
       }
       if (r.closed || r.kind === 'WATCH') { r.late = false; r.hold = false; }   // 올해 입찰이 끝난 줄·관심 기관은 지연도 보류도 아니다(규격 6-6)
     }
-    return r;
+    return kbb.placeRow(r, ctx);
   };
   kbb.goalRows = function (targets, ctx) { return (targets || []).map(function (t) { return kbb.goalRow(t, ctx, false); }); };
   // 목표 밖에서 제안을 준비 중인 기관: prepRows 결과 중 목표에 없는 기관. taken = { institutionId: true }.
@@ -868,21 +914,43 @@
   };
   // 요약 띠 둘째 줄 '제안 진행'(규격 6-3). counts = kbb.stageCounts(표 줄 모델), o = { ok(제안 진행 자료를 받았는가), active(눌린 단계 0~4, 없으면 -1), why(받지 못한 이유 글), nOut(목표 밖 줄 수), outCounts(그 줄들의 단계별 수) }.
   // 0곳 단계는 disabled, 받지 못했으면 다섯 칸 모두 disabled·수 자리 '—'. 막대 폭 --p는 0~1 숫자만(마크업에서 숫자로 만든다).
+  kbb.STAGES_NOTE = "3~5칸과 탈락은 아직 세지 않습니다. 지금은 제안서를 낸 곳도 '제안 준비'에 들어 있습니다.";
+  // o 추가: unknown(근거 없는 칸 번호 — '—'·aria-disabled), sub({approval:n} 제안 준비 보조 숫자), end({drop,stop,nobid,rows} — null이면 '—', 끝난 건 단추 .hb-fin), unplaced(어느 칸에도 못 넣은 줄 수), active는 0~5(5=끝난 건)
   kbb.stagesHtml = function (counts, o) {
     o = o || {};
     const c = counts || [0, 0, 0, 0, 0], max = Math.max.apply(null, c.concat([0]));
-    const nOut = o.ok ? Math.max(0, Number(o.nOut) || 0) : 0, oc = o.outCounts || [];   // 목표 밖 줄 수(자료를 못 받았으면 0 — 오류 문장만 둔다)
+    const nOut = o.ok ? Math.max(0, Number(o.nOut) || 0) : 0, oc = o.outCounts || [], unk = o.unknown || [], subs = o.sub || {};   // 목표 밖 줄 수(자료를 못 받았으면 0 — 오류 문장만 둔다)
     const btns = dash.STAGES.map(function (s, i) {
       const n = Number(c[i]) || 0, on = o.ok && o.active === i, nm = esc(s.label), no = nOut > 0 ? Number(oc[i]) || 0 : 0;
       const head = '<span class="no">' + (i + 1) + '</span><span class="nm">' + nm + '</span>';
       if (!o.ok) return '<button type="button" class="hb-sb" data-stage="' + i + '" disabled>' + head + '<span class="ct">—</span></button>';
-      const p = max > 0 ? Math.round(n / max * 100) / 100 : 0;
+      if (unk.indexOf(i) >= 0) return '<button type="button" class="hb-sb unk" data-stage="' + i + '" aria-disabled="true" aria-label="' + nm + ', 아직 셀 수 없음" aria-describedby="hb-stgs-note">' + head + '<span class="ct">—</span></button>';
+      const p = max > 0 ? Math.round(n / max * 100) / 100 : 0, m = s.sub ? Number(subs[s.sub]) || 0 : 0;
       return '<button type="button" class="hb-sb" data-stage="' + i + '" aria-pressed="' + (on ? 'true' : 'false') + '"' + (n === 0 ? ' disabled' : '') + ' style="--p:' + p + '"' +
-        ' aria-label="' + nm + ' ' + n + '곳' + (no > 0 ? '(그 밖의 준비 기관 ' + no + '곳)' : '') + ' — ' + (on ? '거르기 끄기' : '표를 이 단계로 거르기') + '">' + head + '<span class="ct">' + n + '</span></button>';
+        ' aria-label="' + nm + ' ' + n + '곳' + (no > 0 ? '(그 밖의 준비 기관 ' + no + '곳)' : '') + (m > 0 ? ', 그중 사전준비 승인 대기 ' + m + '곳' : '') + ' — ' + (on ? '거르기 끄기' : '표를 이 단계로 거르기') + '">' +
+        head + (m > 0 ? '<span class="sub">승인 대기 ' + m + '</span>' : '') + '<span class="ct">' + n + '</span></button>';
     }).join('');
+    let endBtn = '';
+    if (o.ok && o.end) {
+      const e = o.end, on5 = o.active === 5, parts = [['탈락', '은', e.drop], ['중단', '은', e.stop], ['입찰 없음(타행 유지)', '', e.nobid]];
+      const bd = parts.map(function (x) { return x[0] + ' ' + (x[2] == null ? '—' : x[2]); }).join(' · ');
+      const known = parts.every(function (x) { return x[2] != null; }), total = parts.reduce(function (a, x) { return a + (Number(x[2]) || 0); }, 0);
+      const rd = parts.map(function (x) { return x[2] == null ? x[0] + x[1] + ' 아직 셀 수 없음' : x[0] + ' ' + x[2] + '곳'; }).join(', ');
+      const off = !(Number(e.rows) > 0) && !on5;   // 거를 줄이 없으면 누르지 못한다(1차에도 '—'만 있고 줄이 없을 수 있다)
+      endBtn = '<button type="button" class="hb-fin" data-stage="5"' + (off ? ' aria-disabled="true"' : ' aria-pressed="' + (on5 ? 'true' : 'false') + '"') +
+        ' aria-label="끝난 건' + (known ? ' ' + total + '곳' : '') + ': ' + rd + (off ? '' : ' — ' + (on5 ? '거르기 끄기' : '표를 끝난 건으로 거르기')) + '">' +
+        '<span class="nm">끝난 건</span>' + (known ? '<span class="ct">' + total + '</span>' : '') + '<span class="bd">' + bd + '</span></button>';
+    }
     const inc = nOut > 0 ? '그 밖의 제안서 준비 중인 기관 ' + nOut + '곳 포함' : '';
-    return '<div class="hb-stgs" role="group" aria-label="제안 진행 단계' + (inc ? ', ' + inc : '') + '"><span class="l">제안 진행</span>' + btns +
-      (inc ? '<span class="why">' + inc + '</span>' : (o.ok || !o.why ? '' : '<span class="why">' + esc(o.why) + '</span>')) + '</div>';
+    const notes = [];
+    if (!o.ok) { if (o.why) notes.push('<span class="note">' + esc(o.why) + '</span>'); }
+    else {
+      if (unk.length) notes.push('<span class="note" id="hb-stgs-note">' + esc(kbb.STAGES_NOTE) + '</span>');
+      if (Number(o.unplaced) > 0) notes.push('<span class="note">' + Number(o.unplaced) + "곳은 단계를 정할 근거가 아직 없어 어느 칸에도 넣지 않았습니다. 표에는 '—'로 보입니다.</span>");
+      if (inc) notes.push('<span class="note">' + inc + '</span>');
+    }
+    const ft = notes.length || endBtn ? '<div class="ft"><div class="notes">' + notes.join('') + '</div>' + endBtn + '</div>' : '';
+    return '<div class="hb-stgs" role="group" aria-label="제안 진행 단계' + (inc ? ', ' + inc : '') + '"><span class="l">제안 진행</span>' + btns + ft + '</div>';
   };
 
   // 표 행(규격 6-C). r = goalRow 결과, o = { canEdit }
@@ -925,12 +993,27 @@
     return '<td class="aim"' + (dv ? ' title="저장 전 — 띠의 [수정하기]로 저장합니다"' : '') + '>' + chip + dtail + '</td>';
   }
   kbb.aimCellHtml = aimCellHtml;
+  const END_TEXT = { nobid: ['입찰 없음', '끝난 건: 입찰 없음, 현 금고 타행 유지'], stop: ['중단', '끝난 건: 중단'], drop: ['탈락', '끝난 건: 탈락'] };
+  const UNK_WHY = { kb: '입찰 없이 국민은행이 금고를 이어 갑니다 — 협약 예정 칸은 결과 기록이 생기면 함께 셉니다.',
+    bank: '입찰 없음으로 기록됐지만 현 금고 은행을 확인하지 못해 단계를 정하지 않았습니다.',
+    closed: '입찰이 끝났지만 제안 기록이 없어 단계를 정할 수 없습니다.' };
   function stageCellHtml(r) {
     const late = r.late ? '<span class="hb-late">지연</span>' : '';
+    if (r.stage === 5) {   // 끝난 건: 막대·지연 없이 칩 하나(실선 무채). 칸은 .hb-tt .hb-stg가 가운데
+      const t = END_TEXT[r.endKind] || END_TEXT.nobid;
+      return '<td><span class="hb-stg"><span class="wf-badge pp-cancel">' + t[0] + '</span><span class="sr-only">' + t[1] + '</span></span></td>';
+    }
     if (r.stage >= 0) {
       const n = r.stage + 1;
-      return '<td><span class="hb-stg"><span class="lb" title="' + esc(r.stageLabel) + '">' + esc(r.stageLabel) + '</span><span class="hb-pg" aria-hidden="true"><i style="width:' + (n * 20) + '%"></i></span><span class="n">' + n + '/5</span>' + late + '</span></td>';
+      // 진행 기록 없는 '제안 준비 전' 줄의 공고 쪽 글자: 4자 이하('공고 전')만, 지연 칩이 없을 때만 보인다. 그 밖은 title·sr-only(2줄째 폭이 모자람, design §7)
+      const wt = r.rank < 0 ? (r.act === 'later' ? '공고 전' : (ACT_WHY[r.act] || (r.act === 'wait' ? '확인 중…' : ''))) : '';
+      const vis = !!wt && wt.length <= 4 && !late;
+      const why = dash.CONFIRM_WHY[r.act] || (r.act === 'wait' ? '입찰 공고 현황을 확인하는 중입니다.' : wt);   // '확인 중…'만으로는 무엇을 확인하는지 모른다(DESIGN 106)
+      const wv = !wt ? '' : (vis ? '<span class="mut">' + esc(wt) + '</span>' : '<span class="sr-only">' + esc(why) + '</span>');
+      const tt = wt && !vis ? ' title="' + esc(why) + '"' : '';
+      return '<td><span class="hb-stg two"' + tt + '><span class="lb">' + esc(r.stageLabel) + '</span><span class="ln2"><span class="hb-pg" aria-hidden="true"><i style="width:' + (n * 20) + '%"></i></span><span class="n">' + n + '/5</span>' + late + wv + '</span></span></td>';
     }
+    if (r.unk) { const w = UNK_WHY[r.unk] || ''; return '<td><span class="hb-stg" title="' + esc(w) + '"><span class="mut" aria-hidden="true">—</span><span class="sr-only">' + esc(w) + '</span></span></td>'; }
     let inner = r.act === 'later' ? '<span class="mut">공고 전</span>' : kbb.actHtml(r.act, { name: r.name, key: r.key });
     if (!inner) inner = '<span class="mut" aria-hidden="true">—</span><span class="sr-only">제안 진행 정보 없음</span>';
     return '<td><span class="hb-stg">' + inner + late + '</span></td>';
@@ -949,8 +1032,7 @@
       due = '<b class="hb-dd tx end">입찰 종료</b><span class="sr-only">' + esc(why) + '</span>'; dueAttr = ' title="' + esc(why) + '"';
     } else if (r.note) { const tt = kbb.screenRowTitle(r.note); dueAttr = ' title="' + esc(tt) + '"'; due += '<span class="sr-only">' + esc(tt) + '</span>'; }
     // 줄 끝 단추·동작 칸은 없다(사용자 11-26) — 관심 기관으로·목표 기관에서 제외는 줄을 고르면 올라오는 하단 띠 단추로.
-    return '<tr' + tc.rowClass(r, o) + '>' + (o.selCol ? tc.ckCellHtml(r, o) : '') + '<th scope="row"' + nameTitle(r) + '>' + nm + '</th>' + tagCellHtml(r, o) + aimCellHtml(r, o) + '<td' + dueAttr + '>' + due + '</td>' + kbb.bankCellHtml(r.bank) + stageCellHtml(r) +
-      '<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">설명회 기록 없음</span></td></tr>';
+    return '<tr' + tc.rowClass(r, o) + '>' + (o.selCol ? tc.ckCellHtml(r, o) : '') + '<th scope="row"' + nameTitle(r) + '>' + nm + '</th>' + tagCellHtml(r, o) + aimCellHtml(r, o) + '<td' + dueAttr + '>' + due + '</td>' + kbb.bankCellHtml(r.bank) + stageCellHtml(r) + '</tr>';
   };
   // 관심 기관 한 줄(규격 6-7): 기관 · 구분 · 다음 협약 종료(+출처) · 현 금고 은행 · 메모 · 동작. r = goalRow(kind WATCH), o = { canEdit }
   kbb.watchRowHtml = function (r, o) {
@@ -995,7 +1077,7 @@
     return '제안 진행 자료를 불러오지 못했습니다(' + (code ? '오류 ' + Number(code) : '서버에 연결되지 않음') + '). 준비 지연과 그 밖의 제안서 준비 중인 기관은 받은 뒤에 보입니다. <button type="button" id="hb-pretry">다시 시도</button>';
   };
   // 표 전체(머리 + 몸통). v = { st:'loading'|'offline'|'denied'|'error'|'ok', code, year, rows, out, canEdit, cands, prep('error'이면 제안 진행 자료 오류 안내), prepCode }
-  // 열 폭은 CSS 클래스(.c-nm 기관 = 나머지 · .c-tag 구분 166 · .c-aim 금고 방식 92 · .c-due 마감까지 120 · .c-bank 현 금고 은행 124 · .c-stg 준비 단계 148 · .c-brf 설명회 56) — 목표 표는 동작 칸 없음(사용자 11-26, 관심 표만 .c-act 150) — 1280px 기준, 좁은 폭 미지원.
+  // 열 폭은 CSS 클래스(.c-nm 기관 = 나머지 · .c-tag 구분 166 · .c-aim 금고 방식 92 · .c-due 마감까지 120 · .c-bank 현 금고 은행 124 · .c-stg 준비 단계 132 · 설명회 열은 없앴다 11-26) — 목표 표는 동작 칸 없음(사용자 11-26, 관심 표만 .c-act 150) — 1280px 기준, 좁은 폭 미지원.
   // 열 머리(규격 6-5): v.sort = { key, dir }가 있으면 정렬하는 열은 <th> 안 버튼(.hb-sort)이 되고, 정렬된 열에만 aria-sort. v.sort가 없으면 글자만(예전 모양).
   const SORT_ICON = {
     asc: '<svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1.5 5L4 2.5 6.5 5"/></svg>',
@@ -1007,13 +1089,13 @@
     return '<th scope="col"' + (on ? ' aria-sort="' + (dir === 'desc' ? 'descending' : 'ascending') + '"' : '') + '><button type="button" class="hb-sort" data-sort="' + key + '">' + label + SORT_ICON[on ? dir : 'none'] + '</button></th>';
   }
   kbb.goalTableHtml = function (v) {
-    const watch = v.tab === 'watch', sel = !!v.selCol, ncol = (watch ? 6 : 7) + (sel ? 1 : 0);
+    const watch = v.tab === 'watch', sel = !!v.selCol, ncol = 6 + (sel ? 1 : 0);   // 목표 표·관심 표 모두 6열(설명회 열 삭제, 사용자 11-26)
     const cols = watch
       ? '<colgroup>' + (sel ? '<col class="c-ck">' : '') + '<col class="c-wnm"><col class="c-tag"><col class="c-next"><col class="c-bank"><col class="c-memo"><col class="c-act"></colgroup>'
-      : '<colgroup>' + (sel ? '<col class="c-ck">' : '') + '<col class="c-nm"><col class="c-tag"><col class="c-aim"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf"></colgroup>';
+      : '<colgroup>' + (sel ? '<col class="c-ck">' : '') + '<col class="c-nm"><col class="c-tag"><col class="c-aim"><col class="c-due"><col class="c-bank"><col class="c-stg"></colgroup>';
     const head = watch
       ? '<thead><tr>' + (sel ? tc.ckHeadHtml(true) : '') + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('공고·다음 협약 종료', 'next', v) + thHtml('현 금고 은행', 'bank', v) + '<th scope="col">메모</th><th scope="col"><span class="sr-only">동작</span></th></tr></thead>'
-      : '<thead><tr>' + (sel ? tc.ckHeadHtml() : '') + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('금고 방식', '', v) + thHtml('마감까지', 'due', v) + thHtml('현 금고 은행', 'bank', v) + thHtml('준비 단계', 'stage', v) + '<th scope="col">설명회</th></tr></thead>';
+      : '<thead><tr>' + (sel ? tc.ckHeadHtml() : '') + thHtml('기관', 'nm', v) + thHtml('구분', 'tag', v) + thHtml('금고 방식', 'aim', v) + thHtml('마감까지', 'due', v) + thHtml('현 금고 은행', 'bank', v) + thHtml('준비 단계', 'stage', v) + '</tr></thead>';
     const msg = function (inner, busy) { return '<tbody><tr class="emp"><td colspan="' + ncol + '"' + (busy ? ' aria-busy="true"' : '') + '>' + inner + '</td></tr></tbody>'; };
     const M = kbb.GOAL_MSG;
     let body;
@@ -1767,7 +1849,7 @@
   function goalCtx() {
     const ps = panelState(), entries = {};
     if (ps.state === 'ok') kbb.prepEntries(st.preps, st.overview).forEach(function (e) { entries[e.id] = e; });
-    return { byInst: BYID, sumById: gs.sum, today: U.todayDate(), verified: KB(), lofin: root.LOFIN_2026, entries: entries, prepOk: ps.state === 'ok',
+    return { byInst: BYID, sumById: gs.sum, today: U.todayDate(), verified: KB(), lofin: root.LOFIN_2026, entries: entries, prepOk: ps.state === 'ok', stopped: kbb.stoppedIds(st.preps),
       snap: root.noticerec && root.noticerec.snap ? root.noticerec.snap() : null,
       delayDays: gs.data && Number(gs.data.delay_days) > 0 ? Number(gs.data.delay_days) : kbb.DELAY_DEFAULT, actOf: actOf, years: selYears(), year: gs.data && Number(gs.data.year) > 0 ? Number(gs.data.year) : 0 };
   }
@@ -1898,16 +1980,16 @@
     const dOut = watch ? [] : kbb.sortBy(kbb.filterRows(out, f), sorted.key, sorted.dir);
     gs.rows = dRows.concat(dOut); gs.wrows = watch ? dRows : [];
     gs.goalAll = rows;   // 거르기·탭과 무관한 그 기관의 목표 자료 전체([관심 기관으로…] 판정용, qa 11-25 P2-2)
-    const counts = kbb.stageCounts(rows.concat(out));
+    const allRows = rows.concat(out), counts = kbb.stageCounts(allRows);
     ts.setAttribute('role', 'tabpanel');
     if (ok) ts.setAttribute('aria-labelledby', 'hb-tab-' + gs.tab); else ts.removeAttribute('aria-labelledby');   // 도구 줄(탭)이 있을 때만 — 없는 id를 가리키지 않는다(qa 11-17 P3-4)
     ts.innerHTML = kbb.goalTableHtml({ st: gs.st, code: gs.code, year: goalYear(), tab: gs.tab, rows: dRows, out: dOut, canEdit: canEdit, prep: ps.state, prepCode: prepCode,
       sort: sorted, total: total, filtered: total > 0 && kbb.filterOn(fx), noWatch: noWatch, nGoal: rows.length, nOut: out.length, selCol: !!mode, picked: tc.pickedMap(gs.sel), drafts: gs.draft, canTag: canValueEdit, canAim: canAimEdit, y0: U.todayDate().getFullYear() });
-    paintToolbar({ tab: gs.tab, nGoal: rows.length, nWatch: wrows.length, f: f, stageName: f.stage >= 0 ? (dash.STAGES[f.stage] || {}).label : '', shown: dRows.length + dOut.length, total: total, canEdit: canEdit, loaded: ok, noWatch: noWatch, wsum: wsum });
+    paintToolbar({ tab: gs.tab, nGoal: rows.length, nWatch: wrows.length, f: f, stageName: f.stage >= 0 ? kbb.stageName(f.stage) : '', shown: dRows.length + dOut.length, total: total, canEdit: canEdit, loaded: ok, noWatch: noWatch, wsum: wsum });
     const band = $('hb-band');
     if (band) {
       band.innerHTML = kbb.bandHtml(kbb.bandModel(rows, { prepOk: ctx.prepOk, delayDays: ctx.delayDays }), { year: goalYear(), loaded: ok, prep: ps.state, prepCode: prepCode }) +
-        kbb.stagesHtml(counts, { ok: ok && ctx.prepOk, active: f.stage, why: ok ? kbb.prepWhy(ps.state, prepCode) : '', nOut: out.length, outCounts: kbb.stageCounts(out) });
+        kbb.stagesHtml(counts, { ok: ok && ctx.prepOk, active: f.stage, why: ok ? kbb.prepWhy(ps.state, prepCode) : '', nOut: out.length, outCounts: kbb.stageCounts(out), unknown: dash.STAGES_UNKNOWN, sub: kbb.subCounts(allRows), end: kbb.endCounts(allRows), unplaced: kbb.unkCount(allRows) });
       band.setAttribute('aria-busy', gs.st === 'loading' ? 'true' : 'false');
       band.setAttribute('aria-label', goalYear() + ' 목표 요약');
     }
@@ -2815,7 +2897,7 @@
     }
     if (act === 'open') return { on: true, open: true, e: e, why: e.name + tc.eun(e.name) + ' 사전준비 중입니다. 누르면 그 화면으로 갑니다.' };
     // 올해 목표 기관은 공고 상태(접수 기간 지남·입찰 종료·입찰 없음·지연)로 막지 않는다(사용자 11-25) — 확인 상자 본문 3에 사실 한 줄만
-    if (act === 'confirm' || (act === 'closed' || act === 'past' || act === 'nobid' || act === 'delayed')) return { on: true, e: e, nm: nm, early: act === 'confirm' && dash.proposeEarly(rec, U.gateOpts()), status: act === 'confirm' ? (dash.proposeStatus ? dash.proposeStatus(rec, U.gateOpts()) : '') : act, why: nm + tc.eul(nm) + ' 확정하고 제안 준비 현황으로 갑니다.' };
+    if (act === 'confirm' || (act === 'closed' || act === 'past' || act === 'nobid' || act === 'delayed')) return { on: true, e: e, nm: nm, early: act === 'confirm' && dash.proposeEarly(rec, U.gateOpts()), status: act === 'confirm' ? (dash.proposeStatus ? dash.proposeStatus(rec, U.gateOpts()) : '') : act, why: nm + '의 제안 사전준비를 시작하고 담당자를 정하러 갑니다.' };
     if (act === 'wait') return { why: '제안 진행 상황을 확인하는 중입니다.' };
     return { why: dash.CONFIRM_WHY[act] || '지금은 이 기관의 제안 사전준비를 시작할 수 없습니다.' };
   }
@@ -2829,7 +2911,7 @@
     if (s.open) b.removeAttribute('aria-haspopup'); else b.setAttribute('aria-haspopup', 'dialog');   // 이미 진행 중이면 확인 상자 없이 바로 이동
     b.title = s.why;
     if (wy && wy.textContent !== s.why) wy.textContent = s.why;
-    const label = gs.prepBusy ? '확정하는 중…' : '제안 사전준비';
+    const label = gs.prepBusy ? '시작하는 중…' : '제안 사전준비';
     if (b.textContent !== label) b.textContent = label;
   }
   function prepOfId(id) { return dash.activePreps(Array.isArray(st.preps) ? st.preps : []).filter(function (x) { return idOf(x) === String(id); })[0]; }
@@ -2859,7 +2941,7 @@
       paintPrep();
       if (x.r.ok) {
         if (dash.goPrep(x.body)) return;   // 사전준비 화면으로(도착 화면의 상태 줄은 prep.js 몫)
-        say(e.name + tc.eul(e.name) + ' 제안 확정했습니다. [영업 추진 준비 › 제안 준비 현황]에서 담당자를 정하세요.', false);
+        say(e.name + '의 제안 사전준비를 시작했습니다. 사전준비 화면을 열지 못했으니 [영업 추진 준비 › 제안 준비 현황]에서 이 기관을 열어 담당자를 정하세요.', false);
         loadProgress();
         return;
       }
@@ -3617,7 +3699,7 @@
     if (gs.tab === 'goal' && gs.f.stage === i) gs.f.stage = -1;
     else { gs.tab = 'goal'; gs.f = { q: '', tag: '', status: '', kind: '', stage: i }; }
     renderGoals();
-    const b = host && host.querySelector('button.hb-sb[data-stage="' + i + '"]'); if (b && b.focus) b.focus();
+    const b = host && host.querySelector('.hb-stgs button[data-stage="' + i + '"]'); if (b && b.focus) b.focus();
   }
   // 검색칸의 글자도 비운다 — gs.f.q만 비우면 칸에는 옛 글자가 남아 거르기가 풀린 것처럼 보이지 않는다(qa 11-17 N-1)
   function clearQInput() { const q = $('hb-q'); if (q) q.value = ''; }
@@ -3673,7 +3755,7 @@
     }
     if (btn.classList.contains('hb-nm') || btn.classList.contains('hb-row')) { openOurs(btn); return; }
     if (btn.classList.contains('hb-sort')) { sortBtn(btn.getAttribute('data-sort') || ''); return; }
-    if (btn.classList.contains('hb-sb')) { stageBtn(Number(btn.getAttribute('data-stage'))); return; }
+    if (btn.classList.contains('hb-sb') || btn.classList.contains('hb-fin')) { if (btn.getAttribute('aria-disabled') !== 'true') stageBtn(Number(btn.getAttribute('data-stage'))); return; }   // '—' 칸·거를 줄 없는 끝난 건은 눌러도 아무 일 없다
     if (btn.getAttribute('role') === 'tab') { setTab(btn.getAttribute('data-tab')); return; }
     switch (btn.id) {
       case 'hb-add': openAdd(null); break;

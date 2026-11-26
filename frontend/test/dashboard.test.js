@@ -87,7 +87,7 @@ test('상세 날짜 근거: 약정 만료 기준 추정 문구', function () {
 });
 
 // ── 제안 진행 단계(D2) ─────────────────────────────────────────────
-test('stageCounts: CANCELLED 제외·기관 중복 제거(앞선 단계)·승인 대기는 1·3번 단계', function () {
+test('stageCounts: CANCELLED 제외·기관 중복 제거(앞선 단계)·승인 대기는 제안 준비의 보조 숫자', function () {
   const preps = [
     { institution_id: 'A', state_cd: 'CONFIRMED' }, { institution_id: 'A', state_cd: 'WRITABLE' },
     { institution_id: 'B', state_cd: 'OPEN_PENDING' }, { institution_id: 'C', state_cd: 'IN_PROGRESS' },
@@ -96,9 +96,10 @@ test('stageCounts: CANCELLED 제외·기관 중복 제거(앞선 단계)·승인
   const overview = { items: [{ institution_id: 'H', state: 'RUNNING', done: false }, { institution_id: 'E', state: 'RUNNING', done: false },
     { institution_id: 'I', state: 'NONE', done: false }, { institution_id: 'J', state: 'RUNNING', done: true }] };
   const r = dash.stageCounts(preps, overview);
-  assert.deepStrictEqual(r.stages.map(function (s) { return s.n; }), [1, 1, 1, 1, 3]);   // 확정 G · 개설대기 B · 사전 C · 기획대기 D · 작성 A·E+H
+  assert.deepStrictEqual(r.stages.map(function (s) { return s.n; }), [2, 5, 0, 0, 0]);   // 준비 전 B·G · 제안 준비 A·C·D·E+H
   assert.strictEqual(r.total, 7);
-  assert.deepStrictEqual(r.stages.map(function (s) { return s.gate; }), [false, true, false, true, false]);
+  assert.deepStrictEqual(r.stages.map(function (s) { return s.unknown; }), [false, false, true, true, true]);
+  assert.strictEqual(r.stages[1].appr, 1);   // D = 사전준비 승인 대기
   assert.strictEqual(r.onlyWriting, false);
   assert.strictEqual(r.total, dash.progressCount(preps, overview).total);               // 기존 합계와 같다
 });
@@ -106,19 +107,21 @@ test('stageCounts: CANCELLED 제외·기관 중복 제거(앞선 단계)·승인
 test('stageCounts: /preps 없는 역할은 제안서 작성만, 둘 다 없으면 null', function () {
   const ov = [{ id: 'C', state: 'RUNNING', done: false }, { id: 'F', state: 'RUNNING', done: false }];
   const r = dash.stageCounts(null, ov);
-  assert.strictEqual(r.onlyWriting, true); assert.strictEqual(r.stages[4].n, 2); assert.strictEqual(r.total, 2);
+  assert.strictEqual(r.onlyWriting, true); assert.strictEqual(r.stages[1].n, 2); assert.strictEqual(r.total, 2);
   assert.strictEqual(dash.stageCounts(null, null), null);
   const html = dash.stageCardHtml({ state: 'ok', stages: r });
   assert.ok(html.indexOf('단계별 건수는 영업팀·영업팀장·영업부장에게 보입니다.') >= 0);
   assert.strictEqual(html.indexOf('개설 승인 대기'), -1);
+  assert.ok(html.indexOf('<dt>제안 준비</dt>') >= 0);
 });
 
-test('stageCardHtml: dl 구조·막대 aria-hidden·승인 대기만 주황 g·상태 문구', function () {
+test('stageCardHtml: dl 구조·막대 aria-hidden·근거 없는 칸 —·상태 문구', function () {
   const r = dash.stageCounts([{ institution_id: 'A', state_cd: 'OPEN_PENDING' }, { institution_id: 'B', state_cd: 'CONFIRMED' }], []);
   const html = dash.stageCardHtml({ state: 'ok', stages: r });
-  assert.ok(html.indexOf('<dl class="stg">') >= 0 && html.indexOf('<dt>개설 승인 대기</dt>') >= 0 && html.indexOf('합계 <b>2</b>건') >= 0);
+  assert.ok(html.indexOf('<dl class="stg">') >= 0 && html.indexOf('<dt>제안 준비 전</dt>') >= 0 && html.indexOf('합계 <b>2</b>건') >= 0);
   assert.ok(html.indexOf('class="bw" aria-hidden="true"') >= 0);
-  assert.strictEqual((html.match(/class="b g"/g) || []).length, 1);                 // 개설 승인 대기 1건만 주황(사전준비 승인 대기는 0이라 꼬리)
+  assert.strictEqual((html.match(/class="b g"/g) || []).length, 0);                 // 주황 게이트 표시는 없앴다(승인 대기는 제안 준비의 보조 숫자)
+  assert.ok(html.indexOf('아직 셀 수 없음') >= 0 && html.indexOf('<b aria-hidden="true">—</b>') >= 0);
   assert.ok(html.indexOf('class="b z"') >= 0);
   assert.ok(html.indexOf('같은 기관은 한 번만 셉니다.') >= 0);
   assert.ok(dash.stageCardHtml({ state: 'offline' }).indexOf('서버에 연결하면 보입니다.') >= 0);
@@ -325,7 +328,7 @@ test('progressCount: /preps를 못 받는 역할은 제안서 작성 건수만, 
   assert.deepStrictEqual(dash.progressCount(null, overview), { prep: null, writing: 2, total: 2 });
   assert.deepStrictEqual(dash.progressCount(null, null), { prep: null, writing: null, total: null });
   const h = dash.railHtml({ confirmed: 0, unconfirmed: 0, total: 0 }, { state: 'ok', count: dash.progressCount(null, overview), stages: dash.stageCounts(null, overview) });
-  assert.ok(h.indexOf('합계 <b>2</b>건') >= 0 && h.indexOf('제안서 작성') >= 0);
+  assert.ok(h.indexOf('합계 <b>2</b>건') >= 0 && h.indexOf('제안 준비') >= 0);
   const d = dash.railHtml({ confirmed: 0, unconfirmed: 0, total: 0 }, { state: 'denied', code: 403 });
   assert.ok(d.indexOf('권한이 없습니다(403)') >= 0);
 });
@@ -498,7 +501,7 @@ test('actionKind(5번째 인자): 기록 받는 중은 wait, 사전준비가 있
   assert.ok(why('wait').indexOf('[제안 사전준비]를 쓸 수 있는지 확인하는 중입니다.') >= 0);
   const nc = dash.actParts(it, { act: 'noconfirm' });
   assert.strictEqual(nc.main, '');
-  assert.strictEqual(nc.why, '협약 성과 화면에서는 제안을 확정하지 않습니다.');
+  assert.strictEqual(nc.why, '협약 성과 화면에서는 제안 사전준비를 시작하지 않습니다.');
   assert.ok(dash.blankHtml().indexOf('왼쪽 목록에서 기관을 고르세요. 기관 정보가 여기에 보입니다. 제안 사전준비는 [입찰 현황판]에서 시작합니다.') >= 0);
 });
 
@@ -516,22 +519,22 @@ test('actHtml: 서버 없음은 버튼 없이 안내, 권한 밖은 한 줄 안�
   assert.ok(cf.indexOf('id="db-do"') >= 0 && cf.indexOf('id="db-cancel"') >= 0);
 });
 
-test('actHtml(11-25): 확정 확인 상자 = 본문 1·2(+공고 전이면 평문 본문 3), 굵은 경고·[계속 진행]·주황 테두리 없음, [확정하고 이동]', function () {
+test('actHtml(11-25): 확정 확인 상자 = 본문 1·2(+공고 전이면 평문 본문 3), 굵은 경고·[계속 진행]·주황 테두리 없음, [시작하고 이동]', function () {
   const it = dash.model([rec('부산광역시', '26', 40)], TODAY).upcoming[0];
   const e = dash.actHtml(it, { act: 'confirm', confirm: true, early: true, board: true });
   assert.ok(e.indexOf('class="db-confirm" role="group" aria-labelledby="db-cf-t" aria-describedby="db-cf-d"') >= 0);
   assert.ok(e.indexOf('<span id="db-cf-t">부산광역시를 제안 대상으로 확정합니다. 확정하면 [영업 추진 준비 › 제안 준비 현황]의 이 기관 화면으로 넘어갑니다. 그 화면에서 담당자를 정하면 사전준비가 시작되고, 영업팀장(팀장이 직접 시작하면 영업부장)에게 알림이 갑니다.</span>') >= 0);
   assert.ok(e.indexOf('<span class="db-cf-b" id="db-cf-d">아직 입찰 공고 전인 기관입니다. 공고가 나면 일정을 다시 확인하세요.</span>') >= 0);
-  assert.ok(e.indexOf('id="db-do">확정하고 이동</button><button type="button" id="db-cancel">취소</button>') >= 0);
+  assert.ok(e.indexOf('id="db-do">시작하고 이동</button><button type="button" id="db-cancel">취소</button>') >= 0);
   ['계속 진행', '확정하기', 'db-cf-warn', 'early', '아직 공고 확인 전입니다', '개설 신청', '취소할 수 있습니다'].forEach(function (s) { assert.ok(e.indexOf(s) < 0, s); });
-  assert.ok(dash.actHtml(it, { act: 'confirm', confirm: true, early: true, board: true, busy: true }).indexOf('id="db-do" disabled>확정하는 중…</button>') >= 0);
+  assert.ok(dash.actHtml(it, { act: 'confirm', confirm: true, early: true, board: true, busy: true }).indexOf('id="db-do" disabled>시작하는 중…</button>') >= 0);
   const n = dash.actHtml(it, { act: 'confirm', confirm: true, board: true });   // 공고 후: 본문 3 없음
-  assert.ok(n.indexOf('class="db-confirm" role="group" aria-labelledby="db-cf-t"><span') >= 0 && n.indexOf('db-cf-d') < 0 && n.indexOf('공고 전인 기관') < 0 && n.indexOf('id="db-do">확정하고 이동</button>') >= 0);
+  assert.ok(n.indexOf('class="db-confirm" role="group" aria-labelledby="db-cf-t"><span') >= 0 && n.indexOf('db-cf-d') < 0 && n.indexOf('공고 전인 기관') < 0 && n.indexOf('id="db-do">시작하고 이동</button>') >= 0);
   assert.ok(dash.actHtml(it, { act: 'later', confirm: true, early: true, board: true }).indexOf('db-confirm') < 0);          // 관심·다른 해 목표는 act가 later라 상자가 안 열린다
   assert.ok(dash.actHtml(it, { act: 'confirm', confirm: true, early: true }).indexOf('db-confirm') < 0);   // 현황판 밖에는 상자 자체가 없다
   const closed = dash.actHtml(it, { act: 'confirm', early: true, board: true });                          // 상자 전: 안내 한 줄 + [제안 사전준비]
   assert.ok(closed.indexOf('id="db-cf"') >= 0 && closed.indexOf(dash.EARLY_WHY) >= 0 && closed.indexOf('db-cf-warn') < 0);
-  assert.strictEqual(dash.PREP_CONFIRM_GO, '확정하고 이동');
+  assert.strictEqual(dash.PREP_CONFIRM_GO, '시작하고 이동');
   assert.strictEqual(dash.EARLY_ASK, undefined);
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   assert.ok(html.indexOf('.db-cf-warn') < 0 && html.indexOf('.db-confirm.early') < 0 && html.indexOf('.db-confirm .db-cf-b { display:block;') > 0);
@@ -769,9 +772,10 @@ test('CSS 블록: 11px 미만 글자·새 hex 없음, 시작/끝 주석', functi
   assert.ok(html.indexOf('<script src="js/dashboard.js"></script>') < html.indexOf('<script src="js/app.js"></script>'));
 });
 
-test('진행 단계 범례: 사전준비 쪽 승인은 \'사전준비 승인 대기\'(진행 현황 기획승인과 이름을 나눔, 11-13)', function () {
+test('진행 단계 범례: 새 5칸 이름이고 옛 말(개설 승인·제안 확정·사전준비·제안서 작성)이 없다(NEXT 120)', function () {
   const labels = dash.STAGES.map(function (s) { return s.label; });
-  assert.ok(labels.indexOf('사전준비 승인 대기') >= 0 && labels.join('').indexOf('기획승인') < 0);
+  assert.deepStrictEqual(labels, ['제안 준비 전', '제안 준비', '제안 제출 및 대기', '협약 예정', '협약 완료']);
+  ['개설 승인', '제안 확정', '사전준비', '제안서 작성', '기획승인'].forEach(function (w) { assert.strictEqual(labels.join('').indexOf(w), -1, w); });
 });
 
 test('상세 보기 전용(11-19): lockBank는 can_edit을 끄고 원본을 바꾸지 않는다, 소스는 편집·확정 단추를 감춘다', function () {

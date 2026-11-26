@@ -494,7 +494,7 @@ test('현황판 줄 모델·표 마크업: 잠금·이월·판정일·고르기 
   const tb = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', rows: [plain], out: [], canEdit: true, selCol: true, picked: {}, sort: { key: 'due', dir: 'asc' }, total: 1 });
   assert.ok(tb.indexOf('<table class="hb-tt sel">') === 0 && tb.indexOf('<colgroup><col class="c-ck"><col class="c-nm">') > 0 && tb.indexOf('<thead><tr><th scope="col" class="ck">') > 0);
   const em = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', rows: [], out: [], canEdit: true, selCol: true, groups: [], total: 0 });
-  assert.ok(em.indexOf('colspan="8"') > 0);
+  assert.ok(em.indexOf('colspan="7"') > 0);
   const wt = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', rows: [w], out: [], canEdit: true, selCol: true, picked: {}, sort: { key: 'next', dir: 'asc' }, total: 1 });
   assert.ok(wt.indexOf('<colgroup><col class="c-ck"><col class="c-wnm">') > 0 && wt.indexOf('<th scope="col" class="ck">') > 0);
   const no = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', rows: [plain], out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 1 });
@@ -519,8 +519,8 @@ test('현황판 입찰 종료 줄: 결재 중이면 동작 단추 없이 sr-only
   assert.ok(pend.indexOf('data-act="tonext"') < 0 && pend.indexOf('data-act="towatch"') < 0);
   assert.ok(pend.indexOf('class="act"') < 0);
   const sel = kbb.goalRowHtml(kbb.goalRow(tgt('IE', 'NEW', { bid_closed: bc }), mkCtx()), { canEdit: true, selCol: true, picked: {} });
-  assert.strictEqual((sel.match(/<t[dh][ >]/g) || []).length, 8);   // 고르기 td 1 + 기관 th 1 + td 6
-  assert.ok(sel.indexOf('class="act"') < 0 && sel.endsWith('설명회 기록 없음</span></td></tr>'));
+  assert.strictEqual((sel.match(/<t[dh][ >]/g) || []).length, 7);   // 고르기 td 1 + 기관 th 1 + td 5
+  assert.ok(sel.indexOf('class="act"') < 0 && sel.indexOf('설명회') < 0 && sel.endsWith('</td></tr>'));
 });
 
 test('결재함 카드: 금고 방식만 바뀐 연도 +1은 이름이 다음 회차, 금고 방식·메모가 함께 바뀌면 메모 줄이 먼저(두 줄)', function () {

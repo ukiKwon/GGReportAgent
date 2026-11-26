@@ -302,17 +302,20 @@
     return { prep: prepN, writing: writeN, total: total };
   };
 
-  // 제안 진행 단계(D2). prep.js 단계 막대 5칸과 같은 말. gate = 승인을 기다리는 단계(주황 + '대기').
-  // state_cd → 단계: CONFIRMED / OPEN_PENDING / IN_PROGRESS / APPROVAL_PENDING / WRITABLE·WRITING. CANCELLED는 뺀다.
-  // 모르는 state_cd는 사전준비로 센다(progressCount가 취소 아닌 건을 모두 센 것과 합계를 맞춘다).
-  // 같은 기관은 한 번만 센다 — 건이 여러 개면 더 나아간 단계 쪽. overview에만 있는 미완료·실행 중 기관은 제안서 작성에 더한다.
+  // 제안 진행 띠 5칸(NEXT 120, design 11-25 a222b5f9). sub = 그 칸 안의 보조 숫자(승인 대기). 끝난 건(탈락·중단·입찰 없음)은 5칸 밖 6번째(번호 5)라 여기에 없다.
+  // state_cd → 칸: CONFIRMED·OPEN_PENDING = 제안 준비 전, IN_PROGRESS·APPROVAL_PENDING·WRITABLE·WRITING = 제안 준비. CANCELLED는 뺀다.
+  // 모르는 state_cd는 제안 준비로 센다(progressCount가 취소 아닌 건을 모두 센 것과 합계를 맞춘다).
+  // 같은 기관은 한 번만 센다 — 건이 여러 개면 더 나아간 쪽(STATE_RANK). overview에만 있는 미완료·실행 중 기관은 제안 준비에 더한다.
   dash.STAGES = [
-    { key: 'confirmed', label: '제안 확정', gate: false },
-    { key: 'openPending', label: '개설 승인 대기', gate: true },
-    { key: 'inProgress', label: '사전준비', gate: false },
-    { key: 'approvalPending', label: '사전준비 승인 대기', gate: true },
-    { key: 'writing', label: '제안서 작성', gate: false }];
-  const STAGE_OF = { CONFIRMED: 0, OPEN_PENDING: 1, IN_PROGRESS: 2, APPROVAL_PENDING: 3, WRITABLE: 4, WRITING: 4 };
+    { key: 'before', label: '제안 준비 전' },
+    { key: 'prep', label: '제안 준비', sub: 'approval' },
+    { key: 'submitted', label: '제안 제출 및 대기' },
+    { key: 'agreeing', label: '협약 예정' },
+    { key: 'done', label: '협약 완료' }];
+  // 1차: 제출·협약 근거(제안 준비 현황 기록)가 응답에 없어 셀 수 없는 칸. 0으로 채우지 않고 '—'. 2차에 [] 로 바꾼다.
+  dash.STAGES_UNKNOWN = [2, 3, 4];
+  const STAGE_OF = { CONFIRMED: 0, OPEN_PENDING: 0, IN_PROGRESS: 1, APPROVAL_PENDING: 1, WRITABLE: 1, WRITING: 1 };
+  const STATE_RANK = { CONFIRMED: 0, OPEN_PENDING: 1, IN_PROGRESS: 2, APPROVAL_PENDING: 3, WRITABLE: 4, WRITING: 4 };   // 같은 기관 건이 여럿일 때 더 나간 쪽을 고르는 순서(옛 5단계 번호)
   // preps·overview 모두 null이면 null. preps가 null이면(권한 밖) 제안서 작성 한 줄만(onlyWriting).
   dash.stageCounts = function (preps, overview) {
     const havePreps = Array.isArray(preps);
@@ -320,26 +323,31 @@
     const haveOv = Array.isArray(items);
     if (!havePreps && !haveOv) return null;
     const best = {}, counts = [0, 0, 0, 0, 0];
+    let appr = 0;   // 고른 건이 사전준비 승인 대기인 기관 수('제안 준비'의 보조 숫자)
     if (havePreps) {
       dash.activePreps(preps).forEach(function (p) {
         const id = instId(p); if (!id) return;
-        const s = Object.prototype.hasOwnProperty.call(STAGE_OF, p.state_cd || p.stateCd) ? STAGE_OF[p.state_cd || p.stateCd] : 2;
-        if (best[id] === undefined || s > best[id]) best[id] = s;
+        const cd = p.state_cd || p.stateCd, rk = dash.stateRank(cd);
+        if (best[id] === undefined || rk > best[id].rank) best[id] = { rank: rk, cd: cd };
       });
-      Object.keys(best).forEach(function (id) { counts[best[id]] += 1; });
+      Object.keys(best).forEach(function (id) {
+        counts[dash.stageOf(best[id].cd)] += 1;
+        if (best[id].cd === 'APPROVAL_PENDING') appr += 1;
+      });
     }
     if (haveOv) {
       const seen = {};
       items.forEach(function (it) {
         const id = instId(it);
-        if (id && !it.done && (it.state || 'NONE') !== 'NONE' && best[id] === undefined && !seen[id]) { seen[id] = true; counts[4] += 1; }
+        if (id && !it.done && (it.state || 'NONE') !== 'NONE' && best[id] === undefined && !seen[id]) { seen[id] = true; counts[1] += 1; }
       });
     }
-    const stages = dash.STAGES.map(function (s, i) { return { key: s.key, label: s.label, gate: s.gate, n: counts[i] }; });
+    const stages = dash.STAGES.map(function (s, i) { return { key: s.key, label: s.label, n: counts[i], unknown: dash.STAGES_UNKNOWN.indexOf(i) >= 0, appr: s.sub === 'approval' ? appr : 0 }; });
     return { stages: stages, total: counts.reduce(function (a, b) { return a + b; }, 0), onlyWriting: !havePreps };
   };
   // state_cd → 단계 번호(모르는 값은 사전준비 2). kbboard의 '준비 중인 제안' 목록이 stageCounts와 같은 합계를 내도록 같은 표를 쓴다.
-  dash.stageOf = function (cd) { return Object.prototype.hasOwnProperty.call(STAGE_OF, cd) ? STAGE_OF[cd] : 2; };
+  dash.stageOf = function (cd) { return Object.prototype.hasOwnProperty.call(STAGE_OF, cd) ? STAGE_OF[cd] : 1; };
+  dash.stateRank = function (cd) { return Object.prototype.hasOwnProperty.call(STATE_RANK, cd) ? STATE_RANK[cd] : 2; };   // 모르는 값은 사전준비(2)
 
   // 현황판·지도 상세 팝업 공용 버튼 규칙: root.prep.popoverAction이 정한다. 반환 모양이 문자열이든 {kind|action|type}이든 받는다.
   // [제안 확정]·[사전준비 열기] 판정에 넘길 맥락 — prep.popoverEligible이 account·master를 본다.
@@ -436,7 +444,7 @@
   // 버튼이 없을 때 db-why 한 줄(actHtml이 쓴다)
   dash.EARLY_WHY = '올해 목표 기관이라 공고 전에도 제안 사전준비를 시작할 수 있습니다.';
   // 확정 확인 상자 문구(사용자 11-25): 굵은 경고·[계속 진행] 분기는 없앴다 — 공고 전이면 평문 한 줄(본문 3)만 더한다. 한 곳에서 정해 현황판 툴바·상세 팝업이 같은 말을 쓴다.
-  dash.PREP_CONFIRM_GO = '확정하고 이동';
+  dash.PREP_CONFIRM_GO = '시작하고 이동';
   dash.PREP_BODY2 = '확정하면 [영업 추진 준비 › 제안 준비 현황]의 이 기관 화면으로 넘어갑니다. 그 화면에서 담당자를 정하면 사전준비가 시작되고, 영업팀장(팀장이 직접 시작하면 영업부장)에게 알림이 갑니다.';
   dash.PREP_BODY3 = '아직 입찰 공고 전인 기관입니다. 공고가 나면 일정을 다시 확인하세요.';
   dash.CONFIRM_WHY = {
@@ -445,7 +453,7 @@
     past: "접수 기간이 지난 것으로 봅니다. 아직 접수 중이면 공고 상태를 '공고 진행 중'으로 기록하세요.",
     nobid: "이번 회차는 '입찰 없음'으로 닫혔습니다.",
     delayed: '공고가 늦어지거나 재공고를 기다리는 중입니다.',
-    noconfirm: '협약 성과 화면에서는 제안을 확정하지 않습니다.' };
+    noconfirm: '협약 성과 화면에서는 제안 사전준비를 시작하지 않습니다.' };
   // o를 넘기면(화면 호출) 노출 규칙을 건다. 안 넘기면(순수 시험) 역할·진행 중 사전준비만 본다.
   // o.wait = 공고 상태 기록을 받는 중 → 'wait'(받기 전에 보였다 사라지지 않게).
   dash.actionKind = function (rec, ctx, actives, prepApi, o) {
@@ -699,14 +707,16 @@
     else if (p.state === 'denied') body = '<p class="note">진행 건수를 볼 권한이 없습니다(' + esc(p.code || '') + '). 로그인 사번과 권한을 확인하세요.</p>';
     else if (p.state === 'error' || !s) body = '<p class="note">진행 건수를 불러오지 못했습니다. <button type="button" id="db-retry">다시 시도</button></p>';
     else {
-      const rows = s.onlyWriting ? s.stages.filter(function (x) { return x.key === 'writing'; }) : s.stages;
+      const rows = s.onlyWriting ? s.stages.filter(function (x) { return x.key === 'prep'; }) : s.stages;
       let max = 1;
-      rows.forEach(function (x) { if (x.n > max) max = x.n; });
+      rows.forEach(function (x) { if (!x.unknown && x.n > max) max = x.n; });
       total = '<span class="tot">합계 <b>' + s.total + '</b>건</span>';
       body = '<dl class="stg">' + rows.map(function (x) {
-        const w = x.n ? '<i class="b' + (x.gate ? ' g' : '') + '" style="width:' + Math.max(4, Math.round(x.n / max * 100)) + '%"></i>' : '<i class="b z"></i>';
-        return '<div class="stg-row"><dt>' + esc(x.label) + '</dt><dd><span class="bw" aria-hidden="true">' + w + '</span><b>' + x.n + '</b></dd></div>';
-      }).join('') + '</dl><p class="note">' + (s.onlyWriting ? '단계별 건수는 영업팀·영업팀장·영업부장에게 보입니다.' : '같은 기관은 한 번만 셉니다.') + '</p>';
+        const sub = x.appr > 0 ? '<span class="sub">승인 대기 ' + x.appr + '</span>' : '';
+        if (x.unknown) return '<div class="stg-row"><dt>' + esc(x.label) + '</dt><dd><span class="bw" aria-hidden="true"></span><b aria-hidden="true">—</b><span class="sr-only">아직 셀 수 없음</span></dd></div>';   // 0이 아니라 '—'
+        const w = x.n ? '<i class="b" style="width:' + Math.max(4, Math.round(x.n / max * 100)) + '%"></i>' : '<i class="b z"></i>';
+        return '<div class="stg-row"><dt>' + esc(x.label) + (sub ? ' ' + sub : '') + '</dt><dd><span class="bw" aria-hidden="true">' + w + '</span><b>' + x.n + '</b></dd></div>';
+      }).join('') + '</dl><p class="note">' + (s.onlyWriting ? '단계별 건수는 영업팀·영업팀장·영업부장에게 보입니다.' : '같은 기관은 한 번만 셉니다. 제출·협약 단계는 기록이 연결되면 셉니다.') + '</p>';
     }
     return { body: body, total: total };
   };
@@ -721,7 +731,7 @@
   // 목록 꼬리 — 날짜 미상만 말한다('1년 뒤 n곳'은 목록 안내 줄·시간표 칸이 맡는다).
   dash.footHtml = function (m) {
     if (!m.unknownN) return '';
-    return '날짜를 확인하지 못한 <b>' + m.unknownN + '</b>곳은 목록에 없습니다. <button type="button" class="db-link" id="db-tomap2">지역별 공고현황</button>에서 볼 수 있습니다.';
+    return '날짜를 확인하지 못한 <b>' + m.unknownN + '</b>곳은 목록에 없습니다. <button type="button" class="db-link" id="db-tomap2">예상 공고현황</button>에서 볼 수 있습니다.';
   };
 
   // D4 약정 주기 막대. lastBid가 없으면 null(그리지 않고 dl의 '미확인' 칩을 쓴다). pct는 0~100으로 자른다.
@@ -1039,13 +1049,13 @@
   };
 
   dash.actHtml = function (it, c) {
-    const map = c.mapHtml !== undefined ? c.mapHtml : '<button type="button" id="db-map">지역별 공고현황에서 보기</button>';
+    const map = c.mapHtml !== undefined ? c.mapHtml : '<button type="button" id="db-map">예상 공고현황에서 보기</button>';
     // 개원 확인 필요 기관은 입찰 대상이 아니라 [제안 확정]을 두지 않는다 — 운영 상태를 확인해 바꾸는 창으로 보낸다(NEXT 72, 기획 결정).
     if (c.act === 'opencheck') return '<div class="db-act-row"><span class="db-why">개원했는지 확인하고 출처와 함께 운영 상태를 바꾸세요.</span><button type="button" id="db-edit">기관 정보 수정</button></div>';
     if (c.act === 'wait') return '<div class="db-act-row"><span class="db-why">[제안 사전준비]를 쓸 수 있는지 확인하는 중입니다.</span>' + map + '</div>';
     if (dash.CONFIRM_WHY[c.act]) return '<div class="db-act-row"><span class="db-why">' + dash.CONFIRM_WHY[c.act] + '</span>' + map + '</div>';
     if (c.act === 'unavailable') return '<div class="db-act-row"><span class="db-why">서버에 연결되면 [제안 사전준비]를 쓸 수 있습니다.</span>' + map + '</div>';
-    if (c.act === 'open') return '<div class="db-act-row"><button type="button" class="db-next" id="db-open">사전준비 열기</button>' + map + '<span class="db-why">이미 제안 확정되어 사전준비가 진행 중입니다.</span></div>';
+    if (c.act === 'open') return '<div class="db-act-row"><button type="button" class="db-next" id="db-open">사전준비 열기</button>' + map + '<span class="db-why">이미 제안 사전준비가 진행 중입니다.</span></div>';
     if (c.act === 'confirm') {
       // 확정(제안 사전준비)은 입찰 현황판에서만 한다(사용자 11-25). 그 밖의 화면은 [입찰 현황판에서 열기](목표 기관이면 앞에 '목표 기관' 칩)
       if (!c.board) return '<div class="db-act-row">' + boardOpenHtml(it, c) + map + '</div>';
@@ -1069,7 +1079,7 @@
     return '<div class="db-confirm' + (popup ? ' dm-confirm' : '') + '"' + (popup ? ' id="dm-confirm"' : '') + ' role="group" aria-labelledby="db-cf-t"' + (b3 ? ' aria-describedby="db-cf-d"' : '') + '><span id="db-cf-t">' +
       esc(it.name) + dash.josaEul(it.name) + ' 제안 대상으로 확정합니다. ' + esc(dash.PREP_BODY2) + '</span>' +
       (b3 ? '<span class="db-cf-b" id="db-cf-d">' + esc(b3) + '</span>' : '') +
-      '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (c.busy ? '확정하는 중…' : esc(dash.PREP_CONFIRM_GO)) + '</button><button type="button" id="db-cancel">취소</button></div></div>';
+      '<div class="db-act-row"><button type="button" class="db-next" id="db-do"' + (c.busy ? ' disabled' : '') + '>' + (c.busy ? '시작하는 중…' : esc(dash.PREP_CONFIRM_GO)) + '</button><button type="button" id="db-cancel">취소</button></div></div>';
   }
 
   // 팝업 머리 줄용: actHtml과 같은 판정을 { main: 주버튼 마크업, why: 이유 글(마크업), confirm: 확정 확인 상자 마크업 }으로 나눈다.
@@ -1081,7 +1091,7 @@
     if (c.act === 'wait') return { main: '', why: '[제안 사전준비]를 쓸 수 있는지 확인하는 중입니다.', confirm: '' };
     if (dash.CONFIRM_WHY[c.act]) return { main: '', why: dash.CONFIRM_WHY[c.act], confirm: '' };
     if (c.act === 'unavailable') return { main: '', why: '서버에 연결되면 [제안 사전준비]를 쓸 수 있습니다.', confirm: '' };
-    if (c.act === 'open') return { main: '<button type="button" class="db-next" id="db-open">사전준비 열기</button>', why: '이미 제안 확정되어 사전준비가 진행 중입니다.', confirm: '' };
+    if (c.act === 'open') return { main: '<button type="button" class="db-next" id="db-open">사전준비 열기</button>', why: '이미 제안 사전준비가 진행 중입니다.', confirm: '' };
     if (c.act === 'confirm') {
       if (!c.board) return { main: boardOpenHtml(it, c), why: '', confirm: '' };   // 현황판 밖(지도 팝업·포털 상세): 확정 없이 현황판으로 안내
       if (c.confirm) return { main: '<button type="button" class="db-next" id="db-cf" disabled>제안 사전준비</button>', why: '', confirm: confirmBoxHtml(it, c, true) };
@@ -1590,7 +1600,7 @@
     const known = root.prep && root.prep.ERR_BY_CODE && root.prep.ERR_BY_CODE[e.code];
     const msg = (known && (known.message || known.text)) || e.message ||
       ((x.r.status === 401 || x.r.status === 403) ? '제안 사전준비를 시작할 권한이 없습니다(' + x.r.status + '). 로그인 사번과 권한을 확인하세요.'
-        : '제안 확정하지 못했습니다(' + x.r.status + '). 잠시 뒤 다시 시도하세요.');
+        : '제안 사전준비를 시작하지 못했습니다(오류 ' + x.r.status + '). 잠시 뒤 다시 시도하세요.');
     return { again: false, msg: String(msg) };
   };
   dash.goPrep = goPrep;   // 입찰 현황판의 [제안 사전준비]가 확정 뒤·이미 진행 중일 때 그 기관의 사전준비 화면으로 간다
@@ -1605,7 +1615,7 @@
 
   const SKELETON =
     '<section id="db-root" aria-label="입찰 공고 현황">' +
-    '<div class="db-top"><h2>입찰 공고 현황</h2><span class="sub">전국 공고와 입찰 예정(지역별 공고현황과 같은 기관)</span><span class="meta">기준일 <b id="db-asof"></b></span></div>' +
+    '<div class="db-top"><h2>입찰 공고 현황</h2><span class="sub">전국 공고와 입찰 예정(예상 공고현황과 같은 기관)</span><span class="meta">기준일 <b id="db-asof"></b></span></div>' +
     '<section class="pnl db-nb" id="db-notice" aria-labelledby="db-nb-h" hidden></section>' +
     '<div id="db-flash" class="db-flash" role="status"></div><div id="db-err" class="db-state db-banner" role="alert" style="display:none"></div>' +
     '<section class="pnl db-kq" id="db-tl" aria-labelledby="db-kq-h"></section>' +
@@ -1960,7 +1970,7 @@
         if (x.r.ok) {
           m.changed = true;   // 닫을 때 현황판(kbboard)의 준비 중 제안·단계 집계를 다시 받게 한다
           if (goPrep(x.body)) { dash.closeDetail(false); return; }   // 사전준비 화면으로 간다(지도 팝업은 닫는다)
-          dmFlash(m.it.name + dash.josaEul(m.it.name) + ' 제안 확정했습니다. [영업 추진 준비 › 제안 준비 현황]에서 담당자를 정하세요.', false);
+          dmFlash(m.it.name + '의 제안 사전준비를 시작했습니다. 사전준비 화면을 열지 못했으니 [영업 추진 준비 › 제안 준비 현황]에서 이 기관을 열어 담당자를 정하세요.', false);
           return dmLoadPreps(m).then(function () { dmRender(); });
         }
         const f = dash.confirmFail(x);

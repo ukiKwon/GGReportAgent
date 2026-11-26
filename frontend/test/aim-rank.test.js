@@ -114,9 +114,9 @@ test('6 표 머리·열·거르기·세기·구분 빈 칩', function () {
   const rows = kbb.goalRows([tgt('A', 'RETAIN'), tgt('B', null), tgt('C', 'NEW')], ctx);
   const base = { year: 2026, rows: rows, out: [], canEdit: true, cands: [], st: 'ok', sort: { key: 'tag', dir: 'asc' } };
   const h = kbb.goalTableHtml(base);
-  assert.ok(h.indexOf('data-sort="tag"') > 0 && h.indexOf('data-sort="tag"') < h.indexOf('금고 방식</th>') && h.indexOf('금고 방식</th>') < h.indexOf('data-sort="due"'));
+  assert.ok(h.indexOf('data-sort="tag"') > 0 && h.indexOf('data-sort="tag"') < h.indexOf('data-sort="aim"') && h.indexOf('data-sort="aim"') < h.indexOf('data-sort="due"'));   // 금고 방식도 정렬 머리(사용자 11-26)
   assert.ok(h.indexOf('<col class="c-tag"><col class="c-aim"><col class="c-due">') > 0);
-  assert.ok(kbb.goalTableHtml(Object.assign({}, base, { rows: [] })).indexOf('colspan="7"') > 0);
+  assert.ok(kbb.goalTableHtml(Object.assign({}, base, { rows: [] })).indexOf('colspan="6"') > 0);
   const ids = function (a) { return a.map(function (r) { return r.id; }); };
   assert.deepStrictEqual(ids(kbb.filterRows(rows, { tag: 'NONE' })), ['B']);
   assert.deepStrictEqual(ids(kbb.sortBy(rows, 'tag', 'asc')), ['A', 'C', 'B']);
@@ -154,7 +154,7 @@ test('9 CSS 단언', function () {
   const html = src('index.html');
   assert.ok(html.indexOf('.hb-tt col.c-aim { width:92px; }') > 0);
   assert.ok(html.indexOf('.hb-tt td.aim { padding:0 6px; }') > 0);
-  assert.ok(html.indexOf('.hb-tt:not(.wt) thead th:nth-child(7)') > 0 && html.indexOf('.hb-tt.sel:not(.wt) thead th:nth-child(8)') > 0);
+  assert.ok(html.indexOf('.hb-tt:not(.wt) thead th:nth-child(7)') < 0 && html.indexOf('.hb-tt.sel:not(.wt) thead th:nth-child(7)') < 0 && html.indexOf('.hb-tt.sel:not(.wt) thead th:nth-child(8)') < 0);   // 설명회 열 삭제(사용자 11-26) — 목표 표 머리 좁은 여백 규칙 없음
   assert.ok(html.indexOf('.hb-tt.wt thead th:nth-child(6)') > 0 && html.indexOf('.hb-tt.wt.sel thead th:nth-child(7)') > 0);   // 관심 표는 이전 규칙 그대로
   assert.ok(/\.hb-tag\.draft/.test(html) && html.indexOf('꼬리표 없이 점선 + 낭독문') > 0);
 });

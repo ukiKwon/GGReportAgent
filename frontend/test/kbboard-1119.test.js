@@ -70,17 +70,17 @@ test('B. 표 caption: 목표 수와 그 밖의 준비 수를 나눠 말하고 \'
 });
 
 test('C. 단계 줄: 목표 밖 줄이 있으면 \'… 포함\' 문장·그룹·버튼 aria-label, 없거나 자료를 못 받으면 예전 모양', function () {
-  const c = [0, 0, 2, 0, 1], oc = [0, 0, 1, 0, 0];
+  const c = [0, 2, 0, 0, 1], oc = [0, 1, 0, 0, 0];
   const h = kbb.stagesHtml(c, { ok: true, active: -1, nOut: 1, outCounts: oc });
   assert.ok(h.indexOf('role="group" aria-label="제안 진행 단계, 그 밖의 제안서 준비 중인 기관 1곳 포함"') > 0);
-  assert.ok(h.indexOf('</button><span class="why">그 밖의 제안서 준비 중인 기관 1곳 포함</span></div>') > 0);
-  assert.ok(h.indexOf('aria-label="사전준비 2곳(그 밖의 준비 기관 1곳) — 표를 이 단계로 거르기"') > 0);
-  assert.ok(kbb.stagesHtml(c, { ok: true, active: 2, nOut: 1, outCounts: oc }).indexOf('aria-label="사전준비 2곳(그 밖의 준비 기관 1곳) — 거르기 끄기"') > 0);
+  assert.ok(h.indexOf('</button><div class="ft"><div class="notes"><span class="note">그 밖의 제안서 준비 중인 기관 1곳 포함</span></div></div></div>') > 0);
+  assert.ok(h.indexOf('aria-label="제안 준비 2곳(그 밖의 준비 기관 1곳) — 표를 이 단계로 거르기"') > 0);
+  assert.ok(kbb.stagesHtml(c, { ok: true, active: 1, nOut: 1, outCounts: oc }).indexOf('aria-label="제안 준비 2곳(그 밖의 준비 기관 1곳) — 거르기 끄기"') > 0);
   assert.ok(h.indexOf('곳 — 표를 이 단계로 거르기') > 0 && (h.match(/\(그 밖의 준비 기관/g) || []).length === 1);   // 목표 밖이 없는 단계는 예전 문장
   const plain = kbb.stagesHtml(c, { ok: true, active: -1, nOut: 0, outCounts: [0, 0, 0, 0, 0] });
-  assert.ok(plain.indexOf('aria-label="제안 진행 단계"') > 0 && plain.indexOf('class="why"') < 0 && plain.indexOf('(그 밖의') < 0);
+  assert.ok(plain.indexOf('aria-label="제안 진행 단계"') > 0 && plain.indexOf('class="ft"') < 0 && plain.indexOf('(그 밖의') < 0);
   const off = kbb.stagesHtml([0, 0, 0, 0, 0], { ok: false, why: '이유', nOut: 3, outCounts: oc });
-  assert.ok(off.indexOf('포함') < 0 && off.indexOf('<span class="why">이유</span>') > 0);
+  assert.ok(off.indexOf('포함') < 0 && off.indexOf('<span class="note">이유</span>') > 0);
 });
 
 test('용어: \'그 밖의 제안서 준비 중인 기관\'으로 통일(묶음 머리·오류 문장·종류 거르기)', function () {

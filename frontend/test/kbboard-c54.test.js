@@ -30,7 +30,7 @@ test('정렬: 마감까지는 확정 → 추정 → 미상 → 입찰 종료 줄
   assert.deepStrictEqual(kbb.sortBy(rows, 'due', 'asc').map(function (r) { return r.id; }), ['IA', 'IB', 'IE', 'IC']);
   assert.deepStrictEqual(kbb.sortBy(rows, 'due', 'asc').slice(-1)[0].closed, { cd: 'NOTICE_CLOSED', date: '2026-09-30' });
   assert.deepStrictEqual(kbb.sortBy(rows, 'nm', 'desc').map(function (r) { return r.name; }), ['마', '다', '나', '가']);   // 기관 자료의 이름이 먼저
-  const st = kbb.goalRows([tgt('IA', 'RETAIN'), tgt('IB', 'NEW')], mkCtx({ entries: { IA: { id: 'IA', stage: 3 } } }));
+  const st = kbb.goalRows([tgt('IA', 'RETAIN'), tgt('IB', 'NEW')], mkCtx({ prepOk: false, entries: { IA: { id: 'IA', stage: 3 } } }));
   assert.deepStrictEqual(kbb.sortBy(st, 'stage', 'asc').map(function (r) { return r.id; }), ['IA', 'IB']);
   assert.deepStrictEqual(kbb.sortBy(st, 'stage', 'desc').map(function (r) { return r.id; }), ['IA', 'IB']);   // 단계 모름(-1)은 방향과 상관없이 아래
   const bk = kbb.goalRows([tgt('IA', 'RETAIN', { bank: { kb_now: 'NO_RECORD', lines_now: [] } }), tgt('IB', 'NEW')], mkCtx());
@@ -51,6 +51,8 @@ test('거르기: 검색(기관명·지역)·구분·상태·종류·단계, 입�
   const out = kbb.outRows([{ institutionId: 'IE', name: '마' }], {}, ctx);
   assert.deepStrictEqual(kbb.filterRows(rows.concat(out), { kind: 'out' }).map(function (r) { return r.id; }), ['IE']);
   assert.deepStrictEqual(kbb.filterRows(rows.concat(out), { kind: 'goal' }).length, 3);
+  assert.deepStrictEqual(ids({ stage: 5 }), ['IC']);                           // IC = 입찰 없음 + 타행 = 끝난 건
+  assert.deepStrictEqual(ids({ stage: 0 }), ['IA', 'IB']);
   assert.strictEqual(kbb.filterOn({ q: '', tag: '', status: '', kind: '', stage: -1 }), false);
   assert.strictEqual(kbb.filterOn({ stage: 0 }), true);
   assert.strictEqual(kbb.filterOn({ q: ' ' }), false);
@@ -65,8 +67,8 @@ test('제안 진행 줄: 버튼의 수 = 그 단계로 거르면 표에 남는 �
   c.forEach(function (n, i) { assert.strictEqual(kbb.filterRows(all, { stage: i }).length, n, '단계 ' + i); });
   const h = kbb.stagesHtml(c, { ok: true, active: 2 });
   assert.strictEqual((h.match(/<button type="button" class="hb-sb"/g) || []).length, 5);
-  assert.ok(h.indexOf('aria-label="사전준비 2곳 — 거르기 끄기"') > 0 && h.indexOf('aria-pressed="true"') > 0 && (h.match(/aria-pressed="true"/g) || []).length === 1);
-  assert.ok(h.indexOf('aria-label="개설 승인 대기 0곳 — 표를 이 단계로 거르기"') > 0 && /data-stage="1" aria-pressed="false" disabled/.test(h));
+  assert.ok(h.indexOf('aria-label="제안 제출 및 대기 2곳 — 거르기 끄기"') > 0 && h.indexOf('aria-pressed="true"') > 0 && (h.match(/aria-pressed="true"/g) || []).length === 1);
+  assert.ok(h.indexOf('aria-label="제안 준비 0곳 — 표를 이 단계로 거르기"') > 0 && /data-stage="1" aria-pressed="false" disabled/.test(h));
   assert.ok(h.indexOf('style="--p:1"') > 0 && h.indexOf('<span class="l">제안 진행</span>') > 0);
   const none = kbb.stagesHtml([0, 0, 0, 0, 0], { ok: false, why: kbb.prepWhy('denied', 403) });
   assert.strictEqual((none.match(/ disabled>/g) || []).length, 5);
@@ -80,7 +82,7 @@ test('입찰 종료 줄: 마감까지 칸 \'입찰 종료\'+근거(title·sr), �
   const h = kbb.goalRowHtml(r, { canEdit: true });
   assert.ok(h.indexOf('<td title="근거: 입찰 공고 현황 2026-09-30 공고 종료"><b class="hb-dd tx end">입찰 종료</b><span class="sr-only">근거: 입찰 공고 현황 2026-09-30 공고 종료</span></td>') > 0);
   assert.ok(h.indexOf('class="act"') < 0 && h.indexOf('hb-wacts') < 0 && h.indexOf('data-act="towatch"') < 0 && h.indexOf('data-act="tonext"') < 0 && h.indexOf('다음 회차 목표로') < 0);   // 사용자 11-26: 줄 단추·동작 칸 없음(띠 단추로)
-  assert.ok(h.endsWith('설명회 기록 없음</span></td></tr>') && h.indexOf('hb-lane') < 0 && h.indexOf('class="ln"') < 0 && h.indexOf('hb-late') < 0 && h.indexOf('class="late"') < 0);
+  assert.ok(h.indexOf('설명회') < 0 && h.endsWith('</td></tr>') && h.indexOf('hb-lane') < 0 && h.indexOf('class="ln"') < 0 && h.indexOf('hb-late') < 0 && h.indexOf('class="late"') < 0);
   [{ canEdit: true, noWatch: true }, { canEdit: false }].forEach(function (o) {
     const x = kbb.goalRowHtml(r, o);
     assert.ok(x.indexOf('class="act"') < 0 && x.indexOf('<button type="button" class="hb-tag" data-act="tonext"') < 0 && x.indexOf('<button type="button" class="hb-tag" data-act="towatch"') < 0);
@@ -176,12 +178,12 @@ test('관심 기관 줄: 다음 협약 종료 출처 순서(약정 → 행안부
   assert.ok(kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', rows: [], out: [], canEdit: false, total: 0 }).indexOf('<button') < 0);
 });
 
-test('표 머리·도구 줄·거른 결과 0: 정렬 머리는 aria-sort 하나, 설명회는 정렬하지 않음, 도구 줄 구성, 조건에 맞는 기관이 없습니다 + [필터 지우기]', function () {
+test('표 머리·도구 줄·거른 결과 0: 정렬 머리는 aria-sort 하나, 설명회 열 없음, 금고 방식도 정렬, 도구 줄 구성, 조건에 맞는 기관이 없습니다 + [필터 지우기]', function () {
   const ctx = mkCtx();
   const rows = kbb.sortBy(kbb.goalRows([tgt('IA', 'RETAIN'), tgt('IB', 'NEW')], ctx), 'due', 'asc');
   const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', rows: rows, out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 5 });
   assert.ok(t.indexOf('<th scope="col" aria-sort="ascending"><button type="button" class="hb-sort" data-sort="due">마감까지<svg') > 0 && (t.match(/aria-sort=/g) || []).length === 1);
-  assert.ok(t.indexOf('<th scope="col">설명회</th>') > 0 && t.indexOf('data-sort="nm"') > 0 && t.indexOf('data-sort="stage"') > 0);
+  assert.ok(t.indexOf('설명회') < 0 && t.indexOf('data-sort="aim"') > 0 && t.indexOf('data-sort="nm"') > 0 && t.indexOf('data-sort="stage"') > 0);
   assert.ok(t.indexOf('<caption class="sr-only">2026 목표 기관 5곳 중 2곳 보임, 마감까지 오름차순</caption>') > 0);
   const none = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', rows: [], out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 5, filtered: true });
   assert.ok(none.indexOf('조건에 맞는 기관이 없습니다. <button type="button" id="hb-fclear2">필터 지우기</button>') > 0 && none.indexOf('아직 없습니다') < 0);

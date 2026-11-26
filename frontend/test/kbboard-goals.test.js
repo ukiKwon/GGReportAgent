@@ -145,9 +145,9 @@ test('goalRow 지연 판정: 확정 마감이 기준일(30일) 안인데 제안�
   const A = kbb.goalRow(tgt('IA', 'RETAIN'), ctx);
   assert.strictEqual(A.due.kind, 'fixed'); assert.strictEqual(A.late, true); assert.strictEqual(A.hold, false);
   assert.strictEqual(kbb.goalRow(tgt('IF', 'NEW'), ctx).late, false);                                        // 마감 D-45 — 기준일 밖
-  const wr = mkCtx({ entries: { IA: { id: 'IA', stage: 4 } } });                                              // 제안서 작성 단계면 지연 아님
+  const wr = mkCtx({ entries: { IA: { id: 'IA', stage: 1, rank: 4 } } });                                             // 제안서 작성 단계면 지연 아님
   assert.strictEqual(kbb.goalRow(tgt('IA', 'RETAIN'), wr).late, false);
-  const early = mkCtx({ entries: { IA: { id: 'IA', stage: 2 } } });                                           // 사전준비 단계는 아직 작성 전 → 지연
+  const early = mkCtx({ entries: { IA: { id: 'IA', stage: 1, rank: 2 } } });                                          // 사전준비 단계는 아직 작성 전 → 지연
   assert.strictEqual(kbb.goalRow(tgt('IA', 'RETAIN'), early).late, true);
   const C = kbb.goalRow(tgt('IC', 'NEW'), ctx);                                                               // 확정 공고일만(마감일 없음) D-30 → 보류
   assert.deepStrictEqual([C.late, C.hold], [false, true]);
@@ -158,8 +158,8 @@ test('goalRow 지연 판정: 확정 마감이 기준일(30일) 안인데 제안�
   const clctx = mkCtx({ byInst: { IK: rec('IK', '끝난', { confirmed: true, contractEnd: p(-20), receiveTo: p(-5) }) } });
   const K = kbb.goalRow(tgt('IK', 'NEW'), clctx);
   assert.strictEqual(K.due.kind, 'closed');
-  assert.deepStrictEqual([K.late, K.hold, K.stage], [false, false, -1]);                                      // 작성 전(진행 기록 없음)
-  const K2 = kbb.goalRow(tgt('IK', 'NEW'), Object.assign({}, clctx, { entries: { IK: { id: 'IK', stage: 1 } } }));
+  assert.deepStrictEqual([K.late, K.hold, K.stage], [false, false, 0]);                                       // 진행 기록 없음 = 제안 준비 전
+  const K2 = kbb.goalRow(tgt('IK', 'NEW'), Object.assign({}, clctx, { entries: { IK: { id: 'IK', stage: 1, rank: 2 } } }));
   assert.deepStrictEqual([K2.late, K2.hold], [false, false]);                                                 // 사전준비 단계여도 같다
   const off = mkCtx({ prepOk: false });
   const A0 = kbb.goalRow(tgt('IA', 'RETAIN'), off);
@@ -167,8 +167,8 @@ test('goalRow 지연 판정: 확정 마감이 기준일(30일) 안인데 제안�
   const d60 = mkCtx({ delayDays: 60 });                                                                       // 서버 delay_days
   assert.strictEqual(kbb.goalRow(tgt('IF', 'NEW'), d60).late, true);
   // 제안 진행 단계는 dash.STAGES 글자, 기록 없으면 act
-  const st = kbb.goalRow(tgt('IA', 'RETAIN'), mkCtx({ entries: { IA: { id: 'IA', stage: 2 } } }));
-  assert.deepStrictEqual([st.stage, st.stageLabel, st.act], [2, '사전준비', 'open']);
+  const st = kbb.goalRow(tgt('IA', 'RETAIN'), mkCtx({ entries: { IA: { id: 'IA', stage: 1, rank: 2 } } }));
+  assert.deepStrictEqual([st.stage, st.stageLabel, st.act], [1, '제안 준비', 'open']);
   assert.strictEqual(kbb.goalRow(tgt('IA', 'RETAIN'), ctx).act, 'confirm');
   assert.strictEqual(kbb.goalRow(tgt('IZ', 'NEW'), ctx).rec, null);                                           // 기관 자료가 없어도 줄은 그린다
   assert.strictEqual(kbb.goalRow(tgt('IZ', 'NEW'), ctx).due.kind, 'unk');
@@ -246,26 +246,26 @@ test('emptyCandidates: 협약 1년 안 종료 중 \'국민은행 확정\'·이�
 // ── 행·표 마크업 ───────────────────────────────────────────────────
 function rowHtml(r, o) { return kbb.goalRowHtml(r, Object.assign({ canEdit: true }, o || {})); }
 test('goalRowHtml: 지연 행(late·지연 칩·마감 D-n·준비 단계 막대) 마크업, 이름 버튼·구분 칩(메뉴 버튼)', function () {
-  const ctx = mkCtx({ entries: { IA: { id: 'IA', stage: 2 } } });
+  const ctx = mkCtx({ entries: { IA: { id: 'IA', stage: 1, rank: 2 } } });
   const r = kbb.goalRow(tgt('IA', 'RETAIN', { institution_name: '성동구청' }), ctx);
   const h = rowHtml(r);
   assert.ok(h.indexOf('<tr class="late"><th scope="row" title="11 가"><button type="button" class="hb-nm" data-key="11|가" data-inst="IA" aria-haspopup="dialog"><span class="rg">11</span>가</button></th>') === 0);
   assert.ok(h.indexOf('<button type="button" class="hb-tag" data-act="tag" data-inst="IA" data-key="11|가" aria-haspopup="menu" aria-expanded="false"><span class="sr-only">구분: </span>재유치 도전<svg') > 0);
   assert.ok(h.indexOf('<b class="hb-dd hot">D-12</b><span class="hb-q">마감</span>') > 0);
   assert.ok(h.indexOf('<td class="hb-bank">국민은행<span class="r">단수</span></td>') > 0);
-  assert.ok(h.indexOf('<span class="hb-stg"><span class="lb" title="사전준비">사전준비</span><span class="hb-pg" aria-hidden="true"><i style="width:60%"></i></span><span class="n">3/5</span><span class="hb-late">지연</span></span>') > 0);
-  assert.ok(h.indexOf('<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">설명회 기록 없음</span></td>') > 0);   // 설명회 열은 1단계에 '—'
-  assert.ok(h.indexOf('hb-lane') < 0 && h.indexOf('class="ln"') < 0 && h.indexOf('class="w hot"') < 0 && h.endsWith('설명회 기록 없음</span></td></tr>'));   // 동작 칸 없음(사용자 11-26)
-  assert.strictEqual((h.match(/<td/g) || []).length, 6);                                                      // th 1 + td 6 = 7열(금고 방식 칸 포함)
-  // 지연이 아니면 class 없음, 단계 기록이 없고 제안 사전준비가 가능하면 단계 칸에 '시작 전' 글자만(줄마다 있던 [제안 확정] 단추는 11-25에 없앴다)
+  assert.ok(h.indexOf('<span class="hb-stg two"><span class="lb">제안 준비</span><span class="ln2"><span class="hb-pg" aria-hidden="true"><i style="width:40%"></i></span><span class="n">2/5</span><span class="hb-late">지연</span></span></span>') > 0);
+  assert.ok(h.indexOf('설명회') < 0);   // 설명회 열 삭제(사용자 11-26)
+  assert.ok(h.indexOf('hb-lane') < 0 && h.indexOf('class="ln"') < 0 && h.indexOf('class="w hot"') < 0 && h.endsWith('</td></tr>'));   // 동작 칸·설명회 칸 없음(사용자 11-26)
+  assert.strictEqual((h.match(/<td/g) || []).length, 5);                                                      // th 1 + td 5 = 6열(금고 방식 칸 포함, 설명회 없음)
+  // 지연이 아니면 class 없음, 단계 기록이 없으면 단계 칸은 '제안 준비 전' 1/5(옛 '시작 전' 글자를 칸 이름이 대신한다, 줄마다 있던 [제안 확정] 단추는 11-25에 없앴다)
   const ok = rowHtml(kbb.goalRow(tgt('IF', 'NEW'), mkCtx()));
   assert.ok(ok.indexOf('<tr><th scope="row" title="') === 0 && ok.indexOf('hb-late') < 0);
-  assert.ok(ok.indexOf('<span class="hb-stg"><span class="mut">시작 전</span><span class="sr-only">제안 사전준비 시작 전</span></span>') > 0);
+  assert.ok(ok.indexOf('<span class="hb-stg two"><span class="lb">제안 준비 전</span><span class="ln2"><span class="hb-pg" aria-hidden="true"><i style="width:20%"></i></span><span class="n">1/5</span></span></span>') > 0);
   assert.ok(ok.indexOf('hb-confirm') < 0 && ok.indexOf('제안 확정') < 0);
   // 공고 전은 '공고 전', 진행 자료 없음은 —
   assert.ok(rowHtml(kbb.goalRow(tgt('IB', 'NEW'), mkCtx({ actOf: function () { return 'later'; } }))).indexOf('<span class="mut">공고 전</span>') > 0);
   const un = rowHtml(kbb.goalRow(tgt('IB', 'NEW'), mkCtx({ actOf: function () { return 'unavailable'; } })));
-  assert.ok(un.indexOf('제안 진행 정보 없음') > 0);
+  assert.ok(un.indexOf('제안 준비 전') > 0 && un.indexOf('제안 진행 정보 없음') < 0);   // 기록 없는 줄은 act와 무관하게 준비 전
 });
 
 test('goalRowHtml: 추정·미상·예전 국민은행 표시·목표 밖 줄', function () {
@@ -332,13 +332,13 @@ test('goalTableHtml: 표 구조(caption·colgroup·머리 7열), 상태별 문�
   const out = kbb.outRows([{ institutionId: 'IF', name: '바' }], {}, ctx);
   const ok = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, out: out }));
   assert.ok(ok.indexOf('<table class="hb-tt"><caption class="sr-only">2026 목표 기관 2곳과 그 밖의 제안서 준비 중인 기관 1곳, 마감 가까운 순</caption><colgroup>') === 0);
-  assert.ok(ok.indexOf('<col class="c-nm"><col class="c-tag"><col class="c-aim"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf">') > 0);   // 열 폭은 CSS 클래스(인라인 px 없음)
+  assert.ok(ok.indexOf('<col class="c-nm"><col class="c-tag"><col class="c-aim"><col class="c-due"><col class="c-bank"><col class="c-stg"></colgroup>') > 0);   // 열 폭은 CSS 클래스(인라인 px 없음)
   assert.ok(ok.indexOf('<col style') < 0);
   assert.ok(ok.indexOf('hb-pretry') < 0);                                                                       // 제안 진행 자료가 정상이면 오류 안내 없음
-  ['기관', '구분', '금고 방식', '마감까지', '현 금고 은행', '준비 단계', '설명회'].forEach(function (c) { assert.ok(ok.indexOf('<th scope="col">' + c + '</th>') > 0, c); });
-  assert.ok(ok.indexOf('<th scope="col">설명회</th></tr></thead>') > 0 && ok.indexOf('c-act') < 0);   // 맨 끝 머리 = 설명회(동작 칸 없음)
+  ['기관', '구분', '금고 방식', '마감까지', '현 금고 은행', '준비 단계'].forEach(function (c) { assert.ok(ok.indexOf('<th scope="col">' + c + '</th>') > 0, c); });
+  assert.ok(ok.indexOf('<th scope="col">준비 단계</th></tr></thead>') > 0 && ok.indexOf('설명회') < 0 && ok.indexOf('c-act') < 0);   // 맨 끝 머리 = 준비 단계
   assert.ok(ok.indexOf('class="mh"') < 0 && ok.indexOf('class="ln"') < 0 && ok.indexOf('12개월') < 0 && (ok.match(/<span>\d+<\/span>/g) || []).length === 0);
-  assert.ok(ok.indexOf('<tr class="grp"><th scope="rowgroup" colspan="7">그 밖의 제안서 준비 중인 기관 <b>1</b>곳</th></tr>') > 0);
+  assert.ok(ok.indexOf('<tr class="grp"><th scope="rowgroup" colspan="6">그 밖의 제안서 준비 중인 기관 <b>1</b>곳</th></tr>') > 0);
   assert.ok(ok.indexOf('data-act="add"') > ok.indexOf('rowgroup'));                                            // 목표에 넣기는 묶음 안
   assert.ok(ok.indexOf('hb-nm') < ok.indexOf('rowgroup'));
   const M = kbb.GOAL_MSG;
@@ -351,7 +351,7 @@ test('goalTableHtml: 표 구조(caption·colgroup·머리 7열), 상태별 문�
   assert.ok(tb('error', 0).indexOf('서버에 연결되지 않음') > 0);
   // 제안 진행 자료 오류(qa 11-17 P2-1): 목표 밖 묶음 자리에 오류 안내 + [다시 시도](#hb-pretry). 목표 밖 기관이 있으면 안내 없이 묶음, 권한 없음(403)은 표에 안내를 두지 않는다(띠가 이유를 말한다)
   const pe = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, prep: 'error', prepCode: 500 }));
-  assert.ok(pe.indexOf('<tr class="grp"><th scope="rowgroup" colspan="7">그 밖의 제안서 준비 중인 기관</th></tr><tr class="emp"><td colspan="7"><p class="db-state">제안 진행 자료를 불러오지 못했습니다(오류 500).') > 0);
+  assert.ok(pe.indexOf('<tr class="grp"><th scope="rowgroup" colspan="6">그 밖의 제안서 준비 중인 기관</th></tr><tr class="emp"><td colspan="6"><p class="db-state">제안 진행 자료를 불러오지 못했습니다(오류 500).') > 0);
   assert.ok(pe.indexOf('<button type="button" id="hb-pretry">다시 시도</button>') > 0 && pe.indexOf('id="hb-gretry"') < 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, prep: 'error', prepCode: 0 })).indexOf('제안 진행 자료를 불러오지 못했습니다(서버에 연결되지 않음).') > 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, out: out, prep: 'error' })).indexOf('hb-pretry') < 0);
@@ -631,7 +631,7 @@ test('index.html: 요약 띠·표·구분 칩·메뉴 CSS가 규격(6-B)대로 �
   assert.ok(/\.hb-tag\.ro \{[^}]*cursor:default/.test(css) && /\.hb-tag\.add \{[^}]*border-style:dashed/.test(css));
   assert.ok(/\.hb-dlg \.hb-rd input \{ width:auto;/.test(css) && /\.hb-res li\[aria-disabled=true\] \{ color:var\(--muted\); cursor:default; \}/.test(css));
   // design 11-17 6-A·6-B: 열 폭은 클래스(구분 166·마감까지 120·현 금고 은행 124), 2단 은행 막대, 눈금 없는 plan·open 막대, 후보 폭, 대화창 이름표 위·칸 전체 폭
-  assert.ok(/\.hb-tt col\.c-nm \{ width:auto; \} \.hb-tt col\.c-tag \{ width:166px; \} \.hb-tt col\.c-due \{ width:120px; \}/.test(css) && /\.hb-tt col\.c-bank \{ width:124px; \} \.hb-tt col\.c-stg \{ width:148px; \} \.hb-tt col\.c-brf \{ width:56px; \}/.test(css));
+  assert.ok(/\.hb-tt col\.c-nm \{ width:auto; \} \.hb-tt col\.c-tag \{ width:166px; \} \.hb-tt col\.c-due \{ width:120px; \}/.test(css) && /\.hb-tt col\.c-bank \{ width:124px; \} \.hb-tt col\.c-stg \{ width:132px; \}/.test(css) && css.indexOf('c-brf') < 0);
   assert.ok(/\.hb-bk\.two \{ grid-template-columns:auto minmax\(0,1fr\) 20px auto minmax\(0,1fr\) 20px; column-gap:8px; \}/.test(css));
   assert.ok(/\.hb-cand \{[^}]*max-width:560px/.test(css));
   assert.ok(/\.hb-dlg #hb-a-q, \.hb-dlg #hb-a-memo, \.hb-dlg #hb-c-etc \{ display:block; width:100%; margin-top:4px; box-sizing:border-box; \}/.test(css));
