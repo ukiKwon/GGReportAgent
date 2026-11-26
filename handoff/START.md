@@ -6,12 +6,12 @@
 
 ## 첫 순서 (main, 묻지 않고 실행)
 1. `git pull`(kgi-report-web-dev) → 환경 점검(CLAUDE.md 3절 ⓐ~ⓔ) → `ListAgents`로 세션 정체 확인(이름은 세션마다 바뀜).
-2. **이 PC 환경(11-26)**: mvn = PATH의 apache-maven-3.9.16, JDK8 jdk8u504-b01, 로컬 DB 063까지 적용(다음 번호 **064**), 샘플은 사용자 Downloads\sample(저장소 밖). 다른 PC면 `node kgi-ggreport-web/tools/db/apply-mysql.mjs --status`부터.
+2. **이 PC 환경(11-26)**: mvn = PATH의 apache-maven-3.9.16, JDK8 jdk8u504-b01, 로컬 DB 063까지 적용 — **064는 커밋됐지만(8690a493) 로컬 미적용**(사용자 apply-mysql이 026 체크섬으로 중단, 5fe23543에서 되돌림 → 사용자 재실행 대기. 064 적용 전에는 8080을 8690a493 이후 빌드로 올리지 않는다 — 지금 62d1ea77). 다음 번호 065(6e)·066(ca)·067(6e), 샘플은 사용자 Downloads\sample(저장소 밖). 다른 PC면 `node kgi-ggreport-web/tools/db/apply-mysql.mjs --status`부터.
 3. **8080은 커밋된 HEAD만**: `c:/github/_gg_build`에서 `git checkout -q --detach <HEAD>` → kgi-ggreport-web에서 `mvn -q -o package -DskipTests`(MAVEN_OPTS=-Xmx384m) → war를 scratchpad로 복사해 그 사본을 `java -Xmx768m -jar`로 main 폴더 kgi-ggreport-web에서 띄움. **실행 인자에 `--ggreport.plan-inbox.location=C:/Users/superuser/Downloads/inout/plan/inbox`를 붙인다**(55 기관 사업계획 반입 대기 파일, 11-26 16시 — 읽기만). 전체 mvn도 _gg_build에서 `-DargLine="-Xmx768m"`(11-26 62d1ea77 2710/0/0). 화면만 바뀐 커밋은 재기동 불필요. design_history 다음 장 **134**.
 4. **공유 .git/index는 늘 뒤처진다**(세션마다 임시 인덱스로 커밋하기 때문) — 커밋은 반드시 `GIT_INDEX_FILE=.git/index.<세션>.tmp`, 공유 인덱스로 커밋 금지. 필요하면 `git reset -q`(작업 파일 무변경)로 맞춘다.
 
 ## 이어갈 일 (세션별 — 자세한 내용은 경로의 자료)
-- **6e(제안 준비 현황)**: NEXT 113 ①~⑧(대본 사용자 답·요약서 여백·design_history 481b30f6·df89d90a 장·화면 실측) → 121 ①~⑥ → 125 0~1단계 서버 설계 적용. 자료: handoff/sessions/2026-11-26_0900_dash.md, handoff/agents/backend-dev/2026-11-26_1445_ae32688f.md(125 설계), handoff/agents/planner/2026-11-26_1248_abda3d70.md(125 영향).
+- **6e(제안 준비 현황)**: ① 로컬 064 적용 확인 → main 8080 재기동 ② NEXT 125 db 몫 — DB 065·067 → S3a 한 커밋(PrepStage5·120 ① 서버 + prepboard.js·preptask.js, 해시를 ca에 전달) → S3b ③ 125 화면 열(입찰 대상·공고명, A안) ④ NEXT 113(대본 '이사회' 고정 적용·요약서 여백·design_history 장·화면 실측) → 121 ①~⑥. 자료: handoff/sessions/2026-11-26_0900_dash.md '19시 덧붙임', 설계 handoff/agents/backend-dev/2026-11-26_1708_a12c06a4.md·1737_a12c06a4.md(+같은 폴더 a12c06a4 최종판), 검토 handoff/agents/qa-verifier/2026-11-26_1714_abbe2e11.md, 시안 handoff/agents/history/2026-11-26_입찰대상_목록_시안/index.html.
 - **ca(입찰 현황판)**: NEXT 120 ① 2차 서버·② 기획 판정 → 114 ②~⑤. 자료: handoff/sessions/2026-11-26_0921_ca.md. security 후속(하): 응답 tag_source DEFAULT→NONE을 화면이 쓰는지, 옛 GOAL 이월 행 처리(data-auditor) — handoff/agents/security/ 11-26 15시대 PUSH-GATE 보고서.
 - **0d(디자인 검토)**: NEXT 124 남은 몫. 자료: handoff/sessions/2026-11-19_1930_0d.md '11-26'.
 - **e4(기관장)**: NEXT 77 — 옛 경력 12줄·qa P3·Word 실물·법원장 사진. 자료: handoff/sessions/2026-11-25_2020_e4.md '11-26'. 잊지 말 것: Word '요약'에는 연도·일자 정보가 없다.
