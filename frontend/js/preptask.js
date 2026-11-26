@@ -182,7 +182,7 @@
     noticeFilesHint: '공고문·제안요청서(RFP) 원본을 올려 둡니다. PDF·HWPX·DOCX·XLSX (HWP는 HWPX나 PDF로 저장해 올립니다).',
     noticeFilesEmpty: '아직 올린 공고 원본 파일이 없습니다.',
     // 7단계 이사회 준비 · 8단계 이사회 개최 및 결과
-    secDoc: '이사회 자료 작성',
+    secDoc: '이사회 자료 준비',
     secSched: '이사회 일정 등록',
     secAdd: '이사회 추가 자료 등록',
     secScript: '이사회 발표 대본',

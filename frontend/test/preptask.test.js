@@ -682,7 +682,7 @@ test('4단계 파일 표: 열은 파일명·상태·개인정보 검사·담당�
 test('7단계 이사회 준비: 자료 작성·일정 등록·추가 자료 등록·발표 대본이 한 단계', function () {
   const base = { state: 'ok', id: 12, statusName: '작성 중', snapNo: 4, confirmed: false, html: 'x', resultCd: '', meeting: '', canResult: false, canMeeting: true };
   const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('BOARD_DOC'), { board: base, addFiles: '<div class="pp-files" data-kind="BOARD_ADD"></div>' }));
-  const at = ['>이사회 자료 작성</h4>', '>이사회 일정 등록</h4>', '>이사회 추가 자료 등록</h4>', '>이사회 발표 대본</h4>'].map(function (x) { return h.indexOf(x); });
+  const at = ['>이사회 자료 준비</h4>','>이사회 일정 등록</h4>', '>이사회 추가 자료 등록</h4>', '>이사회 발표 대본</h4>'].map(function (x) { return h.indexOf(x); });
   assert.ok(at[0] > 0 && at[0] < at[1] && at[1] < at[2] && at[2] < at[3]);
   assert.ok(/<h3 class="ts-step-title"[^>]*>이사회 준비<\/h3>/.test(h));
   assert.ok(/data-task="T5"/.test(h) && /data-task="T6"/.test(h) && h.indexOf('data-kind="BOARD_ADD"') > 0);
@@ -1071,8 +1071,9 @@ test('F7 완료 조건 줄: 23단계 모두 제목 바로 아래, 완료 전·�
   assert.ok(pt.bodyHtml(model(v, idxOf('BOARD_DOC'), { board: { state: 'none' } })).indexOf(pt.T.boardHint) > 0);
   assert.strictEqual(pt.T.noticeNote(2), '공고 자료(입찰 예정일·공고일·접수 마감일·공고 링크)에 빠진 것은 없습니다. 위에 붉게 표시한 2건은 확인만 하면 됩니다.');
   assert.strictEqual(pt.T.noticeNoteView(2), '공고 자료(입찰 예정일·공고일·접수 마감일·공고 링크)에 빠진 것은 없습니다. 위에 붉게 표시한 2건을 확인하세요.');
-  // 구획 제목·안내 문구의 '이사회 자료 작성'은 이번에 바꾸지 않는다(사용자 답 대기)
-  assert.strictEqual(pt.T.secDoc, '이사회 자료 작성');
+  // 7단계 구획 제목은 '이사회 자료 준비'(사용자 11-27), 메뉴 화면을 가리키는 안내 문구의 '이사회 자료 작성'은 메뉴 이름 그대로
+  assert.strictEqual(pt.T.secDoc, '이사회 자료 준비');
+  assert.ok(pt.bodyHtml(model(v, idxOf('BOARD_DOC'), { board: { state: 'none' } })).indexOf('>이사회 자료 준비</h4>') > 0);
 });
 
 test('F8 결과 문서 밑 개최일 줄: 결과 뒤 개최일·결과 전 일정(예정)·날짜 없음(등록 전 + 누가 적나)·자료 상태 아니면 줄 없음', function () {
