@@ -186,6 +186,7 @@
   <a href="#c130">130 표 실측 후속 — 입찰 결과 열 폭 재배분, 준비 현황 머리값 꺾임, 예산 원문 문장 왼쪽</a>
   <a href="#c131">131 입찰 현황판 — 제안 진행 띠 5칸·끝난 건·모든 열 정렬·설명회 칸 삭제(NEXT 120)</a>
   <a href="#c132">132 로그인 앞 기능 소개 랜딩 — AI/AX 7장면, 업무 흐름 27칸</a>
+  <a href="#c133">133 입찰 결과 표 열 폭 정정 — 1280px에서 패널 밖으로 넘치던 것(130장 회귀) 바로잡기</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2626,6 +2627,16 @@
 </div>
 </section>
 
+<section class="ch" id="c133">
+<h2>133 입찰 결과 표 열 폭 정정 — 130장 회귀 바로잡기 (2026-11-26, design-reviewer 3차 실측 이슈 A)</h2>
+<div class="why">왜: 130장의 열 폭은 배율 90%로 뜬 시험 브라우저(실제 레이아웃 1422px)에서 잰 값이었습니다. 진짜 1280px(패널 안쪽 990px)에서는 표 최소 폭 1080px가 패널 밖으로 90px 넘쳐 제안 진행 열이 오른쪽 끝에서 잘리고 페이지에 가로 스크롤이 생겼습니다. 구분 '신규유치 도전'도 0.2px 차이로 여전히 '신규유치 도…'였습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock"><p style="font-size:12px">표 1080px &gt; 패널 990px — 넘침 90px. 기관 240·구분 96(쓸 폭 76.0 &lt; 글자 76.2)·약정 시작 96·결과 180·근거 150·제안 진행 120.</p><p class="hint12">근거 스크린샷: .playwright-mcp/t124c-results-1280.png</p></div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock"><p style="font-size:12px">최소 폭 960px, 기관 224·구분 104(여유 +7.8px)·나머지 그대로 → 고정 열 합 874, 1280에서 은행 열 116px(쓸 폭 96, '1금고 국민은행' 한 줄). 넘침 0.</p>
+<p class="legend-note">교훈: 실측 전에 innerWidth를 먼저 확인(시험 브라우저 dpr 0.9 — 창 1152×810이 1280×900). 화면 시험 2192/2192. 후 실측은 다음 브라우저 차례.</p>
+</div></div></div>
+</div>
+</section>
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
 </div>
 </body>

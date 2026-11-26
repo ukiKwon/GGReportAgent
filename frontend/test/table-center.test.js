@@ -147,7 +147,8 @@ test('위 정렬 본문 칸이 있는 줄은 줄 전체를 위로', function () 
 });
 
 test('열 폭·원문 표기 후속(design 11-26 실측)', function () {
-  assert.ok(css.indexOf('.rs-tt col.c-tag { width:96px; }') >= 0);
+  assert.ok(css.indexOf('.rs-tt col.c-tag { width:104px; }') >= 0);
+  assert.ok(rule('.rs-tt').indexOf('min-width:960px') >= 0, '.rs-tt 최소 폭 960');
   assert.ok(css.indexOf('.rs-tt col.c-prep { width:120px; }') >= 0);
   assert.ok(/text-align:\s*left/.test(rule('.pl-bud .db-why')));
   assert.ok(/padding:\s*4px 2px/.test(rule('.pb-t thead th')));
