@@ -1797,10 +1797,10 @@
   bw.snapshotsUrl = function (id) { return '/board-materials/' + encodeURIComponent(id) + '/snapshots'; };
   // 감사 헤더(화면·버튼 이름)는 board-material.js 의 상수를 쓴다(서버 허용 목록과 같은 이름을 한 곳에서만 관리).
   const matMod = (typeof require === 'function' && typeof module !== 'undefined') ? require('./board-material.js') : null;
-  bw.postSnapshot = function (fetchFn, id, body) {
+  bw.postSnapshot = function (fetchFn, id, body, ui) {   // ui = { screen, button } — 사전준비 4단계 자동 초안이 부를 때(NEXT 121 N2). 없으면 작성 화면 값
     const m = matMod || root.boardMat;
     return reqJson(fetchFn, bw.snapshotsUrl(id), { method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, m.headers(m.UI.WRITE, m.BTN.SAVE)), body: JSON.stringify(body) });
+      headers: Object.assign({ 'Content-Type': 'application/json' }, ui ? m.headers(ui.screen, ui.button) : m.headers(m.UI.WRITE, m.BTN.SAVE)), body: JSON.stringify(body) });
   };
   bw.okText = function (b) {
     const n = Number(b && b.snap_no) || 0;

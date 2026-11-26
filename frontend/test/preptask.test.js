@@ -330,13 +330,13 @@ test('배선: 단계·구간·이전/다음·칸 체크 동작 이름이 화면�
 });
 
 test('배선: 칸 체크는 표와 같은 주소·화면 이름표, 같은 값·저장 중이면 요청하지 않는다', function () {
-  const a = PREP_SRC.indexOf('function onMark(cd, mark) {');
+  const a = PREP_SRC.indexOf('function onMark(cd, mark, via) {');
   const b = PREP_SRC.indexOf('// o.popup: 건을 연 경우에만 true(');
   assert.ok(a > 0 && b > a);
   const f = PREP_SRC.slice(a, b);
   assert.ok(/S\.markBusy\[cd\]\) return;/.test(f));
   assert.ok(/if \(cur\.mark === mark\) return;/.test(f));
-  assert.ok(/req\('PUT', base\(id\) \+ '\/board-checks\/' \+ encodeURIComponent\(cd\), \{ mark_cd: mark, base_rev: cur\.revNo \}, ui\('prep_dashboard', 'dash_check'\)\)/.test(f));
+  assert.ok(/req\('PUT', base\(id\) \+ '\/board-checks\/' \+ encodeURIComponent\(cd\), \{ mark_cd: mark, base_rev: cur\.revNo \}, via \|\| ui\('prep_dashboard', 'dash_check'\)\)/.test(f));
   assert.ok(/row\.cells\[cd\] = prev;/.test(f), '실패하면 되돌린다');
   assert.ok(PB_SRC.indexOf("'/prep/board-checks/'") > 0, '표의 주소와 같다');
 });
@@ -433,7 +433,7 @@ test('bodyHtml 입찰공고확인: 기관정보 내용(읽기 전용)·누락 �
   assert.ok(done.indexOf('확인 완료') > 0 && done.indexOf('김영업 2026-11-24') > 0 && done.indexOf(pt.T.noticeOk) < 0);
   assert.ok(/data-act="mark" data-col="NOTICE_CHECK" data-mk="NONE">확인 취소</.test(done));
   assert.ok(!/확인 취소/.test(pt.bodyHtml(model(view('IN_PROGRESS'), 1, { row: row({ can_check: false }), notice: { state: 'ok', html: '', gaps: [] } }))));
-  assert.ok(/c\.pt\.noticeConfirmDue\(S\.stepIdx, c\.v, c\.row, [^)]*\)\) onMark\('NOTICE_CHECK', 'DONE'\);/.test(PREP_SRC), '[다음] 확인에서 기록한다');
+  assert.ok(/c\.pt\.noticeConfirmDue\(S\.stepIdx, c\.v, c\.row, [^)]*\)\) onMark\('NOTICE_CHECK', 'DONE', ui\('prep_detail', 'notice_confirm'\)\);/.test(PREP_SRC), '[다음] 확인에서 기록한다');
   const none = pt.bodyHtml(model(view('IN_PROGRESS'), 1));
   assert.ok(none.indexOf(pt.T.noticeNoRec) > 0);
   assert.ok(/function noticeInfo\(v, row\) \{/.test(PREP_SRC) && PREP_SRC.indexOf("button>/g, '').replace(") > 0, '실은 내용에서 단추를 걷는다');
@@ -546,9 +546,10 @@ test('4·7단계 배선: 올린 뒤 자동 초안(자료 만들기 → 엑셀 �
   assert.ok(a > 0 && b > a);
   const f = PREP_SRC.slice(a, b);
   assert.ok(f.indexOf('.xlsx$/i.test(') > 0, 'xlsx만');
-  assert.ok(f.indexOf("mat.createMaterial(bfetch, { bidCaseId: id, year: new Date().getFullYear() })") > 0);
+  assert.ok(f.indexOf("mat.createMaterial(bfetch, { bidCaseId: id, year: new Date().getFullYear() }, AUTO)") > 0);
   assert.ok(f.indexOf("if (str(d.status_cd) !== 'DRAFT' && str(d.status_cd) !== 'PREP') return { kind: 'locked' };") > 0);
-  assert.ok(f.indexOf('bw.upload(bfetch,') > 0 && f.indexOf('bw.adoptManual(bw.buildState(') > 0 && f.indexOf('bw.saveBody(ws, baseVals, d.current_snap,') > 0 && f.indexOf('bw.postSnapshot(bfetch, mid, body)') > 0);
+  assert.ok(f.indexOf('bw.upload(bfetch,') > 0 && f.indexOf('bw.adoptManual(bw.buildState(') > 0 && f.indexOf('bw.saveBody(ws, baseVals, d.current_snap,') > 0 && f.indexOf('bw.postSnapshot(bfetch, mid, body, AUTO)') > 0);
+  assert.ok(f.indexOf("const AUTO = ui('prep_detail', 'profit_upload');") > 0 && f.indexOf('matOfCase(id, AUTO)') > 0 && f.indexOf('mat.loadMaterial(bfetch, mid, AUTO.screen, AUTO.button)') > 0, '자동 초안의 네 호출은 모두 사전준비 상세 이름표');
   assert.ok(PREP_SRC.indexOf('autoBoardDraft(id, f).then(function (r) {') > 0, '파일 올리기 성공 뒤에 부른다');
   assert.ok(PREP_SRC.indexOf('root.board.openMaterial(Number(mid))') > 0);
   const BOARD_SRC = src('js/board.js'), MAT_SRC = src('js/board-material.js');
@@ -680,8 +681,145 @@ test('7단계 이사회 준비: 자료 작성·일정 등록·추가 자료 등�
   // 배선: 일정은 날짜만 적는 주소, 권한은 서버 can_set_meeting
   assert.ok(/mat\.itemUrl\(sm\.d\.material_id\) \+ '\/meeting-date'/.test(PREP_SRC) && /JSON\.stringify\(\{ meeting_date: date \}\)/.test(PREP_SRC));
   assert.ok(/canMeeting: !!\(d\.viewer && d\.viewer\.can_set_meeting === true\)/.test(PREP_SRC));
-  // 발표 대본 자리에 '샘플 필요!'
-  assert.ok(/<p class="ts-need" role="note"><b>샘플 필요!<\/b><span>이사회 발표 대본 샘플을 받으면/.test(h));
+  // 발표 대본 자리: '샘플 필요!' 상자가 아니라 [대본 Word 만들기…] 구간(NEXT 113 ⑤)
+  const sc = h.slice(h.indexOf('>이사회 발표 대본</h4>'));
+  assert.ok(sc.indexOf('샘플 필요!') < 0 && sc.indexOf('class="ts-need"') < 0 && SRC.indexOf('needScript') < 0);
+  assert.ok(/<button type="button" data-act="script-open">대본 Word 만들기…<\/button>/.test(sc));
+});
+
+// ── NEXT 113 ⑤: 7단계 [대본 Word 만들기…] 구간·입력 창·요청 본문 ──
+const BOARD_OK = { state: 'ok', id: 12, snapNo: 4, confirmed: true, html: '' };
+function scriptBlock(v, board, script) { return pt.scriptBlockHtml(model(v, idxOf('BOARD_DOC'), { board: board, script: script })); }
+
+test('대본 구간: 설명·상태 한 줄(확정·확정 전·없음·불러오지 못함·읽는 중)·단추·결과 줄·T6', function () {
+  const v = view('IN_PROGRESS');
+  const ok = scriptBlock(v, BOARD_OK);
+  assert.ok(ok.indexOf(pt.T.scriptHint) >= 0 && ok.indexOf('숫자는 확정된 이사회 자료(버전 4)에서 가져옵니다.') >= 0);
+  assert.ok(/data-act="script-open">대본 Word 만들기…</.test(ok) && /<p class="st-line" id="ts-script-line" role="status"><\/p>/.test(ok));
+  assert.ok(ok.indexOf('data-task="T6"') > 0 && ok.indexOf(pt.T.scriptTaskNote) >= 0, '담당이면 T6 안내 한 줄');
+  assert.ok(ok.indexOf(pt.T.scriptViewNote) < 0, '담당 영업에게는 숫자 안내가 없다');
+  assert.ok(scriptBlock(v, Object.assign({}, BOARD_OK, { confirmed: false })).indexOf('지금 버전(4)의 숫자로 &#39;[확정 전 초안]&#39; 대본이 만들어집니다.') >= 0);
+  assert.ok(scriptBlock(v, { state: 'none' }).indexOf(pt.T.scriptBoardNone) >= 0);
+  assert.ok(scriptBlock(v, { state: 'err' }).indexOf(pt.T.scriptBoardErr) >= 0);
+  assert.ok(scriptBlock(v, { state: 'loading' }).indexOf(pt.T.docLoading) >= 0);
+  // 결과 줄: 오류면 role=alert + st-err, 글은 이스케이프
+  const er = scriptBlock(v, BOARD_OK, { line: '실패 <b>', err: true });
+  assert.ok(/<p class="st-line st-err" id="ts-script-line" role="alert">실패 &lt;b&gt;<\/p>/.test(er));
+  assert.ok(/role="status">대본 Word를 내려받았습니다/.test(scriptBlock(v, BOARD_OK, { line: pt.T.scriptDone, err: false })));
+});
+
+test('대본 구간: 담당 영업이 아니고 영업부장도 아니면 숫자 안내, 이사회 자료 \'없음\'이라고 잘못 말하지 않는다 / 영업부장은 안내 없음', function () {
+  const other = view('IN_PROGRESS', { viewer: { is_assignee: false, is_head: false } });
+  const n = scriptBlock(other, { state: 'none' });
+  assert.ok(n.indexOf(pt.T.scriptViewNote) >= 0, '숫자 안내');
+  assert.ok(n.indexOf(pt.T.scriptBoardNone) < 0 && n.indexOf(pt.T.scriptBoardErr) >= 0, '볼 수 없는 사람의 none은 불러오지 못함 문구로');
+  assert.ok(n.indexOf(pt.T.scriptTaskNote) < 0, 'T6 안내는 담당에게만');
+  const head = view('IN_PROGRESS', { viewer: { is_assignee: false, is_head: true } });
+  const hb = scriptBlock(head, { state: 'none' });
+  assert.ok(hb.indexOf(pt.T.scriptViewNote) < 0 && hb.indexOf(pt.T.scriptBoardNone) >= 0);
+});
+
+test('대본 구간: 끝난 건·담당자 지정 전 건은 단추를 감추고 안내만', function () {
+  ['CANCELLED', 'CONFIRMED', 'OPEN_PENDING'].forEach(function (cd) {
+    const b = scriptBlock(view(cd), BOARD_OK);
+    assert.ok(b.indexOf('data-act="script-open"') < 0 && b.indexOf(pt.T.scriptLater) >= 0, cd);
+  });
+});
+
+test('대본 입력 창: 마크업·접근성·칸 id·기본 선택·필수 표시 없음', function () {
+  const h = pt.scriptDialogHtml({ name: '청주시<i>', vals: {} });
+  assert.ok(/class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="bs-t"/.test(h) && h.indexOf('id="bs-dlg" class="modal-overlay" style="display:none"') >= 0);
+  assert.ok(h.indexOf('발표 대본 Word 만들기 — 청주시&lt;i&gt;') > 0, '기관명은 이스케이프');
+  assert.ok(h.indexOf('모든 칸은 선택입니다') > 0 && h.indexOf('적은 내용은 저장되지 않습니다') > 0);
+  assert.ok(/<input type="radio" name="bs-meeting" value="BOARD" checked>/.test(h) && !/value="COMMITTEE" checked/.test(h));
+  assert.ok(/<input type="radio" name="bs-amt" value="EXCL_IT" checked>/.test(h) && !/value="TOTAL" checked/.test(h));
+  assert.strictEqual((h.match(/dlg-req/g) || []).length, 0, '빨간 * 없음');
+  assert.ok(!/<form/.test(h), 'Enter로 제출되지 않는다');
+  ['bs-cancel', 'bs-go', 'bs-hint', 'bs-busy', 'bs-err', 'bs-t'].forEach(function (id) { assert.ok(h.indexOf('id="' + id + '"') > 0, id); });
+  pt.SCRIPT_FIELDS.forEach(function (f) { assert.ok(h.indexOf(f.kind === 'radio' ? 'name="' + f.id + '"' : 'id="' + f.id + '"') > 0, f.id); });
+  assert.ok(/<button type="button" id="bs-go" class="dlg-go">Word 만들기<\/button>/.test(h));
+  assert.ok(/<input type="text" id="bs-round" inputmode="numeric"[^>]*maxlength="3"/.test(h) && !/type="number"/.test(h));
+  assert.ok(/<textarea id="bs-intro" rows="3" maxlength="1000"/.test(h) && h.indexOf('id="bs-intro-n" class="tm-count">0/1,000') > 0);
+  assert.ok(h.indexOf('자동으로 들어가는 값') > 0 && h.indexOf('지어내지 않고 〔… 확인 필요〕') > 0);
+  // 간직한 값을 다시 채운다(이스케이프)
+  const again = pt.scriptDialogHtml({ name: 'A', vals: { meeting: 'COMMITTEE', amount_mode: 'TOTAL', agenda_no: '제 1호"x', intro: '가\n나<b>' } });
+  assert.ok(/value="COMMITTEE" checked/.test(again) && /value="TOTAL" checked/.test(again));
+  assert.ok(again.indexOf('value="제 1호&quot;x"') > 0 && again.indexOf('가\n나&lt;b&gt;</textarea>') > 0 && again.indexOf('>6/1,000<') > 0);
+});
+
+test('대본: 400 key → 칸 id 짝(요청 칸 이름 전부), 칸별 오류 문구', function () {
+  const pairs = { round: 'bs-round', agenda_no: 'bs-agenda', speaker_dept: 'bs-sdept', speaker_name: 'bs-sname', speaker_title: 'bs-stitle', term_years: 'bs-term',
+    review_when: 'bs-when', accounting: 'bs-acct', intro: 'bs-intro', status_note: 'bs-status', effect: 'bs-effect', profit_note: 'bs-profit', meeting: 'bs-meeting', amount_mode: 'bs-amt' };
+  Object.keys(pairs).forEach(function (k) { assert.strictEqual(pt.scriptKeyToId(k), pairs[k], k); });
+  assert.strictEqual(pt.scriptKeyToId('nope'), '');
+  const e = function (key) { return pt.scriptError(400, { code: 'BAD_VALUE', key: key }); };
+  assert.deepStrictEqual(e('round'), { id: 'bs-round', msg: '차수는 1~999 사이 숫자로 적으세요.' });
+  assert.strictEqual(e('term_years').msg, '약정기간은 1~30 사이 숫자(년)로 적으세요.');
+  assert.strictEqual(e('agenda_no').msg, '의안번호는 30자까지 적을 수 있습니다.');
+  assert.strictEqual(e('speaker_dept').msg, '소속은 40자까지 적을 수 있습니다.');
+  assert.strictEqual(e('speaker_name').msg, '이름은 30자까지 적을 수 있습니다.');
+  assert.strictEqual(e('accounting').msg, '회계처리 방식은 40자까지 적을 수 있습니다.');
+  assert.strictEqual(e('review_when').msg, '심의·평가 예상 시기는 40자까지 적을 수 있습니다.');
+  assert.strictEqual(e('meeting').msg, '회의 이름을 다시 고르세요.');
+  assert.strictEqual(e('amount_mode').msg, '승인 금액 기준을 다시 고르세요.');
+  assert.ok(e('effect').msg.indexOf('기대효과') === 0 && e('effect').id === 'bs-effect');
+  // 칸을 모르는 400·그 밖 상태는 창 전체 오류(칸 id 없음), 내부 용어를 내지 않는다
+  [[400, { code: 'BAD_VALUE', key: 'zzz' }, pt.T.scriptErr400], [400, null, pt.T.scriptErr400], [401, null, pt.T.scriptErr401], [403, null, pt.T.scriptErr403],
+   [404, null, pt.T.scriptErr404], [413, { code: 'BODY_TOO_LARGE' }, pt.T.scriptErr413], [500, null, pt.T.scriptErr500], [0, null, pt.T.scriptErr500]].forEach(function (c) {
+    const r = pt.scriptError(c[0], c[1]);
+    assert.deepStrictEqual(r, { id: '', msg: c[2] }, String(c[0]));
+    assert.ok(!/LLM|API|BAD_VALUE|key/.test(r.msg));
+  });
+});
+
+test('대본: 성공 문구(초안 Y/N)와 내려받는 파일 이름(filename*)', function () {
+  assert.strictEqual(pt.scriptDoneText(false), '대본 Word를 내려받았습니다. 〔…〕로 남은 자리는 Word에서 채우세요.');
+  assert.ok(pt.scriptDoneText(true).indexOf('[확정 전 초안]으로 만들었습니다') === 9 && pt.scriptDoneText(true).indexOf('다시 만들면') > 0);
+  assert.strictEqual(pt.scriptFileName('attachment; filename="board_script.docx"; filename*=UTF-8\'\'%EB%B0%9C%ED%91%9C%EB%8C%80%EB%B3%B8_%EC%B2%AD%EC%A3%BC%EC%8B%9C_20261126.docx'), '발표대본_청주시_20261126.docx');
+  assert.strictEqual(pt.scriptFileName('attachment; filename="board_script.docx"'), pt.SCRIPT_FILE_DEFAULT);
+  assert.strictEqual(pt.scriptFileName('attachment; filename*=UTF-8\'\'..%2F..%2Fx.docx'), '.._.._x.docx', '경로 문자는 바꾼다');
+  assert.strictEqual(pt.scriptFileName(null), pt.SCRIPT_FILE_DEFAULT);
+});
+
+test('대본: 여러 줄 칸 사전 검사(13줄·301자·합계 1,000자) — 문제 없으면 비어 있음', function () {
+  const lines = function (n) { return new Array(n + 1).join('가\n').replace(/\n$/, ''); };
+  assert.deepStrictEqual(pt.scriptCheck({}), []);
+  assert.deepStrictEqual(pt.scriptCheck({ intro: lines(12), effect: '가\n\n\n' }), [], '12줄·뒤쪽 빈 줄은 줄로 세지 않는다');
+  const r13 = pt.scriptCheck({ intro: lines(13) });
+  assert.deepStrictEqual(r13, [{ key: 'intro', id: 'bs-intro', msg: '12줄까지 적을 수 있습니다(지금 13줄).' }]);
+  const r301 = pt.scriptCheck({ status_note: '가\n' + new Array(302).join('나') });
+  assert.deepStrictEqual(r301, [{ key: 'status_note', id: 'bs-status', msg: '한 줄은 300자까지입니다(2번째 줄이 301자).' }]);
+  assert.deepStrictEqual(pt.scriptCheck({ effect: new Array(301).join('가') + '\n' + new Array(301).join('가') + '\n' + new Array(301).join('가') + '\n' + new Array(301).join('가') }).map(function (x) { return x.msg; }), [pt.T.scriptErrTotal]);
+  assert.strictEqual(pt.scriptCheck({ intro: lines(13), effect: lines(13) }).length, 2, '칸마다 하나씩');
+  assert.strictEqual(pt.scriptCheck({ agenda_no: new Array(500).join('가') }).length, 0, '짧은 칸은 maxlength·서버가 본다');
+});
+
+test('대본: 요청 본문 — 비운 칸은 키를 뺀다, 라디오는 늘 값이 있다, 숫자 칸은 숫자로', function () {
+  assert.deepStrictEqual(pt.scriptBody({}), { meeting: 'BOARD', amount_mode: 'EXCL_IT' });
+  assert.deepStrictEqual(pt.scriptBody({ round: '  ', agenda_no: '', intro: '   ', speaker_name: '' }), { meeting: 'BOARD', amount_mode: 'EXCL_IT' });
+  assert.deepStrictEqual(pt.scriptBody({ meeting: 'COMMITTEE', amount_mode: 'TOTAL', round: '12', term_years: '4', agenda_no: ' 제 1호 ', intro: '가\n나', effect: '' }),
+    { meeting: 'COMMITTEE', amount_mode: 'TOTAL', round: 12, term_years: 4, agenda_no: '제 1호', intro: '가\n나' });
+  assert.strictEqual(pt.scriptBody({ round: 'x1' }).round, 'x1', '숫자 모양이 아니면 그대로 보내 서버가 key로 알린다');
+  assert.ok(!('speaker_dept' in pt.scriptBody({ speaker_dept: '' })));
+});
+
+test('대본 배선: 단추 → 창(dlg.open·body 직계) → POST board-script-docx, 머리글·감사 이름, 값은 화면 메모리에만', function () {
+  assert.ok(/case 'script-open': onScriptOpen\(\); return;/.test(PREP_SRC));
+  const a = PREP_SRC.indexOf('function dropScript() {'), b = PREP_SRC.indexOf('function onSetConfirmed(attachId) {');
+  assert.ok(a > 0 && b > a);
+  const f = PREP_SRC.slice(a, b);
+  assert.ok(f.indexOf("document.body.insertAdjacentHTML('beforeend', pt.scriptDialogHtml(") > 0 && f.indexOf('dl.open(ov, {') > 0 && f.indexOf('restoreFallback') > 0);
+  assert.ok(f.indexOf("'/board-script-docx'") > 0 && f.indexOf("'X-Screen-Id': 'prep_detail', 'X-Button-Id': 'script_docx'") > 0 && f.indexOf("method: 'POST'") > 0);
+  assert.ok(f.indexOf('pt.scriptBody(vals)') > 0 && f.indexOf('pt.scriptCheck(vals)') > 0 && f.indexOf("r.headers.get('X-Script-Draft') === 'Y'") > 0 && f.indexOf('pt.scriptFileName(cd)') > 0);
+  assert.ok(f.indexOf('dl.requestClose(ov)') > 0 && f.indexOf('dl.setDisabled(') > 0 && f.indexOf('dl.invalid(') > 0 && f.indexOf('dl.line(') > 0);
+  assert.ok(f.indexOf('localStorage') < 0 && f.indexOf('sessionStorage') < 0, '적은 값은 브라우저 저장소에 넣지 않는다');
+  assert.ok(f.indexOf('setTimeout(function () {') > 0 && f.indexOf('8000') > 0, '성공 줄은 8초 뒤 접는다(초안은 제외)');
+  // 상세를 떠날 때(resetSteps) 값 비움, 구간에 결과 줄 모델을 넘긴다
+  assert.ok(/S\.mat = null;[^\n]*\n    dropScript\(\);/.test(PREP_SRC));
+  assert.ok(/model\.script = S\.script && S\.script\.bid === S\.selected \? \{ line: S\.script\.line, err: S\.script\.err \} : null;/.test(PREP_SRC));
+  // 새 CSS(.bs-*)는 한 덩어리로 .ts-* 묶음 뒤에
+  assert.ok(/\.bs-auto \{[^}]*border:1px dashed var\(--line-strong\)/.test(HTML) && /\.bs-lrow label \{ margin:0; flex:1 1 auto; \}/.test(HTML));
+  assert.ok(HTML.indexOf('.bs-auto {') > HTML.indexOf('.ts-cell {') && HTML.indexOf('.bs-lrow {') < HTML.indexOf('/* 협약준비 업무 끝 */'));
 });
 
 test('8단계 이사회 개최 및 결과: 결과 등록·결과 문서 보관·부서별 확인', function () {
@@ -725,7 +863,7 @@ test('3단계 선정 평가표: 공고 원본에서 옮겨 온 표를 그대로,
   assert.ok(b.indexOf('class="ts-need"') > 0 && b.indexOf('class="ts-need"') < b.indexOf('class="pp-tasks'));
   assert.ok(b.indexOf('>선정 평가표 (공고 원본에서 옮겨 옴)</h4>') > b.indexOf('class="pp-tasks'));
   // 배선
-  assert.ok(/req\('GET', base\(id\) \+ '\/notice-scoring', undefined, ui\('prep_detail', 'refresh'\)\)/.test(PREP_SRC));
+  assert.ok(/req\('GET', base\(id\) \+ '\/notice-scoring', undefined, ui\('prep_detail', 'scoring_read'\)\)/.test(PREP_SRC));
   assert.ok(/if \(kind === 'NOTICE'\) S\.sc = null;/.test(PREP_SRC), '공고 원본을 올리면 다시 읽는다');
   assert.ok(/\.ts-need \{[^}]*border:1px dashed var\(--orange\)/.test(HTML));
 });

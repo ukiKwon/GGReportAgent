@@ -48,7 +48,7 @@
   const OBJ_LISTS = { mmda_basis: 1 };   // 줄이 {text, note} 인 목록(각주) — 나머지 목록은 글자 줄
   const FOOT_LEN = 300;
   const SC = { rows: 200, cols: 12, cell: 500, heads: ['평가 부문', '평가 항목', '세부 평가 항목', '배점', '평가 방법'] };
-  const SC_SCREEN = 'prep_detail', SC_BTN = 'refresh';   // 공고 원본 표 읽기는 사전준비 상세 화면의 같은 요청(prep.js)이라 그 머리글을 쓴다
+  const SC_SCREEN = 'prep_detail', SC_BTN = 'scoring_read';   // 공고 원본 표 읽기 — 서버 감사 전용 이름(NEXT 121 하-3). prep.js 의 같은 요청과 같은 머리글
   const MISMATCH = '화면과 서버의 양식이 맞지 않아 저장하지 못했습니다. 화면을 새로 고친 뒤 다시 하세요.';
 
   // ── 화면 문구 ─────────────────────────────────────────────────────

@@ -1114,6 +1114,7 @@
     S.boardLoading = false; S.boardSeq = ++reqSeq; S.stepIdx = -1; S.stepAuto = true; S.markBusy = {}; S.live = '';
     S.sum = null; S.foldOpen = {}; S.res = null; S.sc = null;   // 3단계 펼침 내용(기관 정보 요약 응답)·다시 편 과제
     S.mat = null;                    // 7단계 이사회 자료
+    dropScript();                    // 7단계 발표 대본 입력값 — 이 건의 상세를 떠나면 비운다(화면 메모리에만 있다)
   }
   function boardHooks() {
     const role = myRole();
@@ -1263,6 +1264,7 @@
       }
       if (curStep.id === 'INST_ANALYSIS') { model.docs = stepDocs(d.view); model.foldOpen = S.foldOpen; model.scoring = stepScoring(d); }
       if (curStep.id === 'BOARD_DOC' || curStep.result) model.board = stepBoard();
+      if (curStep.id === 'BOARD_DOC') model.script = S.script && S.script.bid === S.selected ? { line: S.script.line, err: S.script.err } : null;   // [대본 Word 만들기…] 결과 줄
       if (curStep.id === 'BOARD_DOC') model.addFiles = filesOf('BOARD_ADD', { title: '', hint: pt.T.addFilesHint, empty: pt.T.addFilesEmpty });
       if (curStep.result) model.resFiles = filesOf('BOARD_RES', { title: '', hint: pt.T.resFilesHint, empty: pt.T.resFilesEmpty });
       box.innerHTML = pt.caseHtml(model);
@@ -1401,7 +1403,7 @@
   // 3단계 선정 평가표: 올려 둔 공고 원본에서 서버가 글자 그대로 옮겨 온 표(GET …/prep/notice-scoring). S.sc = { state, data }
   function loadScoring(id) {
     const mine = S.sc = { state: 'loading', data: null };
-    req('GET', base(id) + '/notice-scoring', undefined, ui('prep_detail', 'refresh')).then(function (data) {
+    req('GET', base(id) + '/notice-scoring', undefined, ui('prep_detail', 'scoring_read')).then(function (data) {
       if (S.sc !== mine || S.selected !== id) return;
       mine.state = 'ok'; mine.data = data;
       repaintKeep();
@@ -1457,9 +1459,9 @@
   //   모두 '이사회 자료 작성' 화면이 쓰는 서버 주소·함수(board-write.js·board-material.js) 그대로다. 표별 확인·제출은 7단계에서 그 화면으로 가서 한다.
   //   실패해도 올린 파일은 그대로다 — 알림만 하고 7단계에서 직접 올리게 한다.
   function bfetch(url, init) { return fetch(url, init); }
-  function matOfCase(id) {   // → Promise<{ ok, item|null }> — 이 건의 이사회 자료(여러 해면 가장 최근 해)
+  function matOfCase(id, via) {   // → Promise<{ ok, item|null }> — 이 건의 이사회 자료(여러 해면 가장 최근 해). via = 자동 초안의 화면·버튼(없으면 목록 화면 값)
     const mat = root.boardMat;
-    return mat.loadList(bfetch, {}).then(function (r) {
+    return mat.loadList(bfetch, {}, via).then(function (r) {
       if (!r.ok) return { ok: false, item: null };
       const mine = r.items.filter(function (i) { return str(i.bid_case_id) === id; }).sort(function (a, b) { return Number(b.year) - Number(a.year); });
       return { ok: true, item: mine[0] || null };
@@ -1469,15 +1471,16 @@
     const bw = root.boardWrite, mat = root.boardMat;
     if (!bw || !mat || !bw.buildState || !mat.loadList || !/\.xlsx$/i.test(str(file && file.name))) return Promise.resolve({ kind: 'skip' });
     const fail = { kind: 'fail' };
-    return matOfCase(id).then(function (f) {
+    const AUTO = ui('prep_detail', 'profit_upload');   // 감사에 '사전준비 상세 › 수익성 분석표 올리기'로 남긴다(NEXT 121 N2 — 누르지 않은 이사회 자료 화면 이름을 쓰지 않는다)
+    return matOfCase(id, AUTO).then(function (f) {
       if (!f.ok) return fail;
       if (f.item) return f.item.material_id;
-      return mat.createMaterial(bfetch, { bidCaseId: id, year: new Date().getFullYear() }).then(function (c) {
+      return mat.createMaterial(bfetch, { bidCaseId: id, year: new Date().getFullYear() }, AUTO).then(function (c) {
         return c.ok ? c.material.material_id : c.exists ? c.materialId : null;
       });
     }).then(function (mid) {
       if (mid == null || mid === fail) return fail;
-      return mat.loadMaterial(bfetch, mid, mat.UI.WRITE, mat.BTN.OPEN).then(function (r) {
+      return mat.loadMaterial(bfetch, mid, AUTO.screen, AUTO.button).then(function (r) {
         if (!r.ok) return fail;
         const d = r.material;
         if (str(d.status_cd) !== 'DRAFT' && str(d.status_cd) !== 'PREP') return { kind: 'locked' };   // 제출·확정된 자료는 건드리지 않는다
@@ -1486,7 +1489,7 @@
           const baseVals = mat.baseOf(d.snapshot && d.snapshot.tables);
           const ws = bw.adoptManual(bw.buildState(d.form, x.body, { fileName: file.name, formId: str(d.form_id), version: d.form_version }), baseVals);
           const body = bw.saveBody(ws, baseVals, d.current_snap, '수익성 분석표 올리기로 자동 작성(표별 확인 전)');
-          return bw.postSnapshot(bfetch, mid, body).then(function (s) {
+          return bw.postSnapshot(bfetch, mid, body, AUTO).then(function (s) {
             if (!s.ok) return fail;
             return { kind: s.body && s.body.changed === false ? 'same' : 'saved', snapNo: Number(s.body && s.body.snap_no) || 0 };
           });
@@ -1573,7 +1576,7 @@
       const c = stepCtx();
       if (c && c.pt.noticeConfirmDue) {
         const ni = noticeInfo(c.v, c.row);
-        if (c.pt.noticeConfirmDue(S.stepIdx, c.v, c.row, S.boardLoading ? 'loading' : 'none', ni)) onMark('NOTICE_CHECK', 'DONE');
+        if (c.pt.noticeConfirmDue(S.stepIdx, c.v, c.row, S.boardLoading ? 'loading' : 'none', ni)) onMark('NOTICE_CHECK', 'DONE', ui('prep_detail', 'notice_confirm'));
       }
       stepBy(1);
       return;
@@ -1620,8 +1623,8 @@
       });
     })(0);
   }
-  // 칸 체크 — 제안 준비 현황 표와 같은 주소·같은 화면 이름표로 저장한다(서버 감사 허용 목록이 prep_dashboard/dash_check).
-  function onMark(cd, mark) {
+  // 칸 체크 — 제안 준비 현황 표와 같은 주소로 저장한다. 이름표 기본값 prep_dashboard/dash_check, 2단계 [다음] 확인은 via = prep_detail/notice_confirm(NEXT 121 N1).
+  function onMark(cd, mark, via) {
     const c = stepCtx(), pbd = root.prepboard, bd = S.board;
     if (!c || !pbd || !bd || !bd.row || !S.selected || !cd || S.markBusy[cd]) return;
     const id = S.selected, row = bd.row, s0 = S;
@@ -1634,7 +1637,7 @@
     row.cells = row.cells || {};
     row.cells[cd] = Object.assign({}, prev, { mark_cd: mark });   // 고른 값을 바로 그린다
     repaintKeep();
-    req('PUT', base(id) + '/board-checks/' + encodeURIComponent(cd), { mark_cd: mark, base_rev: cur.revNo }, ui('prep_dashboard', 'dash_check')).then(function (res) {
+    req('PUT', base(id) + '/board-checks/' + encodeURIComponent(cd), { mark_cd: mark, base_rev: cur.revNo }, via || ui('prep_dashboard', 'dash_check')).then(function (res) {
       if (s0 !== S || S.selected !== id || S.board !== bd) return;
       delete S.markBusy[cd];
       row.cells[cd] = Object.assign({}, prev, res && res.cell && typeof res.cell === 'object' ? res.cell : { mark_cd: mark });
@@ -1877,6 +1880,122 @@
         throw e;
       });
     });
+  }
+  // ── 7단계 [대본 Word 만들기…] (NEXT 113 ⑤) ──
+  // 입력 창(#bs-dlg)은 열 때 body 직계로 붙이고 닫으면 뗀다(공통 dlg.js). 서버에 저장하지 않는다 — 적은 값은 이 건을 보는 동안 S.script에만 둔다(localStorage 금지, 기관 정보가 공용 PC에 남지 않게).
+  // S.script = { bid, vals: {키: 값}, line, err, busy } — 결과 줄(#ts-script-line)의 글도 여기 있어 다시 그려도 남는다.
+  function dropScript() {
+    S.script = null;
+    if (typeof document === 'undefined') return;
+    const ov = el('bs-dlg');
+    if (ov && root.dlg) root.dlg.close(ov, { restore: false });
+    else if (ov) ov.remove();
+  }
+  function scriptFieldNode(id) { return el(id) || el(id + '-g'); }
+  function scriptRead(sc) {   // 창의 칸 값을 sc.vals로 옮긴다(창이 없으면 그대로)
+    const pt = root.preptask;
+    if (!el('bs-dlg') || !pt) return sc.vals;
+    pt.SCRIPT_FIELDS.forEach(function (f) {
+      if (f.kind === 'radio') {
+        const r = document.querySelector('input[name="' + f.id + '"]:checked');
+        sc.vals[f.key] = r ? r.value : f.def;
+      } else {
+        const n = el(f.id);
+        if (n) sc.vals[f.key] = n.value;
+      }
+    });
+    return sc.vals;
+  }
+  function onScriptOpen() {
+    const pt = root.preptask, dl = root.dlg, id = S.selected;
+    if (!id || !pt || !pt.scriptDialogHtml || !dl || !dl.open || el('bs-dlg')) return;
+    const sc = S.script && S.script.bid === id ? S.script : (S.script = { bid: id, vals: {}, line: '', err: false, busy: false });
+    const v = (S.detail && S.detail.view) || {};
+    document.body.insertAdjacentHTML('beforeend', pt.scriptDialogHtml({ name: str(v.institution_name) || caseName(), vals: sc.vals }));
+    const ov = el('bs-dlg');
+    ov.addEventListener('click', function (e) {
+      const b = e.target && e.target.closest ? e.target.closest('button') : null;
+      if (!b) return;
+      if (b.id === 'bs-cancel') dl.requestClose(ov);
+      else if (b.id === 'bs-go') onScriptGo(sc);
+    });
+    ov.addEventListener('input', function (e) {   // 여러 줄 칸의 글자 수
+      const t = e.target;
+      if (!t || t.tagName !== 'TEXTAREA') return;
+      const n = el(t.id + '-n');
+      if (n) n.textContent = pt.scriptCountText(t.value.length);
+    });
+    dl.open(ov, {
+      focus: el('bs-round'),
+      onClose: function () { scriptRead(sc); ov.remove(); },   // 취소·성공 모두 값을 간직한다(다시 열면 그대로)
+      restoreFallback: function () { return document.querySelector('#pp-case [data-act="script-open"]') || el('pp-case-title'); }
+    });
+  }
+  function scriptBusy(on) {
+    const dl = root.dlg, pt = root.preptask;
+    const go = el('bs-go'), cancel = el('bs-cancel');
+    if (go) { dl.setDisabled(go, on); go.textContent = on ? pt.T.scriptBusy : pt.T.scriptGo; }
+    dl.setDisabled(cancel, on);
+    dl.line(el('bs-busy'), on ? pt.T.scriptBusyLine : '');
+  }
+  // 결과 줄: 성공이 '확정 전 초안'이면 접지 않는다(사실 안내), 그 밖의 성공은 8초 뒤 접는다(DESIGN 상태 줄 규칙)
+  function scriptLine(sc, text, isErr, keep) {
+    sc.line = text; sc.err = !!isErr;
+    root.dlg.line(el('ts-script-line'), text, isErr);
+    if (text && !isErr && !keep) {
+      setTimeout(function () {
+        if (S.script !== sc || sc.line !== text) return;
+        sc.line = ''; root.dlg.line(el('ts-script-line'), '');
+      }, 8000);
+    }
+  }
+  function onScriptGo(sc) {
+    const pt = root.preptask, dl = root.dlg;
+    if (!sc || sc.busy || S.script !== sc) return;
+    const vals = scriptRead(sc);
+    pt.SCRIPT_FIELDS.forEach(function (f) { dl.clearInvalid(scriptFieldNode(f.id)); });
+    dl.line(el('bs-err'), '');
+    const bad = pt.scriptCheck(vals);
+    if (bad.length) {
+      bad.forEach(function (b, i) { dl.invalid(el(b.id), b.msg, { focus: i === 0 }); });
+      return;
+    }
+    const id = sc.bid;
+    sc.busy = true; scriptBusy(true);
+    fetch(base(id) + '/board-script-docx', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Screen-Id': 'prep_detail', 'X-Button-Id': 'script_docx' }, body: JSON.stringify(pt.scriptBody(vals)) })
+      .then(function (r) {
+        if (r.ok) {
+          const draft = r.headers && r.headers.get ? r.headers.get('X-Script-Draft') === 'Y' : false;
+          const cd = r.headers && r.headers.get ? r.headers.get('Content-Disposition') : '';
+          return r.blob().then(function (blob) { return { ok: true, blob: blob, name: pt.scriptFileName(cd), draft: draft }; });
+        }
+        return r.json().catch(function () { return {}; }).then(function (j) { return { ok: false, status: r.status, detail: j && j.detail }; });
+      })
+      .catch(function () { return { ok: false, status: 0 }; })
+      .then(function (res) {
+        sc.busy = false;
+        if (el('bs-dlg')) scriptBusy(false);
+        if (S.script !== sc) return;   // 그 사이 다른 건으로 옮겼다
+        if (res.ok) {
+          const url = URL.createObjectURL(res.blob), a = document.createElement('a');
+          a.href = url; a.download = res.name;
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+          const ov = el('bs-dlg');
+          if (ov) dl.close(ov);
+          scriptLine(sc, pt.scriptDoneText(res.draft), false, res.draft);
+          return;
+        }
+        const er = pt.scriptError(res.status, res.detail);
+        const node = er.id ? scriptFieldNode(er.id) : null;
+        if (el('bs-dlg') && node) {
+          dl.invalid(node, er.msg, { focus: true });
+          const r1 = document.querySelector('input[name="' + er.id + '"]');   // 라디오 칸이면 첫 선택지로 커서
+          if (r1) r1.focus();
+        } else if (el('bs-dlg')) dl.line(el('bs-err'), er.msg, true);
+        else scriptLine(sc, er.msg, true);   // 만드는 동안 창을 닫았다면 구간 줄에
+      });
   }
   function onSetConfirmed(attachId) {
     const name = attachName(attachId);
@@ -2204,6 +2323,7 @@
         openModal('open', { change: true, cur: as, sel: as.slice() });
         return;
       }
+      case 'script-open': onScriptOpen(); return;
       case 'board-sched': onBoardResult(true); return;
       case 'board-result': onBoardResult(false); return;
       case 'upload': onUploadPick(t.getAttribute('data-kind')); return;

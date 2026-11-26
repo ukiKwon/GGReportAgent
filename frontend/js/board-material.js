@@ -154,8 +154,8 @@
              error: x.net ? T.NET : (x.status === 404 ? T.NOT_FOUND : T.READ_FAIL) };
   }
 
-  mat.loadList = function (fetchFn, f) {
-    return req(fetchFn, mat.listUrl(f), { headers: mat.headers(mat.UI.LIST, mat.BTN.REFRESH) }).then(function (x) {
+  mat.loadList = function (fetchFn, f, ui) {   // ui = { screen, button } — 다른 화면이 대신 부를 때(사전준비 4단계 자동 초안, NEXT 121 N2). 없으면 목록 화면 값
+    return req(fetchFn, mat.listUrl(f), { headers: ui ? mat.headers(ui.screen, ui.button) : mat.headers(mat.UI.LIST, mat.BTN.REFRESH) }).then(function (x) {
       if (!x.ok || !isObj(x.body) || !Array.isArray(x.body.items)) return { ok: false, status: x.status, error: x.net ? T.NET : T.LIST_FAIL };
       return { ok: true, items: x.body.items.filter(isObj), truncated: x.body.truncated === true };
     });
@@ -196,10 +196,10 @@
     });
   };
   // 201 → {ok, material} / 409 ALREADY_EXISTS → {exists, materialId} / 그 밖 → {error}
-  mat.createMaterial = function (fetchFn, p) {
+  mat.createMaterial = function (fetchFn, p, ui) {   // ui: loadList 와 같음
     const body = { bid_case_id: str(p.bidCaseId), year: Number(p.year) };
     if (str(p.formId)) body.form_id = str(p.formId);
-    const init = { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, mat.headers(mat.UI.LIST, mat.BTN.CREATE)),
+    const init = { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, ui ? mat.headers(ui.screen, ui.button) : mat.headers(mat.UI.LIST, mat.BTN.CREATE)),
                    body: JSON.stringify(body) };
     return req(fetchFn, '/board-materials', init).then(function (x) {
       if (x.ok) {

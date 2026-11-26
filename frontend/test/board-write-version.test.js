@@ -120,6 +120,13 @@ test('postSnapshot: URL·메서드·감사 헤더·본문', async function () {
   assert.deepStrictEqual([r.ok, r.status, r.body.snap_no], [true, 201, 3]);
 });
 
+test('postSnapshot: 넘긴 화면·버튼이 있으면 그 값(사전준비 자동 초안, NEXT 121 N2)', async function () {
+  let seen = null;
+  const f = function (url, init) { seen = { url: url, init: init }; return Promise.resolve({ ok: true, status: 201, json: function () { return Promise.resolve({ snap_no: 3, changed: true }); } }); };
+  await bw.postSnapshot(f, '7', { base_snap_no: 2, tables: [] }, { screen: 'prep_detail', button: 'profit_upload' });
+  assert.deepStrictEqual([seen.init.headers['X-Screen-Id'], seen.init.headers['X-Button-Id']], ['prep_detail', 'profit_upload']);
+});
+
 test('upload: bid_case_id 는 있을 때만(기존 호출 모양 유지)', async function () {
   const saved = global.FormData;
   global.FormData = function () { this.items = []; this.append = function (k, v) { this.items.push([k, v]); }; };

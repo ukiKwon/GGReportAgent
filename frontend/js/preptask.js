@@ -14,6 +14,12 @@
 
   function esc(s) { return logic.esc(s == null ? '' : s); }
   function str(v) { return v == null ? '' : String(v); }
+  // 주제 조사: 받침이 있으면 '은', 없으면 '는'(dlg.withObj의 을/를과 같은 방식)
+  function scriptEunNeun(w) {
+    const s = String(w == null ? '' : w);
+    const c = s.charCodeAt(s.length - 1) - 0xAC00;
+    return c >= 0 && c < 11172 && c % 28 ? '은' : '는';
+  }
 
   // ── 구간·단계 정본 ───────────────────────────────────────────────
   // 구간 이름은 사용자 11-25 "입찰 자료확인 · 제안 준비 · 협약 이행 준비"(담당자 지정~이사회 / 제안서~PT / 결과발표~협약식 — 제안서를 쓰려면 앞 단계가 모두 끝나야 하고, 결과 발표가 나야 협약 이행을 준비한다). 단계 순서는 엑셀 칸 순서 그대로(협약식이 맨 끝 — 사용자 11-25 확정).
@@ -172,7 +178,42 @@
     // 샘플을 받으면 이어서 만들 것(사용자 11-25: 잊지 않게 화면에 적어 둔다)
     needTag: '샘플 필요!',
     needSummary: '\'기관 선정 입찰참여 관련 요약\' Word 양식 샘플(1쪽 추진배경·기대효과, 2쪽 선정 평가표)을 받으면 아래 양식을 그 구성으로 바꿉니다.',
-    needScript: '이사회 발표 대본 샘플을 받으면, 이사회 자료의 숫자를 넣어 Word 대본을 만드는 기능을 붙입니다.',
+    // 7단계 이사회 발표 대본 Word(NEXT 113 ⑤, design-reviewer 11-26 1107_a6e734b8) — 서버에 저장하지 않고 만들어 바로 내려받는다
+    scriptHint: '이사회 자료의 숫자와 기관 정보를 넣어 발표 대본 Word 초안을 만듭니다.',
+    scriptTaskNote: '대본을 다 쓰고 나면 아래 과제에서 [완료로 표시]를 누르세요.',
+    scriptOpen: '대본 Word 만들기…',
+    scriptLater: '담당자 지정 뒤에 만들 수 있습니다.',
+    scriptViewNote: '이사회 숫자(승인 금액·순이익)는 담당 영업과 영업부장에게만 채워집니다. 지금 만들면 그 자리가 〔확인 필요〕로 남습니다.',
+    scriptBoardOk: function (n) { return '숫자는 확정된 이사회 자료(버전 ' + n + ')에서 가져옵니다.'; },
+    scriptBoardDraft: function (n) { return '이사회 자료가 아직 확정 전이라, 지금 버전(' + n + ')의 숫자로 \'[확정 전 초안]\' 대본이 만들어집니다.'; },
+    scriptBoardNone: '이사회 자료가 없어 승인 금액·순이익 자리는 〔이사회 자료 없음 — 확인 필요〕로 남습니다.',
+    scriptBoardErr: '이사회 자료 상태를 불러오지 못했습니다. 만들 수는 있지만 숫자 자리가 비어 나올 수 있습니다.',
+    scriptTitle: function (name) { return '발표 대본 Word 만들기 — ' + name; },
+    scriptGo: 'Word 만들기',
+    scriptBusy: '만드는 중…',
+    scriptCancel: '취소',
+    scriptHint1: '모든 칸은 선택입니다. 비운 칸은 Word에 〔… 입력 필요〕로 남아 Word에서 채울 수 있습니다.',
+    scriptHint2: '적은 내용은 저장되지 않습니다. 이 건을 보는 동안만 창에 남아 있습니다.',
+    scriptAutoHead: '만들 때 자동으로 들어가는 값',
+    scriptAutoNote: '값이 없거나 볼 수 없으면 숫자를 지어내지 않고 〔… 확인 필요〕로 남깁니다.',
+    scriptBusyLine: '대본 Word를 만드는 중…',
+    scriptDone: '대본 Word를 내려받았습니다. 〔…〕로 남은 자리는 Word에서 채우세요.',
+    scriptDoneDraft: '대본 Word를 [확정 전 초안]으로 만들었습니다. 이사회 자료나 기관 선정 입찰참여 관련 요약이 아직 확정 전입니다. 확정한 뒤 다시 만들면 \'[확정 전 초안]\'이 빠집니다.',
+    scriptErrRound: '차수는 1~999 사이 숫자로 적으세요.',
+    scriptErrTerm: '약정기간은 1~30 사이 숫자(년)로 적으세요.',
+    scriptErrMeeting: '회의 이름을 다시 고르세요.',
+    scriptErrAmount: '승인 금액 기준을 다시 고르세요.',
+    scriptErrShort: function (label, max) { return label + scriptEunNeun(label) + ' ' + max + '자까지 적을 수 있습니다.'; },
+    scriptErrArea: function (label) { return label + ' 칸은 12줄, 한 줄 300자, 합계 1,000자까지 적을 수 있습니다.'; },
+    scriptErrLines: function (n) { return '12줄까지 적을 수 있습니다(지금 ' + n + '줄).'; },
+    scriptErrLineLen: function (k, n) { return '한 줄은 300자까지입니다(' + k + '번째 줄이 ' + n + '자).'; },
+    scriptErrTotal: '1,000자까지 적을 수 있습니다.',
+    scriptErr400: '대본 Word를 만들지 못했습니다. 보낸 값을 서버가 받지 않았습니다. 창을 닫았다가 다시 여세요.',
+    scriptErr401: '로그인이 풀렸습니다. 다시 로그인한 뒤 만드세요.',
+    scriptErr403: '대본 Word를 만들지 못했습니다. 이 사번은 지금 쓸 수 없습니다(비활성·미등록). 시스템 관리자에게 문의하세요.',
+    scriptErr404: '대본 Word를 만들지 못했습니다. 이 건을 볼 수 없거나 없어진 건입니다. [← 제안 준비 현황으로] 돌아가 다시 여세요.',
+    scriptErr413: '대본 Word를 만들지 못했습니다. 적은 글이 너무 깁니다. 기관별 서술 칸을 줄인 뒤 다시 누르세요.',
+    scriptErr500: '대본 Word를 만들지 못했습니다. 서버에서 오류가 났습니다. 잠시 뒤 다시 누르고, 계속되면 개발부서에 알려 주세요.',
     // 3단계 선정 평가표(공고 원본에서 글자 그대로 옮겨 옴 — LLM 없음)
     secScoring: '선정 평가표 (공고 원본에서 옮겨 옴)',
     scLoading: '공고 원본에서 선정 평가표를 찾는 중…',
@@ -665,6 +706,168 @@
       (b.resErr ? '<p class="ap-err" role="alert">' + esc(b.resErr) + '</p>' : '');
   };
 
+  // ── 7단계 이사회 발표 대본 Word(NEXT 113 ⑤, design-reviewer 11-26 1107_a6e734b8) ──
+  // 서버(POST …/prep/board-script-docx)는 아무것도 저장하지 않고 docx를 돌려준다. 칸은 모두 선택이다.
+  // 칸 id ↔ 서버 본문 키의 짝은 SCRIPT_FIELDS 하나가 정본이다(400 key → 칸 id도 여기서 찾는다).
+  const SCRIPT_AREA_MAX = { lines: 12, line: 300, total: 1000 };
+  function sf(key, id, kind, label, o) { return Object.assign({ key: key, id: id, kind: kind, label: label }, o || {}); }
+  pt.SCRIPT_FIELDS = [
+    sf('meeting', 'bs-meeting', 'radio', '회의 이름', { def: 'BOARD', opts: [['BOARD', '이사회'], ['COMMITTEE', '출연금심의위원회']], help: '대본 제목과 첫 문장의 회의 이름이 바뀝니다.' }),
+    sf('round', 'bs-round', 'affix', '차수', { pre: '제', post: '차', max: 3, ph: '12', aria: '차수, 숫자', help: '숫자만 적습니다.' }),
+    sf('agenda_no', 'bs-agenda', 'text', '의안번호', { max: 30, ph: '제 2026-○○-○○호', help: '공문에 적힌 그대로 \'의안번호\' 뒤에 들어갑니다.' }),
+    sf('speaker_dept', 'bs-sdept', 'text', '소속', { max: 40, ph: '예: ○○영업본부', help: '시스템에 소속이 없어 직접 적습니다.' }),
+    sf('speaker_name', 'bs-sname', 'text', '이름', { max: 30, ph: '비우면 내 이름', help: '비우면 대본을 만드는 사람의 이름이 들어갑니다.' }),
+    sf('speaker_title', 'bs-stitle', 'text', '직함', { max: 30, ph: '비우면 내 직위', help: '비우면 대본을 만드는 사람의 직위가 들어갑니다.' }),
+    sf('term_years', 'bs-term', 'affix', '약정기간', { pre: '총', post: '년', max: 2, ph: '4', aria: '약정기간, 숫자(년)', help: '1~30 사이 숫자. 공고문의 약정기간을 적습니다. 약정 시작일은 협약 개시일에서 자동으로 들어갑니다.' }),
+    sf('review_when', 'bs-when', 'text', '심의·평가 예상 시기', { max: 40, ph: '10월 중', help: '문장에 그대로 들어갑니다. \'10월 중\'처럼 끝까지 적으세요.' }),
+    sf('amount_mode', 'bs-amt', 'radio', '승인 금액 기준', { def: 'EXCL_IT', opts: [['EXCL_IT', '출연금+예비비'], ['TOTAL', '표 합계(전산 구축·운영비 포함)']], help: '이사회 자료 첫 표 \'재산상 이익제공 및 기부금(안)\'에서 어느 합을 쓸지 고릅니다.' }),
+    sf('accounting', 'bs-acct', 'text', '회계처리 방식', { max: 40, ph: '무형자산', help: '비우면 \'무형자산\'으로 들어갑니다.' }),
+    sf('intro', 'bs-intro', 'area', '보고 전 사전 설명', { ph: '예: 신설 구로 행정구역이 바뀐 배경', help: '인사 뒤, 의안 소개 앞에 들어갑니다. 비우면 이 문단을 뺍니다.' }),
+    sf('status_note', 'bs-status', 'area', '기관 현황 덧붙임', { ph: '예: 과거 우리 은행이 금고였던 이력', help: '임직원 수·예산·현 거래 은행 문장 뒤에 이어 붙습니다.' }),
+    sf('effect', 'bs-effect', 'area', '기대효과', { ph: '비우면 요약서의 \'우리 회사 기대효과\'', help: '비우면 \'기관 선정 입찰참여 관련 요약\'의 기대효과가 들어갑니다. 그것도 비었으면 〔기대효과 입력 필요〕로 남습니다.' }),
+    sf('profit_note', 'bs-profit', 'area', '수익성 덧붙임', { ph: '예: 보수적으로 잡은 산출 근거', help: '순이익 문장 뒤에 이어 붙습니다.' }),
+  ];
+  pt.SCRIPT_GROUPS = [
+    { name: '회의', keys: ['meeting', 'round', 'agenda_no'] },
+    { name: '발표자', keys: ['speaker_dept', 'speaker_name', 'speaker_title'] },
+    { name: '약정·일정', keys: ['term_years', 'review_when'] },
+    { name: '금액·회계', keys: ['amount_mode', 'accounting'] },
+    { name: '기관별 서술', keys: ['intro', 'status_note', 'effect', 'profit_note'] },
+  ];
+  function scriptField(key) {
+    for (let i = 0; i < pt.SCRIPT_FIELDS.length; i += 1) if (pt.SCRIPT_FIELDS[i].key === key) return pt.SCRIPT_FIELDS[i];
+    return null;
+  }
+  // 400 BAD_VALUE의 key → 칸 id(모르는 key는 '')
+  pt.scriptKeyToId = function (key) { const f = scriptField(str(key)); return f ? f.id : ''; };
+  pt.scriptCountText = function (n) { return (Number(n) || 0) + '/1,000'; };
+
+  // 구간(단계 본문 안): 설명 · 이사회 자료 상태 한 줄 · 숫자 안내 · [대본 Word 만들기…] · 결과 줄 · T6
+  // m.script = { line, err }(결과 줄 — prep.js가 가진다). 단추는 끝난 건·담당자 지정 전 건에서는 감춘다(서버는 막지 않음 — 기획 확인 대기).
+  pt.scriptBlockHtml = function (m) {
+    const v = m.view || {}, vw = v.viewer || {}, sc = str(v.state_cd);
+    const t6 = tasksBlock(m, { tasks: ['T6'] });
+    if (sc === 'CANCELLED' || sc === 'CONFIRMED' || sc === 'OPEN_PENDING') return note(T.scriptHint) + note(T.scriptLater) + (t6 || note(T.taskNone));
+    const b = m.board || {};
+    // 이사회 자료는 담당 영업·영업부장만 목록에서 볼 수 있다 — 그 밖의 사람에게 '없음'은 '볼 수 없음'일 수 있어 없다고 말하지 않는다(불러오지 못함 문구로).
+    const canSee = vw.is_assignee === true || vw.is_head === true;
+    let state;
+    if (b.state === 'loading' || !b.state) state = T.docLoading;
+    else if (!canSee && b.state !== 'ok') state = T.scriptBoardErr;
+    else if (b.state === 'ok') state = b.confirmed ? T.scriptBoardOk(b.snapNo) : T.scriptBoardDraft(b.snapNo);
+    else if (b.state === 'none') state = T.scriptBoardNone;
+    else state = T.scriptBoardErr;
+    const s = m.script || {};
+    return note(T.scriptHint) + (t6 && vw.is_assignee === true ? note(T.scriptTaskNote) : '') + note(state) +
+      (canSee ? '' : note(T.scriptViewNote)) +
+      '<div class="ts-acts"><button type="button" data-act="script-open">' + esc(T.scriptOpen) + '</button></div>' +
+      '<p class="st-line' + (s.line && s.err ? ' st-err' : '') + '" id="ts-script-line" role="' + (s.line && s.err ? 'alert' : 'status') + '">' + esc(s.line || '') + '</p>' +
+      (t6 || note(T.taskNone));
+  };
+
+  function scriptRadio(f, cur) {
+    return '<fieldset class="dlg-f bs-wide" id="' + f.id + '-g" aria-describedby="' + f.id + '-h"><legend>' + esc(f.label) + '</legend><div class="bs-radios">' +
+      f.opts.map(function (o) {
+        return '<label><input type="radio" name="' + f.id + '" value="' + o[0] + '"' + (cur === o[0] ? ' checked' : '') + '> ' + esc(o[1]) + '</label>';
+      }).join('') + '</div><p class="tm-note" id="' + f.id + '-h">' + esc(f.help) + '</p></fieldset>';
+  }
+  function scriptInput(f, val) {
+    const input = '<input type="text" id="' + f.id + '"' + (f.kind === 'affix' ? ' inputmode="numeric" aria-label="' + esc(f.aria) + '"' : '') +
+      ' maxlength="' + f.max + '" placeholder="' + esc(f.ph) + '" value="' + esc(val) + '" aria-describedby="' + f.id + '-h">';
+    const field = f.kind === 'affix' ? '<span class="bs-affix"><span aria-hidden="true">' + esc(f.pre) + '</span>' + input + '<span aria-hidden="true">' + esc(f.post) + '</span></span>' : input;
+    return '<div class="dlg-f"><label for="' + f.id + '">' + esc(f.label) + '</label>' + field + '<p class="tm-note" id="' + f.id + '-h">' + esc(f.help) + '</p></div>';
+  }
+  function scriptArea(f, val) {
+    return '<div class="dlg-f bs-wide"><div class="bs-lrow"><label for="' + f.id + '">' + esc(f.label) + '</label><span id="' + f.id + '-n" class="tm-count">' + esc(pt.scriptCountText(val.length)) + '</span></div>' +
+      '<textarea id="' + f.id + '" rows="3" maxlength="1000" placeholder="' + esc(f.ph) + '" aria-describedby="' + f.id + '-h ' + f.id + '-n">' + esc(val) + '</textarea>' +
+      '<p class="tm-note" id="' + f.id + '-h">' + esc(f.help) + '</p></div>';
+  }
+  // 입력 창 전체(덮개 포함, 숨김 상태). o = { name(기관명), vals(건별로 간직한 값 — 없으면 기본값) }. prep.js가 body 직계로 붙이고 dlg.open으로 연다.
+  pt.scriptDialogHtml = function (o) {
+    const x = o || {}, vals = x.vals || {};
+    const auto = ['기관명·지역(시·도): 기관 정보', '임직원 수·예산·현 거래 은행: 기관 선정 입찰참여 관련 요약(볼 수 있는 사람에게만)',
+      '승인 금액·순이익·연도: 이사회 자료(담당 영업·영업부장에게만)', '약정 시작일: 협약 개시일'];
+    const groups = pt.SCRIPT_GROUPS.map(function (g) {
+      return '<fieldset class="bs-grp"><legend>' + esc(g.name) + '</legend><div class="bs-grid">' + g.keys.map(function (k) {
+        const f = scriptField(k), val = str(vals[k]);
+        if (f.kind === 'radio') return scriptRadio(f, val || f.def);
+        return f.kind === 'area' ? scriptArea(f, val) : scriptInput(f, val);
+      }).join('') + '</div></fieldset>';
+    }).join('');
+    return '<div id="bs-dlg" class="modal-overlay" style="display:none"><div class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="bs-t" aria-describedby="bs-hint">' +
+      '<header class="dlg-bar"><h2 class="dlg-t" id="bs-t" tabindex="-1">' + esc(T.scriptTitle(str(x.name))) + '</h2>' +
+      '<div class="dlg-acts"><button type="button" id="bs-cancel">' + esc(T.scriptCancel) + '</button><button type="button" id="bs-go" class="dlg-go">' + esc(T.scriptGo) + '</button></div></header>' +
+      '<div class="dlg-note"><p class="dlg-hint" id="bs-hint">' + esc(T.scriptHint1) + '<br>' + esc(T.scriptHint2) + '</p>' +
+      '<p class="dlg-hint" id="bs-busy" role="status"></p><p class="dlg-err" id="bs-err" role="alert"></p></div>' +
+      '<div class="dlg-body"><section class="bs-auto" aria-labelledby="bs-auto-h"><h3 id="bs-auto-h">' + esc(T.scriptAutoHead) + '</h3><ul>' +
+      auto.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul><p>' + esc(T.scriptAutoNote) + '</p></section>' + groups + '</div></div></div>';
+  };
+  // 여러 줄 칸 사전 검사(서버 규칙과 같음: 12줄·줄당 300자·합계 1,000자). → [{ key, id, msg }] (칸마다 첫 문제 하나)
+  pt.scriptCheck = function (vals) {
+    const out = [];
+    pt.SCRIPT_FIELDS.forEach(function (f) {
+      if (f.kind !== 'area') return;
+      const val = str(vals && vals[f.key]).replace(/\r\n?/g, '\n');
+      if (!val.trim()) return;
+      const lines = val.split('\n');
+      while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+      let msg = '';
+      if (lines.length > SCRIPT_AREA_MAX.lines) msg = T.scriptErrLines(lines.length);
+      else {
+        for (let i = 0; i < lines.length; i += 1) {
+          if (lines[i].length > SCRIPT_AREA_MAX.line) { msg = T.scriptErrLineLen(i + 1, lines[i].length); break; }
+        }
+      }
+      if (!msg && val.length > SCRIPT_AREA_MAX.total) msg = T.scriptErrTotal;
+      if (msg) out.push({ key: f.key, id: f.id, msg: msg });
+    });
+    return out;
+  };
+  // 입력값 → 요청 본문. 비운 칸은 키를 뺀다(서버 기본값·생략 규칙이 살도록). 라디오는 늘 값이 있다. 숫자 칸은 숫자 모양이면 숫자로 보낸다.
+  pt.scriptBody = function (vals) {
+    const body = {};
+    pt.SCRIPT_FIELDS.forEach(function (f) {
+      const v = str(vals && vals[f.key]).trim();
+      if (f.kind === 'radio') { body[f.key] = v || f.def; return; }
+      if (!v) return;
+      body[f.key] = f.kind === 'affix' && /^\d+$/.test(v) ? Number(v) : v;
+    });
+    return body;
+  };
+  // 실패 응답 → { id(칸 id, 없으면 ''), msg }. detail = 응답 JSON의 detail. 400 BAD_VALUE만 칸을 가리킨다.
+  pt.scriptError = function (status, detail) {
+    const d = detail && typeof detail === 'object' ? detail : {};
+    if (status === 400 && str(d.code) === 'BAD_VALUE') {
+      const f = scriptField(str(d.key));
+      if (f) {
+        let msg;
+        if (f.key === 'round') msg = T.scriptErrRound;
+        else if (f.key === 'term_years') msg = T.scriptErrTerm;
+        else if (f.key === 'meeting') msg = T.scriptErrMeeting;
+        else if (f.key === 'amount_mode') msg = T.scriptErrAmount;
+        else if (f.kind === 'area') msg = T.scriptErrArea(f.label);
+        else msg = T.scriptErrShort(f.label, f.max);
+        return { id: f.id, msg: msg };
+      }
+    }
+    if (status === 400) return { id: '', msg: T.scriptErr400 };
+    if (status === 401) return { id: '', msg: T.scriptErr401 };
+    if (status === 403) return { id: '', msg: T.scriptErr403 };
+    if (status === 404) return { id: '', msg: T.scriptErr404 };
+    if (status === 413) return { id: '', msg: T.scriptErr413 };
+    return { id: '', msg: T.scriptErr500 };
+  };
+  pt.scriptDoneText = function (draft) { return draft ? T.scriptDoneDraft : T.scriptDone; };
+  // Content-Disposition의 filename*=UTF-8''… → 파일 이름(읽을 수 없거나 경로·제어 문자가 있으면 기본 이름)
+  pt.SCRIPT_FILE_DEFAULT = '발표대본.docx';
+  pt.scriptFileName = function (disposition) {
+    const m = /filename\*\s*=\s*UTF-8''([^;\s]+)/i.exec(str(disposition));
+    let n = '';
+    if (m) { try { n = decodeURIComponent(m[1]); } catch (e) { n = ''; } }
+    n = n.replace(/[\\\/:*?"<>|\u0000-\u001f]/g, '_').trim();
+    return n || pt.SCRIPT_FILE_DEFAULT;
+  };
+
   const PROPOSAL_STATES = ['IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING'];
 
   // m: prep.caseHtml과 같은 모델 + { row, marks, rowState, idx, markBusy }
@@ -740,7 +943,7 @@
       h += sec(T.secDoc, note(T.boardHint) + (tasksBlock(m, { tasks: ['T5'] }) || '') + pt.boardBlockHtml(m.board)) +
         sec(T.secSched, pt.boardSchedHtml(m.board)) +
         sec(T.secAdd, m.addFiles ? str(m.addFiles) : note(T.filesLater)) +
-        sec(T.secScript, need(T.needScript) + (tasksBlock(m, { tasks: ['T6'] }) || note(T.taskNone)));
+        sec(T.secScript, pt.scriptBlockHtml(m));
     } else {   // auto — 준비 과제를 여기에서 처리한다
       if (s.id === 'PROFIT') h += note(T.profitHint);
       if (s.id === 'INST_ANALYSIS') h += need(T.needSummary);

@@ -1679,6 +1679,18 @@
   .ts-doc-y th { width:auto; } .ts-doc .m { font-family:var(--mono); text-align:right; vertical-align:middle; }   /* MMDA 연평잔·자금수익 = 금액 열이라 오른쪽 유지(preptask.js:538) */
   .ts-doc-h { margin:8px 0 4px; font-size:12px; font-weight:700; color:var(--muted); }
   .ts-cell { display:inline-flex; align-items:center; gap:4px; }
+  /* 7단계 [대본 Word 만들기…] 입력 창(.bs-*, design-reviewer 11-26 1107_a6e734b8 8절) — 새 변수·새 색 없음 */
+  .bs-auto { margin:0 0 16px; padding:12px 14px; border:1px dashed var(--line-strong); border-radius:var(--r); font-size:13px; line-height:1.5; }
+  .bs-auto h3 { margin:0 0 4px; font-size:13px; font-weight:600; }
+  .bs-auto ul { margin:0; padding-left:18px; } .bs-auto p { margin:6px 0 0; font-size:12px; color:var(--muted); }
+  .bs-grp { margin:0 0 16px; padding:12px 0 0; border:0; border-top:1px solid var(--line); min-width:0; }
+  .bs-grp > legend { padding:0; margin:0 0 8px; font-size:13px; font-weight:600; color:var(--fg); }
+  .bs-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px 16px; }
+  .bs-grid .dlg-f { margin:0; } .bs-grid .bs-wide { grid-column:1 / -1; }
+  .bs-grid input[type="text"] { width:100%; box-sizing:border-box; }
+  .bs-affix { display:flex; align-items:center; gap:6px; font-size:13px; } .bs-affix input[type="text"] { width:64px; }
+  .bs-radios { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:13px; }
+  .bs-lrow { display:flex; align-items:baseline; gap:8px; margin:0 0 4px; } .bs-lrow label { margin:0; flex:1 1 auto; }
   /* 협약준비 업무 끝 */
 
   #tab-approvals.active, #tab-admin.active, #tab-myinfo.active { overflow:auto; gap:10px; }

@@ -216,6 +216,14 @@ test('loadList·loadMaterial·loadSnaps·loadSnap·loadHistory: 감사 헤더(�
   assert.strictEqual(a.ok, true);
 });
 
+test('createMaterial·loadList: 넘긴 화면·버튼(사전준비 자동 초안)을 그대로 싣는다(NEXT 121 N2)', async function () {
+  const seen = [];
+  const via = { screen: 'prep_detail', button: 'profit_upload' };
+  await mat.createMaterial(fake(201, { material_id: 9, institution_name: '노원구', year: 2026 }, seen), { bidCaseId: 'BC1', year: 2026 }, via);
+  await mat.loadList(fake(200, { items: [] }, seen), {}, via);
+  assert.deepStrictEqual(seen.map(function (x) { return [x.init.headers['X-Screen-Id'], x.init.headers['X-Button-Id']]; }), [['prep_detail', 'profit_upload'], ['prep_detail', 'profit_upload']]);
+});
+
 test('headHtml·tabsHtml·tabKey: 머리 문구, 값 esc, 020b 버튼 없음, roving tabindex', function () {
   const d = { material_id: 7, institution_name: X, year: 2026, status_cd: 'DRAFT', status_name: '작성 중', current_snap: 3,
     snapshot: { snap_no: 3, saved_by_name: '김영업', saved_at: '2026-11-07T01:12:00+00:00' },

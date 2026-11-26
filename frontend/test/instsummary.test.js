@@ -581,8 +581,8 @@ test('공고 원본 읽기: 후보 고르기는 ?table=n 으로 다시 읽고, �
   const seen = [];
   await isn.call('GET', isn.scUrl('B1', 1), undefined, isn.SC_BTN, { fetch: fakeFetch(seen), screen: isn.SC_SCREEN });
   assert.strictEqual(seen[0].init.headers['X-Screen-Id'], 'prep_detail');
-  assert.strictEqual(seen[0].init.headers['X-Button-Id'], 'refresh');
-  assert.match(fs.readFileSync(path.join(__dirname, '..', 'js', 'prep.js'), 'utf8'), /ui\('prep_detail', 'refresh'\)/);   // prep.js 와 같은 머리글
+  assert.strictEqual(seen[0].init.headers['X-Button-Id'], 'scoring_read');
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'js', 'prep.js'), 'utf8'), /ui\('prep_detail', 'scoring_read'\)/);   // prep.js 와 같은 머리글
 });
 test('공고 원본 읽기: 못 읽음·PDF 줄 단위·스캔은 편집 표를 만들지 않고, PDF 줄은 참고로만 돌려준다', function () {
   const none = isn.scReadResult({ found: false, reason: 'NO_FILE', files: 0 });
