@@ -84,6 +84,9 @@ public class PrepService {
     static final String GOAL_CHANGE_PENDING = "GOAL_CHANGE_PENDING";
     private static final String NOT_GOAL_MSG = "올해 목표 기관만 제안 확정할 수 있습니다. 먼저 이 기관을 올해 목표 기관으로 넣어 주세요(결재가 끝나면 입찰 현황판에서 확정할 수 있습니다).";
     private static final String GOAL_PENDING_MSG = "이 기관은 목표 기관 결재가 진행 중입니다. 결재가 끝난 뒤 입찰 현황판에서 제안 확정해 주세요.";
+    /** 사전준비 시작(prep/start)용 문구 — 제안 확정 문구와 분리. */
+    private static final String START_NOT_GOAL_MSG = "올해 목표 기관만 사전준비를 시작할 수 있습니다. 먼저 이 기관을 올해 목표 기관으로 넣어 주세요(결재가 끝나면 시작할 수 있습니다).";
+    private static final String START_GOAL_PENDING_MSG = "이 기관은 목표 기관 결재가 진행 중입니다. 결재가 끝난 뒤 사전준비를 시작해 주세요.";
 
     /** 사전준비 시작(결재 없는 담당자 지정, 사용자 11-25 NEXT 114) — 이력 이벤트·감사 행위 코드(062 코드표 '사전준비 시작'). */
     static final String OPEN_START = "OPEN_START";
@@ -305,16 +308,28 @@ public class PrepService {
      * ⚠️ X-Emp-No 자기신고 위의 업무 규칙이다(사칭 방지 아님).
      */
     private void requireGoalTarget(String inst) {
-        int year = LocalDate.parse(Times.todayKst()).getYear();
-        if (mapper.countGoalForYear(inst, year) > 0) {
-            if (mapper.countTargetPending(inst) > 0) {
-                throw coded(409, GOAL_CHANGE_PENDING, GOAL_PENDING_MSG);
-            }
+        requireGoalTarget(inst, false);
+    }
+
+    /** forStart=true 면 사전준비 시작(prep/start) 문구를 쓴다 — 코드·판정은 같다. */
+    private void requireGoalTarget(String inst, boolean forStart) {
+        String blocked = goalStatus(inst);
+        if (blocked == null) {
             return;
         }
-        throw mapper.countPendingGoalForYear(inst, year) > 0
-                ? coded(409, GOAL_CHANGE_PENDING, GOAL_PENDING_MSG)
-                : coded(409, NOT_GOAL_TARGET, NOT_GOAL_MSG);
+        if (GOAL_CHANGE_PENDING.equals(blocked)) {
+            throw coded(409, GOAL_CHANGE_PENDING, forStart ? START_GOAL_PENDING_MSG : GOAL_PENDING_MSG);
+        }
+        throw coded(409, NOT_GOAL_TARGET, forStart ? START_NOT_GOAL_MSG : NOT_GOAL_MSG);
+    }
+
+    /** 목표 조건 판정 — null=통과, NOT_GOAL_TARGET, GOAL_CHANGE_PENDING. requireGoalTarget 과 상세 응답(viewer.start_blocked_reason)이 함께 쓴다. */
+    private String goalStatus(String inst) {
+        int year = LocalDate.parse(Times.todayKst()).getYear();
+        if (mapper.countGoalForYear(inst, year) > 0) {
+            return mapper.countTargetPending(inst) > 0 ? GOAL_CHANGE_PENDING : null;
+        }
+        return mapper.countPendingGoalForYear(inst, year) > 0 ? GOAL_CHANGE_PENDING : NOT_GOAL_TARGET;
     }
 
     /** F8 — 옛 직접 배정의 머리 행이 있는 건은 확정할 수 없다(개설 승인이 영구 409 가 된다). */
@@ -512,7 +527,7 @@ public class PrepService {
         if (mapper.lockInstitution(p.getInstitutionId()) == null) {
             throw ApiException.notFound("prep not found");
         }
-        requireGoalTarget(p.getInstitutionId());
+        requireGoalTarget(p.getInstitutionId(), true);
         List<String> targets = assignments.validateTargets(in == null ? null : in.getEmpNos());
         String note = BoardMaterialService.checkedText(in == null ? null : in.getComment(), 200, "의견", false);
         Set<String> notifyTo = startNotifyTargets(me, p, targets);   // 못 정하면 409 — 쓰기 전에 끝낸다
@@ -1364,7 +1379,10 @@ public class PrepService {
         viewer.put("can_confirm", false);   // 이미 확정된 건이다
         viewer.put("can_unconfirm", canUnconfirm(me, p));   // 입찰 없음 알림(PrepNobidService)과 같은 함수(security 11-19 중-1)
         viewer.put("can_request_open", CONFIRMED.equals(p.getStateCd()) && isSales(me) && openApproval.isOn());   // 옛 흐름(스위치 켬)만
-        viewer.put("can_start_prep", CONFIRMED.equals(p.getStateCd()) && !openApproval.isOn() && hasStartAuthority(me, p));   // 사용자 11-25
+        boolean startBase = CONFIRMED.equals(p.getStateCd()) && !openApproval.isOn() && hasStartAuthority(me, p);   // 사용자 11-25
+        String startBlocked = startBase ? goalStatus(p.getInstitutionId()) : null;   // 상태·스위치·권한은 맞는데 목표 조건만 막을 때만 값
+        viewer.put("can_start_prep", startBase && startBlocked == null);
+        viewer.put("start_blocked_reason", startBlocked);   // NOT_GOAL_TARGET | GOAL_CHANGE_PENDING | null
         viewer.put("can_withdraw_open", openRequester);
         viewer.put("can_request_plan_approval", assignee && IN_PROGRESS.equals(p.getStateCd()) && ev.ready);
         viewer.put("can_start_writing", assignee && WRITABLE.equals(p.getStateCd()) && ev.ready);

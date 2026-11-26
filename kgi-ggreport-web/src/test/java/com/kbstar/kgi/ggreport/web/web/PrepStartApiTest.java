@@ -313,6 +313,43 @@ public class PrepStartApiTest {
     }
 
     @Test
+    public void S12b_목표_안_기관의_확정_건은_can_start_prep이_true이고_start_blocked_reason은_null이다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        JsonNode v = json(getAs("/bidcases/" + bid + "/prep", MEMBER)).path("viewer");
+        assertTrue(v.path("can_start_prep").asBoolean());
+        assertTrue(v.has("start_blocked_reason"));
+        assertTrue(v.path("start_blocked_reason").isNull());
+        JsonNode other = json(getAs("/bidcases/" + bid + "/prep", MEMBER2)).path("viewer");   // 권한이 없으면 목표 조건과 무관하게 null
+        assertFalse(other.path("can_start_prep").asBoolean());
+        assertTrue(other.path("start_blocked_reason").isNull());
+    }
+
+    @Test
+    public void S12c_확정_뒤_목표에서_빠진_기관은_can_start_prep이_false이고_start_blocked_reason이_NOT_GOAL_TARGET이다() throws Exception {
+        final String inst = "jongno";
+        final int y = TestGoals.thisYear();
+        goalRow(inst, 1, 1, "SAVE", "GOAL", y);
+        String bid = confirm(MEMBER, inst);
+        goalRow(inst, 1, 2, "CANCEL", "GOAL", y);
+        JsonNode v = json(getAs("/bidcases/" + bid + "/prep", MEMBER)).path("viewer");
+        assertFalse(v.path("can_start_prep").asBoolean());
+        assertEquals("NOT_GOAL_TARGET", v.path("start_blocked_reason").asText());
+    }
+
+    @Test
+    public void S12d_목표_밖_기관의_시작_409_문구는_사전준비_시작용이다() throws Exception {
+        final String inst = "jongno";
+        final int y = TestGoals.thisYear();
+        goalRow(inst, 1, 1, "SAVE", "GOAL", y);
+        String bid = confirm(MEMBER, inst);
+        goalRow(inst, 1, 2, "CANCEL", "GOAL", y);
+        MvcResult r = start(bid, MEMBER, MEMBER2);
+        assertCode(r, 409, "NOT_GOAL_TARGET");
+        String msg = json(r).path("detail").path("message").asText();
+        assertTrue(r.getResponse().getContentAsString(StandardCharsets.UTF_8), msg.startsWith("올해 목표 기관만 사전준비를 시작할 수 있습니다"));
+    }
+
+    @Test
     public void S13_시작_이력은_OPEN_START_사전준비_시작이고_의견은_팀장에게만_보인다() throws Exception {
         String bid = confirm(MEMBER, INST);
         MvcResult r = postUi("/bidcases/" + bid + "/prep/start", MEMBER, "{\"emp_nos\":" + arr(MEMBER2) + ",\"comment\":\"담당 지정 의견\"}",

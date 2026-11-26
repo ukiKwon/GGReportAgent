@@ -83,6 +83,10 @@
     startConfirm: '작성을 시작하면 영업·전산·재무 세 팀 작업이 만들어지고 [제안서 진행 현황]에 나타납니다. 되돌릴 수 없습니다.',
     uncheckConfirm: '사전준비 승인 요청 뒤입니다. 완료를 취소하면 사전준비 승인·작성 시작이 막힙니다.',
     closeAsk: '적은 내용이 사라집니다. 닫을까요?',
+    startBlocked: {
+      NOT_GOAL_TARGET: '올해 목표 기관이 아니어서 사전준비를 시작할 수 없습니다. 입찰 현황판에서 목표 기관으로 지정한 뒤 시작하세요.',
+      GOAL_CHANGE_PENDING: '목표 기관 변경 결재가 진행 중이라 사전준비를 시작할 수 없습니다. 결재가 끝난 뒤 시작하세요.',
+    },
     fileHint: 'HWPX·PDF·xlsx·docx, 한 파일 30MB 이하',
     fileEmpty: '아직 올린 파일이 없습니다. 수익성 분석표를 올리고 확정본으로 지정하면 이 과제가 완료됩니다.',
     uploading: '올리는 중…',
@@ -171,6 +175,22 @@
     FILE_MISSING: { text: '파일이 서버에 없습니다. 시스템 관리자에게 알리세요.', after: 'keep' },
   };
   prep.ERR_BY_CODE = ERR_BY_CODE;
+
+  // 창을 닫을 때 '적은 내용'이 있는가 — 의견을 적었거나, 고른 담당자가 열 때의 기본값과 다를 때만(qa 11-27 P3-1).
+  prep.modalTouched = function (m) {
+    const x = m || {};
+    if (str(x.reason).trim()) return true;
+    const sel = Array.isArray(x.sel) ? x.sel : [];
+    if (x.change) { const d = prep.assigneeDiff(x.cur, sel); return d.add.length + d.remove.length > 0; }
+    const init = Array.isArray(x.selInit) ? x.selInit : [];
+    return sel.length !== init.length || sel.some(function (e) { return init.indexOf(e) < 0; });
+  };
+
+  // 시작을 막은 이유 안내 문구(서버 viewer.start_blocked_reason). 모르는 값·없음이면 ''.
+  prep.startBlockedText = function (viewer) {
+    const vw = viewer || {};
+    return vw.start_blocked_reason ? (T.startBlocked[vw.start_blocked_reason] || '') : '';
+  };
 
   // 결재 없는 시작 흐름인가 — 서버가 can_start_prep를 주고 개설 신청 스위치가 꺼져 있을 때만(옛 흐름이면 false).
   prep.isNewStartFlow = function (viewer) {
@@ -725,7 +745,7 @@
           ? btn('prep-start-open', '담당자 지정', { cls: 'pp-next-btn' })
           : vw.can_request_open
             ? btn('open-request-open', '개설 신청', { cls: 'pp-next-btn' })
-            : '<span class="pp-why">' + esc(newFlow ? T.startOnlyOwner : T.openOnlySales) + '</span>') + '</div>' +
+            : '<span class="pp-why">' + esc((newFlow && prep.startBlockedText(vw)) || (newFlow ? T.startOnlyOwner : T.openOnlySales)) + '</span>') + '</div>' +
           (ro ? '<div class="pp-why">지난 신청 내용(참고)</div><div class="pp-why">' + ro + '</div>' : '') + '</div>';
       }
       case 'OPEN_PENDING': {
@@ -2142,6 +2162,7 @@
         m.candState = 'ok';
         // 결재 없는 시작(담당자 지정): 누른 사람을 기본으로 골라 둔다(사용자 11-25) — 후보에 있을 때만, 바꿀 수 있다
         if (m.direct && !m.change && !m.sel.length) { const me = myEmp(); if (me && m.cands.some(function (c) { return c && c.emp_no === me; })) m.sel = [me]; }
+        m.selInit = m.sel.slice();   // 열 때의 기본값 — 닫을 때 '고친 내용' 판정의 기준(qa 11-27 P3-1)
         repaintModalBody();
       }).catch(function () {
         if (S.modal !== m) return;
@@ -2205,8 +2226,7 @@
     const m = S.modal;
     if (!m || S.busy) return;
     if (m.closing) { keepWriting(); return; }
-    const touched = m.change ? (function () { const d = prep.assigneeDiff(m.cur, m.sel); return d.add.length + d.remove.length > 0; })() : m.sel.length > 0;
-    if (str(m.reason).trim() || touched) {
+    if (prep.modalTouched(m)) {
       m.closing = true;
       el('pp-m-confirm').innerHTML = prep.closeConfirmHtml();
       const k = el('pp-m-keep'); if (k) k.focus();

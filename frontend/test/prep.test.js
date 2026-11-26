@@ -674,6 +674,35 @@ test('담당자 지정(can_start_prep): [담당자 지정] 단추·옛 [개설 �
   assert.ok(swo.indexOf(prep.T.startOnlyOwner) > 0);
 });
 
+test('시작 막힘 사유(start_blocked_reason): 단추 대신 안내 한 줄, 없거나 null이면 기존 문구', function () {
+  const mk = function (reason) {
+    const vw = { can_unconfirm: true, can_start_prep: false, can_request_open: false };
+    if (reason !== undefined) vw.start_blocked_reason = reason;
+    return caseOf(viewOf('CONFIRMED', { tasks: [], viewer: vw }));
+  };
+  const a = mk('NOT_GOAL_TARGET');
+  assert.ok(a.indexOf('올해 목표 기관이 아니어서 사전준비를 시작할 수 없습니다. 입찰 현황판에서 목표 기관으로 지정한 뒤 시작하세요.') > 0);
+  assert.ok(a.indexOf('prep-start-open') < 0 && a.indexOf(prep.T.startOnlyOwner) < 0);
+  const b = mk('GOAL_CHANGE_PENDING');
+  assert.ok(b.indexOf('목표 기관 변경 결재가 진행 중이라 사전준비를 시작할 수 없습니다. 결재가 끝난 뒤 시작하세요.') > 0 && b.indexOf('prep-start-open') < 0);
+  assert.ok(mk(null).indexOf(prep.T.startOnlyOwner) > 0);
+  assert.ok(mk(undefined).indexOf(prep.T.startOnlyOwner) > 0);
+  assert.ok(mk('UNKNOWN_CODE').indexOf(prep.T.startOnlyOwner) > 0);
+  assert.strictEqual(prep.startBlockedText({ start_blocked_reason: '<b>' }), '');
+});
+
+test('모달 닫기 확인: 열 때의 기본값과 같으면 묻지 않고, 의견·담당자를 바꾸면 묻는다', function () {
+  // 기본값 [me]를 그대로 둔 채 닫기
+  assert.strictEqual(prep.modalTouched({ kind: 'open', direct: true, reason: '', sel: ['9'], selInit: ['9'] }), false);
+  assert.strictEqual(prep.modalTouched({ kind: 'open', direct: true, reason: '  ', sel: [], selInit: [] }), false);
+  assert.strictEqual(prep.modalTouched({ kind: 'abort', reason: '' }), false);
+  // 담당자를 더하거나 빼거나 의견을 적으면 묻는다
+  assert.strictEqual(prep.modalTouched({ kind: 'open', direct: true, reason: '', sel: ['9', '2'], selInit: ['9'] }), true);
+  assert.strictEqual(prep.modalTouched({ kind: 'open', direct: true, reason: '', sel: [], selInit: ['9'] }), true);
+  assert.strictEqual(prep.modalTouched({ kind: 'open', direct: true, reason: '메모', sel: ['9'], selInit: ['9'] }), true);
+  assert.strictEqual(prep.modalTouched({ kind: 'open', reason: '', sel: ['3'] }), true);   // 개설 신청(기본값 없음)
+});
+
 test('담당자 지정 모달: 제목·안내·실행 단추, 승인 팀장 칸 없음 / 옛 [개설 신청] 모달은 그대로', function () {
   const m = { kind: 'open', direct: true, reason: '', sel: ['1'], q: '', candState: 'ok', cands: [{ emp_no: '1', name: '김영업', position_title: '대리', role: '영업팀' }] };
   const h = prep.modalHtml(m, { name: '노원구청', meEmp: '9' });
