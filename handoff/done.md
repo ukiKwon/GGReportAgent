@@ -749,3 +749,9 @@
 - **다음 한 걸음**: backend-dev가 공통 오류 응답 경로 조사(어느 처리기가 예외 메시지를 그대로 내보내는지) → 고칠 안 → security.
 - **자세히**: handoff/agents/qa-verifier/2026-11-25_2030_a94f5c95.md, 출처 2026-11-26_summary `## Session 08:00`.
 - **해소(2026-11-26, 6e)**: 코드는 원래 일반 문구였고 로컬·개발 설정의 ggreport.errors.detail=true 때문이었다. 번역 안 된 DB 예외(PersistenceException·SQLException)도 일반 문구 경로에 넣고 시험으로 고정, 개발 설정은 false로(사용자 11-26: 개발 서버의 이 서비스는 직원도 씀) — 7dead644. 로컬 설정은 그대로 둔다. 근거 handoff/agents/backend-dev/2026-11-26_0936_a303388a.md, security handoff/agents/security/2026-11-26_1013_ae5e0394.md.
+
+## 2026-11-26 main 마무리로 옮김
+- **121 F1·N1·N2·하-3·중-1·하-1**: 결재 없는 담당자 변경 = 지금 담당자·같은 팀 팀장까지(a233240f), 팀장 자기 추가 결재 없이 허용(cb705c6e, 사용자 11-25 밤·11-26 재확인), 감사 화면·버튼 전용 이름(7dead644·481b30f6), 평가표 int 넘침(aaa2c79b). 근거 handoff/agents/security/2026-11-25_2023_a786ff0c.md, handoff/sessions/2026-11-26_0900_dash.md. 남은 ①~⑥은 NEXT 121.
+- **122 이관 문구**: 0d nav 0796d629, db fa003a7e, ca 6546df00.
+- **114 ①·120 ③④**: 0d 실측 통과 342b8be3(handoff/agents/design-reviewer/2026-11-26_1429_a2be889b.md), noticerec 문장 4c570235.
+- **74 발표 대본 몫**: 113 ⑤로 구현(7dead644·62d1ea77·481b30f6).
