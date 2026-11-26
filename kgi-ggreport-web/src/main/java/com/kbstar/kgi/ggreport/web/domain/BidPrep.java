@@ -20,6 +20,12 @@ public class BidPrep {
     private String institutionName;
     private String stateName;
     private String contractEnd;
+    /** 입찰 대상(064, BID_CASES 조인) — 목록·selectBidSubject 에서만 채운다. NEXT 125 1단계. */
+    private String bidSubjectCd;
+    private String bidSubjectEtc;
+    private String bidSubjectCodeName;
+    /** 공고명(BID_CASES.TITLE, 조회 전용) — 목록·selectBidSubject 에서만 채운다. 없으면 null. */
+    private String bidTitle;
 
     public String getBidCaseId() { return bidCaseId; }
     public void setBidCaseId(String v) { this.bidCaseId = v; }
@@ -53,4 +59,12 @@ public class BidPrep {
     public void setStateName(String v) { this.stateName = v; }
     public String getContractEnd() { return contractEnd; }
     public void setContractEnd(String v) { this.contractEnd = v; }
+    public String getBidSubjectCd() { return bidSubjectCd; }
+    public void setBidSubjectCd(String v) { this.bidSubjectCd = v; }
+    public String getBidSubjectEtc() { return bidSubjectEtc; }
+    public void setBidSubjectEtc(String v) { this.bidSubjectEtc = v; }
+    public String getBidSubjectCodeName() { return bidSubjectCodeName; }
+    public void setBidSubjectCodeName(String v) { this.bidSubjectCodeName = v; }
+    public String getBidTitle() { return bidTitle; }
+    public void setBidTitle(String v) { this.bidTitle = v; }
 }

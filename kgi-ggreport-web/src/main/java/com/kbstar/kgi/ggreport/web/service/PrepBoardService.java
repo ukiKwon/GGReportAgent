@@ -298,6 +298,9 @@ public class PrepBoardService {
             m.put("bid_case_id", bid);
             m.put("institution_id", p.getInstitutionId());
             m.put("institution_name", p.getInstitutionName());
+            m.put("bid_subject_cd", p.getBidSubjectCd());          // NEXT 125 1단계 — 줄 = 건, 입찰 대상 칸(064)
+            m.put("bid_subject_name", BidSubjects.label(p));
+            m.put("bid_title", BidSubjects.blankToNull(p.getBidTitle()));   // 공고명(BID_CASES.TITLE) — 없으면 null
             String due = dueOf(p, noticeDue);
             m.put("bid_expected_date", due);
             m.put("bid_expected_basis", due == null ? null : noticeDue.containsKey(p.getInstitutionId()) ? BASIS_NOTICE : BASIS_EXPIRY);

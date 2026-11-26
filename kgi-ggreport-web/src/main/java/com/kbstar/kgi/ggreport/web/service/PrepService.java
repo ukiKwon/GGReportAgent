@@ -170,6 +170,9 @@ public class PrepService {
             m.put("bid_case_id", p.getBidCaseId());
             m.put("institution_id", p.getInstitutionId());
             m.put("institution_name", p.getInstitutionName());
+            m.put("bid_subject_cd", p.getBidSubjectCd());          // NEXT 125 1단계 — 입찰 대상(064)
+            m.put("bid_subject_name", BidSubjects.label(p));
+            m.put("bid_title", BidSubjects.blankToNull(p.getBidTitle()));       // 공고명(BID_CASES.TITLE) — 없으면 null
             m.put("state_cd", p.getStateCd());
             m.put("state_name", stateName(p));
             m.put("progress", progress(ev));
@@ -1278,6 +1281,10 @@ public class PrepService {
         m.put("bid_case_id", bid);
         m.put("institution_id", p.getInstitutionId());
         m.put("institution_name", mapper.selectInstitutionNameByBid(bid));
+        BidPrep subject = mapper.selectBidSubject(bid);   // NEXT 125 1단계 — 입찰 대상(064)·공고명. 건 행이 없으면 모두 null
+        m.put("bid_subject_cd", subject == null ? null : subject.getBidSubjectCd());
+        m.put("bid_subject_name", BidSubjects.label(subject));
+        m.put("bid_title", subject == null ? null : BidSubjects.blankToNull(subject.getBidTitle()));
         m.put("state_cd", p.getStateCd());
         m.put("state_name", stateName(p));
         m.put("confirmed_by", person(p.getConfirmedBy()));

@@ -123,6 +123,9 @@ public interface PrepMapper {
 
     String selectInstitutionNameByBid(@Param("bidCaseId") String bidCaseId);
 
+    /** 입찰 대상(064)·공고명 — BID_CASE_ID·BID_SUBJECT_*·BID_TITLE 만 채운 BidPrep. 건이 없으면 null. NEXT 125. */
+    BidPrep selectBidSubject(@Param("bidCaseId") String bidCaseId);
+
     // ── 이력·감사 ───────────────────────────────────────────────────────
 
     int insertLog(@Param("bidCaseId") String bidCaseId, @Param("eventCd") String eventCd,
