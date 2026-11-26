@@ -180,6 +180,7 @@
   <a href="#c124">124 표 정렬 — 머리값은 모두 가운데, 금액만 오른쪽, 나머지 칸 가운데(입찰 현황판 표는 다음)</a>
   <a href="#c125">125 입찰 현황판 — 12개월 일정 띠와 줄 끝 단추를 빼고, 줄을 고르면 띠에 [수정하기][관심 기관으로][목표 기관에서 제외], 표 가운데 정렬(기관 이름만 왼쪽)</a>
   <a href="#c126">126 표 정렬 — 줄을 대표하는 기관·메뉴 이름 칸만 몸통 왼쪽(입찰 결과·준비 현황·권한 관리 등 9곳)</a>
+  <a href="#c127">127 표 정렬 — 여러 줄 본문 칸이 있는 줄은 줄 전체를 위로(기관 사업계획·담당자/버전 이력)</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2546,6 +2547,17 @@
 <table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#6b6b6b"><th style="text-align:center;padding:4px">기관</th><th style="text-align:center;padding:4px">상태</th></tr><tr><td style="text-align:left;padding:4px;border-top:1px solid #ddd">○○시청</td><td style="text-align:center;padding:4px;border-top:1px solid #ddd">요청됨</td></tr><tr><td style="text-align:left;padding:4px;border-top:1px solid #ddd">(재)○○연구개발특구진흥재단</td><td style="text-align:center;padding:4px;border-top:1px solid #ddd">반입 대기</td></tr></table>
 <p style="font-size:12px">적용(9곳): 입찰 결과·연중에 뺀 곳(.rs-tt), 제안 준비 현황 격자(.pb-t), 권한 관리·내 정보 권한(.ad-perms 메뉴 이름), 제안서 진행 목록(.wf-ov), 수집 요청·반입 대기(.cr-table/.ib-table, 이름 아래 부제도 같은 왼쪽 선), 문서 점검 다른 기관 이름(.dc-hits), 전체 입찰건 창(.more-table), 수집 요청·반입 확인 창(.pl-dlg-tbl), 배점표 평가항목(.wf-cov). 머리값과 다른 칸은 가운데 그대로.</p>
 <p class="legend-note">가운데 유지: 사람 이름·사번·코드·날짜·'참석자 N', 키-값 라벨, 1–3줄 결재 카드 표. 시작화면(.pt-tt)은 b3, 목표 변경 확인 표(.ap-tc)는 ca 담당. 이사회 자료 목록 기관명·첨부 파일명은 사용자 답 대기(가운데 유지). 색·크기 변화 없음. 정렬 시험 15건 통과, 렌더 실측은 브라우저가 비는 때.</p>
+</div></div></div>
+</div>
+</section>
+<section class="ch" id="c127">
+<h2>127 표 정렬 — 여러 줄 본문 칸이 있는 줄은 줄 전체를 위로 (2026-11-26, design-reviewer 정적 검토 이슈 A·B)</h2>
+<div class="why">왜: 124장 뒤 사업명+내용·사유 칸만 위 정렬이고 같은 줄의 번호·예산·시각은 칸 가운데에 떠 있었습니다. 내용이 3–5줄이면 사업명과 금액을 짝지을 기준선이 없어졌습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock"><table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#6b6b6b"><th style="padding:4px;text-align:center">번호</th><th style="padding:4px;text-align:center">사업명·내용</th><th style="padding:4px;text-align:center">예산</th></tr><tr><td style="text-align:center;vertical-align:middle;padding:4px;border-top:1px solid #ddd">1</td><td style="text-align:left;vertical-align:top;padding:4px;border-top:1px solid #ddd"><b>청년 창업 지원</b><br>창업 공간 운영<br>멘토링·교육<br>판로 지원</td><td style="text-align:right;vertical-align:middle;padding:4px;border-top:1px solid #ddd">12,300</td></tr></table><p class="hint12">번호·예산이 칸 높이 한가운데.</p></div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock"><table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#6b6b6b"><th style="padding:4px;text-align:center">번호</th><th style="padding:4px;text-align:center">사업명·내용</th><th style="padding:4px;text-align:center">예산</th></tr><tr><td style="text-align:center;vertical-align:top;padding:4px;border-top:1px solid #ddd">1</td><td style="text-align:left;vertical-align:top;padding:4px;border-top:1px solid #ddd"><b>청년 창업 지원</b><br>창업 공간 운영<br>멘토링·교육<br>판로 지원</td><td style="text-align:right;vertical-align:top;padding:4px;border-top:1px solid #ddd">12,300</td></tr></table>
+<p style="font-size:12px">적용: 기관 사업계획 표(.pl-tbl 몸통 칸 전부 위), 담당자 이력·이사회 자료 버전/작업 이력(.ad-table에서 사유 칸 tm-t-reason이 있는 줄 전체 위, :has). 빈 메모 '—'는 가운데. 가로 정렬·머리값(세로 가운데)은 그대로.</p>
+<p class="legend-note">:has를 모르는 옛 브라우저는 이력 표가 가운데로 남을 뿐 깨지지 않음. 정렬 시험 16건 통과.</p>
 </div></div></div>
 </div>
 </section>

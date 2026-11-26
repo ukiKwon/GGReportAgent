@@ -1376,6 +1376,8 @@
   .ad-table .tm-t-time { font-family:var(--mono); font-size:12px; width:16ch; }
   /* 여러 줄 사유는 왼쪽·위 — 표 가운데 정렬 예외(사용자 11-26) */
   .ad-table td.tm-t-reason { text-align:left; vertical-align:top; white-space:normal; word-break:keep-all; overflow-wrap:anywhere; max-width:32em; }
+  .ad-table tr:has(> td.tm-t-reason) > td, .ad-table tr:has(> td.tm-t-reason) > th { vertical-align:top; }   /* 여러 줄 사유·메모가 있는 줄은 전부 위 — 줄 단위 정렬(:has 미지원 브라우저는 가운데로 남을 뿐) */
+  .ad-table td.tm-t-reason > .dg-hint:only-child { display:block; text-align:center; }   /* 빈 메모 '—'는 다른 빈 칸처럼 가운데 */
   /* 목표 변경 메모·사유(여러 줄)도 왼쪽·위 — 표 가운데 정렬 예외 */
   .ad-table.ap-tc .tc-memo { text-align:left; vertical-align:top; }
   .tm-selfrep { margin-left:6px; }
@@ -2847,7 +2849,7 @@
   .pl-src { overflow-wrap:anywhere; }
   .pl-tbl { width:100%; max-width:680px; table-layout:fixed; border-collapse:collapse; margin-top:12px; font-size:13px; }
   .pl-tbl th { padding:6px 8px; font-size:12px; font-weight:400; color:var(--muted); text-align:center; vertical-align:middle; border-bottom:1px solid var(--line-strong); }
-  .pl-tbl td { padding:8px; border-top:1px solid var(--line); vertical-align:middle; text-align:center; }
+  .pl-tbl td { padding:8px; border-top:1px solid var(--line); vertical-align:top; text-align:center; }   /* 사업명+내용(위) 칸과 같은 줄의 번호·예산도 첫 줄에 맞춘다 — 줄 단위 위 정렬(design 11-26) */
   .pl-tbl th.pl-no, .pl-tbl td.pl-no { width:64px; white-space:nowrap; }
   .pl-tbl th.pl-bud, .pl-tbl td.pl-bud { width:160px; text-align:right; white-space:nowrap; }   /* 예산 = 금액 열(plans.js:193·budgetTd)이라 칸은 오른쪽, 머리는 아래 규칙으로 가운데 */
   .pl-tbl th.pl-bud { text-align:center; }

@@ -62,7 +62,7 @@ test('대상 표 머리·칸은 가운데(text-align:center)', function () {
 
 test('표 머리·칸 세로 가운데(rs-tt 머리는 아래 맞춤 아님)', function () {
   ['.pt-tt thead th', '.pt-tt td, .pt-tt tbody th', '.rs-tt thead th', '.rs-tt th, .rs-tt td', '.wf-cov th, .wf-cov td',
-    '.dc-hits th', '.dc-hits td', '.pl-tbl th', '.pl-tbl td', '.pl-dlg-tbl th', '.pl-dlg-tbl td', '.ts-doc th',
+    '.dc-hits th', '.dc-hits td', '.pl-tbl th', '.pl-dlg-tbl th', '.pl-dlg-tbl td', '.ts-doc th',
     '.isf-tbl th', '.isf-hist th, .isf-hist td', '.more-table th', '.more-table td', '.cr-table td', '.ib-table td'
   ].forEach(function (sel) {
     assert.ok(/vertical-align:\s*middle/.test(rule(sel)), sel + ' 은 세로 가운데여야 한다');
@@ -134,4 +134,13 @@ test('짧고 고른 이름·라벨 칸과 사용자 지정 표는 가운데 유�
   assert.ok(/text-align:\s*center/.test(rule('.isf-years th:first-child, .isf-years td:first-child')));
   assert.ok(!/\.bd-l-tbl td\.bd-l-name \{[^}]*text-align:\s*left/.test(css));      // 사용자 11-20 '목록 전체 가운데' — 질문 답 전까지
   assert.ok(!/td\.pp-fname \{[^}]*text-align:\s*left/.test(css));                  // 사용자 11-25 '파일 표 전부 가운데' — 질문 답 전까지
+});
+
+test('위 정렬 본문 칸이 있는 줄은 줄 전체를 위로', function () {
+  assert.ok(/vertical-align:\s*top/.test(rule('.pl-tbl td')), '.pl-tbl td 는 위');
+  const sel = '.ad-table tr:has(> td.tm-t-reason) > td';
+  const i = css.indexOf(sel);
+  assert.ok(i >= 0, sel + ' 규칙이 있어야 한다');
+  assert.ok(/vertical-align:\s*top/.test(css.slice(i, css.indexOf('}', i))));
+  assert.ok(/text-align:\s*center/.test(rule('.ad-table td.tm-t-reason > .dg-hint:only-child')), '빈 메모 — 는 가운데');
 });
