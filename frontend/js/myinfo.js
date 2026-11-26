@@ -11,6 +11,7 @@
 
   const admin = (typeof require !== 'undefined') ? require('./admin.js') : root.admin;
   const approvals = (typeof require !== 'undefined') ? require('./approvals.js') : root.approvals;
+  const tblEmpty = (typeof require !== 'undefined') ? require('./tblempty.js') : root.tblEmpty;
 
   myinfo.VIEWS = [
     { key: 'basic', label: '기본 정보' },
@@ -118,7 +119,7 @@
       '<p class="dg-hint">현재 권한입니다. 바꿀 칸을 체크하거나 해제하고 사유를 적어 신청하세요 — 승인되면 자동으로 반영됩니다. ' +
       '진행 상태는 결재함 › 내가 올린 요청에서 봅니다.</p>' +
       '<table class="ad-table ad-perms"><thead><tr><th>메뉴</th><th>조회</th><th>작성</th><th>수정</th><th>결재</th><th>기준</th></tr></thead><tbody>' +
-      draft.map(function (r, i) {
+      (draft.length ? draft.map(function (r, i) {
         function box(field, disabled, tip) {
           return '<td><input type="checkbox" data-i="' + i + '" data-f="' + field + '"' + (r[field] ? ' checked' : '') +
             (disabled ? ' disabled' : '') + (tip ? ' title="' + esc(tip) + '"' : '') +
@@ -128,7 +129,7 @@
           box('approve', !r.approvable, r.approvable ? '' : '이 메뉴에는 결재 기능이 없습니다') +
           '<td><span class="ad-badge ' + (r.source === 'user' ? 'warn' : 'muted') + '">' +
           (r.source === 'user' ? '개별 설정' : '역할 기본') + '</span></td></tr>';
-      }).join('') + '</tbody></table>' +
+      }).join('') : tblEmpty.rowHtml(6)) + '</tbody></table>' +
       '<label class="mi-reason">신청 사유 <textarea id="mi-reason" rows="2" maxlength="200" placeholder="왜 필요한지 적어 주세요 (200자 이내)">' +
       esc(reason) + '</textarea></label>' +
       '<div id="ad-actions"><button id="mi-submit" class="primary"' + (changes.length ? '' : ' disabled') + '>신청' +

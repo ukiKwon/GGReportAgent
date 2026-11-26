@@ -14,6 +14,7 @@
   const logic = isNode ? require('./logic.js') : root.logic;
   const roles = isNode ? require('./roles.js') : root.roles;
   const errtext = isNode ? require('./errtext.js') : root.errtext;
+  const tblEmpty = isNode ? require('./tblempty.js') : root.tblEmpty;
 
   tm.SOON_ID = 'soon:제안팀';                 // nav.TEAM_ID와 같아야 한다(테스트가 대조)
   tm.MAX = 10;
@@ -217,7 +218,7 @@
         reflected: !!h.req_id,
         actor: h.actor_name || '',
         selfReport: h.emp_verified !== true,        // true일 때만 아무것도 붙이지 않는다. 신원 확인 표기는 붙이지 않는다
-        reason: String(h.reason == null ? '' : h.reason).trim() || '-',
+        reason: String(h.reason == null ? '' : h.reason).trim(),
       };
     });
   };
@@ -338,13 +339,14 @@
   };
 
   tm.historyHtml = function (rows) {
-    if (!rows.length) return '<p class="wf-empty">' + esc(T.noHistory) + '</p>';
-    return '<div class="tm-tbl-wrap"><table class="ad-table"><thead><tr><th>시각</th><th>내용</th><th>처리자</th><th>사유</th></tr></thead><tbody>' +
+    const head = '<div class="tm-tbl-wrap"><table class="ad-table"><thead><tr><th>시각</th><th>내용</th><th>처리자</th><th>사유</th></tr></thead><tbody>';
+    if (!rows.length) return head + tblEmpty.rowHtml(4) + '</tbody></table></div>' + tblEmpty.noteHtml(T.noHistory);
+    return head +
       rows.map(function (r) {
         return '<tr><td class="tm-t-time">' + esc(r.when) + '</td><td>' + esc(r.content) +
           (r.reflected ? ' <span class="tm-me">· 결재 반영</span>' : '') + '</td><td>' + esc(r.actor) +
           (r.selfReport ? ' <span class="ad-badge muted tm-selfrep" title="' + esc(T.selfReport) + '">자기신고</span>' : '') +
-          '</td><td class="tm-t-reason">' + esc(r.reason) + '</td></tr>';
+          '</td><td class="tm-t-reason">' + (r.reason ? esc(r.reason) : '<span class="dg-hint">—</span>') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   };
 
@@ -431,7 +433,8 @@
     if (vs.phase === 'assign') {
       staff += tm.assignFormHtml({ cands: m.cands, sel: (m.assign || {}).sel, q: (m.assign || {}).q, meEmp: m.meEmp });
     } else if (vs.phase === 'empty') {
-      staff += '<p class="wf-empty">' + esc(T.unassigned) + '</p>';
+      staff += '<div class="tm-tbl-wrap"><table class="ad-table"><thead><tr><th>이름</th><th>직위</th><th>배정일</th></tr></thead><tbody>' +
+        tblEmpty.rowHtml(3) + '</tbody></table></div>' + tblEmpty.noteHtml(T.unassigned);
     } else {
       staff += tm.assigneesTableHtml(rows);
       const pi = tm.pendingInfo(view.pending_change, view.assignees);

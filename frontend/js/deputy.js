@@ -5,6 +5,7 @@
   //   · 서버가 막는 것: 자기 자신, 기간 중복, 최대 90일. 그리고 결재할 때의 방향 규칙 —
   //     상신자가 대결자보다 상위 직급이면 그 건은 대결자가 결재할 수 없다.
   const deputy = {};
+  const tblEmpty = (typeof require === 'function' && typeof module !== 'undefined') ? require('./tblempty.js') : root.tblEmpty;
 
   deputy.MAX_DAYS = 90;
 
@@ -81,7 +82,8 @@
           '</td><td>' + esc(deputy.periodText(d)) + '</td><td>' + esc(d.reason || '') + '</td><td><span class="ad-badge ' +
           (d.active_now ? 'ok' : 'muted') + '">' + (d.active_now ? '대결 중' : '예정') + '</span></td><td class="ad-ops">' +
           '<button data-cancel="' + esc(d.deputy_id) + '">취소</button></td></tr>';
-      }).join('') : '<tr><td colspan="5" class="ad-empty">지정한 대결이 없습니다.</td></tr>') + '</tbody></table>' +
+      }).join('') : tblEmpty.rowHtml(5)) + '</tbody></table>' +
+      (rows.length ? '' : tblEmpty.noteHtml('지정한 대결이 없습니다.')) +
       (asDeputy.length ? '<p class="ad-note">내가 대결자로 지정된 기간: ' + asDeputy.map(function (d) {
         return esc((d.principal_name || d.principal_emp_no) + ' ' + deputy.periodText(d));
       }).join(', ') + '</p>' : '');

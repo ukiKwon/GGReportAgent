@@ -1762,6 +1762,10 @@
   button.primary { background:var(--accent-color); color:#fff; border-color:transparent; font-weight:700; }
   button:disabled { opacity:.55; cursor:not-allowed; }
   .ad-empty { color:var(--muted); text-align:center !important; padding:18px !important; }
+  /* 빈 표 한 줄(사용자 11-26, DESIGN '빈 표') */
+  table tr.tb-empty > td { text-align:center !important; vertical-align:middle !important; cursor:default; }
+  table tr.tb-empty > td::after { content:"\00a0"; }
+  .tb-empty-note { margin:6px 0 0; font-size:12px; color:var(--muted); text-align:left; }
   .ad-badge { display:inline-block; font-size:12px; padding:1px 8px; border-radius:var(--r); border:1px solid var(--line-strong); color:var(--muted); }
   .ad-badge.active, .ad-badge.ok { color:var(--blue); border-color:var(--blue); }   /* 정상 상태 = 파랑(틸은 상호작용 전용) */
   .ad-badge.locked, .ad-badge.warn { color:var(--orange); border-color:var(--orange); }
@@ -4681,6 +4685,7 @@ review, the verdict, and DESIGN.md
 
 <!-- 순수 로직 -->
 <script src="js/dlg.js"></script>
+<script src="js/tblempty.js"></script>
 <script src="js/logic.js"></script>
 <script src="js/store.js"></script>
 <script src="js/serverdata.js"></script>

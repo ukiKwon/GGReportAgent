@@ -187,6 +187,7 @@
   <a href="#c131">131 입찰 현황판 — 제안 진행 띠 5칸·끝난 건·모든 열 정렬·설명회 칸 삭제(NEXT 120)</a>
   <a href="#c132">132 로그인 앞 기능 소개 랜딩 — AI/AX 7장면, 업무 흐름 27칸</a>
   <a href="#c133">133 입찰 결과 표 열 폭 정정 — 1280px에서 패널 밖으로 넘치던 것(130장 회귀) 바로잡기</a>
+  <a href="#c134">134 빈 표 — 0건이어도 머리 줄 + 빈 행 1줄, 안내 문장은 표 아래(공통 화면), 배정 이력 빈 사유 '—' 가운데</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2638,6 +2639,17 @@
 <div class="col before"><header>전</header><div class="body"><div class="mock"><p style="font-size:12px">표 1080px &gt; 패널 990px — 넘침 90px. 기관 240·구분 96(쓸 폭 76.0 &lt; 글자 76.2)·약정 시작 96·결과 180·근거 150·제안 진행 120.</p><p class="hint12">근거 스크린샷: .playwright-mcp/t124c-results-1280.png</p></div></div></div>
 <div class="col after"><header>후</header><div class="body"><div class="mock"><p style="font-size:12px">최소 폭 960px, 기관 224·구분 104(여유 +7.8px)·나머지 그대로 → 고정 열 합 874, 1280에서 은행 열 116px(쓸 폭 96, '1금고 국민은행' 한 줄). 넘침 0.</p>
 <p class="legend-note">교훈: 실측 전에 innerWidth를 먼저 확인(시험 브라우저 dpr 0.9 — 창 1152×810이 1280×900). 화면 시험 2192/2192. 후 실측은 다음 브라우저 차례.</p>
+</div></div></div>
+</div>
+</section>
+<section class="ch" id="c134">
+<h2>134 빈 표 — 0건이어도 머리 줄 + 빈 행 1줄 (2026-11-26, 사용자 "값이 없으면 깡통처럼 나오지 않게, 최소한 표 규격 + 1행 — 모든 표")</h2>
+<div class="why">왜: 0건이면 표가 통째로 사라지고 회색 12px 문장('아직 배정 기록이 없습니다.')만 남아, 기록이 있는 건과 화면 모양이 달라 "고장인가"로 읽혔습니다. 배정 이력의 빈 사유는 왼쪽 '-'였습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock"><p style="font-size:12px;color:#6b6b6b">아직 배정 기록이 없습니다.</p><p class="hint12">표 없음 — 어떤 열이 채워질지 보이지 않음.</p></div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock"><table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#6b6b6b"><th style="padding:4px;text-align:center">시각</th><th style="padding:4px;text-align:center">내용</th><th style="padding:4px;text-align:center">처리자</th><th style="padding:4px;text-align:center">사유</th></tr><tr><td style="padding:4px;border-top:1px solid #ddd">&nbsp;</td><td style="padding:4px;border-top:1px solid #ddd"></td><td style="padding:4px;border-top:1px solid #ddd"></td><td style="padding:4px;border-top:1px solid #ddd"></td></tr></table><p style="font-size:12px;color:#6b6b6b;margin:6px 0 0">아직 배정 기록이 없습니다.</p>
+<p style="font-size:12px">적용(공통 화면): 제안팀 구성·배정 배정 이력·담당자(미배정), 시스템 관리 사용자·감사 기록·권한 변경 이력, 대결 지정, 내 권한(안내 없음). 빈 행 칸은 비우고 첫 칸에 스크린리더 '비어 있음'. 기록이 있는데 사유만 빈 줄은 가운데 회색 '—'.</p>
+<p class="legend-note">공통 도우미 js/tblempty.js. 불러오는 중·오류·선택 전은 그대로. 다른 화면(이사회 자료·회의록·사업계획·수집 요청·제안 준비·요약 양식·지도 더보기)은 담당 세션이 NEXT 128로 이어 적용. 화면 시험 2198/2198.</p>
 </div></div></div>
 </div>
 </section>

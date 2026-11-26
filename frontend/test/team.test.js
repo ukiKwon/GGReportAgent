@@ -218,7 +218,11 @@ test('historyRows: 최근 순(같은 시각은 나중 기록이 위), 한국시�
   assert.strictEqual(rows[2].when, '2026-11-10 14:02');
   assert.deepStrictEqual([rows[0].reflected, rows[1].reflected], [true, false]);
   assert.deepStrictEqual([rows[0].selfReport, rows[1].selfReport, rows[2].selfReport], [false, false, true]);
-  assert.deepStrictEqual([rows[0].reason, rows[1].reason, rows[2].reason], ['-', '-', '팀장 자기 포함 배정']);
+  assert.deepStrictEqual([rows[0].reason, rows[1].reason, rows[2].reason], ['', '', '팀장 자기 포함 배정']);
+  // 빈 사유는 표에서 가운데 회색 '—' (사용자 11-26)
+  const hh = tm.historyHtml(rows);
+  assert.ok(hh.indexOf('<td class="tm-t-reason"><span class="dg-hint">—</span></td>') >= 0);
+  assert.ok(hh.indexOf('<td class="tm-t-reason">팀장 자기 포함 배정</td>') >= 0);
   assert.deepStrictEqual(tm.historyRows(null), []);
   // emp_verified 필드가 없으면 확인된 것으로 치지 않는다(true일 때만 표시 없음)
   assert.strictEqual(tm.historyRows([{ action_name: 'a', target_name: 'b', logged_at: '2026-11-10T00:00:00Z' }])[0].selfReport, true);

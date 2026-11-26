@@ -13,6 +13,7 @@
   const admin = {};
   // 역할 표시 글(예산팀→재무팀). 값·data-role은 원본 유지, 보이는 글자만 바꾼다. roles.js가 없으면 원본.
   function rl(role) { return root.roles ? root.roles.roleLabel(role) : role; }
+  const tblEmpty = (typeof require === 'function' && typeof module !== 'undefined') ? require('./tblempty.js') : root.tblEmpty;
 
   const ADMIN_MENU = 'admin';
   admin.ADMIN_MENU = ADMIN_MENU;
@@ -607,7 +608,8 @@
       '<table class="ad-table"><thead><tr><th>사번</th><th>이름</th><th>역할</th><th>직위</th><th>결재 등급</th><th>상위 결재자</th><th>상태</th><th>최근 로그인</th><th></th></tr></thead><tbody>' +
       (rows.length ? rows.map(function (u) {
         return admin.userRow(u, { self: admin.isSelf(u, myEmp()), grades: grades, retiring: confirmRetire === u.emp_no });
-      }).join('') : '<tr><td colspan="9" class="ad-empty">조건에 맞는 사용자가 없습니다.</td></tr>') + '</tbody></table>' +
+      }).join('') : tblEmpty.rowHtml(9)) + '</tbody></table>' +
+      (rows.length ? '' : tblEmpty.noteHtml('조건에 맞는 사용자가 없습니다.')) +
       pagerHtml('us', pg.page, pg.pages);
     el('us-size').onchange = function (e) { usersPage.size = admin.normPageSize(e.target.value); usersPage.page = 0; paintUsers(); };
     el('us-prev').onclick = function () { usersPage.page -= 1; paintUsers(); };
@@ -732,14 +734,16 @@
         (isSelfPerm ? '' : '<div id="ad-actions"><button id="pm-save" class="primary"' + (changes.length ? '' : ' disabled') + '>저장' +
           (changes.length ? ' (' + changes.length + '개 메뉴)' : '') + '</button><button id="pm-reset">되돌리기</button></div>') +
         '<h4 class="ad-sub">변경 이력</h4>' +
-        (permHistory.length ? '<table class="ad-table"><thead><tr><th>시각</th><th>변경자</th><th>화면·버튼</th><th>항목</th><th>이전</th><th>이후</th></tr></thead><tbody>' +
+        '<table class="ad-table"><thead><tr><th>시각</th><th>변경자</th><th>화면·버튼</th><th>항목</th><th>이전</th><th>이후</th></tr></thead><tbody>' +
+        (permHistory.length ?
           permHistory.map(function (h) {
             return '<tr><td>' + esc(admin.formatTime(h.changed_at)) + '</td><td><span class="mono">' + esc(h.actor_emp_no || '-') + '</span> ' +
               (h.emp_verified ? '<span class="ad-badge ok">검증됨</span>' : '<span class="ad-badge muted">자기신고</span>') +
               '</td><td>' + admin.uiHtml(h.screen_id, h.button_id) +
               '</td><td>' + esc(admin.permItemLabel(h.item)) + '</td><td>' + esc(admin.permValueLabel(h.item, h.before_value, false)) + '</td><td>' +
               esc(admin.permValueLabel(h.item, h.after_value, true)) + '</td></tr>';
-          }).join('') + '</tbody></table>' : '<p class="ad-empty">아직 변경 이력이 없습니다.</p>')
+          }).join('') : tblEmpty.rowHtml(6)) + '</tbody></table>' +
+        (permHistory.length ? '' : tblEmpty.noteHtml('아직 변경 이력이 없습니다.'))
         : '<p class="ad-empty">권한을 볼 사용자를 선택하세요.</p>');
     el('pm-user').onchange = function (e) { permEmp = e.target.value; loadPerms(); };
     if (!permEmp) return;
@@ -807,7 +811,8 @@
           '</td><td class="mono">' + esc((r.http_method || '') + ' ' + (r.req_path || '')) + '</td><td>' +
           esc(r.status_code == null ? '' : r.status_code) + '</td><td class="mono">' + esc(r.client_ip || '') + '</td><td>' +
           esc(r.detail || '') + '</td></tr>';
-      }).join('') : '<tr><td colspan="8" class="ad-empty">기록이 없습니다.</td></tr>') + '</tbody></table>' +
+      }).join('') : tblEmpty.rowHtml(8)) + '</tbody></table>' +
+      (d.items.length ? '' : tblEmpty.noteHtml('기록이 없습니다.')) +
       pagerHtml('au', d.page, pages);
     el('au-size').onchange = function (e) { audit.size = admin.normPageSize(e.target.value); audit.page = 0; loadAudit(); };
     el('au-go').onclick = function () { readAuditFilters(); audit.page = 0; loadAudit(); };
