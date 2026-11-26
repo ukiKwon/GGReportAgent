@@ -17,7 +17,7 @@
 - **e4(기관장)**: NEXT 77 — 옛 경력 12줄·qa P3·Word 실물·법원장 사진. 자료: handoff/sessions/2026-11-25_2020_e4.md '11-26'. 잊지 말 것: Word '요약'에는 연도·일자 정보가 없다.
 - **b3(시작화면)**: NEXT 126. 자료: handoff/sessions/2026-11-26_1400_b3.md.
 - **c3(랜딩)**: NEXT 127(캡처 4자리 가상 자료로). 자료: handoff/sessions/2026-11-26_1112_c3.md.
-- **f4(AI 기능 개발)**: NEXT 129 — 이 PC Ollama 시범으로 ⑤ 대본 서술 4칸 초안 → ⑥ 기대효과 → ① 이유 한 줄, 랜딩과 다른 3곳은 기능을 랜딩에 맞춰 만듦(사용자 11-26 저녁). 자료: handoff/agents/history/2026-11-26_AI기능_개발.md(대조 결과·결정·순서), 설계 보고서 handoff/agents/backend-dev·planner/2026-11-26_19*.
+- **f4(AI 기능 개발)**: NEXT 129 — 이 PC Ollama 시범으로 ⑤ 대본 서술 4칸 초안 → ⑥ 기대효과 → ① 이유 한 줄, 랜딩과 다른 3곳은 기능을 랜딩에 맞춰 만듦, '오늘 할 일'은 급함 7일·모든 줄에 다음 할 일까지(사용자 11-26 저녁). 모델 `gemma4:12b`. **내일 첫 걸음**: backend-dev(Opus) 'Ollama 어댑터+⑤ 초안 API' 설계 보고서(handoff/agents/backend-dev/2026-11-26_19*.md — 11-26 마무리 때 실행 중이라 미커밋일 수 있음, 없으면 다시 맡김)를 읽고 security → backend-dev-write 적용, planner에게 '다음 할 일' 문구 초안. 자료: handoff/agents/history/2026-11-26_AI기능_개발.md(대조 결과·결정·순서), 이유 문장표 handoff/agents/planner/2026-11-26_1841_a39e4cc0.md, 세션 기록 handoff/sessions/2026-11-26_1825_f4.md.
 - **bf(예상 공고현황, 미기동)**: NEXT 122 qa P2-1·P2-2, 119. 자료: handoff/sessions/2026-11-25_1755_map.md.
 - **main**: W48 주간 보고(11-27 금, docs/pm_history/index.html) + 질문 장부 정리(아래), NEXT 108 → 99 → 100, worktree 정리(_gg_ca·_gg_dash·_gg_e4test에 미커밋 시험 변경 — 각 세션 확인 뒤).
 
