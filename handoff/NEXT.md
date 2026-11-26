@@ -642,10 +642,9 @@
 - **자세히**: handoff/agents/design-reviewer/2026-11-26_1310_adf505c4.md(이름 칸 판정 A·B·C), 2026-11-26_1328_a7124bc8.md(정적 대조 이슈 C·D·E, 규칙 보완 문안 6절), 2026-11-26_1352_a6a5d7df.md(1280px 실측 2차·이슈 A~E·못 본 표), handoff/agents/cleaner/2026-11-26_*(PUSH-GATE 정리 후보), handoff/sessions/2026-11-19_1930_0d.md '11-26', docs/design_history 124·126·127·129장.
 
 ### 120. 입찰 현황판 '제안 진행' 띠 재정의 — {제안 준비 전·제안 준비·제안 제출 및 대기·협약 예정·협약 완료} + 끝난 건 (사용자 11-25) [담당: ca(kbboard·dashboard) / db(prepboard·prep.js) / backend-dev+security]
-- **현재**: 사용자 답 11-25 — 탈락·중단은 5칸 밖 '끝난 건'(표에 '탈락'), 제출·협약은 제안 준비 현황에서 등록(협약 완료 = 협약식 V), 입찰 없음은 현 금고 국민은행이면 협약 예정·타행이면 끝난 건. 팀 결정: 제안 준비 현황 '제안서 제출' 칸 신설(제출품의 뒤·PT 앞), '결과발표' 값 선정/탈락, 협약 예정 = 선정·우선협상 V·입찰 없음+국민은행, 중단 = 시작 뒤 CANCEL만, 띠는 039 미사용. 협약식 '대상 아님' 기관의 완료 근거 = PT 다음 '결과발표' 칸(선정)으로 본다(사용자 11-25 정정). 메뉴 이동 시 저장 전 구분 변경 확인 = 권장안대로 하기로(app.js, 다음 작업). NEXT 118(사전준비 승인 폐지)이 확정되면 '승인 대기 n' 보조 숫자는 뺀다.
-- **11-25 저녁**: design 규격 a222b5f9 완료, frontend-dev 1차 패치 전문 = handoff/agents/frontend-dev/2026-11-25_1759_a794d548.md(첫 저장본 1734는 요약뿐이라 -write 적용 실패 a1daaee7). 1차 파일 변경은 아직 0 — 다음 세션에 1759 전문으로 -write 적용.
-- **다음 한 걸음**: a794d548 전문 받아 -write 적용 → 시험 → qa → design 대조 ∥ backend(제출 칸·결과 값·현황판용 단계 요약·STATE_NAMES 문구) → db prepboard·prep.js → ca 2차 → data-auditor 협약식↔039.
-- **자세히**: handoff/agents/planner/ 2026-11-25 ac4d2ab9 보고 2건. NEXT 114 '11-25 오후' 남은 일 ①을 이 항목으로 옮김.
+- **현재(11-26 ca)**: 1차 화면 6546df00 — 띠 5칸, 3~5칸·탈락은 점선 '—', 끝난 건 단추(중단 = state_name '중단(미참여)', 입찰 없음 타행), 표 준비 단계 두 줄 132px, 모든 열 정렬, 설명회 칸 삭제(사용자 11-26), node 2192/0, design_history 131. 시안 승인 기록 handoff/sessions/2026-11-26_0921_ca.md.
+- **다음 한 걸음**: ① 2차 서버(backend-dev): '제안서 제출' 칸·결과발표 선정/탈락·협약식 값 + /preps에 opened_at(중단 판정)·건 연도·금고 방식 SORT_NO → db prepboard·prep.js → ca 2차(STAGES_UNKNOWN 비우기, END_KNOWN.fail, 입찰 없음+국민은행 → 협약 예정 숫자) ② 기획 판정: 진행 기록이 있는 기관이 입찰 없음+타행이면 끝난 건으로 갈지, D2 '제안 준비 전'과 띠 '제안 준비 전' 집합 차이 ③ 다른 세션 파일 noticerec.js '진행 중인 제안(제안 준비 전 단계)' 문구 알림 ④ 1280/1440 실측(tr.grp 32px·안내 줄 수·기관 열) ⑤ NEXT 118 확정 시 '승인 대기 n' 빼기.
+- **자세히**: handoff/agents/frontend-dev/2026-11-26_1313_ace4e775.md·1320_ace4e775.md, handoff/agents/qa-verifier/2026-11-26_1355_afb18297.md, handoff/agents/design-reviewer/2026-11-26_1352_a2565240.md·2026-11-25_1720_a222b5f9.md, planner 2026-11-25 ac4d2ab9.
 
 ### 121. 결재 없는 담당자 변경·평가표·일정 — security 11-25 후속 [담당: db — backend-dev(Opus: 권한·감사) → security 재검토 / 화면 머리글은 db]
 - **현재**: F1 확정·반영 끝(사용자 11-25 밤: 바꿀 수 있는 사람 = 지금 담당자와 같은 팀 팀장까지 a233240f, 담당 아닌 팀장의 자기 추가는 결재 없이 허용 cb705c6e, 회귀 시험 97337027, security a786ff0c '막을 것 없음'). security 11-26 af98b39b(푸시 범위, 막을 것 없음)의 중-1·하-1은 aaa2c79b로 반영.
