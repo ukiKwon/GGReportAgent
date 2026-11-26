@@ -148,6 +148,40 @@ public class ScriptDraftServiceTest {
     }
 
     @Test
+    public void 전각_숫자는_NFKC로_바뀐_뒤_숫자_검사에서_걸린다() {
+        assertEquals("99억원", ScriptDraftService.tidy("９９억원"));
+        ScriptDraftBasisReader.Basis b = basis();
+        ScriptDraftService.Plan p = plan(b, set("intro"));
+        ScriptDraftService.Result r = ScriptDraftService.finish(p, out("임직원 ９９９명 규모입니다.", ""), "test-model", 5L);
+        assertEquals("", r.fields.get("intro"));
+        assertEquals("NUMBER_NOT_IN_BASIS", r.emptyReasons.get("intro"));
+        // 자료에 있는 값(350)을 전각으로 써도 정규화 뒤 같은 값으로 통과한다 — 막히는 것은 자료에 없는 숫자
+        ScriptDraftService.Result ok = ScriptDraftService.finish(p, out("임직원 ３５０명 규모입니다.", ""), "test-model", 5L);
+        assertEquals("임직원 350명 규모입니다.", ok.fields.get("intro"));
+    }
+
+    @Test
+    public void 유선전화도_개인정보로_보고_금액_예산은_오탐하지_않는다() {
+        assertTrue(ScriptDraftService.piiFound("문의는 02-1234-5678 로 하세요"));
+        assertTrue(ScriptDraftService.piiFound("문의 010-1234-5678"));
+        assertTrue(ScriptDraftService.piiFound("문의 test@example.com"));
+        assertFalse(ScriptDraftService.piiFound("예산 1,000억원, 임직원 350명, 순이익 10.14억원, 합계 1,234,567천원"));
+        assertFalse(ScriptDraftService.piiFound("경쟁은행 3곳이 참여 예상, 2026년 12월 31일 마감"));
+    }
+
+    @Test
+    public void BUSY로_못_잡은_쪽은_release하지_않으므로_게이트는_한_자리만_유지된다() {
+        ScriptDraftService s = service(0);
+        assertNull(s.reserve("1111111"));
+        assertEquals("BUSY", s.reserve("2222222"));
+        assertEquals("BUSY", s.reserve("3333333"));
+        s.release();                                    // 잡은 쪽만 반납
+        assertNull(s.reserve("2222222"));
+        assertEquals("반납이 늘어나지 않았다 — 한 자리뿐", "BUSY", s.reserve("3333333"));
+        s.release();
+    }
+
+    @Test
     public void tidy는_상한과_제어문자를_다룬다() {
         StringBuilder many = new StringBuilder();
         for (int i = 0; i < 13; i++) {

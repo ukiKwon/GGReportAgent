@@ -356,7 +356,7 @@ public class OllamaLlmClientTest {
     }
 
     @Test
-    public void probe는_접두사_일치면_model_ready이고_꺼진_서버는_reachable_false() throws Exception {
+    public void probe는_태그_없는_설정이면_latest를_같은_모델로_보고_꺼진_서버는_reachable_false() throws Exception {
         serve("/api/tags", new HttpHandler() {
             @Override public void handle(HttpExchange x) throws IOException {
                 reply(x, 200, "{\"models\":[{\"name\":\"test-model:latest\"},{\"name\":\"other:1b\"}]}");
@@ -370,6 +370,63 @@ public class OllamaLlmClientTest {
         OllamaLlmClient.Probe off = client.probe();
         assertFalse(off.isReachable());
         assertFalse(off.isModelReady());
+    }
+
+    @Test
+    public void probe는_완전_일치만_model_ready_접두사만_같으면_아니다() throws Exception {
+        serve("/api/tags", new HttpHandler() {
+            @Override public void handle(HttpExchange x) throws IOException {
+                reply(x, 200, "{\"models\":[{\"name\":\"test-model-big:1b\"},{\"name\":\"test-model:13b\"}]}");
+            }
+        });
+        make(props(port()));                          // 설정 "test-model"(태그 없음) — :latest 가 없으니 아니다
+        OllamaLlmClient.Probe p = client.probe();
+        assertTrue(p.isReachable());
+        assertFalse(p.isModelReady());
+        client.destroy();
+        OllamaProperties tagged = props(port());
+        tagged.setModel("test-model:7b");             // 태그가 있으면 :latest 를 인정하지 않고 13b 도 아니다
+        make(tagged);
+        assertFalse(client.probe().isModelReady());
+        client.destroy();
+        OllamaProperties exact = props(port());
+        exact.setModel("test-model:13b");
+        make(exact);
+        assertTrue(client.probe().isModelReady());
+    }
+
+    @Test
+    public void probe는_동시_1건_겹치면_null() throws Exception {
+        final CountDownLatch inside = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+        serve("/api/tags", new HttpHandler() {
+            @Override public void handle(HttpExchange x) throws IOException {
+                inside.countDown();
+                try {
+                    release.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+                reply(x, 200, "{\"models\":[{\"name\":\"test-model:latest\"}]}");
+            }
+        });
+        make(props(port()));
+        ExecutorService ex = Executors.newSingleThreadExecutor();
+        try {
+            Future<OllamaLlmClient.Probe> first = ex.submit(new java.util.concurrent.Callable<OllamaLlmClient.Probe>() {
+                @Override public OllamaLlmClient.Probe call() {
+                    return client.probe();
+                }
+            });
+            assertTrue(inside.await(5, TimeUnit.SECONDS));
+            assertEquals("겹치면 '닿지 않음'이 아니라 모름(null)", null, client.probe());
+            release.countDown();
+            assertTrue(first.get(10, TimeUnit.SECONDS).isModelReady());
+            assertTrue("끝나면 다시 확인할 수 있다", client.probe().isReachable());
+        } finally {
+            release.countDown();
+            ex.shutdownNow();
+        }
     }
 
     @Test

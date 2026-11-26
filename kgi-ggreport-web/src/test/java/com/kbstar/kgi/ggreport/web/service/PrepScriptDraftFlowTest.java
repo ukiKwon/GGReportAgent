@@ -117,7 +117,10 @@ public class PrepScriptDraftFlowTest {
     private void build(int cooldownSeconds) {
         OllamaProperties props = new OllamaProperties();
         props.setCooldownSeconds(cooldownSeconds);
-        ScriptDraftService drafts = new ScriptDraftService(prep, boardAccess, reader, provider, props);
+        buildWith(new ScriptDraftService(prep, boardAccess, reader, provider, props));
+    }
+
+    private void buildWith(ScriptDraftService drafts) {
         PrepScriptDraftController ctl = new PrepScriptDraftController(prep, audit, boardAudit, guard, drafts, provider, boardAccess);
         mvc = MockMvcBuilders.standaloneSetup(ctl).setControllerAdvice(new ApiExceptionHandler(false)).build();
     }
@@ -317,7 +320,88 @@ public class PrepScriptDraftFlowTest {
         assertFalse(r.getContentAsString(StandardCharsets.UTF_8).contains("db-secret"));
     }
 
+    // ── 독립 검토 반영(11-27) ──────────────────────────────────
+
+    @Test
+    public void 읽은_뒤_확정이_풀려_before가_null이면_LLM을_부르지_않고_ERROR_한_줄_BASIS_CHANGED이며_자리를_돌려준다() throws Exception {
+        when(boardAudit.before("7")).thenReturn(null);
+        MockHttpServletResponse r = draft();
+        assertEquals(200, r.getStatus());
+        JsonNode j = json(r);
+        assertEquals("EMPTY", j.path("state").asText());
+        assertEquals("BASIS_CHANGED", j.path("reason").asText());
+        verify(client, never()).draft(any());
+        verifyAct("ERROR", PrepService.IN_PROGRESS);
+        verify(boardAudit, never()).record(any(), any(), any(), any(), any());
+
+        // 자리를 돌려줬는지 — 쿨다운 0 이라 바로 다시 요청이 들어가고 BUSY 가 아니다
+        when(boardAudit.before("7")).thenReturn(new BoardMaterialAudit.Ctx(7L, BID, null, 1));
+        llmReturns("가상구청은 예산 1,000억원 규모입니다.", "순이익은 10.14억원입니다.");
+        assertEquals("OK", json(draft()).path("state").asText());
+    }
+
+    @Test
+    public void LlmException이_아닌_RuntimeException도_LLM_ERROR_200이고_결과_감사는_ERROR_한_줄() throws Exception {
+        doThrow(new IllegalStateException("boom-secret")).when(client).draft(any());
+        MockHttpServletResponse r = draft();
+        assertEquals(200, r.getStatus());
+        JsonNode j = json(r);
+        assertEquals("LLM_ERROR", j.path("reason").asText());
+        assertFalse(r.getContentAsString(StandardCharsets.UTF_8).contains("boom-secret"));
+        verifyAct("ERROR", PrepService.IN_PROGRESS);
+        verify(boardAudit).record(any(), eq(ACT), eq("ERROR"), any(), any());
+    }
+
+    @Test
+    public void 자리를_못_잡은_BUSY_갈래는_release를_부르지_않는다() throws Exception {
+        OllamaProperties props = new OllamaProperties();
+        props.setCooldownSeconds(0);
+        ScriptDraftService drafts = org.mockito.Mockito.spy(new ScriptDraftService(prep, boardAccess, reader, provider, props));
+        doReturn("BUSY").when(drafts).reserve(any());
+        buildWith(drafts);
+        MockHttpServletResponse r = draft();
+        assertEquals(200, r.getStatus());
+        assertEquals("BUSY", json(r).path("reason").asText());
+        verify(drafts, never()).release();
+        verify(client, never()).draft(any());
+        verify(boardAudit, never()).record(any(), any(), any(), any(), any());
+        verifyAct("BLOCKED", PrepService.IN_PROGRESS);
+    }
+
+    @Test
+    public void 자리를_잡은_갈래는_release를_한_번_부른다() throws Exception {
+        OllamaProperties props = new OllamaProperties();
+        props.setCooldownSeconds(0);
+        ScriptDraftService drafts = org.mockito.Mockito.spy(new ScriptDraftService(prep, boardAccess, reader, provider, props));
+        buildWith(drafts);
+        llmReturns("가상구청은 예산 1,000억원 규모입니다.", "순이익은 10.14억원입니다.");
+        assertEquals("OK", json(draft()).path("state").asText());
+        verify(drafts, times(1)).release();
+    }
+
     // ── 상태 조회 ──────────────────────────────────────────────
+
+    @Test
+    public void 상태_조회_probe_성공은_reachable과_model_ready를_싣고_겹치면_키를_뺀다() throws Exception {
+        when(boardAccess.isSalesWriter(EMP)).thenReturn(true);
+        when(client.probe()).thenReturn(new OllamaLlmClient.Probe(true, true));
+        MockHttpServletResponse r = mvc.perform(get("/llm/script-draft/status").param("probe", "1").header("X-Emp-No", EMP)).andReturn().getResponse();
+        assertEquals(200, r.getStatus());
+        JsonNode j = json(r);
+        assertTrue(j.path("reachable").asBoolean(false));
+        assertTrue(j.path("model_ready").asBoolean(false));
+
+        when(client.probe()).thenReturn(new OllamaLlmClient.Probe(true, false));
+        JsonNode j2 = json(mvc.perform(get("/llm/script-draft/status").param("probe", "1").header("X-Emp-No", EMP)).andReturn().getResponse());
+        assertTrue(j2.path("reachable").asBoolean(false));
+        assertFalse(j2.path("model_ready").asBoolean(true));
+
+        when(client.probe()).thenReturn(null);   // 다른 확인이 진행 중 — '닿지 않음'이 아니라 모름
+        JsonNode j3 = json(mvc.perform(get("/llm/script-draft/status").param("probe", "1").header("X-Emp-No", EMP)).andReturn().getResponse());
+        assertTrue(j3.path("enabled").asBoolean());
+        assertTrue(j3.path("reachable").isMissingNode());
+        assertTrue(j3.path("model_ready").isMissingNode());
+    }
 
     @Test
     public void 상태_조회는_영업_계열이_아니면_probe를_무시한다() throws Exception {

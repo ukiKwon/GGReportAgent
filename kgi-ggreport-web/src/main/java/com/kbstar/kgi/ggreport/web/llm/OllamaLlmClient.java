@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
 import org.apache.http.conn.ConnectTimeoutException;
+import org.apache.http.conn.ConnectionPoolTimeoutException;
 import org.apache.http.client.config.CookieSpecs;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -25,9 +26,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.net.SocketTimeoutException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,7 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 이 PC 기본 모델 gemma4:12b(설정 키로 바꿈).
  * 호출: 네이티브 {@code POST /api/chat}(stream=false, format=JSON 스키마, options.temperature·seed=0) — 저장소 실측 기록(항목 5, 2026-08-06·08-10)과 같은 방식.
  * 동시 1건(넘치면 LLM_BUSY). 리다이렉트·재시도·쿠키·압축·시스템 프록시 없음. 폴백 모델 없음.
- * 전체 마감(connect+read)을 넘기면 감시 타이머가 요청을 끊는다. 주소·프롬프트·응답 본문은 어떤 로그에도 남기지 않는다(모델명·HTTP 상태·소요 ms만).
+ * 전체 마감(connect+read)을 넘기면 감시 타이머가 요청을 끊는다. 주소·프롬프트·응답 본문은 어떤 로그에도 남기지 않는다(모델명·HTTP 상태·소요 ms만 — 모델명은 호출 로그에 남는다).
  */
 public class OllamaLlmClient implements DisposableBean {
 
@@ -52,7 +53,7 @@ public class OllamaLlmClient implements DisposableBean {
         private final boolean reachable;
         private final boolean modelReady;
 
-        Probe(boolean reachable, boolean modelReady) {
+        public Probe(boolean reachable, boolean modelReady) {   // 다른 패키지의 컨트롤러 시험이 만든다(값 두 개뿐 — 위험 없음)
             this.reachable = reachable;
             this.modelReady = modelReady;
         }
@@ -72,6 +73,7 @@ public class OllamaLlmClient implements DisposableBean {
     private final ScheduledExecutorService watchdog;   // 전체 마감(connect+read)을 넘기면 abort (security 하-2)
     private final ObjectMapper json = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final Semaphore gate = new Semaphore(1);
+    private final Semaphore probeGate = new Semaphore(1);   // 상태 조회 동시 1건 — 겹치면 probe() 가 null
 
     public OllamaLlmClient(OllamaProperties p, OllamaGuard.Check check) {
         this.check = check;
@@ -83,11 +85,16 @@ public class OllamaLlmClient implements DisposableBean {
         this.thinkOff = p.isThinkOff();
         boolean ready = check.getState() == OllamaGuard.State.READY;
         this.http = ready ? build(connectMs, readMs) : null;
-        this.watchdog = ready ? Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "local-llm-watchdog");
-            t.setDaemon(true);
-            return t;
-        }) : null;
+        ScheduledThreadPoolExecutor dog = null;
+        if (ready) {
+            dog = new ScheduledThreadPoolExecutor(1, r -> {
+                Thread t = new Thread(r, "local-llm-watchdog");
+                t.setDaemon(true);
+                return t;
+            });
+            dog.setRemoveOnCancelPolicy(true);      // 취소한 감시 작업이 큐에 마감 시각까지 남지 않게
+        }
+        this.watchdog = dog;
         if (ready) {
             LOG.info("local-llm: 이 PC 시범 모드로 켜짐(루프백 전용)");
         } else {
@@ -151,6 +158,9 @@ public class OllamaLlmClient implements DisposableBean {
             }
         } catch (LlmException ex) {
             throw ex;
+        } catch (ConnectionPoolTimeoutException ex) {    // ConnectTimeoutException 의 하위형 — 먼저 잡는다. 연결 풀이 차서 기다리다 포기 = 다른 요청이 쓰는 중(BUSY)
+            post.abort();
+            throw new LlmCallException(LlmCallException.BUSY, 0);
         } catch (ConnectTimeoutException ex) {          // Windows 닫힌 포트는 거절 대신 연결 제한에 걸릴 수 있다 → 연결 안 됨
             post.abort();
             throw new LlmCallException(LlmCallException.UNREACHABLE, 0);
@@ -246,11 +256,25 @@ public class OllamaLlmClient implements DisposableBean {
         return a >= 0 && b > a ? text.substring(a, b + 1) : null;
     }
 
-    /** GET /api/tags — 2초 제한. 설치 목록은 돌려주지 않고 "닿는가·설정 모델이 있는가" 둘만. */
+    /**
+     * GET /api/tags — 2초 제한. 설치 목록은 돌려주지 않고 "닿는가·설정 모델이 있는가" 둘만. 동시 1건 —
+     * 다른 확인이 진행 중이면 <b>null</b>(직전 결과도 '닿지 않음'도 아닌 '모름' — 호출자가 키를 생략한다).
+     */
     public Probe probe() {
         if (http == null) {
             return new Probe(false, false);
         }
+        if (!probeGate.tryAcquire()) {
+            return null;
+        }
+        try {
+            return doProbe();
+        } finally {
+            probeGate.release();
+        }
+    }
+
+    private Probe doProbe() {
         HttpGet get = new HttpGet(check.getTags());
         get.setConfig(RequestConfig.custom().setConnectTimeout(PROBE_MS).setSocketTimeout(PROBE_MS)
                 .setConnectionRequestTimeout(POOL_MS).setRedirectsEnabled(false)
@@ -270,7 +294,8 @@ public class OllamaLlmClient implements DisposableBean {
             boolean ready = false;
             for (JsonNode m : json.readTree(raw).path("models")) {     // agent/model_select.py installed_models 와 같은 모양
                 String n = m.path("name").asText("");
-                if (n.equals(model) || n.startsWith(model)) {
+                // 완전 일치. 설정에 태그가 없을 때만 ':latest' 를 같은 모델로 본다("gemma4" 가 "gemma4:12b" 를 맞는 것으로 보지 않는다)
+                if (n.equals(model) || (model.indexOf(':') < 0 && n.equals(model + ":latest"))) {
                     ready = true;
                     break;
                 }

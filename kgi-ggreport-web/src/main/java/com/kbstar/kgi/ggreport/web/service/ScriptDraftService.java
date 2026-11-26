@@ -12,10 +12,13 @@ import com.kbstar.kgi.ggreport.web.llm.OllamaLlmClient;
 import com.kbstar.kgi.ggreport.web.llm.OllamaProperties;
 import com.kbstar.kgi.ggreport.web.support.Pii;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,11 +37,14 @@ import java.util.regex.Pattern;
  * 순서: prepare(404 → 403 비담당 → 409 상태 → 503 꺼짐 → 근거 읽기) → reserve(동시 1건·사번별 쿨다운) → [컨트롤러가 보내기 전 감사] → call → release.
  * 사용 범위 = BoardAccess.canViewCase(그 건 활성 담당 영업 ∪ 활성 영업부장) ∧ TASK_STATES(사용자 A-4). ⚠️ 사번은 X-Emp-No 자기신고 — 업무 규칙이지 사칭 방지가 아니다.
  * 근거 없는 칸은 묻지 않고 비운다. 응답의 숫자가 그 칸의 허용 숫자 집합에 없으면 그 칸을 비운다(가짜 값 차단). 개인정보 패턴이 나오면 비운다.
- * LLM 실패는 예외가 아니라 200 EMPTY + 사유 코드. 트랜잭션 없음 — 입력은 ScriptDraftBasisReader 의 읽기 전용 트랜잭션에서 읽고, 끝난 뒤 LLM 을 부른다.
+ * LLM 실패(LlmException 외 RuntimeException 포함)는 예외가 아니라 200 EMPTY + 사유 코드. 트랜잭션 없음 — 입력은 ScriptDraftBasisReader 의 읽기 전용 트랜잭션에서 읽고, 끝난 뒤 LLM 을 부른다.
+ * <p>한계(숫자 검사): 출력은 NFKC 로 정규화한 뒤 아라비아 숫자만 허용 집합과 대조한다. 한글 수사·단위("삼억", "이십 퍼센트")나 단위를 바꿔 쓴 표현
+ * ("1억"→"10,000만")은 이 검사로 못 잡는다 — 사람이 확인하는 초안이라는 전제(화면 문구)에 기댄다.
  */
 @Service
 public class ScriptDraftService {
 
+    private static final Logger LOG = LoggerFactory.getLogger(ScriptDraftService.class);
     public static final List<String> FIELDS = Collections.unmodifiableList(Arrays.asList("intro", "effect"));
     static final int MAX_LINES = 12;
     static final int MAX_LINE = 300;
@@ -92,6 +98,8 @@ public class ScriptDraftService {
         public String getState() { return state; }
         public String getReason() { return reason; }
         public long getMs() { return ms; }
+        /** LLM 에 실제로 보냈는가 — 접근 이력 DETAIL 의 llm=Y|N 용(BUSY·자리 못 잡음·BASIS_CHANGED 는 N). */
+        public boolean isLlmCalled() { return llmCalled; }
 
         /** BID_PREP_ACT 결과 — 답을 받았으면 OK(일부 칸이 비어도), 부르지 않았으면 BLOCKED, 호출 실패는 ERROR. */
         public String outcome() {
@@ -193,6 +201,9 @@ public class ScriptDraftService {
         } catch (LlmException e) {
             String why = reasonOf(e);
             return empty(plan, why, !"BUSY".equals(why), (System.nanoTime() - t0) / 1_000_000L);
+        } catch (RuntimeException e) {          // LlmException 이 아닌 예외도 감사 줄이 ERROR 로 남게 — 로그는 예외 클래스 이름만(메시지·주소 없음)
+            LOG.warn("AI 초안 호출 중 예상 밖 예외: cause={}", e.getClass().getSimpleName());
+            return empty(plan, "LLM_ERROR", true, (System.nanoTime() - t0) / 1_000_000L);
         }
         return finish(plan, r.getValue(), r.getModel(), (System.nanoTime() - t0) / 1_000_000L);
     }
@@ -218,7 +229,7 @@ public class ScriptDraftService {
                 String s = tidy(out == null ? null : out.get(k));
                 if (s.isEmpty()) reason = "EMPTY_OUTPUT";
                 else if (!numbersAllowed(s, plan.facts.allowed.get(k))) reason = "NUMBER_NOT_IN_BASIS";
-                else if (!Pii.scan(s).isEmpty()) reason = "PII";
+                else if (piiFound(s)) reason = "PII";
                 else { v = s; reason = null; any = true; }
             }
             fields.put(k, v);
@@ -237,10 +248,22 @@ public class ScriptDraftService {
         return new Result("EMPTY", reason, fields, why, plan, null, ms, called);
     }
 
-    /** 줄바꿈만 남기고 제어문자 제거 → 12줄·줄당 300자·합계 1,000자(PrepScriptService.lines 와 같은 상한 — 넘으면 자른다). */
+    /** 개인정보 패턴(Pii.scan + 유선전화·가림 변형까지 보는 Pii.scanExternal). 검사가 마감을 넘기면 안전하게 '있음'으로 본다. */
+    static boolean piiFound(String s) {
+        try {
+            return !Pii.scan(s).isEmpty() || !Pii.scanExternal(s).isEmpty();
+        } catch (Pii.ScanTimeoutException e) {
+            return true;
+        }
+    }
+
+    /**
+     * 줄바꿈만 남기고 제어문자 제거 → 12줄·줄당 300자·합계 1,000자(PrepScriptService.lines 와 같은 상한 — 넘으면 자른다).
+     * 먼저 NFKC 로 정규화한다 — 전각 숫자(１２３)가 숫자 검사를 비껴가지 못하게(정규화 '뒤' 검사).
+     */
     static String tidy(String raw) {
         if (raw == null) return "";
-        String norm = raw.replace("\r\n", "\n").replace('\r', '\n');
+        String norm = Normalizer.normalize(raw, Normalizer.Form.NFKC).replace("\r\n", "\n").replace('\r', '\n');
         StringBuilder clean = new StringBuilder();
         for (int i = 0; i < norm.length(); ) {
             int cp = norm.codePointAt(i);

@@ -261,6 +261,45 @@ public class PrepScriptApiTest {
         assertEquals(400, script(bid, ASSIGNEE, "{'intro':'" + wide + "'}").getResponse().getStatus());   // 합계 1,120자
     }
 
+    // ── 'AI 초안을 넣은 칸' 기록(사용자 결정 11-27: 넣은 뒤 고쳐 써도 AI 초안을 쓴 칸으로 남긴다) ──────────
+
+    private int aiActs(String bid, String action) {
+        return count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD=? AND OUTCOME='OK' AND TASK_CD='T6'"
+                + " AND ACTOR_EMP_NO=? AND SCREEN_ID='prep_detail' AND BUTTON_ID='script_docx' AND UI_VALID=1", bid, action, ASSIGNEE);
+    }
+
+    @Test
+    public void ai_fields의_칸이_채워져_있으면_그_칸의_AI_감사_한_줄과_DETAIL_꼬리표가_남는다() throws Exception {
+        String bid = opened();
+        MvcResult r = script(bid, ASSIGNEE, "{'intro':'가','ai_fields':['intro']}");
+        assertEquals(200, r.getResponse().getStatus());
+        assertEquals(1, aiActs(bid, "SCRIPT_DOCX_AI_INTRO"));
+        assertEquals(0, aiActs(bid, "SCRIPT_DOCX_AI_EFFECT"));
+        String d = lastDetail(bid);
+        assertTrue(d, d.endsWith(" ai=intro"));
+        assertFalse(d, d.contains("가"));   // 본문은 싣지 않는다
+    }
+
+    @Test
+    public void ai_fields에_모르는_키가_있으면_400_INVALID_이고_AI_줄은_없다() throws Exception {
+        String bid = opened();
+        MvcResult r = script(bid, ASSIGNEE, "{'intro':'가','ai_fields':['x']}");
+        assertEquals(400, r.getResponse().getStatus());
+        assertEquals("BAD_VALUE", json(r).path("detail").path("code").asText());
+        assertEquals("ai_fields", json(r).path("detail").path("key").asText());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='SCRIPT_DOCX' AND OUTCOME='INVALID'", bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD LIKE 'SCRIPT_DOCX_AI_%'", bid));
+    }
+
+    @Test
+    public void ai_fields의_칸이_비어_있으면_AI_감사_줄은_없다() throws Exception {
+        String bid = opened();
+        MvcResult r = script(bid, ASSIGNEE, "{'intro':'가','ai_fields':['effect']}");   // effect 는 빈 칸 — AI 글이 들어가지 않았다
+        assertEquals(200, r.getResponse().getStatus());
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD LIKE 'SCRIPT_DOCX_AI_%'", bid));
+        assertTrue(lastDetail(bid), lastDetail(bid).endsWith(" ai=effect"));   // 화면이 보낸 목록 그대로
+    }
+
     @Test
     public void 화면_버튼_식별자가_틀려도_받되_UNKNOWN으로_감사한다() throws Exception {
         String bid = opened();

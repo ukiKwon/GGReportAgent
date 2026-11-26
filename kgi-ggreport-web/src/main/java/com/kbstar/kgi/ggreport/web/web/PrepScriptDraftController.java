@@ -73,9 +73,11 @@ public class PrepScriptDraftController {
         out.put("mode", "LOCAL_TRIAL");
         boolean sales = boardAccess.isSalesWriter(me.getEmpNo()) || boardAccess.isViewAll(me.getEmpNo());   // security 하-5
         if (probe && sales && st == OllamaGuard.State.READY) {
-            OllamaLlmClient.Probe p = c.probe();
-            out.put("reachable", p.isReachable());
-            out.put("model_ready", p.isModelReady());
+            OllamaLlmClient.Probe p = c.probe();       // null = 다른 확인이 진행 중 — 키를 빼서 화면이 '확인 중'으로 두게 한다
+            if (p != null) {
+                out.put("reachable", p.isReachable());
+                out.put("model_ready", p.isModelReady());
+            }
         }
         return out;
     }
@@ -83,7 +85,7 @@ public class PrepScriptDraftController {
     @PostMapping("/bidcases/{bidCaseId}/prep/board-script-draft")
     public Map<String, Object> draft(@PathVariable String bidCaseId, HttpServletRequest req) {
         Actor actor = Actor.of(req);
-        BoardUiIds.Ui ui = ScriptDraftUiIds.of(req);   // 6e 묶음 적용 뒤 이사회 자료 줄은 BoardUiIds.of(req, ACTION_SEND|ACTION)
+        BoardUiIds.Ui ui = ScriptDraftUiIds.of(req);   // BID_PREP_ACT 용 — 이사회 자료 줄은 boardUi(req, 행위)
         String auditBid = caseKey(bidCaseId);
         SysUser me;
         try {
@@ -123,17 +125,24 @@ public class PrepScriptDraftController {
             r = drafts.skipped(plan, hold);                 // LLM 안 부름 · 이사회 자료 감사 없음
         } else {
             try {
+                boolean changed = false;
                 if (plan.sendsConfirmedBoard()) {           // 보내기 전에 먼저 쓴다 — 실패하면 LLM 을 부르지 않는다(fail-closed)
                     try {
                         sent = boardAudit.before(String.valueOf(plan.getBasis().getBoardId()));
-                        boardAudit.record(sent, ACTION_SEND, "OK", actor, ui);
+                        if (sent == null) {                 // 읽은 뒤 확정이 풀렸다 — 보낼 근거가 바뀜. LLM 안 부름(Ctx 에 판 번호 접근자가 없어 null 검사만)
+                            changed = true;
+                            LOG.warn("AI 초안: 읽은 뒤 이사회 자료 확정 상태가 바뀌어 LLM 을 부르지 않았다: case={}", auditBid);
+                        } else {
+                            boardAudit.record(sent, ACTION_SEND, "OK", actor, boardUi(req, BoardUiIds.ACT_SCRIPT_AI_SEND));
+                        }
                     } catch (RuntimeException e) {
                         auditFailure(auditBid, "ERROR", before, actor, ui);
                         LOG.error("이사회 자료 감사(AI 보내기 전)를 남기지 못했다 — LLM 호출 안 함: cause={}", e.getClass().getSimpleName());
                         throw e;
                     }
                 }
-                r = drafts.call(plan);
+                // BASIS_CHANGED 는 outcome() 이 ERROR — 아래 BID_PREP_ACT 결과 줄이 ERROR 한 줄로 남는다
+                r = changed ? drafts.skipped(plan, "BASIS_CHANGED") : drafts.call(plan);
             } finally {
                 drafts.release();
             }
@@ -147,7 +156,7 @@ public class PrepScriptDraftController {
         }
         if (sent != null) {                                 // 결과 줄(뒤) — before() 가 null(그 사이 확정 해제)이면 record 는 아무것도 안 한다
             try {
-                boardAudit.record(sent, ACTION, "OK".equals(outcome) ? "OK" : "ERROR", actor, ui);
+                boardAudit.record(sent, ACTION, "OK".equals(outcome) ? "OK" : "ERROR", actor, boardUi(req, BoardUiIds.ACT_SCRIPT_AI_DRAFT));
             } catch (RuntimeException e) {
                 LOG.error("이사회 자료 감사(AI 초안 결과)를 남기지 못했다(응답 500): cause={}", e.getClass().getSimpleName());
                 throw e;
@@ -160,8 +169,14 @@ public class PrepScriptDraftController {
                 + " snap=" + (b.getBoardSnap() == null ? "-" : b.getBoardSnap())
                 + " form_ver=" + (b.getFormVer() == null ? "-" : b.getFormVer())
                 + " basis_draft=" + (r.draftBasis() ? "Y" : "N")
+                + " llm=" + (r.isLlmCalled() ? "Y" : "N")
                 + " ms=" + r.getMs());
         return r.toMap();
+    }
+
+    /** BOARD_MATERIAL_ACT 줄용 — prep_detail·script_ai_draft 가 그 행위(SCRIPT_AI_SEND|SCRIPT_AI_DRAFT)일 때만 유효(BoardUiIds 가 짝을 확인). */
+    private static BoardUiIds.Ui boardUi(HttpServletRequest req, String action) {
+        return BoardUiIds.of(req, action);
     }
 
     private void auditFailure(String bid, String outcome, String before, Actor actor, BoardUiIds.Ui ui) {

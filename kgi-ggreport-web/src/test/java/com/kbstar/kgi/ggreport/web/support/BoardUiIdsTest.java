@@ -56,6 +56,18 @@ public class BoardUiIdsTest {
     }
 
     @Test
+    public void script_ai_draft는_AI_보내기_결과_두_행위의_prep_detail_짝만_유효하다() {
+        assertTrue(of("prep_detail", "script_ai_draft", "SCRIPT_AI_SEND").isValid());
+        assertTrue(of("prep_detail", "script_ai_draft", "SCRIPT_AI_DRAFT").isValid());
+        assertFalse(of("board_list", "script_ai_draft", "SCRIPT_AI_SEND").isValid());
+        assertFalse(of("prep_detail", "script_ai_draft", "VIEW").isValid());
+        assertFalse(of("prep_detail", "script_ai_draft", "SCRIPT_DOCX").isValid());
+        assertFalse(of("prep_detail", "script_ai_draft").isValid());
+        assertFalse("다른 버튼은 AI 행위로 유효하지 않다", of("prep_detail", "script_docx", "SCRIPT_AI_SEND").isValid());
+        assertEquals(BoardUiIds.UNKNOWN, of("prep_detail", "script_ai_draft", "VIEW").getButton());
+    }
+
+    @Test
     public void 기존_짝은_그대로다() {
         assertTrue(of("board_list", "create").isValid());
         assertTrue(of("board_write", "save_version").isValid());

@@ -14,7 +14,6 @@ import com.kbstar.kgi.ggreport.web.mapper.BoardMaterialMapper;
 import com.kbstar.kgi.ggreport.web.mapper.InstitutionMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepFormMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepScriptMapper;
-import com.kbstar.kgi.ggreport.web.support.Pii;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -222,7 +221,7 @@ public class ScriptDraftBasisReader {
             int end = Character.isHighSurrogate(s.charAt(max - 1)) ? max - 1 : max;
             s = s.substring(0, end).trim();
         }
-        if (!Pii.scan(s).isEmpty() || EMP_LIKE.matcher(s).find()) {   // 사번 모양(7자리 숫자) 버림 — 사용자 A-3, security 중-1
+        if (ScriptDraftService.piiFound(s) || EMP_LIKE.matcher(s).find()) {   // Pii.scan + 유선전화까지(scanExternal). 사번 모양(7자리 숫자) 버림 — 사용자 A-3, security 중-1
             if (b != null) {
                 b.piiDropped++;
             }

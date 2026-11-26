@@ -28,10 +28,12 @@ public final class BoardUiIds {
             "snapshot_open", "history_open", "review_open", "acts_open", "approve", "reject", "cancel_request",
             "confirmed_docx", "meeting_save",
             "profit_upload",    // 사전준비 상세 4단계 수익성 분석표 올리기 → 이사회 자료 자동 초안(NEXT 121 N2)
-            "script_docx")));   // 사전준비 상세 7단계 발표 대본 Word(NEXT 113 ⑤) — 확정 이사회 자료를 읽은 감사 줄용
+            "script_docx",      // 사전준비 상세 7단계 발표 대본 Word(NEXT 113 ⑤) — 확정 이사회 자료를 읽은 감사 줄용
+            "script_ai_draft")));   // 사전준비 상세 7단계 발표 대본 AI 초안(NEXT 129 ⑤) — 확정 이사회 자료를 AI 에 보낸 감사 줄용
 
     static final String PROFIT_UPLOAD = "profit_upload";
     static final String SCRIPT_DOCX = "script_docx";
+    static final String SCRIPT_AI_DRAFT = "script_ai_draft";
     static final String PREP_DETAIL = "prep_detail";
 
     /** 행위 코드(BOARD_MATERIAL_ACT.ACTION_CD) — 컨트롤러가 {@link #of(HttpServletRequest, String)} 에 넘긴다. */
@@ -40,6 +42,8 @@ public final class BoardUiIds {
     public static final String ACT_VIEW = "VIEW";
     public static final String ACT_SAVE = "SAVE";
     public static final String ACT_SCRIPT_DOCX = "SCRIPT_DOCX";
+    public static final String ACT_SCRIPT_AI_SEND = "SCRIPT_AI_SEND";     // AI 에 확정 이사회 자료 숫자를 보내기 직전
+    public static final String ACT_SCRIPT_AI_DRAFT = "SCRIPT_AI_DRAFT";   // AI 초안 결과
 
     /**
      * 사전준비 상세에서만 쓰는 버튼 → 그 버튼이 유효한 행위. 화면(prep_detail)만이 아니라 행위(주소)까지 묶는다(security 11-26 ② 하) —
@@ -50,6 +54,7 @@ public final class BoardUiIds {
     static {
         PREP_ONLY.put(PROFIT_UPLOAD, Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(ACT_LIST, ACT_CREATE, ACT_VIEW, ACT_SAVE))));
         PREP_ONLY.put(SCRIPT_DOCX, Collections.singleton(ACT_SCRIPT_DOCX));
+        PREP_ONLY.put(SCRIPT_AI_DRAFT, Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(ACT_SCRIPT_AI_SEND, ACT_SCRIPT_AI_DRAFT))));
     }
 
     private BoardUiIds() {
@@ -76,7 +81,7 @@ public final class BoardUiIds {
         return new Ui(UNKNOWN, UNKNOWN, false);
     }
 
-    /** 행위를 모르는 경로용 — 사전준비 전용 버튼(profit_upload·script_docx)은 항상 UNKNOWN. */
+    /** 행위를 모르는 경로용 — 사전준비 전용 버튼(profit_upload·script_docx·script_ai_draft)은 항상 UNKNOWN. */
     public static Ui of(HttpServletRequest req) {
         return of(req, null);
     }

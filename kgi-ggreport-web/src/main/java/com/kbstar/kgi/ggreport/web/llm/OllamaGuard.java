@@ -6,7 +6,8 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
- * 로컬 Ollama 를 켜도 되는가 — 판정은 여기 한 곳. 사유 코드만 돌려준다(주소·모델명은 로그·화면에 싣지 않는다).
+ * 로컬 Ollama 를 켜도 되는가 — 판정은 여기 한 곳. 사유 코드만 돌려준다(이 판정의 결과·로그에는 주소·모델명을 싣지 않는다).
+ * 참고: 호출 단계에서는 모델명이 호출 로그와 초안 응답의 model 에 실린다. 주소·프롬프트·응답 본문은 어디에도 싣지 않는다.
  * 내부망 신호: 데이터소스가 JNDI 이거나 MySQL·H2 가 아니면(=Oracle) enabled=true 여도 BAD_CONFIG(INTERNAL_ENV).
  * 주소: http + 127.0.0.1|localhost + 명시 포트, 경로·쿼리·계정정보 금지. localhost 는 127.0.0.1 로 고정해 이름 해석을 타지 않는다.
  */

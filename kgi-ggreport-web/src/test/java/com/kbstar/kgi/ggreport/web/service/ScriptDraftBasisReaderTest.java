@@ -33,6 +33,14 @@ public class ScriptDraftBasisReaderTest {
     }
 
     @Test
+    public void 유선전화_모양도_버린다() {
+        ScriptDraftBasisReader.Basis b = new ScriptDraftBasisReader.Basis();
+        assertNull(ScriptDraftBasisReader.clean(b, "대표 02-1234-5678", 100));
+        assertEquals(1, b.piiDropped);
+        assertEquals("정상 금액은 유지", "예산 1,000억원", ScriptDraftBasisReader.clean(b, "예산 1,000억원", 100));
+    }
+
+    @Test
     public void 제어문자는_공백으로_공백은_접고_길이를_자른다() {
         ScriptDraftBasisReader.Basis b = new ScriptDraftBasisReader.Basis();
         assertEquals("가 나 다", ScriptDraftBasisReader.clean(b, "가\t\n  나   다", 100));

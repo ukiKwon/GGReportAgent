@@ -11,6 +11,7 @@ import com.kbstar.kgi.ggreport.web.service.PrepAudit;
 import com.kbstar.kgi.ggreport.web.service.PrepNobidService;
 import com.kbstar.kgi.ggreport.web.service.PrepScriptService;
 import com.kbstar.kgi.ggreport.web.service.PrepService;
+import com.kbstar.kgi.ggreport.web.service.ScriptAiFields;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.PrepUiIds;
 import com.kbstar.kgi.ggreport.web.support.Times;
@@ -35,9 +36,11 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -269,7 +272,9 @@ public class PrepController {
         BoardUiIds.Ui ui = PrepUiIds.forScript(req);                                        // prep_detail/script_docx 만 유효
         // 이사회 자료 감사 줄용 — BID_PREP_ACT 줄과 같은 판정(prep_detail/script_docx 일 때만 유효, 그 밖은 UNKNOWN·ui_valid=0)
         BoardUiIds.Ui boardUi = ui.isValid() ? BoardUiIds.of(req, BoardUiIds.ACT_SCRIPT_DOCX) : BoardUiIds.unknown();
+        final AtomicReference<List<String>> aiRef = new AtomicReference<List<String>>(Collections.<String>emptyList());
         PrepScriptService.DocOut out = run(req, bidCaseId, "SCRIPT_DOCX", "T6", null, ui, false, me -> {
+            aiRef.set(ScriptAiFields.parse(body == null ? null : body.getAiFields()));   // 400 BAD_VALUE(key=ai_fields) — run 이 INVALID 로 남긴다
             try {
                 return script.docx(me, bidCaseId, body);
             } catch (PrepScriptService.BuildFailed e) {   // 확정 자료를 읽다 문서 만들기가 실패 — 자료 감사에도 ERROR 한 줄(BID_PREP_ACT ERROR 는 run 이 남긴다)
@@ -289,11 +294,27 @@ public class PrepController {
                 throw e;
             }
         }
+        // 'AI 초안을 넣은 칸' 기록(사용자 결정 11-27: 넣은 뒤 사람이 고쳐 써도 AI 초안을 쓴 칸으로 남긴다) — 서버는 화면이 보낸 목록을
+        // 그대로 기록하고 빈 칸만 제외한다(빈 칸에는 AI 글이 들어가지 않았다). 칸 키가 곧 ACTION_CD. 실패하면 500 — 파일 안 나감(fail-closed).
+        List<String> ai = aiRef.get();
+        for (String k : ai) {
+            String v = "intro".equals(k) ? body.getIntro() : body.getEffect();
+            if (v == null || v.trim().isEmpty()) {
+                continue;
+            }
+            try {
+                audit.record(caseKey(bidCaseId), ScriptAiFields.actionOf(k), "OK", prep.stateOf(bidCaseId), "T6", actor, ui);
+            } catch (RuntimeException e) {
+                logSuccessAuditFailure(ScriptAiFields.actionOf(k), bidCaseId, e);
+                throw e;
+            }
+        }
         req.setAttribute(AccessLogInterceptor.DETAIL, req.getAttribute(AccessLogInterceptor.DETAIL)
                 + " board=" + (out.getBoardId() == null ? "-" : out.getBoardId())
                 + " snap=" + (out.getBoardSnap() == null ? "-" : out.getBoardSnap())
                 + " form_ver=" + (out.getFormVer() == null ? "-" : out.getFormVer())
-                + " draft=" + (out.isDraft() ? "Y" : "N"));
+                + " draft=" + (out.isDraft() ? "Y" : "N")
+                + (ai.isEmpty() ? "" : " ai=" + String.join(",", ai)));
         String safe = (out.getInstName() == null ? "" : out.getInstName()).replaceAll("[^0-9A-Za-z가-힣]", "_");
         if (safe.length() > 40) {
             safe = safe.substring(0, 40);
