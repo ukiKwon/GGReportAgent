@@ -970,6 +970,15 @@
       if (code === 'ASSIGNED_ALREADY') return bad('이미 담당자가 지정되어 있습니다. 화면을 다시 불러옵니다.', 'closeReload');
       if (status === 403) return bad(T.errStartOwner, 'reload');
     }
+    if (where === 'change') {   // 담당자 변경(결재 없는 즉시 변경, 11-25) 409 — 서버 문구·공용 표가 상황을 못 말하는 코드만 여기서 정한다
+      const ch = function (text, after) { return { text: text, after: after, code: code }; };
+      if (code === 'STATE_CHANGED') return ch('지금은 담당자를 바꿀 수 없는 단계입니다. 담당자 지정이 끝나 사전준비가 진행 중인 건에서만 바꿀 수 있습니다. 최신 상태를 다시 불러왔습니다.', 'closeReload');
+      if (code === 'NOT_ASSIGNED') return ch('아직 담당자가 지정되지 않은 건입니다. 담당자 지정이 끝난 뒤에 바꿀 수 있습니다. 최신 상태를 다시 불러왔습니다.', 'closeReload');
+      if (code === 'PLAN_PENDING') return ch('사전준비 승인 요청이 진행 중이라 담당자를 바꿀 수 없습니다. 승인이 끝나거나 요청을 회수한 뒤 다시 하세요.', 'closeReload');
+      if (code === 'PREP_CANCELLED') return ch('중단된 건이라 담당자를 바꿀 수 없습니다. 최신 상태를 다시 불러왔습니다.', 'closeReload');
+      if (code === 'CHANGE_PENDING') return ch('진행 중인 담당자 변경 신청(결재)이 있어 바로 바꿀 수 없습니다. 그 신청이 끝나거나 회수된 뒤 다시 하세요.', 'closeReload');
+      if (code === 'GROUP_VER_CHANGED') return ch('그사이 다른 사람이 담당자를 바꿨습니다. 최신 담당자를 다시 불러왔으니 확인한 뒤 다시 바꾸세요.', 'closeReload');
+    }
     if (code === 'OPEN_PENDING') {
       return where === 'unconfirm'
         ? { text: '개설 신청이 승인을 기다리는 중이라 확정을 취소할 수 없습니다. [결재함 › 내가 올린 요청]에서 신청을 먼저 회수하세요.', after: 'closeReload', code: code }
@@ -1327,16 +1336,27 @@
   // 기관 정보의 금고 은행·약정 기간·기관장이 팝업에서 '미확인'으로 보이는가 → { bank, term, chief } 각각 true(값 있음)·false(미확인)·undefined(아직 모름).
   // 기준은 dashboard.paneParts의 빈 값 판정과 같다: 은행 = KB 수집·KB_NEXT 현재 은행·행안부 현황·레코드 bank 중 하나라도 있으면 값 있음,
   // 약정 기간 = dash.termLine의 한 줄에 '미확인' 칩이 있으면 미확인, 기관장 = headcard가 이 기관을 불러와 확정 기관장이 없다고 답했을 때만 미확인(불러오기 전·실패는 모름).
-  function instFacts(rec, D, today, instId) {
+  function instFacts(rec, D, today, instId, bv, BCm) {
     const f = { bank: undefined, term: undefined, chief: undefined };
     try {
       const kb = D.kbEntry ? D.kbEntry(rec, root.KB_VERIFIED) : null, nx = D.kbEntry ? D.kbEntry(rec, root.KB_NEXT) : null;
       const lofin = !kb && !nx && D.lofinLines ? D.lofinLines(rec, root.LOFIN_2026, today) : [];
-      f.bank = !!(kb || (nx && nx.now) || lofin.length || str(rec.bank).trim());
+      // 직접 입력 약정(bankcontract.view의 lines) — 지도 팝업(paneParts)이 쓰는 값과 같다. 약정 응답이 아직 오는 중이면 '모름'.
+      const bcm = BCm || root.bankcontract;
+      const lines = bv && bv.st === 'ok' && bv.data && Array.isArray(bv.data.lines) ? bv.data.lines : [];
+      const g = bcm && bcm.group ? bcm.group(lines) : { cur: [], fut: [], past: [] };
+      const direct = g.cur.concat(g.fut, g.past).filter(function (l) { return l && str(l.bank_name).trim(); });
+      const waiting = !!(bv && bv.st !== 'ok' && bv.st !== 'error' && bv.st !== 'denied');
+      f.bank = !!(kb || (nx && nx.now) || lofin.length || str(rec.bank).trim() || direct.length);
+      if (!f.bank && waiting) f.bank = undefined;
       if (D.termLine) {
         const live = lofin.filter(function (l) { return !l.expired; });
-        const tl = D.termLine(live.map(function (l) { return { from: l.start || '', to: l.end || '' }; }), rec.term, rec.contractExpiry);
+        const periods = g.cur.length
+          ? g.cur.map(function (l) { const u = l.term_state === 'UNKNOWN'; return { from: u ? '' : (l.term_from || ''), to: u ? '' : (l.term_to || '') }; })
+          : live.map(function (l) { return { from: l.start || '', to: l.end || '' }; });
+        const tl = D.termLine(periods, rec.term, rec.contractExpiry);
         f.term = !(tl.same && tl.html.indexOf('pop-unk') >= 0);
+        if (!f.term && waiting) f.term = undefined;
       }
     } catch (e) { f.bank = undefined; f.term = undefined; }
     try {
@@ -1345,6 +1365,7 @@
     } catch (e) { f.chief = undefined; }
     return f;
   }
+  prep.instFacts = instFacts;
   function noticeInfo(v, row) {
     const D = root.dashboard, pt = root.preptask;
     let out = { state: 'none', gaps: [], build: null };
@@ -1358,13 +1379,25 @@
         const nr = root.noticerec;
         if (nr && nr.ensure) nr.ensure();
         const snap = nr && nr.snap ? nr.snap() : null;
+        const bcm = root.bankcontract;
+        const bv = bcm && bcm.view ? bcm.view(id) : null;   // 기관이 바뀌면 한 번 받아 온다(받으면 notify)
+        if (bcm && bcm.onChange && !S.bcSub) {   // 약정 응답이 오면 2단계를 다시 그린다(한 번만 구독, 2단계 본문을 보고 있을 때만 그린다)
+          S.bcSub = true;
+          bcm.onChange(function () {
+            const st = pt.STEPS[pt.clampIdx(S.stepIdx)];
+            if (S.detail && st && st.kind === 'notice' && el('pp-case')) repaintKeep();
+          });
+        }
         let ns = null;
         try { ns = root.logic && root.logic.noticeState ? root.logic.noticeState(rec, today) : null; } catch (e) { ns = null; }
-        out = { state: 'ok', ns: ns, inst: instFacts(rec, D, today, id),
+        out = { state: 'ok', ns: ns, inst: instFacts(rec, D, today, id, bv),
           gaps: pt.noticeGaps(it, { hasLink: !!(D.noticeLink && D.noticeLink(rec)), unhandled: !!(snap && D.isUnhandled && D.isUnhandled(it, snap)) }),
           build: function () {
             try {
-              const p = D.paneParts(it, { readOnly: true, today: today });
+              const hcm = root.headcard;
+              const p = D.paneParts(it, { readOnly: true, today: today,
+                bank: bv && D.lockBank ? D.lockBank(bv) : bv,
+                headHtml: hcm && hcm.paneSection ? hcm.paneSection(rec, hcEnv()) : undefined });   // 기관장 절: 값이 있으면 카드, 자리표시는 값이 없을 때만
               // 읽기 전용: 단추는 걷고, 다른 화면의 같은 id와 겹치지 않게 id도 뺀다
               return (str(p.sub) + str(p.rest)).replace(/<button\b[\s\S]*?<\/button>/g, '').replace(/\s(?:id|aria-labelledby|aria-describedby)="[^"]*"/g, '');
             } catch (e) { return ''; }

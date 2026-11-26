@@ -867,3 +867,44 @@ test('3단계 선정 평가표: 공고 원본에서 옮겨 온 표를 그대로,
   assert.ok(/if \(kind === 'NOTICE'\) S\.sc = null;/.test(PREP_SRC), '공고 원본을 올리면 다시 읽는다');
   assert.ok(/\.ts-need \{[^}]*border:1px dashed var\(--orange\)/.test(HTML));
 });
+
+// ── 11-26: 2단계 기관 정보 판정이 직접 입력 약정을 보고, 담당자 변경 409 문구가 상황을 말한다 ──
+test('instFacts: 직접 입력 약정만 있어도 금고 은행·약정 기간은 값 있음, 응답 대기 중이면 모름', function () {
+  const dash = require('../js/dashboard.js');
+  const bc = require('../js/bankcontract.js');
+  const D = { kbEntry: function () { return null; }, lofinLines: function () { return []; }, termLine: dash.termLine };
+  const rec = { institutionId: 'I1', name: '청주시' };   // 레코드에 bank·term 없음
+  const line = { bank_name: 'KB국민은행', term_state: 'CURRENT', term_from: '2024-01-01', term_to: '2028-12-31' };
+  const ok = prep.instFacts(rec, D, new Date('2026-11-26'), 'I1', { st: 'ok', data: { lines: [line] } }, bc);
+  assert.strictEqual(ok.bank, true);
+  assert.strictEqual(ok.term, true);
+  const none = prep.instFacts(rec, D, new Date('2026-11-26'), 'I1', { st: 'ok', data: { lines: [] } }, bc);
+  assert.strictEqual(none.bank, false);
+  const wait = prep.instFacts(rec, D, new Date('2026-11-26'), 'I1', { st: 'loading', data: null }, bc);
+  assert.strictEqual(wait.bank, undefined);
+  assert.strictEqual(wait.term, undefined);
+  const off = prep.instFacts(rec, D, new Date('2026-11-26'), 'I1', null, bc);
+  assert.strictEqual(off.bank, false, '서버 모드가 아니면(약정 응답 자체가 없으면) 예전과 같다');
+});
+
+test('2단계 본문: 약정 값과 기관장 카드를 paneParts에 넘긴다', function () {
+  assert.ok(/instFacts\(rec, D, today, id, bv\)/.test(PREP_SRC));
+  assert.ok(/bank: bv && D\.lockBank \? D\.lockBank\(bv\) : bv/.test(PREP_SRC));
+  assert.ok(/headHtml: hcm && hcm\.paneSection \? hcm\.paneSection\(rec, hcEnv\(\)\) : undefined/.test(PREP_SRC));
+});
+
+test('담당자 변경(where change) 409: 코드별 문구가 단계·결재 상황을 말한다', function () {
+  const co = function (c) { return { code: c, message: '서버 문구' }; };
+  const E = function (c) { return prep.errorInfo(409, co(c), [], 'change'); };
+  assert.ok(E('STATE_CHANGED').text.indexOf('담당자 지정이 끝나') >= 0 && E('STATE_CHANGED').after === 'closeReload');
+  assert.ok(E('NOT_ASSIGNED').text.indexOf('담당자 지정이 끝난 뒤') >= 0);
+  assert.ok(E('PLAN_PENDING').text.indexOf('담당자를 바꿀 수 없습니다') >= 0 && E('PLAN_PENDING').text.indexOf('중단') < 0);
+  assert.ok(E('PREP_CANCELLED').text.indexOf('중단된 건') >= 0);
+  assert.ok(E('CHANGE_PENDING').text.indexOf('변경 신청') >= 0);
+  assert.ok(E('GROUP_VER_CHANGED').text.indexOf('반려') < 0);
+  // 다른 곳(중단·확정 취소)의 같은 코드 문구는 그대로
+  assert.strictEqual(prep.errorInfo(409, co('PLAN_PENDING'), [], 'abort').text, prep.ERR_BY_CODE.PLAN_PENDING.text);
+  assert.strictEqual(prep.errorInfo(409, co('STATE_CHANGED'), [], 'abort').text, prep.ERR_BY_CODE.STATE_CHANGED.text);
+  // 400 NO_ASSIGNEE_LEFT는 서버 문구·사유 칸으로(건드리지 않음)
+  assert.strictEqual(prep.errorInfo(400, { code: 'NO_ASSIGNEE_LEFT', message: '최소 1명' }, [], 'change').after, 'reason');
+});
