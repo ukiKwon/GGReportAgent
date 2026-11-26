@@ -3295,6 +3295,412 @@
   .nt-compose-row > button { margin-top:22px; }
   /* 공통 팝업 틀 끝 */
 </style>
+<style id="ld-style">
+/* 기능 소개 랜딩(#landing-view, 접두어 ld-). 움직임·동작은 js/landing.js. 선택자는 모두 #landing-view 아래 — 새 선택자는 :where(#landing-view)를 붙인다(명시도 유지). */
+
+/* ── 공통 토큰 ─────────────────────────────────────────── */
+#landing-view{
+  --ld-gray:#545045; --ld-gray-note:#ece6da; --ld-yellow:#FFBC00;
+  --ld-ink:#1e2124; --ld-muted:#464c53; --ld-line:#c3c9d1; --ld-line-strong:#6d7882;
+  --ld-bg:#e9ecf0; --ld-panel:#fff; --ld-panel2:#f6f7f9; --ld-head:#eef1f5; --ld-edge-panel:#aeb5bf;
+  --ld-red:#bd2c0f; --ld-orange:#8a5c00; --ld-gray-chip:#5c6670;
+  --ld-hl:rgba(255,188,0,.28);              /* 형광펜 = 'AI가 읽는 중' 단 하나의 표시 */
+  --ld-sans:"Malgun Gothic","맑은 고딕","Segoe UI",sans-serif;
+  --ld-thin:"Malgun Gothic Semilight","Malgun Gothic","맑은 고딕",sans-serif;
+  --ld-serif:Batang,"바탕",serif;           /* 예시 속 공고문·제안서 본문만 */
+  --ld-mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace;
+  --ld-r:2px;
+  --ld-ease:cubic-bezier(.22,.9,.3,1);
+  --ld-wrap:min(1200px, 100% - 80px);       /* 100vw 금지: 윈도 스크롤바 17px 때문에 1280에서 가로 넘침 */
+  word-break:keep-all;
+  overflow-wrap:break-word;
+  color:var(--ld-ink);
+  background:#fff;
+  font:400 16px/1.75 var(--ld-sans);
+  -webkit-text-size-adjust:100%;
+  position:fixed;inset:0;z-index:110;overflow-y:auto;overflow-x:hidden;
+}
+#landing-view *,#landing-view *::before,#landing-view *::after{box-sizing:border-box}
+:where(#landing-view) :where(h1,h2,h3,h4,p,ol,ul,dl,dd,figure){margin:0}
+:where(#landing-view) :where(ol,ul){padding:0;list-style:none}
+:where(#landing-view) :where(button){font:inherit;cursor:pointer}
+#landing-view [hidden]{display:none!important}
+:where(#landing-view) .ld-wrap{width:var(--ld-wrap);margin-inline:auto}
+
+#landing-view .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+#landing-view .skip-link{position:absolute;left:8px;top:-60px;z-index:50;padding:8px 14px;background:#fff;color:var(--ld-ink);font-size:14px;font-weight:700;border:2px solid var(--ld-ink);border-radius:var(--ld-r);text-decoration:none}
+#landing-view .skip-link:focus{top:8px}
+
+/* 포커스 링: 밝은 바탕은 잉크, 진회색 바탕은 흰색 (파랑 안 씀) */
+#landing-view :focus-visible{outline:2px solid var(--ld-ink);outline-offset:3px}
+#landing-view .ld-top :focus-visible,#landing-view #ld-hero :focus-visible,#landing-view #ld-end :focus-visible{outline-color:#fff}
+#landing-view :where(main,h2,h3,h4):focus:not(:focus-visible){outline:none}
+#landing-view :where(main):focus{outline:none}
+
+/* ── 단추 ──────────────────────────────────────────────── */
+:where(#landing-view) .ld-cta{display:inline-flex;align-items:center;height:56px;padding:0 28px;background:var(--ld-yellow);color:var(--ld-ink);border:0;border-radius:var(--ld-r);font-size:16px;font-weight:700;line-height:1;white-space:nowrap}
+:where(#landing-view) .ld-cta:hover{background:color-mix(in srgb,#FFBC00 85%,#fff)}
+:where(#landing-view) .ld-cta-sm{height:40px;padding:0 20px;font-size:15px}
+:where(#landing-view) .ld-ghost{display:inline-flex;align-items:center;height:56px;padding:0 24px;border:1px solid rgba(255,255,255,.6);border-radius:var(--ld-r);color:#fff;font-size:16px;line-height:1;text-decoration:none;white-space:nowrap}
+:where(#landing-view) .ld-ghost:hover{background:rgba(255,255,255,.14)}
+
+/* ── A. 상단 줄 ────────────────────────────────────────── */
+:where(#landing-view) .ld-top{position:sticky;top:0;z-index:20;height:64px;background:var(--ld-gray);box-shadow:inset 0 -3px 0 var(--ld-yellow);color:#fff}
+:where(#landing-view) .ld-top>.ld-wrap{height:100%;display:flex;align-items:center;justify-content:space-between;gap:16px}
+:where(#landing-view) .ld-brand{display:flex;align-items:baseline;gap:10px;white-space:nowrap;line-height:1.3}
+:where(#landing-view) .ld-brand b{font-size:16px;font-weight:700}
+:where(#landing-view) .ld-brand span{font-size:13px;color:var(--ld-gray-note)}
+:where(#landing-view) .ld-top-r{display:flex;align-items:center;gap:8px}
+:where(#landing-view) .ld-top-nav{display:flex;gap:8px}
+:where(#landing-view) .ld-top-nav a{display:inline-flex;align-items:center;height:40px;padding:0 12px;color:#fff;font-size:15px;text-decoration:none;border-radius:var(--ld-r);white-space:nowrap}
+:where(#landing-view) .ld-top-nav a:hover{background:rgba(255,255,255,.14)}
+:where(#landing-view) .ld-top-nav a[aria-current]{font-weight:700;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:6px}
+:where(#landing-view) .ld-sep{width:1px;height:20px;background:rgba(255,255,255,.3)}
+:where(#landing-view) #ld-motion{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;background:transparent;border:1px solid rgba(255,255,255,.6);border-radius:var(--ld-r);color:#fff;font-size:14px;line-height:1;white-space:nowrap}
+:where(#landing-view) #ld-motion:hover{background:rgba(255,255,255,.14)}
+
+/* ── B. 첫 장 ──────────────────────────────────────────── */
+:where(#landing-view) #ld-hero{background:var(--ld-gray);color:#fff;min-height:max(600px, calc(100vh - 64px));display:flex;align-items:center;padding:64px 0 80px}
+:where(#landing-view) .ld-hero-grid{display:grid;grid-template-columns:minmax(0,1fr) 528px;column-gap:72px;align-items:center}
+:where(#landing-view) #ld-hero h1{font-size:56px;line-height:1.22;font-weight:700;letter-spacing:-.03em}
+:where(#landing-view) .ld-sub{margin-top:28px;max-width:30em;font:300 20px/1.6 var(--ld-thin);color:var(--ld-gray-note)}
+:where(#landing-view) .ld-btns{margin-top:40px;display:flex;flex-wrap:wrap;gap:12px}
+
+/* 첫 장 '오늘 할 일' 패널 (로그인 카드 문법: 흰 패널 + 윗선 노랑 3px) */
+:where(#landing-view) .ld-today{width:528px;max-width:100%;background:#fff;color:var(--ld-ink);border:1px solid var(--ld-edge-panel);border-top:3px solid var(--ld-yellow);border-radius:var(--ld-r)}
+:where(#landing-view) .ld-today-head{height:56px;display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--ld-line)}
+:where(#landing-view) .ld-today-head b{font-size:18px;margin-right:auto}
+:where(#landing-view) .ld-sortkey{position:relative;font-size:14px;color:var(--ld-muted);line-height:1.4}
+:where(#landing-view) .ld-sortkey::after{content:"";position:absolute;left:0;right:0;bottom:-3px;height:2px;background:var(--ld-yellow);transform-origin:left}
+:where(#landing-view) .ld-chip-ol{font-size:12px;font-weight:700;line-height:1.4;color:var(--ld-muted);border:1px solid var(--ld-line-strong);border-radius:var(--ld-r);padding:2px 8px}
+:where(#landing-view) .ld-today-list{position:relative;height:288px;overflow:hidden}
+:where(#landing-view) .ld-today-list li{position:absolute;left:0;right:0;top:0;height:72px;display:flex;align-items:center;padding:0 20px;border-bottom:1px solid var(--ld-line);background:#fff;transform:translateY(calc(var(--pos) * 72px))}
+/* 정렬 중 위로 올라가는 줄(A시·B군)이 아래로 가는 줄 위에 보이게 */
+:where(#landing-view) .ld-today-list li:nth-child(-n+2){z-index:2}
+:where(#landing-view) .ld-today-list b{font-size:16px;font-weight:700;margin-right:12px}
+:where(#landing-view) .ld-today-list .ld-cellnm{font-size:15px;color:var(--ld-muted)}
+:where(#landing-view) .ld-today-foot{height:44px;display:flex;align-items:center;padding:0 20px;font-size:13px;color:var(--ld-muted)}
+
+/* D-n 칩 (색 + ▲ + 글자) */
+:where(#landing-view) .ld-dday{flex:none;display:inline-flex;align-items:center;justify-content:center;width:64px;height:26px;margin-right:16px;font:700 14px/1 var(--ld-mono);border:1px solid currentColor;border-radius:var(--ld-r);background:#fff;white-space:nowrap}
+:where(#landing-view) .ld-dday.is-red{color:var(--ld-red);background:color-mix(in srgb,var(--ld-red) 12%,#fff)}
+:where(#landing-view) .ld-dday.is-orange{color:var(--ld-orange)}
+:where(#landing-view) .ld-dday.is-gray{color:var(--ld-gray-chip)}
+:where(#landing-view) .ld-dday.is-est{color:var(--ld-gray-chip);font-family:var(--ld-sans);font-size:13px;background:repeating-linear-gradient(45deg,#fff 0 3px,rgba(109,120,130,.18) 3px 4px)}
+
+/* ── 구역 머리(AI·업무 흐름) ───────────────────────────── */
+#landing-view h2{font-size:40px;line-height:1.25;font-weight:700;letter-spacing:-.02em}
+:where(#landing-view) .ld-lede{margin-top:16px;max-width:40em;font-size:18px;line-height:1.7;color:var(--ld-muted)}
+
+/* ── C. AI 구역 ────────────────────────────────────────── */
+:where(#landing-view) #ld-ai{background:#fff;scroll-margin-top:64px}
+:where(#landing-view) #ld-ai>.ld-sec-head{padding:120px 0 24px}
+:where(#landing-view) .ld-scene{min-height:max(560px, calc(100vh - 64px));display:flex;align-items:center;padding:64px 0;border-top:1px solid var(--ld-line);scroll-margin-top:64px}
+:where(#landing-view) .ld-scene-grid{display:grid;grid-template-columns:384px minmax(0,1fr);column-gap:96px;align-items:center}
+:where(#landing-view) .ld-scene h3{font-size:28px;line-height:1.35;font-weight:700;letter-spacing:-.02em}
+:where(#landing-view) .ld-scene-text>p{margin-top:16px;font-size:16px;line-height:1.75;color:var(--ld-muted)}
+:where(#landing-view) .ld-shift{margin-top:32px}
+:where(#landing-view) .ld-shift>div{display:grid;grid-template-columns:56px minmax(0,1fr);column-gap:12px;align-items:baseline;padding:14px 0;border-top:1px solid var(--ld-line)}
+:where(#landing-view) .ld-shift dt{font-size:14px;font-weight:700;line-height:1.5;color:var(--ld-muted)}
+:where(#landing-view) .ld-shift dd{font-size:16px;line-height:1.6}
+
+/* 작은 장면 3개를 한 화면에 */
+:where(#landing-view) .ld-trio{min-height:max(560px, calc(100vh - 64px));display:flex;align-items:center;padding:40px 0;border-top:1px solid var(--ld-line)}
+:where(#landing-view) .ld-trio>.ld-wrap{width:var(--ld-wrap)}
+:where(#landing-view) .ld-trio-h{font-size:20px;line-height:1.4;font-weight:700;margin-bottom:24px}
+:where(#landing-view) .ld-trow{display:grid;grid-template-columns:384px minmax(0,1fr);column-gap:96px;align-items:center;scroll-margin-top:96px}
+:where(#landing-view) .ld-trow+.ld-trow{margin-top:24px}
+:where(#landing-view) .ld-trow h4{font-size:20px;line-height:1.4;font-weight:700}
+:where(#landing-view) .ld-trow-text p{margin-top:8px;font-size:15px;line-height:1.7;color:var(--ld-muted)}
+
+/* ── 예시 창 ───────────────────────────────────────────── */
+:where(#landing-view) .ld-mock figcaption{margin-top:8px;font-size:13px;line-height:1.5;color:var(--ld-muted)}
+:where(#landing-view) .ld-win{border:1px solid var(--ld-edge-panel);border-radius:var(--ld-r);overflow:hidden;background:var(--ld-bg)}
+:where(#landing-view) .ld-mock-bar{height:32px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 12px;background:var(--ld-gray);color:#fff}
+:where(#landing-view) .ld-mock-bar b{font-size:13px;font-weight:700;line-height:1}
+:where(#landing-view) .ld-ex{font-size:12px;font-weight:700;line-height:1.4;color:var(--ld-ink);background:var(--ld-yellow);border-radius:var(--ld-r);padding:2px 8px}
+:where(#landing-view) .ld-mock-body{position:relative;height:408px;padding:20px;font-size:14px;line-height:1.6;color:var(--ld-ink)}
+:where(#landing-view) .is-sm .ld-mock-bar{height:28px}
+:where(#landing-view) .is-sm .ld-mock-body{height:172px;padding:14px}
+:where(#landing-view) .ld-pnl{height:100%;background:var(--ld-panel);border:1px solid var(--ld-line);border-radius:var(--ld-r)}
+:where(#landing-view) .ld-pnl-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;border-bottom:1px solid var(--ld-line)}
+:where(#landing-view) .ld-bar{display:block;height:10px;background:var(--ld-bg);border-radius:var(--ld-r)}
+:where(#landing-view) .ld-chip{display:inline-block;font-size:12px;line-height:1.4;color:var(--ld-muted);border:1px solid var(--ld-line-strong);border-radius:var(--ld-r);padding:1px 6px;white-space:nowrap;background:#fff}
+:where(#landing-view) .ld-src{font:12px/1.5 var(--ld-mono);color:var(--ld-muted);text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
+:where(#landing-view) .ld-lbl{font-size:12px;font-weight:700;line-height:1.4;color:var(--ld-muted)}
+:where(#landing-view) .ld-btnlike{display:inline-flex;align-items:center;height:32px;padding:0 12px;background:#fff;border:1px solid var(--ld-line-strong);border-radius:var(--ld-r);font-size:13px;font-weight:700;line-height:1;white-space:nowrap}
+:where(#landing-view) .ld-field{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;background:#fff;border:1px solid var(--ld-line-strong);border-radius:var(--ld-r);font-size:14px;line-height:1.4}
+:where(#landing-view) .ld-field .ld-chip{margin-left:auto}
+:where(#landing-view) .ld-ph{color:var(--ld-muted)}
+:where(#landing-view) .ld-rvline{display:inline-block;white-space:nowrap}
+
+/* 장면 1 */
+:where(#landing-view) .ld-s1{display:flex;flex-direction:column}
+:where(#landing-view) .ld-s1 .ld-pnl-head{flex:none;height:48px}
+:where(#landing-view) .ld-s1 .ld-pnl-head b{font-size:16px}
+:where(#landing-view) .ld-s1-list{flex:1;display:flex;flex-direction:column}
+:where(#landing-view) .ld-s1-list li{flex:1;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:0 16px;border-bottom:1px solid var(--ld-line)}
+:where(#landing-view) .ld-s1-list li:last-child{border-bottom:0}
+:where(#landing-view) .ld-s1-r1{display:flex;align-items:center}
+:where(#landing-view) .ld-s1-r1 .ld-dday{margin-right:12px}
+:where(#landing-view) .ld-s1-r1 b{font-size:15px;margin-right:10px}
+:where(#landing-view) .ld-s1-r1 .ld-cellnm{font-size:14px;color:var(--ld-muted)}
+:where(#landing-view) .ld-s1-r2{display:flex;align-items:center;gap:8px;height:20px;padding-left:76px}
+:where(#landing-view) .ld-why{font-size:12px;font-weight:700;color:var(--ld-muted);white-space:nowrap}
+:where(#landing-view) .ld-s1-r2 .ld-rvline{font-size:14px}
+
+/* 장면 2 */
+:where(#landing-view) .ld-s2{display:grid;grid-template-columns:280px minmax(0,1fr);gap:16px;height:100%}
+:where(#landing-view) .ld-doc-cap{height:20px;margin-bottom:8px;font-size:12px;font-weight:700;line-height:20px;color:var(--ld-muted)}
+:where(#landing-view) .ld-doc-pane{height:340px;overflow:hidden;background:#fff;border:1px solid var(--ld-line);border-radius:var(--ld-r)}
+:where(#landing-view) .ld-doc-col{transform:translateY(0)}
+:where(#landing-view) .ld-page{height:338px;padding:12px 16px;font:13px/1.8 var(--ld-serif);color:var(--ld-ink)}
+:where(#landing-view) .ld-page p{margin-bottom:2px}
+:where(#landing-view) .ld-page .ld-bar{margin:9px 0}
+:where(#landing-view) .ld-pno{font:12px/1.5 var(--ld-mono)!important;color:var(--ld-muted);padding-bottom:4px;margin-bottom:8px!important;border-bottom:1px solid var(--ld-line)}
+:where(#landing-view) .ld-doc-h{font-weight:700}
+:where(#landing-view) .ld-s2-tbl{padding:14px}
+:where(#landing-view) .ld-tcap{font-size:14px;font-weight:700;line-height:1.4;margin-bottom:10px}
+:where(#landing-view) .ld-s2-tbl table{width:100%;border-collapse:collapse;font-size:14px;line-height:1.3}
+:where(#landing-view) .ld-s2-tbl th,:where(#landing-view) .ld-s2-tbl td{height:40px;padding:0 10px;border:1px solid var(--ld-line);vertical-align:middle}
+:where(#landing-view) .ld-s2-tbl th{background:var(--ld-head);text-align:center;font-weight:700;white-space:nowrap}
+:where(#landing-view) .ld-s2-tbl td{text-align:left}
+:where(#landing-view) .ld-s2-tbl th:nth-child(2),:where(#landing-view) .ld-s2-tbl th:nth-child(3){width:64px}
+:where(#landing-view) .ld-num,:where(#landing-view) .ld-pg{text-align:center!important;font-family:var(--ld-mono)}
+:where(#landing-view) .ld-pg span{text-decoration:underline;text-underline-offset:2px}
+:where(#landing-view) .ld-sum td{font-weight:700;border-top:1px solid var(--ld-line-strong)}
+:where(#landing-view) .ld-sum td:first-child{text-align:left}
+
+/* 장면 3 */
+:where(#landing-view) .ld-s3 .ld-pnl-head{height:44px}
+:where(#landing-view) .ld-s3 .ld-pnl-head b{font-size:15px}
+:where(#landing-view) .ld-pgcount{font:13px/1 var(--ld-mono);color:var(--ld-muted)}
+:where(#landing-view) .ld-s3-text{padding:18px 24px 18px 0;font:15px/1.9 var(--ld-serif)}
+:where(#landing-view) .ld-s3-line{display:grid;grid-template-columns:112px minmax(0,1fr);align-items:center;min-height:30px}
+:where(#landing-view) .ld-s3-line .ld-bar{margin:0}
+:where(#landing-view) .ld-s3-note{display:inline-grid;padding:0 10px 0 14px;font:700 12px/1.3 var(--ld-sans);white-space:nowrap}
+:where(#landing-view) .ld-s3-note>span,:where(#landing-view) .ld-swap>span{grid-area:1/1}
+:where(#landing-view) .ld-note-red{color:var(--ld-red)}
+:where(#landing-view) .ld-note-ok{color:var(--ld-muted)}
+:where(#landing-view) .ld-swap{display:inline-grid}
+:where(#landing-view) .ld-scrim{position:absolute;inset:0;background:rgba(19,20,22,.5)}
+:where(#landing-view) .ld-dlg{position:absolute;left:calc(50% - 200px);top:200px;width:400px;background:#fff;border:1px solid var(--ld-edge-panel);border-radius:var(--ld-r)}
+:where(#landing-view) .ld-dlg-head{height:44px;display:flex;align-items:center;padding:0 16px;background:var(--ld-head);border-bottom:1px solid var(--ld-line);font-size:15px;font-weight:700}
+:where(#landing-view) .ld-dlg-body{padding:16px;font-size:14px;line-height:1.6}
+:where(#landing-view) .ld-dlg-btns{display:flex;justify-content:flex-end;gap:8px;padding:0 16px 16px}
+:where(#landing-view) .ld-dbtn{display:inline-flex;align-items:center;height:32px;padding:0 14px;background:#fff;border:1px solid var(--ld-line-strong);border-radius:var(--ld-r);font-size:13px;line-height:1}
+
+/* 장면 4 */
+:where(#landing-view) .ld-s4{padding:16px 20px}
+:where(#landing-view) .ld-s4-head{display:flex;align-items:center;gap:8px}
+:where(#landing-view) .ld-s4-head b{font-size:18px;line-height:1.3}
+:where(#landing-view) .ld-s4-btn{margin-left:auto}
+:where(#landing-view) .ld-s4-status{display:inline-grid;min-height:20px;margin-top:12px;font-size:13px;line-height:20px;color:var(--ld-muted)}
+:where(#landing-view) .ld-s4-status>span{grid-area:1/1}
+:where(#landing-view) .ld-s4-listwrap{position:relative;margin-top:12px;border-top:1px solid var(--ld-line)}
+:where(#landing-view) .ld-s4-list li{height:60px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--ld-line)}
+:where(#landing-view) .ld-s4-list b{font-size:15px}
+:where(#landing-view) .ld-s4-empty{position:absolute;left:0;right:0;top:18px;font-size:14px;color:var(--ld-muted)}
+
+/* 장면 5 */
+:where(#landing-view) .ld-s5{display:flex;gap:16px;padding:10px 14px}
+:where(#landing-view) .ld-thumb{flex:none;display:flex;flex-direction:column;width:176px;height:99px;padding:8px 10px;background:#fff;border:1px solid var(--ld-line);border-radius:var(--ld-r)}
+:where(#landing-view) .ld-pgno{font:12px/1.4 var(--ld-mono);color:var(--ld-muted)}
+:where(#landing-view) .ld-thumb-t{align-self:flex-start;margin-top:2px;font-size:13px;font-weight:700;line-height:1.4}
+:where(#landing-view) .ld-thumb .ld-bar{height:8px;margin-top:7px}
+:where(#landing-view) .ld-s5-r{flex:1;min-width:0}
+:where(#landing-view) .ld-s5-txt{margin:4px 0 8px;font-size:14px;line-height:1.7}
+:where(#landing-view) .ld-s5-txt span{display:block}
+
+/* 장면 6 */
+:where(#landing-view) .ld-s6{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:20px;padding:8px 14px}
+:where(#landing-view) .ld-s6-ev{margin-top:4px;font-size:14px;line-height:1.6}
+:where(#landing-view) .ld-s6-ev .ld-src{margin-right:4px}
+:where(#landing-view) .ld-s6-r .ld-lbl{margin-bottom:2px}
+:where(#landing-view) .ld-s6-r .ld-field+.ld-lbl{margin-top:6px}
+
+/* 장면 7 */
+:where(#landing-view) .ld-s7{display:flex;flex-direction:column;padding:0 14px}
+:where(#landing-view) .ld-s7-top,:where(#landing-view) .ld-s7-bot{flex:1;display:flex;align-items:center;gap:16px}
+:where(#landing-view) .ld-s7-top{border-bottom:1px solid var(--ld-line)}
+:where(#landing-view) .ld-s7-say{flex:1;min-width:0;font-size:14px;line-height:1.5}
+:where(#landing-view) .ld-s7-tbl{border-collapse:collapse;font-size:13px;line-height:1.3}
+:where(#landing-view) .ld-s7-tbl th,:where(#landing-view) .ld-s7-tbl td{padding:4px 10px;border:1px solid var(--ld-line)}
+:where(#landing-view) .ld-s7-tbl th{background:var(--ld-head);font-size:12px;font-weight:700;text-align:center;white-space:nowrap}
+:where(#landing-view) .ld-s7-tbl td{white-space:nowrap}
+:where(#landing-view) .ld-c{text-align:center}
+:where(#landing-view) .ld-q{flex:1;height:32px;min-width:0}
+:where(#landing-view) .ld-s7-ans{flex:none;font-size:14px;line-height:1.5}
+
+/* ── D. 업무 흐름 ──────────────────────────────────────── */
+:where(#landing-view) #ld-flow{background:var(--ld-bg);scroll-margin-top:64px}
+:where(#landing-view) .ld-flow-head{padding:120px 0 40px}
+:where(#landing-view) .ld-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:24px;font-size:14px;line-height:1.5;color:var(--ld-muted)}
+:where(#landing-view) .ld-legend .ld-kind:not(:first-child){margin-left:16px}
+:where(#landing-view) .ld-kind{display:inline-block;font-size:12px;font-weight:400;line-height:1.4;color:var(--ld-ink);background:#fff;border:1px solid var(--ld-line-strong);border-radius:var(--ld-r);padding:2px 6px;white-space:nowrap}
+:where(#landing-view) .ld-flow-grid{display:grid;grid-template-columns:240px minmax(0,1fr);column-gap:64px;align-items:start}
+
+/* 진행 줄 */
+:where(#landing-view) .ld-rail{position:sticky;top:112px;align-self:start;margin-top:80px}
+:where(#landing-view) .ld-rail ol{position:relative;z-index:1}
+:where(#landing-view) .ld-rail li+li{margin-top:40px}
+:where(#landing-view) .ld-rail a{display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:12px;align-items:start;min-height:28px;color:var(--ld-muted);text-decoration:none;border-radius:var(--ld-r)}
+:where(#landing-view) .ld-sq{display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:var(--ld-bg);border:1px solid var(--ld-line-strong);border-radius:var(--ld-r);font:700 14px/1 var(--ld-mono);color:var(--ld-muted);transition:background-color 200ms,border-color 200ms,color 200ms}
+:where(#landing-view) .ld-rail-name{display:block;padding-top:2px;font-size:16px;line-height:1.5}
+:where(#landing-view) .ld-rail-sub{display:block;font-size:13px;line-height:1.5;color:var(--ld-muted)}
+:where(#landing-view) .ld-rail a.is-past{color:var(--ld-ink)}
+:where(#landing-view) .ld-rail a.is-past .ld-sq{background:var(--ld-gray);border-color:var(--ld-gray);color:#fff}
+:where(#landing-view) .ld-rail a.is-now{color:var(--ld-ink)}
+:where(#landing-view) .ld-rail a.is-now .ld-sq{background:var(--ld-yellow);border-color:var(--ld-gray);color:var(--ld-ink)}
+:where(#landing-view) .ld-rail a.is-now .ld-rail-name{font-weight:700}
+:where(#landing-view) .ld-rail-base,:where(#landing-view) .ld-rail-fill{position:absolute;left:13px;width:2px;top:14px;height:calc(100% - 60px)}
+:where(#landing-view) .ld-rail-base{background:var(--ld-line)}
+:where(#landing-view) .ld-rail-fill{background:var(--ld-gray);transform:scaleY(0);transform-origin:top}
+
+/* 묶음 */
+:where(#landing-view) .ld-group{padding:80px 0;scroll-margin-top:64px}
+:where(#landing-view) .ld-group+.ld-group{border-top:1px solid var(--ld-line)}
+:where(#landing-view) .ld-group h3{font-size:28px;line-height:1.35;font-weight:700;letter-spacing:-.02em}
+:where(#landing-view) .ld-gdesc{margin-top:16px;max-width:36em;font-size:18px;line-height:1.7;color:var(--ld-muted)}
+:where(#landing-view) .ld-chain{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:28px}
+:where(#landing-view) .ld-chain li{display:flex;align-items:center;gap:8px}
+:where(#landing-view) .ld-chev{flex:none;color:var(--ld-line-strong)}
+:where(#landing-view) .ld-cell{position:relative;display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px 0 17px;background:#fff;border:1px solid var(--ld-line);border-radius:var(--ld-r);white-space:nowrap}
+:where(#landing-view) .ld-cell::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ld-gray)}
+:where(#landing-view) .ld-cell b{font-size:15px;font-weight:700;line-height:1.3}
+:where(#landing-view) .ld-gnote{margin-top:32px;max-width:36em;font-size:16px;line-height:1.75;color:var(--ld-muted)}
+:where(#landing-view) .ld-gdl{margin-top:24px}
+:where(#landing-view) .ld-gdl>div{display:grid;grid-template-columns:120px minmax(0,1fr);column-gap:16px;align-items:baseline;padding:14px 0;border-top:1px solid var(--ld-line)}
+:where(#landing-view) .ld-gdl dt{font-size:14px;font-weight:700;line-height:1.5;color:var(--ld-muted)}
+:where(#landing-view) .ld-gdl dd{font-size:16px;line-height:1.6}
+:where(#landing-view) .ld-gdl a{color:var(--ld-ink);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+
+/* 캡처 자리(6-⑤) */
+:where(#landing-view) .ld-cap{margin-top:32px}
+:where(#landing-view) .ld-cap-win{border:1px solid var(--ld-edge-panel);border-radius:var(--ld-r);overflow:hidden}
+:where(#landing-view) .ld-cap-bar{height:32px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 12px;background:var(--ld-gray);color:#fff}
+:where(#landing-view) .ld-cap-bar b{font-size:13px;font-weight:700;line-height:1}
+:where(#landing-view) .ld-now{font-size:12px;font-weight:700;line-height:1.4;color:#fff;border:1px solid rgba(255,255,255,.7);border-radius:var(--ld-r);padding:2px 8px}
+:where(#landing-view) .ld-cap-body{aspect-ratio:16/10;width:100%;max-width:100%;padding:24px;background:var(--ld-panel2) repeating-linear-gradient(45deg,transparent 0 3px,rgba(109,120,130,.18) 3px 4px)}
+:where(#landing-view) .ld-cap-t{font-size:16px;font-weight:700;line-height:1.5;color:var(--ld-muted)}
+:where(#landing-view) .ld-cap-d{margin-top:6px;font-size:13px;line-height:1.5;color:var(--ld-muted)}
+:where(#landing-view) .ld-cap figcaption{margin-top:8px;font-size:14px;line-height:1.6;color:var(--ld-muted)}
+
+/* ── E. 마지막 장 ──────────────────────────────────────── */
+:where(#landing-view) #ld-end{background:var(--ld-gray);color:#fff;padding:120px 0}
+:where(#landing-view) .ld-end-sub{margin-top:16px;font-size:18px;line-height:1.7;color:var(--ld-gray-note)}
+:where(#landing-view) .ld-end-btn{margin-top:40px}
+:where(#landing-view) .ld-end-note{margin-top:48px;padding-top:16px;border-top:1px solid rgba(255,255,255,.2);font-size:13px;line-height:1.5;color:var(--ld-gray-note)}
+
+/* ═════════ 움직임 (JS가 #landing-view 에 .ld-anim 을 붙였을 때만) ═════════ */
+
+/* 완성 상태가 기본. data-out 요소는 완성 상태에서 이미 빠진 것 */
+:where(#landing-view) .ld-win [data-out]{opacity:0}
+:where(#landing-view).ld-anim [data-step="play"] [data-out]{opacity:1}
+/* 재생 중의 시작 상태 */
+:where(#landing-view).ld-anim [data-step="play"] [data-in]:not(.ld-in-on){opacity:0;transform:translateY(8px)}
+:where(#landing-view).ld-anim [data-step="play"] [data-out].ld-out-on{opacity:0}
+:where(#landing-view).ld-anim [data-step="play"] [data-fade]:not(.ld-fade-on){opacity:0}
+:where(#landing-view).ld-anim [data-step="play"] [data-rv]:not(.ld-rv-on){clip-path:inset(0 100% 0 0)}
+/* 전이 */
+:where(#landing-view).ld-anim [data-in]{transition:opacity 280ms var(--ld-ease),transform 280ms var(--ld-ease)}
+:where(#landing-view).ld-anim [data-out]{transition:opacity 200ms linear}
+:where(#landing-view).ld-anim [data-fade]{transition:opacity 300ms linear}
+:where(#landing-view).ld-anim [data-rv]{display:inline-block;transition:clip-path var(--rv,900ms) linear}
+:where(#landing-view).ld-anim .ld-scrim{transition:opacity 200ms linear}
+:where(#landing-view).ld-anim .ld-dlg{transition:opacity 240ms var(--ld-ease),transform 240ms var(--ld-ease)}
+:where(#landing-view).ld-anim .ld-new,:where(#landing-view).ld-anim .ld-old{transition:opacity 200ms linear,color 200ms}
+
+/* 형광펜(HL): 그은 뒤 200ms 있다가 사라짐 — 'AI가 읽는다'는 유일한 표시 */
+:where(#landing-view) [data-hl]{position:relative;isolation:isolate}
+:where(#landing-view) [data-hl]::before{content:"";position:absolute;inset:0 -3px;z-index:-1;background:var(--ld-hl);border-radius:var(--ld-r);transform:scaleX(0);transform-origin:left;opacity:0;pointer-events:none}
+:where(#landing-view) .ld-hl-on::before{animation:ld-hl 900ms var(--ld-ease) both}
+@keyframes ld-hl{0%{opacity:1;transform:scaleX(0)}44%{opacity:1;transform:scaleX(1)}67%{opacity:1;transform:scaleX(1)}100%{opacity:0;transform:scaleX(1)}}
+:where(#landing-view) .ld-flash-on{animation:ld-flash 600ms linear}
+@keyframes ld-flash{from{background:var(--ld-hl)}to{background:transparent}}
+
+/* 되돌림·즉시 전환 */
+:where(#landing-view).ld-anim .ld-fadebox{transition:opacity 200ms linear}
+:where(#landing-view) .ld-fading .ld-fadebox{opacity:0}
+:where(#landing-view) .ld-snap,:where(#landing-view) .ld-snap *,:where(#landing-view) .ld-snap *::before,:where(#landing-view) .ld-snap *::after{transition:none!important;animation:none!important}
+
+/* 첫 장 할 일 정렬 */
+:where(#landing-view).ld-anim .ld-today .ld-today-list li{transition:transform 700ms var(--ld-ease) calc(var(--pos) * 60ms)}
+:where(#landing-view).ld-anim .ld-today[data-step="play"] .ld-today-list li{transform:translateY(calc(var(--pos0) * 72px))}
+:where(#landing-view).ld-anim .ld-today[data-step="play"][data-on~="sort"] .ld-today-list li{transform:translateY(calc(var(--pos) * 72px))}
+:where(#landing-view).ld-anim .ld-today .ld-sortkey::after{transition:transform 300ms var(--ld-ease)}
+:where(#landing-view).ld-anim .ld-today[data-step="play"] .ld-sortkey::after{transform:scaleX(0)}
+:where(#landing-view).ld-anim .ld-today[data-step="play"][data-on~="ul"] .ld-sortkey::after{transform:scaleX(1)}
+
+/* 장면 2 — 공고문 기둥 넘김 */
+:where(#landing-view).ld-anim .ld-doc-col{transition:transform 400ms var(--ld-ease)}
+:where(#landing-view).ld-anim [data-step="play"][data-on~="sc1"] .ld-doc-col{transform:translateY(-338px)}
+:where(#landing-view).ld-anim [data-step="play"][data-on~="sc2"] .ld-doc-col{transform:translateY(-676px)}
+
+/* 장면 3 — 표시·확인 창 */
+:where(#landing-view).ld-anim [data-step="play"][data-on~="mark"] .ld-old{color:var(--ld-red);font-weight:700;text-decoration:underline dotted 2px var(--ld-red);text-underline-offset:3px}
+:where(#landing-view).ld-anim [data-step="play"][data-on~="focus"]:not([data-on~="close"]) .ld-fix{outline:2px solid var(--ld-ink);outline-offset:2px}
+:where(#landing-view).ld-anim [data-step="play"][data-on~="press"] .ld-fix{background:var(--ld-panel2)}
+:where(#landing-view).ld-anim .ld-fix{transition:background-color 150ms linear}
+
+/* 장면 4 — 단추 눌림 */
+:where(#landing-view).ld-anim .ld-s4-btn{transition:background-color 150ms linear,border-color 150ms linear}
+:where(#landing-view).ld-anim [data-step="play"][data-on~="press"]:not([data-on~="read"]) .ld-s4-btn{background:var(--ld-panel2);border-color:var(--ld-muted)}
+
+/* 첫 장 등장(페이지 전체에서 단 하나의 진입 움직임) */
+:where(#landing-view).ld-entering .ld-enter{animation:ld-enter 520ms cubic-bezier(.2,.7,.3,1) var(--d,0ms) both}
+@keyframes ld-enter{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+
+/* 구역 제목 등장(#ld-ai·#ld-flow 의 h2 와 리드만) */
+:where(#landing-view).ld-revealing .ld-reveal-t{opacity:0;transform:translateY(24px);transition:opacity 600ms var(--ld-ease),transform 600ms var(--ld-ease)}
+:where(#landing-view).ld-revealing .ld-reveal-t.ld-lede{transition-delay:80ms}
+:where(#landing-view).ld-revealing .ld-reveal-t.is-in{opacity:1;transform:none}
+
+/* 칸 사슬 연출: 묶음이 처음 '지금'이 될 때 막대가 진회색으로 */
+:where(#landing-view).ld-anim .ld-cell::before{transition:background-color 200ms linear calc(var(--i,0) * 70ms)}
+:where(#landing-view).ld-anim .ld-group:not(.is-lit) .ld-cell::before{background:var(--ld-line)}
+
+@media (prefers-reduced-motion: reduce){
+  :where(#landing-view) .ld-sq{transition:none}
+}
+
+/* ── 1359px 이하(창 1280) ─────────────────────────────── */
+@media (max-width:1359px){
+  :where(#landing-view) #ld-hero h1{font-size:52px}
+}
+
+/* ── 반응형(기준 밖, 최소한) ──────────────────────────── */
+@media (max-width:1023px){
+  :where(#landing-view) .ld-hero-grid,:where(#landing-view) .ld-scene-grid,:where(#landing-view) .ld-trow{grid-template-columns:minmax(0,1fr);row-gap:32px}
+  :where(#landing-view) .ld-flow-grid{grid-template-columns:minmax(0,1fr)}
+  :where(#landing-view) .ld-rail{top:64px;z-index:5;height:48px;margin-top:0;margin:0 -8px;background:var(--ld-bg);border-bottom:1px solid var(--ld-line)}
+  :where(#landing-view) .ld-rail ol{display:flex;align-items:center;gap:8px;height:48px;padding:0 8px}
+  :where(#landing-view) .ld-rail li+li{margin-top:0}
+  :where(#landing-view) .ld-rail a{display:flex;align-items:center;gap:8px}
+  :where(#landing-view) .ld-rail-sub,:where(#landing-view) .ld-rail-base,:where(#landing-view) .ld-rail-fill{display:none}
+  :where(#landing-view) .ld-rail a:not(.is-now) .ld-rail-name{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  :where(#landing-view) .ld-rail-name{padding-top:0}
+  :where(#landing-view) .ld-group{scroll-margin-top:112px}
+}
+@media (max-width:719px){
+  :where(#landing-view) .ld-top{height:auto;min-height:64px}
+  :where(#landing-view) .ld-top>.ld-wrap{flex-wrap:wrap;padding:10px 0}
+  :where(#landing-view) .ld-top-r{flex-wrap:wrap}
+  :where(#landing-view) #ld-hero h1{font-size:36px}
+  :where(#landing-view) .ld-mock-body,:where(#landing-view) .is-sm .ld-mock-body{height:auto}
+  :where(#landing-view) .ld-s2,:where(#landing-view) .ld-s6{grid-template-columns:minmax(0,1fr)}
+  :where(#landing-view) .ld-s7-top,:where(#landing-view) .ld-s7-bot,:where(#landing-view) .ld-s5{flex-wrap:wrap}
+  :where(#landing-view) .ld-dlg{left:16px;right:16px;width:auto}
+  :where(#landing-view) .ld-rvline,:where(#landing-view) .ld-cell,:where(#landing-view) .ld-s7-tbl td{white-space:normal}
+  :where(#landing-view) .ld-cell{height:auto;min-height:40px;padding-block:8px}
+  :where(#landing-view) .ld-s1-r2{height:auto;padding-left:0}
+}
+
+/* 앱 전역 규칙이 랜딩에 새는 것 되돌림 */
+#landing-view[hidden]{display:none}
+#landing-view button{transition:none}
+#landing-view ::selection{background:Highlight;color:HighlightText}
+</style>
 </head>
 <body>
 <!--
@@ -3312,6 +3718,494 @@ FORM: taste-redesign 다크크롬 하이브리드 — 실험 2라운드(8종) �
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish
 review, the verdict, and DESIGN.md
 -->
+<!-- 기능 소개 랜딩: 세션 없는 첫 접속에만 js/landing.js가 보인다. 스타일은 #ld-style. -->
+<div id="landing-view" hidden>
+  <a class="skip-link" href="#ld-main">본문 바로가기</a>
+
+  <header class="ld-top">
+    <div class="ld-wrap">
+      <p class="ld-brand"><b>기관영업지원 시스템</b><span>금고 입찰 현황</span></p>
+      <div class="ld-top-r">
+        <nav class="ld-top-nav" aria-label="구역 바로가기">
+          <a href="#ld-ai">AI로 달라질 일</a>
+          <a href="#ld-flow">업무 흐름</a>
+        </nav>
+        <span class="ld-sep" aria-hidden="true"></span>
+        <button id="ld-motion" type="button" hidden>
+          <svg class="ld-ico-pause" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1.5" width="2.6" height="9" fill="currentColor"/><rect x="7.4" y="1.5" width="2.6" height="9" fill="currentColor"/></svg>
+          <svg class="ld-ico-play" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" hidden><path d="M3 1.5 10 6 3 10.5z" fill="currentColor"/></svg>
+          <span class="ld-motion-t">움직임 멈춤</span>
+        </button>
+        <button class="ld-cta ld-cta-sm" type="button" data-go="login">로그인</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="ld-main" tabindex="-1">
+
+    <!-- ── 첫 장 ─────────────────────────────────────────── -->
+    <section id="ld-hero" aria-labelledby="ld-hero-h">
+      <div class="ld-wrap ld-hero-grid">
+        <div class="ld-hero-text">
+          <h1 id="ld-hero-h" class="ld-enter">임박한 금고 입찰,<br>전국 지도에서 먼저 찾고<br>끝까지 챙깁니다.</h1>
+          <p class="ld-sub ld-enter" style="--d:90ms">전국 지자체·공공기관 금고의 약정 만료 시점을 지도에 모으고, 입찰 공고 확인부터 협약 이행까지 27단계 준비 상황을 기관별로 이어 기록합니다.</p>
+          <p class="ld-btns ld-enter" style="--d:180ms">
+            <button class="ld-cta" type="button" data-go="login">로그인</button>
+            <a class="ld-ghost" href="#ld-ai">AI로 달라질 일 보기</a>
+          </p>
+        </div>
+
+        <figure class="ld-today" data-scene="hero" data-step="end">
+          <div class="ld-today-in" aria-hidden="true">
+            <div class="ld-today-head">
+              <b>오늘 할 일</b>
+              <span class="ld-sortkey">마감 순</span>
+              <span class="ld-chip-ol">예시 화면</span>
+            </div>
+            <div class="ld-fadebox">
+              <ol class="ld-today-list">
+                <li style="--pos:0;--pos0:1"><span class="ld-dday is-red">▲ D-3</span><b>A시</b><span class="ld-cellnm">제출서류</span></li>
+                <li style="--pos:1;--pos0:3"><span class="ld-dday is-orange">D-9</span><b>B군</b><span class="ld-cellnm">수익성분석</span></li>
+                <li style="--pos:2;--pos0:0"><span class="ld-dday is-gray">D-15</span><b>C구</b><span class="ld-cellnm">발표자료</span></li>
+                <li style="--pos:3;--pos0:2"><span class="ld-dday is-est">예상</span><b>D시</b><span class="ld-cellnm">입찰공고확인</span></li>
+              </ol>
+              <p class="ld-today-foot" data-in="foot">할 일 4건, 마감이 가까운 순</p>
+            </div>
+          </div>
+          <figcaption class="sr-only">오늘 할 일 4건을 마감이 가까운 순으로 정렬한 예시 화면.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ── AI로 달라질 일 ─────────────────────────────────── -->
+    <section id="ld-ai" aria-labelledby="ld-ai-h">
+      <div class="ld-wrap ld-sec-head">
+        <h2 id="ld-ai-h" tabindex="-1" class="ld-reveal-t">AI로 달라질 일</h2>
+        <p class="ld-lede ld-reveal-t">아래 장면은 앞으로 붙일 기능의 완성 모습입니다. 판단과 결재는 지금처럼 담당자가 하고, AI는 읽고 찾고 정리하는 일을 돕습니다. 화면 속 기관·수치는 모두 가상입니다.</p>
+      </div>
+
+      <!-- 장면 1 -->
+      <article class="ld-scene" id="scene-today" aria-labelledby="scene-today-h">
+        <div class="ld-wrap ld-scene-grid">
+          <div class="ld-scene-text">
+            <h3 id="scene-today-h" tabindex="-1">오늘 먼저 할 일을 시작화면에</h3>
+            <p>맡은 기관들의 남은 일정을 모아 급한 순서로 보여 주고, 왜 지금 이 일인지 한 줄로 알려 줍니다.</p>
+            <dl class="ld-shift">
+              <div><dt>지금</dt><dd>기관마다 표를 열어 남은 칸과 날짜를 직접 맞춰 봅니다.</dd></div>
+              <div><dt>앞으로</dt><dd>순서는 일정 규칙으로 정하고, AI는 각 일에 '왜 지금인지'와 '다음 한 걸음'을 붙입니다.</dd></div>
+            </dl>
+          </div>
+          <figure class="ld-mock" data-scene="today" data-step="end">
+            <div class="ld-win" aria-hidden="true">
+              <div class="ld-mock-bar"><b>시작화면</b><span class="ld-ex">예시 화면</span></div>
+              <div class="ld-mock-body ld-fadebox">
+                <div class="ld-pnl ld-s1">
+                  <div class="ld-pnl-head"><b>오늘 할 일</b><span class="ld-sortkey">마감 순</span></div>
+                  <ol class="ld-s1-list">
+                    <li data-hl="h1">
+                      <div class="ld-s1-r1"><span class="ld-dday is-red">▲ D-3</span><b>A시</b><span class="ld-cellnm">제출서류</span></div>
+                      <div class="ld-s1-r2"><span class="ld-why">왜 지금</span><span class="ld-rvline" data-rv="v1">공고문 요구 서류 중 2건이 아직 비어 있습니다</span></div>
+                    </li>
+                    <li data-hl="h2">
+                      <div class="ld-s1-r1"><span class="ld-dday is-orange">D-9</span><b>B군</b><span class="ld-cellnm">수익성분석</span></div>
+                      <div class="ld-s1-r2"><span class="ld-why">왜 지금</span><span class="ld-rvline" data-rv="v2">이사회 상정 전에 끝나야 합니다</span></div>
+                    </li>
+                    <li data-hl="h3">
+                      <div class="ld-s1-r1"><span class="ld-dday is-gray">D-15</span><b>C구</b><span class="ld-cellnm">발표자료</span></div>
+                      <div class="ld-s1-r2"><span class="ld-why">왜 지금</span><span class="ld-rvline" data-rv="v3">PT 일정이 공고에 나와 있습니다</span></div>
+                    </li>
+                    <li data-hl="h4">
+                      <div class="ld-s1-r1"><span class="ld-dday is-est">예상</span><b>D시</b><span class="ld-cellnm">입찰공고확인</span></div>
+                      <div class="ld-s1-r2"><span class="ld-why">왜 지금</span><span class="ld-rvline" data-rv="v4">지난 공고 시기를 보면 곧 나올 수 있습니다</span></div>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+            <figcaption>예시 화면. 가상 자료로 만든 완성 모습입니다.<span class="sr-only"> 마감 순으로 정렬된 할 일 4건마다 AI가 '왜 지금'인지 한 줄을 붙인 예시 화면.</span></figcaption>
+          </figure>
+        </div>
+      </article>
+
+      <!-- 장면 2 -->
+      <article class="ld-scene" id="scene-rfp" aria-labelledby="scene-rfp-h">
+        <div class="ld-wrap ld-scene-grid">
+          <div class="ld-scene-text">
+            <h3 id="scene-rfp-h" tabindex="-1">공고문에서 평가 항목과 배점을 표로</h3>
+            <p>긴 공고문을 읽어 평가 항목, 배점, 제출서류를 표로 옮겨 둡니다. 원문 쪽수를 함께 달아 바로 대조할 수 있습니다.</p>
+            <dl class="ld-shift">
+              <div><dt>지금</dt><dd>공고문을 처음부터 읽으며 배점과 서류 목록을 손으로 옮겨 적습니다.</dd></div>
+              <div><dt>앞으로</dt><dd>AI가 표 초안을 만들고, 담당자가 원문 쪽수를 보며 확인합니다.</dd></div>
+            </dl>
+          </div>
+          <figure class="ld-mock" data-scene="rfp" data-step="end">
+            <div class="ld-win" aria-hidden="true">
+              <div class="ld-mock-bar"><b>공고문 읽기</b><span class="ld-ex">예시 화면</span></div>
+              <div class="ld-mock-body ld-fadebox">
+                <div class="ld-s2">
+                  <div class="ld-doc">
+                    <p class="ld-doc-cap">A시 금고 지정 공고(가상)</p>
+                    <div class="ld-doc-pane">
+                      <div class="ld-doc-col">
+                        <div class="ld-page">
+                          <p class="ld-pno">p.4</p>
+                          <p class="ld-doc-h">제4조(평가 항목 및 배점)</p>
+                          <p><span data-hl="d1">1. 대내외적 신용도 및 재무구조: 30점</span></p>
+                          <p><span data-hl="d2">2. 시민 이용 편의성: 20점</span></p>
+                          <span class="ld-bar" style="width:92%"></span><span class="ld-bar" style="width:84%"></span><span class="ld-bar" style="width:70%"></span>
+                        </div>
+                        <div class="ld-page">
+                          <p class="ld-pno">p.5</p>
+                          <span class="ld-bar" style="width:88%"></span>
+                          <p><span data-hl="d3">3. 금고 업무 관리 능력: 25점</span></p>
+                          <p><span data-hl="d4">4. 지역사회 기여 및 협력 사업: 15점</span></p>
+                          <span class="ld-bar" style="width:90%"></span><span class="ld-bar" style="width:76%"></span>
+                        </div>
+                        <div class="ld-page">
+                          <p class="ld-pno">p.6</p>
+                          <span class="ld-bar" style="width:82%"></span>
+                          <p><span data-hl="d5">5. 시와의 협력 사업 계획: 10점</span></p>
+                          <span class="ld-bar" style="width:94%"></span><span class="ld-bar" style="width:60%"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="ld-pnl ld-s2-tbl">
+                    <p class="ld-tcap">A시(가상) 평가표</p>
+                    <table>
+                      <thead><tr><th>평가 항목</th><th>배점</th><th>원문</th></tr></thead>
+                      <tbody>
+                        <tr data-flash="t1"><td><span data-in="t1">대내외적 신용도·재무구조</span></td><td class="ld-num"><span data-in="t1">30</span></td><td class="ld-pg"><span data-in="t1">p.4</span></td></tr>
+                        <tr data-flash="t2"><td><span data-in="t2">시민 이용 편의성</span></td><td class="ld-num"><span data-in="t2">20</span></td><td class="ld-pg"><span data-in="t2">p.4</span></td></tr>
+                        <tr data-flash="t3"><td><span data-in="t3">금고 업무 관리 능력</span></td><td class="ld-num"><span data-in="t3">25</span></td><td class="ld-pg"><span data-in="t3">p.5</span></td></tr>
+                        <tr data-flash="t4"><td><span data-in="t4">지역사회 기여·협력 사업</span></td><td class="ld-num"><span data-in="t4">15</span></td><td class="ld-pg"><span data-in="t4">p.5</span></td></tr>
+                        <tr data-flash="t5"><td><span data-in="t5">시와의 협력 사업 계획</span></td><td class="ld-num"><span data-in="t5">10</span></td><td class="ld-pg"><span data-in="t5">p.6</span></td></tr>
+                      </tbody>
+                      <tfoot><tr class="ld-sum" data-in="sum"><td>합계</td><td class="ld-num">100</td><td></td></tr></tfoot>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <figcaption>예시 화면. 가상 자료로 만든 완성 모습입니다.<span class="sr-only"> 가상 공고문에서 평가 항목 5개, 배점, 원문 쪽수를 표로 옮긴 예시 화면.</span></figcaption>
+          </figure>
+        </div>
+      </article>
+
+      <!-- 장면 3 -->
+      <article class="ld-scene" id="scene-check" aria-labelledby="scene-check-h">
+        <div class="ld-wrap ld-scene-grid">
+          <div class="ld-scene-text">
+            <h3 id="scene-check-h" tabindex="-1">다른 기관 이름이 남아 있지 않은지 점검</h3>
+            <p>이전 제안서를 고쳐 쓰다 남은 다른 기관 이름이나 맞지 않는 수치를 찾아 표시합니다. 고칠지는 담당자가 정합니다.</p>
+            <dl class="ld-shift">
+              <div><dt>지금</dt><dd>제출 직전에 여러 사람이 처음부터 끝까지 다시 읽습니다.</dd></div>
+              <div><dt>앞으로</dt><dd>AI가 의심 문장을 표시하고 확인 창을 띄우면, 담당자가 '고침'이나 '그대로 둠'을 고릅니다.</dd></div>
+            </dl>
+          </div>
+          <figure class="ld-mock" data-scene="check" data-step="end">
+            <div class="ld-win" aria-hidden="true">
+              <div class="ld-mock-bar"><b>제안서 점검</b><span class="ld-ex">예시 화면</span></div>
+              <div class="ld-mock-body ld-fadebox">
+                <div class="ld-pnl ld-s3">
+                  <div class="ld-pnl-head"><b>A시 제출용 제안서</b><span class="ld-pgcount">12쪽</span></div>
+                  <div class="ld-s3-text">
+                    <div class="ld-s3-line"><span></span><span class="ld-bar" data-hl="h1" style="width:92%"></span></div>
+                    <div class="ld-s3-line"><span></span><span class="ld-bar" data-hl="h2" style="width:78%"></span></div>
+                    <div class="ld-s3-line">
+                      <span class="ld-s3-note"><span class="ld-note-red" data-in="mark" data-out="fix">다른 기관 이름</span><span class="ld-note-ok" data-in="fix" style="transition-delay:200ms">고침</span></span>
+                      <span class="ld-s3-sent"><span data-hl="h3"><span class="ld-swap"><span class="ld-old" data-out="fix">B군</span><span class="ld-new" data-in="fix" style="transition-delay:200ms">A시</span></span>의 지역 상생 기금은 매년 시 예산과 연계해 운영합니다.</span></span>
+                    </div>
+                    <div class="ld-s3-line"><span></span><span class="ld-bar" style="width:88%"></span></div>
+                    <div class="ld-s3-line"><span></span><span class="ld-bar" style="width:64%"></span></div>
+                  </div>
+                </div>
+                <div class="ld-scrim" data-in="dlg" data-out="close"></div>
+                <div class="ld-dlg" data-in="dlg" data-out="close">
+                  <div class="ld-dlg-head">다른 기관 이름</div>
+                  <div class="ld-dlg-body">이 제안서는 A시 제출용입니다. 'B군'이 맞습니까?</div>
+                  <div class="ld-dlg-btns"><span class="ld-dbtn">그대로 둠</span><span class="ld-dbtn ld-fix">고침</span></div>
+                </div>
+              </div>
+            </div>
+            <figcaption>예시 화면. 가상 자료로 만든 완성 모습입니다.<span class="sr-only"> 제안서에서 다른 기관 이름 'B군'을 찾아 표시하고, 담당자가 확인 창에서 '고침'을 골라 'A시'로 바꾼 예시 화면.</span></figcaption>
+          </figure>
+        </div>
+      </article>
+
+      <!-- 장면 4 -->
+      <article class="ld-scene" id="scene-plan" aria-labelledby="scene-plan-h">
+        <div class="ld-wrap ld-scene-grid">
+          <div class="ld-scene-text">
+            <h3 id="scene-plan-h" tabindex="-1">버튼 한 번으로 그 기관의 계획을 미리 파악</h3>
+            <p>기관이 공개한 사업계획에서 제안에 참고할 사업과 예산을 출처와 함께 카드로 정리합니다.</p>
+            <dl class="ld-shift">
+              <div><dt>지금</dt><dd>기관 홈페이지에서 계획 문서를 찾아 내려받아 읽습니다.</dd></div>
+              <div><dt>앞으로</dt><dd>[지자체 계획 확인하기]를 누르면 AI가 계획 문서를 요약하고, 카드마다 출처 문서와 쪽수를 답니다.</dd></div>
+            </dl>
+          </div>
+          <figure class="ld-mock" data-scene="plan" data-step="end">
+            <div class="ld-win" aria-hidden="true">
+              <div class="ld-mock-bar"><b>기관 상세</b><span class="ld-ex">예시 화면</span></div>
+              <div class="ld-mock-body ld-fadebox">
+                <div class="ld-pnl ld-s4">
+                  <div class="ld-s4-head"><b>A시</b><span class="ld-chip">지자체</span><span class="ld-btnlike ld-s4-btn">지자체 계획 확인하기</span></div>
+                  <p class="ld-s4-status" data-hl="shl"><span data-in="read" data-out="done">A시 2027 계획(가상)을 읽고 있습니다.</span><span data-fade="done" style="transition-delay:150ms">3건을 찾았습니다. 쪽수를 눌러 원문과 대조하세요.</span></p>
+                  <div class="ld-s4-listwrap">
+                    <p class="ld-s4-empty" data-out="read">단추를 누르면 공개된 사업계획에서 제안에 참고할 사업을 찾아 정리합니다.</p>
+                    <ol class="ld-s4-list">
+                      <li data-in="i1"><b>청년 창업 지원 확대</b><span class="ld-src">2027 계획(가상) p.12</span></li>
+                      <li data-in="i2"><b>소상공인 디지털 전환</b><span class="ld-src">2027 계획(가상) p.18</span></li>
+                      <li data-in="i3"><b>노후 공공시설 정비</b><span class="ld-src">2027 계획(가상) p.25</span></li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <figcaption>예시 화면. 가상 자료로 만든 완성 모습입니다.<span class="sr-only"> '지자체 계획 확인하기'를 누르면 A시 가상 계획에서 사업 3건을 출처 쪽수와 함께 정리한 예시 화면.</span></figcaption>
+          </figure>
+        </div>
+      </article>
+
+      <!-- 작은 장면 5·6·7 -->
+      <div class="ld-trio" id="ld-trio">
+        <div class="ld-wrap">
+          <h3 class="ld-trio-h">그 밖에 붙일 기능</h3>
+
+          <article class="ld-trow" id="scene-script" aria-labelledby="scene-script-h">
+            <div class="ld-trow-text">
+              <h4 id="scene-script-h" tabindex="-1">이사회 자료 장마다 발표 대본 초안</h4>
+              <p>확정된 이사회 자료를 장 순서대로 읽고, 발표자가 다듬을 대본 초안을 붙입니다.</p>
+            </div>
+            <figure class="ld-mock is-sm" data-scene="script" data-step="end">
+              <div class="ld-win" aria-hidden="true">
+                <div class="ld-mock-bar"><b>이사회 발표 대본</b><span class="ld-ex">예시 화면</span></div>
+                <div class="ld-mock-body ld-fadebox">
+                  <div class="ld-pnl ld-s5">
+                    <div class="ld-thumb">
+                      <span class="ld-pgno">3쪽</span>
+                      <span class="ld-thumb-t" data-hl="hl">A시 금고 수익성 요약(가상)</span>
+                      <span class="ld-bar" style="width:86%"></span><span class="ld-bar" style="width:62%"></span>
+                    </div>
+                    <div class="ld-s5-r">
+                      <p class="ld-lbl">대본 초안</p>
+                      <p class="ld-s5-txt"><span data-fade="l1">이번 제안의 핵심은 예치 규모보다</span><span data-fade="l2">지역 협력 사업의 지속성입니다.</span></p>
+                      <span class="ld-chip" data-in="chip">초안, 발표자가 고칩니다</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <figcaption>예시 화면. 가상 자료로 만든 완성 모습입니다.<span class="sr-only"> 이사회 자료 3쪽에 발표 대본 초안 한 문장을 붙인 예시 화면. 수치 채우기는 규칙 기능이며 이 장면에 포함하지 않는다.</span></figcaption>
+            </figure>
+          </article>
+
+          <article class="ld-trow" id="scene-draft" aria-labelledby="scene-draft-h">
+            <div class="ld-trow-text">
+              <h4 id="scene-draft-h" tabindex="-1">근거를 모아 요약서·협력 과제 초안으로</h4>
+              <p>기관 정보와 사업계획 근거를 모아 기관 요약서와 협력 과제 후보의 초안 칸을 채웁니다. 근거가 없는 칸은 비워 둡니다.</p>
+            </div>
+            <figure class="ld-mock is-sm" data-scene="draft" data-step="end">
+              <div class="ld-win" aria-hidden="true">
+                <div class="ld-mock-bar"><b>기관 요약서</b><span class="ld-ex">예시 화면</span></div>
+                <div class="ld-mock-body ld-fadebox">
+                  <div class="ld-pnl ld-s6">
+                    <div class="ld-s6-l">
+                      <p class="ld-lbl">근거</p>
+                      <p class="ld-s6-ev"><span data-hl="hl"><span class="ld-src">A시 계획(가상) p.18</span> 소상공인 디지털 전환</span></p>
+                    </div>
+                    <div class="ld-s6-r">
+                      <p class="ld-lbl">협력 과제 후보</p>
+                      <div class="ld-field"><span class="ld-rvline" data-rv="rv" style="--rv:900ms">소상공인 간편결제 도입 지원</span><span class="ld-chip" data-in="chip">근거 1건</span></div>
+                      <p class="ld-lbl">기관 요약</p>
+                      <div class="ld-field"><span class="ld-ph">근거가 없어 비워 둠</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <figcaption>예시 화면. 가상 자료로 만든 완성 모습입니다.<span class="sr-only"> 근거 1건으로 협력 과제 후보 칸만 채우고, 근거가 없는 기관 요약 칸은 비워 둔 예시 화면.</span></figcaption>
+            </figure>
+          </article>
+
+          <article class="ld-trow" id="scene-minutes" aria-labelledby="scene-minutes-h">
+            <div class="ld-trow-text">
+              <h4 id="scene-minutes-h" tabindex="-1">회의는 핵심과 할 일로, 질문에는 근거 달린 답으로</h4>
+              <p>회의 기록에서 결정과 할 일을 뽑고, 사내 자료에 물으면 출처와 함께 답합니다.</p>
+            </div>
+            <figure class="ld-mock is-sm" data-scene="minutes" data-step="end">
+              <div class="ld-win" aria-hidden="true">
+                <div class="ld-mock-bar"><b>회의록·지식 검색</b><span class="ld-ex">예시 화면</span></div>
+                <div class="ld-mock-body ld-fadebox">
+                  <div class="ld-pnl ld-s7">
+                    <div class="ld-s7-top">
+                      <p class="ld-s7-say"><span class="ld-lbl">발언</span> <span data-hl="hl">“A시 PT는 15분 이내로 하자”</span></p>
+                      <table class="ld-s7-tbl">
+                        <thead><tr><th>할 일</th><th>담당</th></tr></thead>
+                        <tbody><tr data-in="todo"><td>발표자료 15분 분량으로 조정</td><td class="ld-c">미정</td></tr></tbody>
+                      </table>
+                    </div>
+                    <div class="ld-s7-bot">
+                      <div class="ld-field ld-q"><span class="ld-rvline" data-rv="q">A시 지난 협약 기간은?</span></div>
+                      <p class="ld-s7-ans"><b data-in="ans">4년</b> <span class="ld-src" data-fade="src">근거: A시 협약 문서(가상) p.2</span></p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <figcaption>예시 화면. 가상 자료로 만든 완성 모습입니다.<span class="sr-only"> 회의 발언에서 할 일 1건을 뽑고, 질문에 근거 쪽수를 단 답을 보인 예시 화면.</span></figcaption>
+            </figure>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 업무 흐름 ──────────────────────────────────────── -->
+    <section id="ld-flow" aria-labelledby="ld-flow-h">
+      <div class="ld-wrap">
+        <div class="ld-sec-head ld-flow-head">
+          <h2 id="ld-flow-h" tabindex="-1" class="ld-reveal-t">공고 확인부터 협약식까지</h2>
+          <p class="ld-lede ld-reveal-t">기관마다 27단계를 '제안 준비 현황' 표의 칸으로 기록합니다. 일부 칸은 시스템이 자동으로 표시하고, 나머지 칸은 담당 영업이 체크합니다.</p>
+          <p class="ld-legend"><span class="ld-kind">자동</span> 시스템이 기록 <span class="ld-kind">공고</span> 공고 판정을 그대로 가져옴 <span class="ld-kind">체크</span> 담당자가 완료·진행·대상 아님을 표시</p>
+        </div>
+
+        <div class="ld-flow-grid">
+          <nav class="ld-rail" aria-label="업무 흐름 단계">
+            <span class="ld-rail-base" aria-hidden="true"></span>
+            <span class="ld-rail-fill" aria-hidden="true"></span>
+            <ol>
+              <li><a href="#flow-1"><span class="ld-sq">1</span><span class="ld-rail-t"><span class="ld-rail-name">분석</span><span class="ld-rail-sub">칸 3개</span></span></a></li>
+              <li><a href="#flow-2"><span class="ld-sq">2</span><span class="ld-rail-t"><span class="ld-rail-name">심의·이사회</span><span class="ld-rail-sub">칸 5개</span></span></a></li>
+              <li><a href="#flow-3"><span class="ld-sq">3</span><span class="ld-rail-t"><span class="ld-rail-name">제안·제출</span><span class="ld-rail-sub">칸 5개</span></span></a></li>
+              <li><a href="#flow-4"><span class="ld-sq">4</span><span class="ld-rail-t"><span class="ld-rail-name">발표·선정</span><span class="ld-rail-sub">칸 3개</span></span></a></li>
+              <li><a href="#flow-5"><span class="ld-sq">5</span><span class="ld-rail-t"><span class="ld-rail-name">협약·이행</span><span class="ld-rail-sub">칸 11개</span></span></a></li>
+            </ol>
+          </nav>
+
+          <div class="ld-groups">
+            <!-- 묶음 1 -->
+            <article class="ld-group" id="flow-1" aria-labelledby="flow-1-h">
+              <h3 id="flow-1-h" tabindex="-1">분석</h3>
+              <p class="ld-gdesc">지도와 공고 현황에서 입찰이 다가오는 기관을 찾고, 기관 정보와 수익성을 분석해 참여할지 판단할 근거를 모읍니다.</p>
+              <ol class="ld-chain">
+                <li><span class="ld-cell"><b>입찰공고확인</b><span class="ld-kind">공고</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>기관 정보 분석</b><span class="ld-kind">자동</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>수익성분석</b><span class="ld-kind">자동</span></span></li>
+              </ol>
+              <figure class="ld-cap" data-capture="pending">
+                <div class="ld-cap-win">
+                  <div class="ld-cap-bar"><b>예상 공고현황(지도)</b><span class="ld-now">지금 쓰는 화면</span></div>
+                  <div class="ld-cap-body"><p class="ld-cap-t">화면 캡처 준비 중</p><p class="ld-cap-d">예상 공고현황(지도) 화면을 개인정보를 가린 캡처로 넣을 자리입니다.</p></div>
+                </div>
+                <figcaption>같이 쓰는 화면: 입찰 현황판, 입찰 공고 현황, 기관 사업계획</figcaption>
+              </figure>
+              <dl class="ld-gdl">
+                <div><dt>체크로 관리</dt><dd>없음</dd></div>
+                <div><dt>AI 적용 예정</dt><dd><a href="#scene-today">오늘 먼저 할 일을 시작화면에</a>, <a href="#scene-rfp">공고문에서 평가 항목과 배점을 표로</a>, <a href="#scene-plan">버튼 한 번으로 그 기관의 계획을 미리 파악</a></dd></div>
+              </dl>
+            </article>
+
+            <!-- 묶음 2 -->
+            <article class="ld-group" id="flow-2" aria-labelledby="flow-2-h">
+              <h3 id="flow-2-h" tabindex="-1">심의·이사회</h3>
+              <p class="ld-gdesc">분석 결과를 내부 심의와 이사회에 올리고, 부서별 확인을 차례로 기록합니다.</p>
+              <ol class="ld-chain">
+                <li><span class="ld-cell"><b>가결위(재무)</b><span class="ld-kind">체크</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>출심위(사업부)</b><span class="ld-kind">체크</span></span></li>
+                <li data-cells="3"><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>이사회(사무국, 감사·감시, 준법)</b><span class="ld-kind">체크</span></span></li>
+              </ol>
+              <figure class="ld-cap" data-capture="pending">
+                <div class="ld-cap-win">
+                  <div class="ld-cap-bar"><b>이사회 자료 작성</b><span class="ld-now">지금 쓰는 화면</span></div>
+                  <div class="ld-cap-body"><p class="ld-cap-t">화면 캡처 준비 중</p><p class="ld-cap-d">이사회 자료 작성 화면을 개인정보를 가린 캡처로 넣을 자리입니다.</p></div>
+                </div>
+                <figcaption>수익성 분석표의 수치를 이사회 자료의 정해진 자리에 채웁니다. 규칙으로 동작하며 AI 기능이 아닙니다.</figcaption>
+              </figure>
+              <dl class="ld-gdl">
+                <div><dt>체크로 관리</dt><dd>가결위(재무), 출심위(사업부), 이사회 하위 3칸(사무국, 감사·감시, 준법)</dd></div>
+                <div><dt>AI 적용 예정</dt><dd><a href="#scene-script">이사회 자료 장마다 발표 대본 초안</a></dd></div>
+              </dl>
+            </article>
+
+            <!-- 묶음 3 -->
+            <article class="ld-group" id="flow-3" aria-labelledby="flow-3-h">
+              <h3 id="flow-3-h" tabindex="-1">제안·제출</h3>
+              <p class="ld-gdesc">제안서와 발표자료를 만들고, 공고가 요구하는 서류를 갖춰 제출 품의를 올립니다.</p>
+              <ol class="ld-chain">
+                <li><span class="ld-cell"><b>제안서</b><span class="ld-kind">자동</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>발표자료</b><span class="ld-kind">체크</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>제출서류</b><span class="ld-kind">체크</span></span></li>
+                <li data-cells="2"><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>제안서제출품의(감시, 재산상이익)</b><span class="ld-kind">체크</span></span></li>
+              </ol>
+              <figure class="ld-cap" data-capture="pending">
+                <div class="ld-cap-win">
+                  <div class="ld-cap-bar"><b>제안서 진행 현황</b><span class="ld-now">지금 쓰는 화면</span></div>
+                  <div class="ld-cap-body"><p class="ld-cap-t">화면 캡처 준비 중</p><p class="ld-cap-d">제안서 진행 현황 화면을 개인정보를 가린 캡처로 넣을 자리입니다.</p></div>
+                </div>
+                <figcaption>같이 쓰는 화면: 작업함</figcaption>
+              </figure>
+              <dl class="ld-gdl">
+                <div><dt>체크로 관리</dt><dd>발표자료, 제출서류, 제안서제출품의 하위 2칸(감시, 재산상이익)</dd></div>
+                <div><dt>AI 적용 예정</dt><dd><a href="#scene-rfp">공고문에서 평가 항목과 배점을 표로</a>, <a href="#scene-check">다른 기관 이름이 남아 있지 않은지 점검</a></dd></div>
+              </dl>
+            </article>
+
+            <!-- 묶음 4 -->
+            <article class="ld-group" id="flow-4" aria-labelledby="flow-4-h">
+              <h3 id="flow-4-h" tabindex="-1">발표·선정</h3>
+              <p class="ld-gdesc">발표를 마치고 결과를 기록한 뒤, 선정되면 우선협상으로 이어 갑니다.</p>
+              <ol class="ld-chain">
+                <li><span class="ld-cell"><b>PT</b><span class="ld-kind">체크</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>결과발표</b><span class="ld-kind">체크</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>우선협상</b><span class="ld-kind">체크</span></span></li>
+              </ol>
+              <p class="ld-gnote">이 묶음의 칸은 '제안 준비 현황' 표에서 담당 영업이 체크로 관리합니다. 따로 쓰는 화면은 아직 없습니다.</p>
+              <dl class="ld-gdl">
+                <div><dt>체크로 관리</dt><dd>PT, 결과발표, 우선협상</dd></div>
+                <div><dt>AI 적용 예정</dt><dd><a href="#scene-minutes">회의는 핵심과 할 일로, 질문에는 근거 달린 답으로</a></dd></div>
+              </dl>
+            </article>
+
+            <!-- 묶음 5 -->
+            <article class="ld-group" id="flow-5" aria-labelledby="flow-5-h">
+              <h3 id="flow-5-h" tabindex="-1">협약·이행</h3>
+              <p class="ld-gdesc">협약서를 검토해 체결 품의를 올리고, 기기 설치·카드·전산 연결 같은 이행 준비를 거쳐 협약식까지 챙깁니다.</p>
+              <ol class="ld-chain">
+                <li><span class="ld-cell"><b>협약서(법률)</b><span class="ld-kind">체크</span></span></li>
+                <li data-cells="4"><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>협약체결품의(감사·감시, 전략, 재산상이익, 영업점안내)</b><span class="ld-kind">체크</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>ATM</b><span class="ld-kind">체크</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>KB카드</b><span class="ld-kind">체크</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>전산구축</b><span class="ld-kind">체크</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>VIP 지정</b><span class="ld-kind">체크</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>금리승인</b><span class="ld-kind">체크</span></span></li>
+                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>협약식</b><span class="ld-kind">체크</span></span></li>
+              </ol>
+              <figure class="ld-cap" data-capture="pending">
+                <div class="ld-cap-win">
+                  <div class="ld-cap-bar"><b>협약 성과 관리</b><span class="ld-now">지금 쓰는 화면</span></div>
+                  <div class="ld-cap-body"><p class="ld-cap-t">화면 캡처 준비 중</p><p class="ld-cap-d">협약 성과 관리 화면을 개인정보를 가린 캡처로 넣을 자리입니다.</p></div>
+                </div>
+                <figcaption>협약 뒤 성과를 보는 화면입니다. 이 묶음의 칸을 대신하지 않습니다.</figcaption>
+              </figure>
+              <dl class="ld-gdl">
+                <div><dt>체크로 관리</dt><dd>이 묶음의 모든 칸</dd></div>
+                <div><dt>AI 적용 예정</dt><dd>없음</dd></div>
+              </dl>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 마지막 장 ──────────────────────────────────────── -->
+    <section id="ld-end" aria-labelledby="ld-end-h">
+      <div class="ld-wrap">
+        <h2 id="ld-end-h">오늘 확인할 기관부터 보세요.</h2>
+        <p class="ld-end-sub">로그인하면 맡은 기관과 준비 현황이 바로 보입니다. 로그인과 화면 사용은 접근 이력에 남습니다.</p>
+        <p class="ld-end-btn"><button class="ld-cta" type="button" data-go="login">로그인</button></p>
+        <p class="ld-end-note">AI 장면은 앞으로 붙일 기능의 예시 화면이며, 화면 속 기관·수치는 가상입니다. 사내 시연용, 외부 배포 금지.</p>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="js/landing.js"></script>
 <div id="login-view" role="region" aria-label="로그인 화면">
   <div class="lg-top">
     <p class="lg-brand">
@@ -3340,6 +4234,7 @@ review, the verdict, and DESIGN.md
           <button id="login-guest" class="lg-ghost" type="button">로그인 없이 둘러보기</button>
         </div>
         <p class="login-hint">시험 운영 중에는 비밀번호를 확인하지 않습니다.<br>로그인과 화면 사용은 접근 이력에 남습니다.</p>
+        <p hidden><button type="button" class="link-btn" id="ld-open">서비스 소개</button></p>
       </div>
     </section>
 

@@ -211,6 +211,51 @@
         ],
         "createdAt": "2026-11-04T01:46:47.735Z",
         "reason": "design-reviewer 코드 점검 2026-11-04: marquee 요소 없음, 무한 반복 translateX는 .bd-w-prog i(업로드 진행 막대, 글자 없음, reduced-motion 처리됨) 하나뿐 — 오탐"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "handoff/agents/history/2026-11-26_랜딩페이지_시안/index.html"
+        ],
+        "createdAt": "2026-11-26T02:50:40.274Z",
+        "reason": "agent c3: 3px top line + 2px radius is the documented login-card pattern in DESIGN.md"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "handoff/agents/history/2026-11-26_랜딩페이지_시안/landing.css"
+        ],
+        "createdAt": "2026-11-26T02:50:42.915Z",
+        "reason": "agent c3: 3px top line + 2px radius is the documented login-card pattern in DESIGN.md"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "handoff/agents/history/2026-11-26_랜딩페이지_시안/index.html"
+        ],
+        "createdAt": "2026-11-26T02:50:44.832Z",
+        "reason": "agent c3: fixed-height vertically centered rows and wrap-inset sections; checked in screenshots"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "handoff/agents/history/2026-11-26_랜딩페이지_시안/index.html"
+        ],
+        "createdAt": "2026-11-26T02:50:52.233Z",
+        "reason": "agent c3: hatch is DESIGN.md texture for pending/placeholder capture slots"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(19,20,22,.5)",
+        "files": [
+          "handoff/agents/history/2026-11-26_랜딩페이지_시안/landing.css"
+        ],
+        "createdAt": "2026-11-26T02:50:53.135Z",
+        "reason": "agent c3: modal backdrop color documented in DESIGN.md"
       }
     ]
   }

@@ -666,3 +666,8 @@
 - **현재**: 11-26 b3 커밋(`feat(97 시작화면`)에서 6열(공고(예정)일·공고까지·협약 종료일)·단계 3값(공고 전·공고 중·공고 종료), '공고 확인 필요' = 공고 경과 판정 목록과 동일. 사용자 결정: 관심 기관 [편집] 안 만듦, 기관 분류 탭 그대로, 항상 전체.
 - **다음 한 걸음**: ① 판정을 처리해도 협약 종료일 지난 곳이 대기·표에 남음(P.judgeItems가 지난 기관의 판정 기록을 안 봄 — planner) ② IN_PROGRESS·DELAYED 기록 기관의 표기 ③ 은행 칸 긴 이름 잘림 ④ [임박순으로]·caption 문구, 확인 필요+결과 태그 줄의 단계 칩, '추정일 지남' 용어.
 - **자세히**: handoff/sessions/2026-11-26_1400_b3.md, handoff/agents/qa-verifier/2026-11-26_1324_aa95a56e.md, design-reviewer/2026-11-26_1343_a8acb6cd.md. 관련 97③·116·122.
+
+### 127. 기능 소개 랜딩 페이지(로그인 전 첫 화면) — 시안 승인·앱 적용·실화면 통과, 남은 것: 캡처 4자리·흠 (사용자 11-26) [담당: c3 — frontend-dev → design-reviewer → security(캡처) / 사용자(AI 장면 교체)]
+- **현재**: `frontend/js/landing.js`·`frontend/test/landing.test.js`와 `index.html`의 #ld-style·#landing-view·ld-open. AI가 제안서를 대신 쓰는 장면은 넣지 않음(사용자). 상세 AI 기능이 생기면 해당 장면만 교체(사용자).
+- **다음 한 걸음**: ① 화면 캡처 4자리를 가상 자료로 다시 찍어 security 확인 뒤 넣기 ② 작은 장면 묶음 높이(1280×800 870px>736), 스크롤 건너뛰면 진행 줄 갱신 안 됨, 공고문 장면 완성 상태 왼쪽 칸 비어 보임, 장면 4 문구 '카드' ↔ 목록 ③ qa P2(header·#shell inert를 랜딩이 직접)·P3(히어로 타이머) ④ DESIGN.md '소개 표면' 절.
+- **자세히**: handoff/sessions/2026-11-26_1112_c3.md, 시안 handoff/agents/history/2026-11-26_랜딩페이지_시안/index.html, 규격 handoff/agents/design-reviewer/2026-11-26_1126_a0181b16.md, 적용안 handoff/agents/frontend-dev/2026-11-26_1313_a995dfc2.md, 보안 handoff/agents/security/2026-11-26_1310_a3d5b6e3.md, 문구 handoff/agents/planner/2026-11-26_1116_ace7e0e6.md.
