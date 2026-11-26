@@ -145,3 +145,10 @@ test('위 정렬 본문 칸이 있는 줄은 줄 전체를 위로', function () 
   assert.ok(/vertical-align:\s*top/.test(css.slice(i, css.indexOf('}', i))));
   assert.ok(/text-align:\s*center/.test(rule('.ad-table td.tm-t-reason > .dg-hint:only-child')), '빈 메모 — 는 가운데');
 });
+
+test('열 폭·원문 표기 후속(design 11-26 실측)', function () {
+  assert.ok(css.indexOf('.rs-tt col.c-tag { width:96px; }') >= 0);
+  assert.ok(css.indexOf('.rs-tt col.c-prep { width:120px; }') >= 0);
+  assert.ok(/text-align:\s*left/.test(rule('.pl-bud .db-why')));
+  assert.ok(/padding:\s*4px 2px/.test(rule('.pb-t thead th')));
+});

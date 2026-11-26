@@ -1540,7 +1540,7 @@
   .pb-scroll { flex:1 1 auto; min-height:0; overflow:auto; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); scroll-padding:64px 0 0 176px; }
   .pb-t { border-collapse:separate; border-spacing:0; table-layout:fixed; width:max-content; font-size:12px; }
   .pb-t col.c-name { width:176px; } .pb-t col.c-notice { width:104px; } .pb-t col.c-mk { width:68px; }
-  .pb-t thead th { position:sticky; z-index:2; box-sizing:border-box; padding:4px; line-height:16px; font-weight:700; color:var(--muted); text-align:center; vertical-align:middle; word-break:keep-all; overflow-wrap:anywhere;
+  .pb-t thead th { position:sticky; z-index:2; box-sizing:border-box; padding:4px 2px; line-height:16px; font-weight:700; color:var(--muted); text-align:center; vertical-align:middle; word-break:keep-all; overflow-wrap:anywhere;
     background:var(--panel2); border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
   .pb-t thead tr:first-child th { top:0; height:28px; }
   .pb-t thead tr:nth-child(2) th { top:28px; height:36px; border-bottom-color:var(--line-strong); }
@@ -2870,7 +2870,7 @@
   .pl-prog { display:block; margin-top:2px; }
   .pl-dim td, .pl-dim .pl-content { color:var(--muted); }
   .pl-bud .u { font-size:12px; color:var(--muted); }
-  .pl-bud .db-why { display:block; font-size:12px; line-height:1.4; white-space:normal; word-break:keep-all; overflow-wrap:anywhere; }   /* 원문 표기만 칸 안에서 줄바꿈 — 긴 문구가 예산 열 전체를 넓히지 않게(11-16 사용자 지적) */
+  .pl-bud .db-why { display:block; text-align:left; font-size:12px; line-height:1.4; white-space:normal; word-break:keep-all; overflow-wrap:anywhere; }   /* 원문 표기만 칸 안에서 줄바꿈 — 긴 문구가 예산 열 전체를 넓히지 않게(11-16 사용자 지적) 원문 문장은 여러 줄 본문이라 왼쪽, 숫자만 오른쪽(design 11-26) */
   .pl-open { margin:8px 0 0; }
   .pl-open .link-btn { min-height:24px; padding:4px 2px; color:var(--fg); text-decoration:underline; text-decoration-color:var(--accent-color); text-underline-offset:3px; }
   .pl-slot:empty { display:none; }
@@ -3028,10 +3028,10 @@
   .rs-frow .db-per input:not(:checked) + span:hover { background:color-mix(in srgb, var(--accent-color) 6%, var(--panel)); }
   .rs-fl { min-width:64px; font-size:12px; color:var(--muted); }
   .rs-tp { background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
-  .rs-tt { width:100%; min-width:880px; table-layout:fixed; border-collapse:separate; border-spacing:0; }
+  .rs-tt { width:100%; min-width:1080px; table-layout:fixed; border-collapse:separate; border-spacing:0; }   /* 고정 열 합 882 + 은행 열 최소 ~200(design 11-26 실측) */
   .rs-tt caption { caption-side:top; padding:8px 10px; text-align:left; font-size:12px; color:var(--muted); border-bottom:1px solid var(--line); }
-  .rs-tt col.c-nm { width:210px; } .rs-tt col.c-tag { width:72px; } .rs-tt col.c-res { width:180px; } .rs-tt col.c-bank { width:auto; }
-  .rs-tt col.c-from { width:84px; } .rs-tt col.c-evd { width:150px; } .rs-tt col.c-prep { width:100px; }
+  .rs-tt col.c-nm { width:240px; } .rs-tt col.c-tag { width:96px; } .rs-tt col.c-res { width:180px; } .rs-tt col.c-bank { width:auto; }
+  .rs-tt col.c-from { width:96px; } .rs-tt col.c-evd { width:150px; } .rs-tt col.c-prep { width:120px; }   /* 구분 '신규유치 도전'·'약정 시작 ⇕'·'진행(사전준비)'이 잘리지 않게(design 11-26 실측) */
   .rs-rt { min-width:640px; }
   .rs-rt col.c-kind { width:150px; } .rs-rt col.c-why { width:auto; } .rs-rt col.c-at { width:96px; }
   .rs-tt th, .rs-tt td { height:40px; padding:0 10px; vertical-align:middle; text-align:center; font-size:12px; font-weight:400; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
