@@ -11,7 +11,7 @@
 4. **공유 .git/index는 늘 뒤처진다**(세션마다 임시 인덱스로 커밋하기 때문) — 커밋은 반드시 `GIT_INDEX_FILE=.git/index.<세션>.tmp`, 공유 인덱스로 커밋 금지. 필요하면 `git reset -q`(작업 파일 무변경)로 맞춘다.
 
 ## 이어갈 일 (세션별 — 자세한 내용은 경로의 자료)
-- **6e(제안 준비 현황)**: ① 125 1단계 화면·서버 실측(8080 = 921447e1, /preps 응답에 bid_subject_cd·bid_subject_name 확인됨) ② NEXT 125 db 몫 — DB 065·067 → S3a 한 커밋(PrepStage5·120 ① 서버 + prepboard.js·preptask.js, 해시를 ca에 전달) → S3b ③ 125 화면 열(입찰 대상·공고명, A안) ④ NEXT 113(대본 '이사회' 고정 적용·요약서 여백·design_history 장·화면 실측) → 121 ①~⑥. 자료: handoff/sessions/2026-11-26_0900_dash.md '19시 덧붙임', 설계 handoff/agents/backend-dev/2026-11-26_1708_a12c06a4.md·1737_a12c06a4.md(+같은 폴더 a12c06a4 최종판), 검토 handoff/agents/qa-verifier/2026-11-26_1714_abbe2e11.md, 시안 handoff/agents/history/2026-11-26_입찰대상_목록_시안/index.html.
+- **6e(제안 준비 현황)**: ① 125 1단계 화면·서버 실측(8080 = 921447e1, /preps 응답에 bid_subject_cd·bid_subject_name 확인됨) ② NEXT 125 db 몫 — DB 065·067 → S3a 한 커밋(PrepStage5·120 ① 서버 + prepboard.js·preptask.js, 해시를 ca에 전달) → S3b ③ 125 화면 열(입찰 대상·공고명, A안) ④ NEXT 113(대본 '이사회' 고정 적용·요약서 여백·design_history 장·화면 실측) → 121 ①~⑥. 자료: handoff/sessions/2026-11-26_0900_dash.md '19시 덧붙임', 설계 handoff/agents/backend-dev/2026-11-26_1708_a12c06a4.md·1737_a12c06a4.md(+같은 폴더 a12c06a4 최종판), 검토 handoff/agents/qa-verifier/2026-11-26_1714_abbe2e11.md, 시안 handoff/agents/history/2026-11-26_입찰대상_목록_시안/index.html. **11-27 02시 a6 덧붙임**: NEXT 131(피드백 9건, 커밋 61f1dfde·5a328494·840b7eb5·5091eb0e) — 첫 일은 로컬 DB 068 적용 확인 → 8080 재기동 → qa 실화면(쓰기 검증할 건을 사용자에게 다시 묻기), 이어 NEXT 133(11단계 제출서류, 답 3건 대기). design_history 다음 장 141. 자료: handoff/sessions/2026-11-27_0000_dash.md.
 - **ca(입찰 현황판)**: NEXT 120 ① 2차 서버·② 기획 판정 → 114 ②~⑤. 자료: handoff/sessions/2026-11-26_0921_ca.md. security 후속(하): 응답 tag_source DEFAULT→NONE을 화면이 쓰는지, 옛 GOAL 이월 행 처리(data-auditor) — handoff/agents/security/ 11-26 15시대 PUSH-GATE 보고서.
 - **0d(디자인 검토)**: NEXT 124 남은 몫. 자료: handoff/sessions/2026-11-19_1930_0d.md '11-26'.
 - **e4(기관장)**: NEXT 77 — 옛 경력 12줄·qa P3·Word 실물·법원장 사진. 자료: handoff/sessions/2026-11-25_2020_e4.md '11-26'. 잊지 말 것: Word '요약'에는 연도·일자 정보가 없다.
@@ -27,7 +27,7 @@
 - **NEXT 125 한 기관 여러 공고**(담당자·결재는 입찰마다 따로, 11-26 답): 수집 검색어에 "금융기관 선정"·"법인카드"·"자금관리" 추가.
 - **NEXT 120 ②**: 탈락·유찰 세는 법(Q-25-44), 제출·선정 기록 위치(Q-25-45), 협약식 없는 기관의 '협약 완료' 기준(Q-25-48).
 - **주간 수집 실행기**(Q-2026-11-24-15, 11-30 09:00 전): 옛 PC 작업 스케줄러 변경·이 PC로 옮길지.
-- 작업에 붙인 질문: Q-25-18(ca 101), Q-25-53(122 P2 뒤), 0d 빈 사유 표시 시점·폐쇄망 브라우저 `:has` 지원(124), 공고문 견본(Q-24-13), 법원장 사진(Q-24-23), 업로더(Q-24-54·55).
+- 작업에 붙인 질문: Q-25-18(ca 101), Q-25-53(122 P2 뒤), 0d 빈 사유 표시 시점(124 — 폐쇄망 브라우저는 Chrome·Edge 105 이상으로 답 받음 11-27, `:has` 사용 가능, DESIGN.md), 공고문 견본(Q-24-13), 법원장 사진(Q-24-23), 업로더(Q-24-54·55).
 - 장부 정리안(pm 11-26 PUSH-GATE): done 후보 Q-25-43·26-05·26-08·26-06·26-07·25-40~42·25-49·25-50·25-15·26-01·25-56·25-91·26-10·26-11 / hold 후보 Q-25-16·17·19·20·22~33(db 일괄 확인) / Q-26-09 확인 필요.
 
 ## 미해결 이슈 상기 (세션 첫 답변에서 3~5줄)
