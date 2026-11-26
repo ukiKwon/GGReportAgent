@@ -22,6 +22,7 @@ test('KB 글꼴: @font-face 5개 — family·굵기 범위·local() 뒤 url()·w
     assert.ok(f.indexOf('font-family:"' + w[0] + '"') >= 0, w[2] + ' family');
     assert.ok(f.indexOf('font-weight:' + w[1] + ';') >= 0, w[2] + ' weight');
     assert.ok(f.indexOf('font-display:swap') >= 0, w[2] + ' swap');
+    assert.ok(f.indexOf('unicode-range:U+0000-00B6,U+00B8-2039,U+203B-10FFFF;') >= 0, w[2] + ' unicode-range(› U+203A·· U+00B7 제외)');
     assert.strictEqual((f.match(/local\(/g) || []).length, 3, w[2] + ' local 3개');
     assert.strictEqual((f.match(/url\(/g) || []).length, 1, w[2] + ' url 1개');
     assert.ok(f.lastIndexOf('local(') < f.indexOf('url('), w[2] + ' local이 url보다 앞');

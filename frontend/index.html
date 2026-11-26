@@ -12,16 +12,16 @@
      2026-11-17_KRDS_화면개편_규격초안.md. 지도 팔레트는 render.js DEFAULT_THEME가
      정본이며 테마 모달로 사용자 조정 가능. 변수명·클래스·id는 JS 생성 마크업과
      공유 — 이름 변경 금지(값만 바꾼다). */
-  /* KB금융 글꼴(사용자 11-26, NEXT 130) — 본문체 Light=400·Medium=600·Bold=700, 제목체 Bold. 설치돼 있으면 local()로 쓰고 없을 때만 fonts/를 내려받는다(preload 금지: local()을 무시한다). family 이름을 설치명(KBFG Text)과 다르게 둔 것은 400→Medium 기본 대응을 피하려는 것 — 400이 Light로 가야 맑은 고딕과 농도가 같다. 제목체 안의 400 이하 글자는 본문체 Light로 그린다(제목체는 Bold 면뿐이라 그냥 두면 굵게 나온다). */
-  @font-face{font-family:"KB Text";font-weight:300 400;font-display:swap;
+  /* KB금융 글꼴(사용자 11-26, NEXT 130) — 본문체 Light=400·Medium=600·Bold=700, 제목체 Bold. 설치돼 있으면 local()로 쓰고 없을 때만 fonts/를 내려받는다(preload 금지: local()을 무시한다). family 이름을 설치명(KBFG Text)과 다르게 둔 것은 400→Medium 기본 대응을 피하려는 것 — 400이 Light로 가야 맑은 고딕과 농도가 같다. 제목체 안의 400 이하 글자는 본문체 Light로 그린다(제목체는 Bold 면뿐이라 그냥 두면 굵게 나온다). › (U+203A)는 글리프가 비어 있고 · (U+00B7)는 너무 옅어 unicode-range로 빼서 맑은 고딕이 그리게 한다. */
+  @font-face{font-family:"KB Text";font-weight:300 400;font-display:swap;unicode-range:U+0000-00B6,U+00B8-2039,U+203B-10FFFF;
     src:local("KBFGText-Light"),local("KBFG Text Light"),local("KB금융 본문체 Light"),url("fonts/KBFGText-Light.woff2") format("woff2");}
-  @font-face{font-family:"KB Text";font-weight:500 600;font-display:swap;
+  @font-face{font-family:"KB Text";font-weight:500 600;font-display:swap;unicode-range:U+0000-00B6,U+00B8-2039,U+203B-10FFFF;
     src:local("KBFGText-Medium"),local("KBFG Text Medium"),local("KB금융 본문체 Medium"),url("fonts/KBFGText-Medium.woff2") format("woff2");}
-  @font-face{font-family:"KB Text";font-weight:700 900;font-display:swap;
+  @font-face{font-family:"KB Text";font-weight:700 900;font-display:swap;unicode-range:U+0000-00B6,U+00B8-2039,U+203B-10FFFF;
     src:local("KBFGText-Bold"),local("KBFG Text Bold"),local("KB금융 본문체 Bold"),url("fonts/KBFGText-Bold.woff2") format("woff2");}
-  @font-face{font-family:"KB Display";font-weight:100 400;font-display:swap;
+  @font-face{font-family:"KB Display";font-weight:100 400;font-display:swap;unicode-range:U+0000-00B6,U+00B8-2039,U+203B-10FFFF;
     src:local("KBFGText-Light"),local("KBFG Text Light"),local("KB금융 본문체 Light"),url("fonts/KBFGText-Light.woff2") format("woff2");}
-  @font-face{font-family:"KB Display";font-weight:500 900;font-display:swap;
+  @font-face{font-family:"KB Display";font-weight:500 900;font-display:swap;unicode-range:U+0000-00B6,U+00B8-2039,U+203B-10FFFF;
     src:local("KBFGDisplay-Bold"),local("KBFG Display Bold"),local("KB금융 제목체 Bold"),url("fonts/KBFGDisplay-Bold.woff2") format("woff2");}
   :root { --bg:#e9ecf0; --panel:#ffffff; --panel2:#f6f7f9; --line:#c3c9d1;
           --line-strong:#6d7882; --fg:#1e2124; --muted:#464c53;
