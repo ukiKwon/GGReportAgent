@@ -24,4 +24,5 @@
 - 색은 `index.html`의 `:root` 안 `--lg-*` 변수(이 화면 전용)와 앱 공통 변수로 바꾼다.
 
 ## 구조
+- `fonts/` KB금융 글꼴 woff2 4개 자리(`KBFGText-Light`·`KBFGText-Medium`·`KBFGText-Bold`·`KBFGDisplay-Bold`) — `index.html` 맨 위 @font-face가 참조한다. **글꼴 파일은 저장소에 없다**(`.gitignore`, 2026-11-27 사용자 결정 — 따로 받아 이 폴더에 넣는다). 없어도 화면은 깨지지 않는다: PC에 KB글꼴이 설치돼 있으면 그것을, 없으면 맑은 고딕을 쓴다. 파일 이름·해시·변환 방법은 `handoff/sessions/2026-11-26_2350_e2.md`.
 - `js/logic.js` 순수 로직 · `js/store.js` 관심/편집 상태 · `js/export.js` 내보내기 · `js/render.js` D3 렌더 · `js/overdue.js` 공고 예정일 경과 패널·팝업·사이드바 배지(판정은 logic.js) · `js/app.js` 와이어링.

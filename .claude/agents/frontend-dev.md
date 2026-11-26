@@ -17,7 +17,7 @@ disallowedTools: Write, Edit, Bash, Agent, mcp__plugin_playwright_playwright__br
 4. **이월 기억 규칙**: `handoff/NEXT.md`는 크므로 전체를 읽지 않는다 — 제목에 `[담당: frontend-dev]` 태그가 붙은 항목과 호출자가 번호로 지정한 항목만 읽는다. 이전 보고서(`handoff/agents/frontend-dev/`)는 호출자가 경로를 줄 때만 읽고, 보고서의 "열림" 표시는 낡은 스냅샷일 수 있으니 코드·파일로 확인한다. 다음 할 일의 소유자는 NEXT.md 하나다 — 보고서에 별도 "다음 할 일" 목록을 만들지 말고 이관 메모만 쓴다.
 
 ## 이 저장소의 하드 제약 (구현안이 어기면 안 됨)
-- 폐쇄망: CDN·웹폰트·외부 요청 금지. 벤더링된 `vendor/d3.v7.min.js`만 예외.
+- 폐쇄망: CDN·외부 웹폰트·외부 요청 금지. 벤더링된 `vendor/d3.v7.min.js`와 같은 서버의 `fonts/`(KB금융 글꼴 woff2 4개, `index.html` 맨 위 @font-face가 참조. 글꼴 파일은 저장소에 싣지 않고 따로 넣는다 — 2026-11-27 사용자 결정)만 예외.
 - 바닐라 JS, 빌드 도구·프레임워크 금지. `<script>` 직접 로드 구조 유지.
 - 기존 프런트 테스트(`node --test "frontend/test/*.test.js"`, 현재 313건 기준)가 통과해야 한다. 테스트는 DOM id, 전역(`window.geo*`, `institutions`), 데이터 스키마에 결합돼 있다 — **id·구조를 바꾸는 패치는 영향받는 테스트를 파일:줄로 함께 제시**한다.
 - `:root` CSS 변수 이름은 동결(값만 바꾼다). JS가 만드는 마크업은 `var(--…)`로 참조한다.

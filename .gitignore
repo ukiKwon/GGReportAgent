@@ -123,3 +123,6 @@ corpus/ext_check/
 **/heads.json
 **/old-items.sql
 **/head-bundle-*.zip
+
+# KB금융 글꼴 파일은 저장소에 싣지 않는다(2026-11-27 사용자 결정) — PC·서버마다 따로 받아 넣는다. frontend/README.md 참고.
+frontend/fonts/

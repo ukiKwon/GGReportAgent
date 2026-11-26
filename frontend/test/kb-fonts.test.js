@@ -40,6 +40,25 @@ test('KB 글꼴: preload·외부 링크 없음, 글꼴 이름은 --… 선언에
   assert.deepStrictEqual(badC, []);   // Consolas도 --… 변수 선언에만 남는다
 });
 
+test('KB 글꼴: url 이름 4개 고정, fonts/ 는 비어 있어도 되고(PC마다 따로 넣음) 있는 파일은 4개 이름·wOF2 머리·크기>0', function () {
+  const dir = path.join(__dirname, '..', 'fonts');
+  const names = [];
+  faces.join('\n').replace(/url\("fonts\/([^"]+\.woff2)"\)/g, function (m, n) { if (names.indexOf(n) < 0) names.push(n); return m; });
+  assert.deepStrictEqual(names.slice().sort(), ['KBFGDisplay-Bold.woff2', 'KBFGText-Bold.woff2', 'KBFGText-Light.woff2', 'KBFGText-Medium.woff2']);
+  if (!fs.existsSync(dir)) return;   // 폴더가 없으면 통과 — 파일은 저장소 밖에서 따로 넣는다
+  const present = fs.readdirSync(dir).filter(function (f) { return !/^(\.gitkeep|readme(\..*)?)$/i.test(f); });
+  present.forEach(function (n) {
+    assert.ok(names.indexOf(n) >= 0, n + ' 은(는) 쓰지 않는 글꼴 이름');
+    const p = path.join(dir, n);
+    assert.ok(fs.statSync(p).size > 0, n + ' 크기 > 0');
+    const fd = fs.openSync(p, 'r');
+    const head = Buffer.alloc(4);
+    fs.readSync(fd, head, 0, 4, 0);
+    fs.closeSync(fd);
+    assert.strictEqual(head.toString('latin1'), 'wOF2', n + ' woff2 머리');
+  });
+});
+
 test('KB 글꼴: 랜딩 얇은 글자(.lg-say·.ld-sub)는 font-weight 300 유지', function () {
   assert.ok(/\.lg-say \{[^}]*font:300 40px\/1\.25 var\(--lg-thin\)/.test(allCss));
   assert.ok(/\.ld-sub\{[^}]*font:300 20px\/1\.6 var\(--ld-thin\)/.test(allCss));
