@@ -44,7 +44,9 @@ test('마크업: hidden 기본, 로그인 화면 앞, script가 바로 뒤, 시�
   assert.ok(mStart > 0 && mEnd > mStart && mEnd < html.indexOf('<div id="login-view"'));
   assert.ok(markup.indexOf('시안') < 0 && markup.indexOf('ld-status') < 0);
   assert.strictEqual((markup.match(/data-go="login"/g) || []).length, 3);
-  assert.strictEqual((markup.match(/화면 캡처 준비 중/g) || []).length, 4);
+  assert.strictEqual((markup.match(/화면 캡처 준비 중/g) || []).length, 0);
+  assert.strictEqual((markup.match(/data-capture="pending"/g) || []).length, 0);
+  assert.ok(markup.indexOf('ld-gnote') < 0 && markup.indexOf('예상 공고현황(지도)') < 0);
   assert.ok(markup.indexOf('가상입니다. 사내 시연용, 외부 배포 금지.</p>') > 0);
   assert.strictEqual((markup.match(/<section\b/g) || []).length, (markup.match(/<\/section>/g) || []).length);
   assert.ok(!/<form[\s>]/.test(markup) && !/(src|href)="https?:/.test(markup));
@@ -72,6 +74,69 @@ test('장면 토큰: 마크업의 data-* 값은 모두 시간표에 있다', fun
       assert.ok(toks.indexOf(/="([^"]+)"/.exec(a)[1]) >= 0, name + ' ' + a);
     });
   });
+});
+
+test('업무 흐름 예시 장면 5개: figure.ld-fm, 장면 이름, 가상 표기, 묶음 안 위치', function () {
+  const figs = markup.match(/<figure class="ld-mock ld-fm"[\s\S]*?<\/figure>/g) || [];
+  assert.deepStrictEqual(figs.map(function (f) { return /data-scene="([^"]+)"/.exec(f)[1]; }), ['map', 'board', 'prop', 'prep', 'perf']);
+  figs.forEach(function (f) {
+    assert.ok(/data-step="end"/.test(f) && /aria-hidden="true"/.test(f), '끝 상태 기본 + aria-hidden');
+    assert.ok(f.indexOf('예시 자료(가상)') > 0 && f.indexOf('지금 쓰는 화면') > 0 && f.indexOf('class="ld-ptr"') > 0);
+    assert.ok(/<span class="sr-only">/.test(f.slice(f.indexOf('<figcaption'))), 'sr-only 끝 상태 설명');
+  });
+  ['flow-1', 'flow-2', 'flow-3', 'flow-4', 'flow-5'].forEach(function (id, i) {
+    const a = markup.indexOf('id="' + id + '"');
+    const b = i < 4 ? markup.indexOf('id="flow-' + (i + 2) + '"') : markup.indexOf('id="ld-end"');
+    assert.ok(markup.slice(a, b).indexOf('data-scene="' + ['map', 'board', 'prop', 'prep', 'perf'][i] + '"') > 0, id);
+  });
+  assert.ok(markup.indexOf('<b>예상 공고현황</b>') > 0);
+  assert.ok(markup.indexOf('가상 자료로 다시 그린 예시입니다.</p>') > 0);
+  assert.ok(src.indexOf("$$('.ld-group .ld-mock[data-scene]')") > 0);
+});
+
+test('CSS: 업무 흐름 장면의 [data-scene][data-on~=토큰]은 그 장면 시간표에 있다', function () {
+  const body = css.replace(/@keyframes[^{]+\{(?:[^{}]*\{[^{}]*\})*\s*\}/g, '').replace(/@media[^{]+\{/g, '');
+  let n = 0;
+  (body.match(/[^{}]+\{[^{}]*\}/g) || []).forEach(function (r) {
+    splitTop(r.slice(0, r.indexOf('{'))).forEach(function (s) {
+      const sc = /data-scene="(\w+)"/.exec(s);
+      if (!sc) return;
+      assert.ok(landing.TIMELINES[sc[1]], '시간표 없음: ' + sc[1]);
+      const toks = landing.TIMELINES[sc[1]].steps.map(function (st) { return st[1]; });
+      (s.match(/data-on~="[^"]+"/g) || []).forEach(function (a) {
+        n += 1;
+        assert.ok(toks.indexOf(/="([^"]+)"/.exec(a)[1]) >= 0, sc[1] + ' ' + a);
+      });
+    });
+  });
+  assert.ok(n > 40);
+  ['map', 'board', 'prop', 'prep', 'perf'].forEach(function (k) { assert.ok(landing.TIMELINES[k].steps[landing.TIMELINES[k].steps.length - 1][1] === 'end'); });
+});
+
+test('currentGroup: 기준선을 품은 묶음, 없으면 가장 가까운 묶음', function () {
+  const r = [{ top: 0, bottom: 100 }, { top: 100, bottom: 300 }, { top: 340, bottom: 500 }];
+  assert.strictEqual(landing.currentGroup(r, 50), 0);
+  assert.strictEqual(landing.currentGroup(r, 200), 1);
+  assert.strictEqual(landing.currentGroup(r, 330), 2);
+  assert.strictEqual(landing.currentGroup(r, 310), 1);
+  assert.strictEqual(landing.currentGroup(r, 900), 2);
+  assert.strictEqual(landing.currentGroup(r, -50), 0);
+  assert.strictEqual(landing.currentGroup([], 10), -1);
+});
+
+test('진행 줄: 지금 묶음은 위치 계산(IO 들어옴 아님), layoutRail은 글꼴·크기 변화에도, 정지 때 정리', function () {
+  const u = src.slice(src.indexOf('function updateFill'), src.indexOf('function onScroll'));
+  assert.ok(u.indexOf('landing.currentGroup') > 0 && u.indexOf('setCurrent') > 0);
+  assert.ok(src.indexOf('observe(groups') < 0);
+  assert.ok(src.indexOf('doc.fonts.ready') > 0 && src.indexOf('ResizeObserver') > 0 && src.indexOf("'onscrollend' in view") > 0);
+  const s = src.slice(src.indexOf('function stopMotion'), src.indexOf('function setBehind'));
+  assert.ok(s.indexOf('rszObs.disconnect()') > 0 && s.indexOf("removeEventListener('scrollend'") > 0);
+});
+
+test('P3: 탭이 숨거나 랜딩이 닫히면 등장 타이머도 정리한다', function () {
+  const e = src.slice(src.indexOf('function evaluate'), src.indexOf('// ── 업무 흐름 진행 줄'));
+  assert.ok(/!running \|\| doc\.hidden\) \{ clearTimeout\(enterTimer\)/.test(e));
+  assert.ok(e.indexOf("classList.remove('ld-entering')") > 0);
 });
 
 function splitTop(list) {

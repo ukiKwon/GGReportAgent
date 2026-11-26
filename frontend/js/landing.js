@@ -21,7 +21,20 @@
       [3000, 'done'], [3300, 'end']] },
     script: { hold: 3000, steps: [[0, 'hl'], [400, 'l1'], [700, 'l2'], [1700, 'chip'], [2000, 'end']] },
     draft: { hold: 3000, steps: [[0, 'hl'], [400, 'rv'], [1400, 'chip'], [1700, 'end']] },
-    minutes: { hold: 3000, steps: [[0, 'hl'], [400, 'todo'], [1300, 'q'], [2200, 'ans'], [2600, 'src'], [2900, 'end']] }
+    minutes: { hold: 3000, steps: [[0, 'hl'], [400, 'todo'], [1300, 'q'], [2200, 'ans'], [2600, 'src'], [2900, 'end']] },
+    // 업무 흐름 5묶음: 지금 쓰는 화면을 가상 자료로 다시 그린 예시(커서·누름은 CSS [data-on~="토큰"])
+    map: { hold: 4000, steps: [[200, 'paint'], [1000, 'ptr'], [1100, 'go'], [1750, 'pick'], [1900, 'r1'], [2100, 'r2'],
+      [2300, 'r3'], [2500, 'r4'], [3100, 'pend'], [3300, 'end']] },
+    board: { hold: 4000, steps: [[0, 'ptr'], [200, 'p1'], [850, 'pr1'], [1050, 'up'], [1500, 'a1'], [1700, 'm1'], [2300, 's1'],
+      [2400, 'a2'], [2600, 'm2'], [3200, 's2'], [3300, 'a3'], [3500, 'm3'], [4100, 's3'], [4200, 'done'], [4400, 'p2'],
+      [5050, 'ck'], [5500, 'pend'], [5700, 'end']] },
+    prop: { hold: 4000, steps: [[0, 'ptr'], [200, 'p1'], [850, 'pr1'], [1050, 'rf'], [2200, 'p2'], [2850, 'pr2'], [3000, 'flt'],
+      [3800, 'pend'], [4000, 'end']] },
+    prep: { hold: 4000, steps: [[0, 'ptr'], [200, 'p1'], [850, 'pr1'], [1000, 'mo1'], [1400, 'p2'], [2000, 'h1'], [2100, 'pk1'],
+      [2250, 'sv1'], [2700, 'p3'], [3350, 'pr2'], [3500, 'mo2'], [3900, 'p4'], [4500, 'h2'], [4600, 'pk2'], [4750, 'sv2'],
+      [5300, 'pend'], [5500, 'end']] },
+    perf: { hold: 4000, steps: [[0, 'bar'], [950, 'brace'], [1150, 'rate'], [1500, 'ptr'], [1600, 'p1'], [2250, 'pr1'], [2400, 'flt'],
+      [3200, 'pend'], [3400, 'end']] }
   };
   // 업무 흐름 5묶음의 칸 수(PrepBoardColumns.java 27칸). 마크업과의 대조는 landing.test.js.
   var FLOW_CELLS = [3, 5, 5, 3, 11];
@@ -56,6 +69,15 @@
   landing.fillProgress = function (center, first, last) {
     return Math.max(0, Math.min(1, (center - first) / ((last - first) || 1)));
   };
+  // 지금 묶음: 기준선(line)을 품은 묶음, 없으면 가장 가까운 묶음. rects = [{top, bottom}]
+  landing.currentGroup = function (rects, line) {
+    var best = -1, bd = Infinity;
+    rects.forEach(function (r, i) {
+      var d = line < r.top ? r.top - line : (line > r.bottom ? line - r.bottom : 0);
+      if (d < bd) { bd = d; best = i; }
+    });
+    return best;
+  };
 
   if (typeof module !== 'undefined' && module.exports) { module.exports = landing; return; }
 
@@ -70,7 +92,7 @@
   var playing = !reduced;      // 저장하지 않는다
   var running = false;         // 랜딩이 보이는 동안만 true — 타이머·관찰자·리스너는 이 동안에만 산다
   var entered = false, enterTimer = null, raf = 0;
-  var observers = [], units = [], current = null;
+  var observers = [], units = [], current = null, curGroup = -1, rszObs = null;
 
   function byId(id) { return doc.getElementById(id); }
   function $$(sel, el) { return Array.prototype.slice.call((el || view).querySelectorAll(sel)); }
@@ -172,6 +194,7 @@
     if (!running || !playing || doc.hidden) {
       units.forEach(stop);
       current = null;
+      if (!running || doc.hidden) { clearTimeout(enterTimer); enterTimer = null; view.classList.remove('ld-entering'); }   // 숨은 동안 남는 타이머 0개
       return;
     }
     var best = landing.pickUnit(units);
@@ -209,11 +232,20 @@
   }
   function centerY(el) { var b = el.getBoundingClientRect(); return b.top + b.height / 2; }
   // 스크롤 기준은 window 가 아니라 랜딩 컨테이너(position:fixed)다.
+  // 채움선과 '지금 묶음'을 같은 rAF 안에서 위치로 계산한다(IO '들어옴' 알림은 건너뛴 스크롤에서 어긋났다).
   function updateFill() {
     raf = 0;
-    if (!fill || groups.length < 2) return;
     var vc = view.getBoundingClientRect().top + view.clientHeight / 2;
-    fill.style.transform = 'scaleY(' + landing.fillProgress(vc, centerY(groups[0]), centerY(groups[groups.length - 1])) + ')';
+    if (fill && groups.length >= 2) {
+      fill.style.transform = 'scaleY(' + landing.fillProgress(vc, centerY(groups[0]), centerY(groups[groups.length - 1])) + ')';
+    }
+    if (groups.length) {
+      var rects = groups.map(function (g) { var b = g.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; });
+      var i = landing.currentGroup(rects, vc);
+      // 첫 묶음 위(업무 흐름 머리 위)에서는 아직 '지금'을 정하지 않는다 — 첫 묶음 칸 막대 연출을 아낀다
+      if (i === 0 && vc < rects[0].top) i = -1;
+      if (i >= 0 && i !== curGroup) { curGroup = i; setCurrent(i); }
+    }
   }
   function onScroll() { if (!raf) raf = requestAnimationFrame(updateFill); }
   function onResize() { layoutRail(); onScroll(); }
@@ -265,13 +297,18 @@
           if (e.isIntersecting) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current');
         });
       }, { rootMargin: '-49% 0px -50% 0px' });
-      observe(groups, function (entries) {
-        entries.forEach(function (e) { if (e.isIntersecting) setCurrent(groups.indexOf(e.target)); });
-      }, { rootMargin: '-45% 0px -45% 0px' });
     }
+    curGroup = -1;
     doc.addEventListener('visibilitychange', evaluate);
     view.addEventListener('scroll', onScroll, { passive: true });
+    if ('onscrollend' in view) view.addEventListener('scrollend', onScroll);
     root.addEventListener('resize', onResize);
+    // 글꼴이 늦게 읽히거나 묶음 높이가 바뀌면 진행 줄 위치를 다시 잡는다(없으면 조용히 건너뜀)
+    if (root.ResizeObserver) {
+      var gw = view.querySelector('.ld-groups');
+      if (gw) { rszObs = new root.ResizeObserver(onResize); rszObs.observe(gw); }
+    }
+    if (doc.fonts && doc.fonts.ready && doc.fonts.ready.then) doc.fonts.ready.then(function () { if (running) onResize(); });
     layoutRail();
     updateFill();
     evaluate();
@@ -287,6 +324,8 @@
     observers = [];
     doc.removeEventListener('visibilitychange', evaluate);
     view.removeEventListener('scroll', onScroll);
+    view.removeEventListener('scrollend', onScroll);
+    if (rszObs) { rszObs.disconnect(); rszObs = null; }
     root.removeEventListener('resize', onResize);
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
@@ -339,6 +378,7 @@
     if (!t) return;
     ev.preventDefault();
     t.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+    onScroll();
     var f = t.matches('main,h1,h2,h3,h4') ? t : t.querySelector('h2,h3,h4');
     if (f) {
       if (!f.hasAttribute('tabindex')) f.setAttribute('tabindex', '-1');
@@ -356,6 +396,7 @@
   var hero = view.querySelector('.ld-today[data-scene]');
   if (hero) makeUnit(hero, [hero], 0.5);
   $$('.ld-scene .ld-mock[data-scene]').forEach(function (f) { makeUnit(f, [f], 0.5); });
+  $$('.ld-group .ld-mock[data-scene]').forEach(function (f) { makeUnit(f, [f], 0.5); });
   var trio = view.querySelector('.ld-trio');
   if (trio) makeUnit(trio, $$('.ld-mock[data-scene]', trio), 0.4);
 
