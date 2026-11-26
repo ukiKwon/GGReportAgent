@@ -16,7 +16,6 @@
 -- ⚠️ DB 권한(DBA): 앱 계정은 INST_HEAD·INST_HEAD_ITEM·INST_HEAD_PHOTO 에 SELECT·INSERT·UPDATE 만,
 --   INST_HEAD_LOG·INST_HEAD_ACT 에 SELECT·INSERT 만 준다(다섯 표 모두 DELETE 없음, LOG·ACT 는 UPDATE 도 없음).
 -- ⚠️ 멱등하지 않다. 016(COMMON_CODE)·025 이후 한 번만 돌린다.
--- 변경 이력: 2026-11-26 VAL_TO·VAL_FLAG 열 설명 주석만 고침(경력 현직 표시) — 스키마 변경 없음, 이미 적용된 DB 에는 영향 없다.
 -- 되돌리기(데이터 소멸, 운영 금지 — 운영은 설정 ggreport.inst-head.enabled=false 로 끈다):
 --   DROP TABLE INST_HEAD_ACT; DROP TABLE INST_HEAD_LOG; DROP TABLE INST_HEAD_PHOTO; DROP TABLE INST_HEAD_ITEM; DROP TABLE INST_HEAD;
 --   DELETE FROM COMMON_CODE WHERE CODE_GROUP IN ('HEAD_STATUS','HEAD_ORIGIN','HEAD_FIELD','HEAD_ITEM_STATE',
@@ -57,8 +56,8 @@ CREATE TABLE INST_HEAD_ITEM (                         -- 칸 값 1개 = 1행(후
     VAL_TEXT         VARCHAR2(60 CHAR),                 -- NAME(30)·POSITION(40)·EDU·CAREER(60) 한 줄
     VAL_DATE         VARCHAR2(10 CHAR),                 -- FIRST_TAKE_OFFICE·TERM_START·TERM_END: YYYY-MM-DD
     VAL_FROM         VARCHAR2(7 CHAR),                  -- CAREER 시작 YYYY 또는 YYYY-MM
-    VAL_TO           VARCHAR2(7 CHAR),                  -- CAREER 끝 / EDU 졸업연도. NULL = 현재·미상 — 경력은 VAL_FLAG와 함께 읽는다(VAL_FLAG=1이면 현재, 아니면 미상)
-    VAL_FLAG         NUMBER(1),                         -- ACTING 항목: 1 권한대행 / 0 아님. CAREER 항목(경력): 1 지금도 그 자리(현직, 끝(VAL_TO)은 비움) / 0 아님 / NULL 현직 표시 도입 전 행(=현직 아님)
+    VAL_TO           VARCHAR2(7 CHAR),                  -- CAREER 끝 / EDU 졸업연도. NULL = 현재·미상
+    VAL_FLAG         NUMBER(1),                         -- ACTING: 1 권한대행 / 0 아님
     SRC_KIND_CD      VARCHAR2(20 CHAR)  NOT NULL,       -- HEAD_SRC
     SRC_TITLE        VARCHAR2(100 CHAR) NOT NULL,       -- 문서명·기사명·누리집 쪽 이름
     SRC_URL          VARCHAR2(1000 CHAR),               -- http/https 만, 계정정보 금지. 서버는 열지 않는다
