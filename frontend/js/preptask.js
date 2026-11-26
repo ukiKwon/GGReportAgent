@@ -248,6 +248,9 @@
     resSave: '결과 등록',
     resLabel: '의결 결과',
     resDate: '개최일',
+    agendaNo: '안건 번호',
+    agendaPh: '제2026-12호',
+    agendaHint: '가결·부결을 등록할 때만 적습니다. 비워 두면 지웁니다.',
     resNames: { SCHEDULED: '의결 예정', PASSED: '가결', REJECTED: '부결' },
     addFilesHint: '이사회에 함께 올리는 설명 자료·별첨을 올려 둡니다. PDF·HWPX·DOCX·XLSX.',
     addFilesEmpty: '아직 올린 추가 자료가 없습니다.',
@@ -295,9 +298,6 @@
     stNoticeTodo: '확인 전',
     noticeGapsHead: function (n) { return '확인이 필요한 항목 ' + n + '건'; },
     noticeNoRec: '이 기관의 입찰 공고 자료를 찾지 못했습니다. 입찰 공고 현황에서 기관을 확인하세요.',
-    agendaNo: '안건 번호',
-    agendaPh: '제2026-12호',
-    agendaHint: '가결·부결을 등록할 때만 적습니다. 비워 두면 지웁니다.',
     noticeLoading: '입찰 공고 자료를 불러오는 중…',
     stNoticeOk: '확인 완료',
     stNoticeGap: '확인 필요',
@@ -743,6 +743,9 @@
     return h + '<div class="ts-form"><label for="ts-res-cd">' + esc(T.resLabel) + '</label><select id="ts-res-cd">' +
       ['SCHEDULED', 'PASSED', 'REJECTED'].map(function (k) { return '<option value="' + k + '"' + (k === (cur || 'PASSED') ? ' selected' : '') + '>' + esc(T.resNames[k]) + '</option>'; }).join('') + '</select>' +
       '<label for="ts-res-date">' + esc(T.resDate) + '</label><input type="date" id="ts-res-date" value="' + esc(b.meeting || '') + '">' +
+      '<label for="ts-res-agenda">' + esc(T.agendaNo) + '</label><input type="text" id="ts-res-agenda" maxlength="30" placeholder="' + esc(T.agendaPh) + '" aria-describedby="ts-res-agenda-h" value="' + esc(b.agendaNo || '') + '"' +
+        ((cur || 'PASSED') === 'SCHEDULED' ? ' disabled' : '') + '>' +
+      '<span class="ts-note" id="ts-res-agenda-h">' + esc(T.agendaHint) + '</span>' +
       '<button type="button" data-act="board-result"' + (b.resBusy ? ' aria-disabled="true"' : '') + '>' + esc(T.resSave) + '</button>' +
       (b.resBusy ? '<span class="ts-saving">' + esc(T.saving) + '</span>' : '') + '</div>' +
       (b.resErr ? '<p class="ap-err" role="alert">' + esc(b.resErr) + '</p>' : '');
@@ -790,9 +793,6 @@
     const v = m.view || {}, vw = v.viewer || {}, sc = str(v.state_cd);
     const t6 = tasksBlock(m, { tasks: ['T6'] });
     if (sc === 'CANCELLED' || sc === 'CONFIRMED' || sc === 'OPEN_PENDING') return note(T.scriptHint) + note(T.scriptLater) + (t6 || note(T.taskNone));
-      '<label for="ts-res-agenda">' + esc(T.agendaNo) + '</label><input type="text" id="ts-res-agenda" maxlength="30" placeholder="' + esc(T.agendaPh) + '" aria-describedby="ts-res-agenda-h" value="' + esc(b.agendaNo || '') + '"' +
-        ((cur || 'PASSED') === 'SCHEDULED' ? ' disabled' : '') + '>' +
-      '<span class="ts-note" id="ts-res-agenda-h">' + esc(T.agendaHint) + '</span>' +
     const b = m.board || {};
     // 이사회 자료는 담당 영업·영업부장만 목록에서 볼 수 있다 — 그 밖의 사람에게 '없음'은 '볼 수 없음'일 수 있어 없다고 말하지 않는다(불러오지 못함 문구로).
     const canSee = vw.is_assignee === true || vw.is_head === true;
