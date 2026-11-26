@@ -743,3 +743,9 @@
 
 ### 117. 관심 기관 사람별 + 지도 ♥ = 내 관심 — 해소(2026-11-25)
 - ab4baae4(서버·DB 061, 로컬 적용 NULL_WATCH_OWNER 0), eb2d32a8(/watchers 제거), 지도 ♥ 연결(지도 커밋), 현황판 '내 관심 기관' e4708fb8(세션 97). 후속(퇴직 주인 고아·061 주석)은 NEXT 119.
+
+### 123. 500 응답 본문에 SQL 문·테이블 이름이 그대로 나옴 (qa 11-25) [담당: main(이 PC는 db가 대행) — backend-dev → security]
+- **현재**: qa a94f5c95 P2-2. 테이블이 없어 GET /institution-plans/status가 500을 냈고 그 응답 본문에 SQL 문이 나왔다(정보 노출). 테이블 문제는 로컬 DB 적용(11-25 밤)으로 해소, 노출은 그대로.
+- **다음 한 걸음**: backend-dev가 공통 오류 응답 경로 조사(어느 처리기가 예외 메시지를 그대로 내보내는지) → 고칠 안 → security.
+- **자세히**: handoff/agents/qa-verifier/2026-11-25_2030_a94f5c95.md, 출처 2026-11-26_summary `## Session 08:00`.
+- **해소(2026-11-26, 6e)**: 코드는 원래 일반 문구였고 로컬·개발 설정의 ggreport.errors.detail=true 때문이었다. 번역 안 된 DB 예외(PersistenceException·SQLException)도 일반 문구 경로에 넣고 시험으로 고정, 개발 설정은 false로(사용자 11-26: 개발 서버의 이 서비스는 직원도 씀) — 7dead644. 로컬 설정은 그대로 둔다. 근거 handoff/agents/backend-dev/2026-11-26_0936_a303388a.md, security handoff/agents/security/2026-11-26_1013_ae5e0394.md.
