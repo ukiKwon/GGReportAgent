@@ -99,7 +99,7 @@
       soon('대시보드', '입찰 현황판', '', '', false, DASH_ID, undefined, 'map', true),
       soon('기관', '기관 사업계획', '', '', false, PLANS_ID, undefined, 'map', true, PLANS_TEAMS),   // 실제 화면(plans.js) — 배지 없음, 노출 = map 키 AND 영업팀·전산팀(디자이너·마스터 포함). front = 구현 항목(전국 지역별)보다 앞
       live('기관', '전국 지역별', 'regions'),
-      live('입찰 공고', '지역별 공고현황', 'map'),   // 옛 '전국 지도' — 화면·키(map)·id는 그대로, 이름만 바뀌어 입찰 공고로 옮김(사용자 11-23)
+      live('입찰 공고', '예상 공고현황', 'map'),   // 옛 '전국 지도' — 화면·키(map)·id는 그대로, 이름만 바뀌어 입찰 공고로 옮김(사용자 11-23) (11-25 '예상 공고현황' — 지도는 아직 공고 전인 기관의 예상 시기만)
       soon('입찰 공고', '입찰 공고 현황', '', '', false, NOTICE_ID, undefined, 'map'),   // 실제 화면(dashboard.js, #notice-root) — 배지 없음, 노출은 입찰 현황판과 같이 서버 map 키 전원(11-09 타팀 공유)
       Object.assign(soon('입찰 공고', '공고 자동 수집', undefined, '', false, COLLECT_NOTICE_ID, COLLECT_NOTICE_ROLES), { allowMaster: true })] },   // 준비중 배지 — 전산팀·전산팀장·관리자(사용자 11-23)
     // 소제목 '제안 준비'는 하나뿐이라 사이드바에 그리지 않는다(soloSubs 없음). 협약준비 단위 task는 메뉴 없이 제안 준비 현황 → 기관 상세 단계에서 진행한다(사용자 11-24).

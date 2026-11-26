@@ -110,7 +110,7 @@ test('이사회 부의는 영업 추진 준비 > 제안 준비 아래"구현 예
   assert.ok(!items(built, 'scan').some(function (i) { return i.id === 'soon:이사회 자료'; }));
   assert.strictEqual(items(built, 'relate')[0].tag, '준비중');
   assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.label; }),
-    ['입찰 현황판', '기관 사업계획', '전국 지역별', '지역별 공고현황', '입찰 공고 현황']);
+    ['입찰 현황판', '기관 사업계획', '전국 지역별', '예상 공고현황', '입찰 공고 현황']);
 });
 
 test('showSubs: 영업팀은 scan·manage·tools true, 소제목이 하나뿐인 plan·평평한 relate·시스템 관리는 false, 예산팀 제안서 작성·관리·둘러보기 기관·입찰 현황은 false', function () {
@@ -224,7 +224,7 @@ test('3단 구조: 대분류 7개 이름·소속(시작화면 단독 + 정의 �
      'relate:협약·관계 관리', 'tools:공통 도구', 'apprbox:결재함', 'sys:시스템 관리']);
   const by = {};
   nav.CATEGORIES.forEach(function (c) { by[c.id] = c.items.map(function (i) { return (i.sub || '') + '>' + i.label; }); });
-  assert.deepStrictEqual(by.scan, ['대시보드>입찰 현황판', '기관>기관 사업계획', '기관>전국 지역별', '입찰 공고>지역별 공고현황',
+  assert.deepStrictEqual(by.scan, ['대시보드>입찰 현황판', '기관>기관 사업계획', '기관>전국 지역별', '입찰 공고>예상 공고현황',
     '입찰 공고>입찰 공고 현황', '입찰 공고>공고 자동 수집']);
   assert.deepStrictEqual(by.plan, ['제안 준비>제안 준비 현황', '제안 준비>이사회 자료 작성']);   // 협약준비 task 21칸은 메뉴에서 삭제(11-24)
   assert.deepStrictEqual(by.manage, ['진행·작성>제안서 진행 현황', '진행·작성>작업함', '진행·작성>제안팀 구성·배정',
@@ -482,7 +482,7 @@ test('nav.teamIn 경계: 공백 낀 소속은 보이고, 다른 팀·직급만 �
 test('기관 사업계획: 전산팀은 기관 분류에 현황판·지도·지역별·사업계획·공고 현황이 보이고 다른 준비중은 없다', function () {
   const built = nav.build(ALL_ON, { role: '전산팀' });
   assert.deepStrictEqual(items(built, 'scan').map(function (i) { return i.label; }),
-    ['입찰 현황판', '기관 사업계획', '전국 지역별', '지역별 공고현황', '입찰 공고 현황', '공고 자동 수집']);
+    ['입찰 현황판', '기관 사업계획', '전국 지역별', '예상 공고현황', '입찰 공고 현황', '공고 자동 수집']);
   assert.strictEqual(nav.PLANS_ID, 'soon:기관 사업계획');
 });
 
@@ -543,9 +543,9 @@ test('기관·입찰 현황 소제목: 대시보드 → 기관 → 입찰 공고
   assert.strictEqual(scan.showSubs, true);
   assert.deepStrictEqual(scan.items.map(function (i) { return i.sub + '>' + i.label; }),
     ['대시보드>입찰 현황판', '기관>기관 사업계획', '기관>전국 지역별',
-     '입찰 공고>지역별 공고현황', '입찰 공고>입찰 공고 현황']);
+     '입찰 공고>예상 공고현황', '입찰 공고>입찰 공고 현황']);
   const map = scan.items.filter(function (i) { return i.id === 'map'; })[0];
   assert.strictEqual(map.key, 'map');
-  assert.strictEqual(map.label, '지역별 공고현황');
+  assert.strictEqual(map.label, '예상 공고현황');
   assert.strictEqual(nav.build(ALL_ON, { role: '예산팀' }).filter(function (c) { return c.id === 'plan'; })[0].showSubs, false);
 });
