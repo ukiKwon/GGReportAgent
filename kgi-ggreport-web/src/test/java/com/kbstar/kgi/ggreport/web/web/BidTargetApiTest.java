@@ -658,16 +658,17 @@ public class BidTargetApiTest {
         assertTrue(mine.path("truncated").asBoolean());   // 주인 본인은 자기 기록이 한도를 넘는다
     }
 
-    @Test public void 하트_켬은_멱등_기본_구분_NEW_화면_버튼_기록() throws Exception {
+    @Test public void 하트_켬은_멱등_구분_비움_NULL_화면_버튼_기록() throws Exception {
         MvcResult r = heart(true, SALES, "jongno", null);
         assertEquals(201, status(r));
-        assertEquals("DEFAULT", json(r).path("tag_source").asText());
-        assertEquals("NEW", json(r).path("item").path("tag_cd").asText());
+        assertEquals("NONE", json(r).path("tag_source").asText());
+        assertTrue(json(r).path("item").path("tag_cd").isNull());   // NEXT 114 ⑥ — 서버가 구분을 정하지 않는다
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE TAG_CD IS NULL", Integer.class).intValue());
         assertTrue(json(r).path("watching").asBoolean());
         assertEquals(SALES, jdbc.queryForObject("SELECT WATCH_EMP_NO FROM INST_BID_TARGET", String.class));
         assertEquals("map_popover", jdbc.queryForObject("SELECT SCREEN_ID FROM INST_BID_TARGET", String.class));
         assertEquals(1, jdbc.queryForObject("SELECT UI_VALID FROM INST_BID_TARGET", Integer.class).intValue());
-        assertEquals("bid-target watch-on no=1 rev=1 tag=default", lastDetail("PUT"));
+        assertEquals("bid-target watch-on no=1 rev=1 tag=none", lastDetail("PUT"));
         MvcResult again = heart(true, SALES, "jongno", null);
         assertEquals(200, status(again)); assertFalse(json(again).path("changed").asBoolean());
         assertEquals(1, rows());
@@ -723,11 +724,44 @@ public class BidTargetApiTest {
         assertEquals("bid-target watch-on no=1 rev=1 tag=given", lastDetail("PUT"));
     }
 
-    @Test public void 하트_기본_구분은_지금_국민은행이면_RETAIN() throws Exception {
-        line(1, "B02", (y() - 1) + "-01-01", (y() + 1) + "-12-31");
+    @Test public void 하트는_지금_국민은행이어도_구분을_비운다() throws Exception {
+        line(1, "B02", (y() - 1) + "-01-01", (y() + 1) + "-12-31");   // 예전에는 RETAIN 이 자동으로 들어가던 상황
         MvcResult r = heart(true, SALES, "jongno", null);
         assertEquals(201, status(r));
-        assertEquals("RETAIN", json(r).path("item").path("tag_cd").asText());
+        assertTrue(json(r).path("item").path("tag_cd").isNull());
+        assertTrue(json(r).path("item").path("tag_name").isNull());
+    }
+
+    @Test public void 구분이_빈_하트도_내_관심_목록에_null로_내려가고_구분을_주면_그_값() throws Exception {
+        assertEquals(201, status(heart(true, SALES, "jongno", null)));
+        Map<String, Object> good = new LinkedHashMap<String, Object>(); good.put("tag_cd", "RETAIN");
+        assertEquals(201, status(heart(true, SALES, "jung", good)));
+        JsonNode items = json(getAs(SALES, "/my-watch")).path("items");
+        assertEquals(2, items.size());
+        for (JsonNode n : items) {
+            assertTrue(n.has("tag_cd"));   // 키는 항상 있고(snake_case) 값만 null
+            if ("jongno".equals(n.path("institution_id").asText())) { assertTrue(n.path("tag_cd").isNull()); assertTrue(n.path("tag_name").isNull()); }
+            else assertEquals("RETAIN", n.path("tag_cd").asText());
+        }
+    }
+
+    /** 사용자 11-26 — 이미 ♥로 생긴 기록은 소급하지 않는다. 새 규칙은 새로 담는 행에만. */
+    @Test public void 기존_하트_행의_구분은_새_하트가_바꾸지_않는다() throws Exception {
+        Map<String, Object> old = new LinkedHashMap<String, Object>(); old.put("tag_cd", "NEW");
+        assertEquals(201, status(heart(true, SALES, "jongno", old)));   // 예전 방식으로 구분이 박힌 기록
+        assertEquals(201, status(heart(true, LEAD, "jongno", null)));   // 다른 사람이 새 규칙으로 담음
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE WATCH_EMP_NO=? AND TAG_CD='NEW' AND REV_NO=1", Integer.class, SALES).intValue());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE WATCH_EMP_NO=? AND TAG_CD IS NULL AND REV_NO=1", Integer.class, LEAD).intValue());
+        assertEquals(200, status(heart(true, SALES, "jongno", null)));   // 이미 켜진 내 ♥ — 멱등, 구분 그대로
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE WATCH_EMP_NO=? AND TAG_CD='NEW'", Integer.class, SALES).intValue());
+    }
+
+    @Test public void 구분이_빈_관심을_목표로_옮겨도_NULL_그대로_따라간다() throws Exception {
+        assertEquals(201, status(heart(true, SALES, "jongno", null)));   // 번호 1, 구분 NULL
+        assertEquals(201, status(send(SALES, PATH + "/1/move", TO_GOAL, moveBody(1, "GOAL", y() + 1))));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE REV_NO=2 AND KIND_CD='GOAL' AND TAG_CD IS NULL", Integer.class).intValue());
+        assertEquals(201, status(send(SALES, PATH + "/1/move", TO_WATCH, moveBody(2, "WATCH", null))));   // 되돌려도 NULL
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM INST_BID_TARGET WHERE REV_NO=3 AND KIND_CD='WATCH' AND TAG_CD IS NULL", Integer.class).intValue());
     }
 
     @Test public void 하트_권한_디자이너도_켜고_사번_없으면_401() throws Exception {

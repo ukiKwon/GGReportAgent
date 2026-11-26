@@ -200,7 +200,7 @@ public class BidTargetController {
         boolean changed = Boolean.TRUE.equals(out.get("changed"));
         req.setAttribute(AccessLogInterceptor.DETAIL, changed
                 ? "bid-target watch-on no=" + out.get("target_no") + " rev=" + out.get("rev_no")
-                  + " tag=" + (BidTargetService.SRC_DEFAULT.equals(out.get("tag_source")) ? "default" : "given")
+                  + " tag=" + (BidTargetService.SRC_GIVEN.equals(out.get("tag_source")) ? "given" : "none")
                 : "bid-target watch-on no-change");
         return ResponseEntity.status(changed ? HttpStatus.CREATED : HttpStatus.OK).body(out);
     }

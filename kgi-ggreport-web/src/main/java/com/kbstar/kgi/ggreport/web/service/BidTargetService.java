@@ -46,7 +46,7 @@ public class BidTargetService {
     private static final String WATCH_DUP_MSG = "이미 관심 기관입니다.";
     static final String NOT_OWNER_MSG = "다른 사람의 관심 기관은 바꿀 수 없습니다.";
     static final String WATCH_USER_MSG = "등록된 사용자만 관심 기관을 쓸 수 있습니다.";
-    public static final String SRC_GIVEN = "GIVEN", SRC_DEFAULT = "DEFAULT";   // 061 ♥ 구분 출처(접근 이력용)
+    public static final String SRC_GIVEN = "GIVEN", SRC_NONE = "NONE";   // 061 ♥ 구분 출처(접근 이력용). NEXT 114 ⑥ — 안 오면 서버가 정하지 않고 비운다(NONE)
     private static final String KIND_EDIT_MSG = "목표·관심 구분을 바꾸려면 옮기기를 써 주세요.";
     static final String CLOSED_MSG = "이 기관은 올해 입찰이 끝난 것으로 기록되어 있어 올해 목표로 넣을 수 없습니다. 관심 기관이나 다음 해 목표로 넣을 수 있습니다. 정보가 틀리면 '입찰 공고 현황'에서 고쳐 주세요.";
     static final int HISTORY_MAX = 200;
@@ -644,6 +644,7 @@ public class BidTargetService {
 
     /**
      * ♥ 켬(멱등). 이미 켜져 있으면 그대로(구분도 안 바꿈). 내가 전에 끈 '처음부터 관심이던' 기록이 있으면 그 번호에 새 REV(번호 소모 방지, 값은 비우고 시작).
+     * 구분(tag_cd)이 오지 않으면 비운다(NULL, NEXT 114 ⑥ — 현황판 [추가]와 같다). 서버가 근거로 기본값을 정하지 않는다. 오면 코드표 검사 후 그 값.
      * 목표에서 옮겨 왔거나 자동 이월로 생긴 기록은 다시 쓰지 않고 새 번호(security 하-2). 결재·결재 중 잠금과 무관(개인 기록).
      * 첫 DB 문장 = 기관 잠금. ⚠️ 자기신고 사번 위의 업무 규칙.
      */
@@ -658,7 +659,7 @@ public class BidTargetService {
             if (TargetChangeService.OP_TO_WATCH.equals(x.getOpCd()) && actor.getEmpNo().equals(x.getRequesterEmpNo())) throw pendingConflict(null);
         }
         boolean given = tagRaw != null && !tagRaw.trim().isEmpty();
-        String tag = given ? BidTargetRules.tag(tagRaw, codeCheck()) : defaultTag(inst, today());
+        String tag = given ? BidTargetRules.tag(tagRaw, codeCheck()) : null;   // NEXT 114 ⑥ — 안 오면 비움(기본 구분을 서버가 정하지 않는다)
         BidTarget row;
         if (m[1] != null) {
             row = m[1];
@@ -675,7 +676,7 @@ public class BidTargetService {
         row.setCancelReasonCd(null); row.setCancelReasonEtc(null); row.setCarryFromNo(null); row.setCarryBasisCd(null);
         row.setWatchEmpNo(actor.getEmpNo());
         Map<String, Object> out = write(row, me, actor, ui, null);
-        out.put("watching", true); out.put("changed", true); out.put("tag_source", given ? SRC_GIVEN : SRC_DEFAULT);
+        out.put("watching", true); out.put("changed", true); out.put("tag_source", given ? SRC_GIVEN : SRC_NONE);
         return out;
     }
 
@@ -743,18 +744,6 @@ public class BidTargetService {
         out.put("target_no", t == null ? null : t.getTargetNo());
         out.put("rev_no", t == null ? null : t.getRevNo());
         return out;
-    }
-
-    /** ♥ 기본 구분 — 서버가 아는 근거(039)만: 지금 국민은행 = 재유치, 예전 국민은행(끝 해 < 올해) = 되찾기, 그 밖 = 신규유치. 꺼진 코드면 코드표 첫 값. */
-    String defaultTag(String inst, LocalDate today) {
-        List<BankContract> l = mapper.selectContractsOf(inst);
-        Integer last = BankYears.lastKbYear(l);
-        String t = BankYears.KB.equals(BankYears.nowState(l, today)) ? "RETAIN"
-                : last != null && last.intValue() < today.getYear() ? "REGAIN" : "NEW";
-        if (mapper.countEnabledCode(BidTargetRules.G_TAG, t) > 0) return t;
-        List<BankContractCode> cs = mapper.selectCodes(BidTargetRules.G_TAG);
-        if (cs.isEmpty()) throw conflict("NO_TAG_CODE", "관심 기관 구분 코드가 없어 넣을 수 없습니다. 관리자에게 알려 주세요.", null);
-        return cs.get(0).getCode();
     }
 
     /** RFP 협약 개시일(NEXT 105) — 영업 계열 누구나, 결재 없음(RFP 사실). 첫 DB 문장 = 기관 잠금. 비우면 지움(CANCEL 행). */

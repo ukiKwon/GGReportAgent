@@ -646,6 +646,65 @@ public class TargetChangeApiTest {
         assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=3 AND KIND_CD='GOAL' AND AIM_RANK_CD='MAIN_BANK'"));
     }
 
+    @Test public void 결재로_승인된_TO_WATCH_TO_GOAL도_금고_방식을_이어받는다() throws Exception {
+        baseSeed();
+        jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='SECOND' WHERE INSTITUTION_ID='mapo' AND TARGET_NO=1");    // 목표 → 관심
+        jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='SINGLE' WHERE INSTITUTION_ID='nowon' AND TARGET_NO=1");   // 관심 → 목표(옮겨 오며 이어받은 값을 흉내)
+        long id = submitFive();
+        MvcResult d = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(d), 200, status(d));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='mapo' AND REV_NO=2 AND KIND_CD='WATCH'"
+                + " AND AIM_RANK_CD='SECOND' AND APPROVAL_REQ_ID=?", id));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='nowon' AND REV_NO=2 AND KIND_CD='GOAL'"
+                + " AND AIM_RANK_CD='SINGLE' AND APPROVAL_REQ_ID=?", id));
+    }
+
+    @Test public void 자동_이월은_목표와_관심_모두_금고_방식을_이어받는다() throws Exception {
+        final int Y = y();
+        target("jongno", 1, 1, "SAVE", "GOAL", Y - 1, null);   // 약정 없음 → 올해 목표로 이월(자동_이월과_자동_취소 시험과 같은 바탕)
+        target("mapo", 1, 1, "SAVE", "GOAL", Y - 1, null);
+        line("mapo", 1, "B03", Y + "-01-01");                  // 약정 있음 → 관심으로 이월
+        jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='FIRST' WHERE INSTITUTION_ID='jongno' AND TARGET_NO=1");
+        jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='SECOND' WHERE INSTITUTION_ID='mapo' AND TARGET_NO=1");
+        MvcResult c = send(SALES, "/bid-targets/carry", "bid_board", "carry_targets", null);
+        assertEquals(raw(c), 200, status(c));
+        assertEquals(2, json(c).path("carried").asInt());
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TARGET_NO=2 AND REV_NO=1"
+                + " AND ACTION_CD='CARRY' AND KIND_CD='GOAL' AND AIM_RANK_CD='FIRST'"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='mapo' AND TARGET_NO=2 AND REV_NO=1"
+                + " AND ACTION_CD='CARRY' AND KIND_CD='WATCH' AND AIM_RANK_CD='SECOND'"));
+    }
+
+    @Test public void 결재_카드에_금고_방식_바뀜이_이전_이후로_실리고_승인되면_반영된다() throws Exception {
+        baseSeed();
+        final int Y = y();
+        jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='FIRST' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");
+        MvcResult r = change(SALES, req("담당과 금고 방식 변경",
+                item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "NEW", "owner_emp_no", LEAD, "aim_rank_cd", "SECOND")));
+        assertEquals(raw(r), 200, status(r));
+        assertEquals("APPROVAL", json(r).path("mode").asText());   // 주 담당이 섞였으니 결재
+        long id = json(r).path("request").path("req_id").asLong();
+        JsonNode card = json(r).path("request").path("target_items").get(0);
+        assertEquals("FIRST", card.path("before").path("aim_rank_cd").asText());
+        assertEquals("1금고", card.path("before").path("aim_rank_name").asText());
+        assertEquals("SECOND", card.path("aim_rank_cd").asText());
+        assertEquals("2금고", card.path("aim_rank_name").asText());
+        assertEquals(200, status(decide(LEAD, id, "APPROVE", null)));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND AIM_RANK_CD='SECOND'"
+                + " AND OWNER_EMP_NO=? AND APPROVAL_REQ_ID=?", LEAD, id));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ACT WHERE REQ_ID=? AND ACT_CD='APPROVE'", id));   // 누가 승인했는지 감사 행(기존 경로 그대로)
+    }
+
+    @Test public void 코드표_금고_방식_이름은_4자_이하_92px_칸_가정() throws Exception {
+        baseSeed();
+        JsonNode names = json(getAs(SALES, "/bid-targets")).path("codes").path("aim_ranks");
+        assertEquals(4, names.size());
+        for (JsonNode n : names) {
+            String nm = n.path("name").asText();
+            assertTrue(nm, nm.codePointCount(0, nm.length()) <= 4);   // 서버는 길이를 제한하지 않는다 — 시드가 4자 이하임을 고정(화면 칸 폭 가정)
+        }
+    }
+
     @Test public void 디자이너는_구분_고치기_403_목록의_value_edit_mode() throws Exception {
         baseSeed();
         MvcResult d = send(DESIGNER, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_year", y(), "tag_cd", "RETAIN"));
