@@ -1402,28 +1402,33 @@
 
   render.WATCHABLE = function () { return Array.from(render.state.activeRegions); };
 
-  render.drawRegionGrid = function () {
+  // 시도 카드 마크업(순수 문자열 — node 테스트로 구조를 고정한다). 열기·별은 형제 button(단추 안 단추 금지).
+  render.regionCardHtml = function (code, o) {
+    const nm = render.REGION_NAME[code] || code, on = !!o.on, cnt = o.count | 0;
+    const star = '<button type="button" class="star" data-code="' + esc(code) + '" aria-pressed="' + (on ? 'true' : 'false') +
+      '" aria-label="' + esc(nm) + ' 관심 지역">' + (on ? render.ICONS.starFill : render.ICONS.starLine) + '</button>';
+    const sub = '기관 ' + cnt + '곳 · ' + (o.drillable ? '구/시군 보기' : '구/시군 경계 준비중');
+    const body = '<b>' + esc(nm) + '</b><span class="rg-sub">' + sub + '</span>';
+    return (o.drillable
+      ? '<button type="button" class="rg-open" data-code="' + esc(code) + '" aria-label="' + esc(nm) + ', 기관 ' + cnt + '곳, 구/시군 보기">' + body + '</button>'
+      : '<div class="rg-open">' + body + '</div>') + star;
+  };
+
+  render.drawRegionGrid = function (focusCode) {
     const grid = document.getElementById('region-grid'); if (!grid) return;
     grid.innerHTML = '';
     render.WATCHABLE().forEach(function (code) {
       const drillable = render.hasSubGeo(code);
       const card = document.createElement('div'); card.className = 'rg-card';
-      card.style.cursor = drillable ? 'pointer' : 'default';
-      const on = store.isWatched(code);
-      const cnt = render.institutionsByRegion(code).length;
-      card.innerHTML = '<span class="star" data-code="' + code + '">' +
-        (on ? render.ICONS.starFill : render.ICONS.starLine) + '</span><b>' +
-        (render.REGION_NAME[code] || code) + '</b>' +
-        '<div style="color:var(--muted);font-size:12px;margin-top:6px;">기관 ' + cnt + '곳 · ' +
-        (drillable ? '구/시군 보기 →' : '구/시군 경계 준비중') + '</div>';
-      // ★는 관심 토글만 (드릴인으로 전파 방지)
-      card.querySelector('.star').addEventListener('click', function (e) {
-        e.stopPropagation();
-        store.toggleWatch(code); render.drawRegionGrid(); render.drawPinBar(); render.applyWatchStyles();
+      card.innerHTML = render.regionCardHtml(code, { drillable: drillable, on: store.isWatched(code), count: render.institutionsByRegion(code).length });
+      // ★는 관심 토글만. 다시 그리면 포커스를 잃으므로 같은 별로 돌려 놓는다(키보드 사용자).
+      card.querySelector('.star').addEventListener('click', function () {
+        store.toggleWatch(code); render.drawRegionGrid(code); render.drawPinBar(); render.applyWatchStyles();
       });
-      // 카드 본문 클릭 → 전국 지도 탭으로 전환 후 해당 지역 구/시군 드릴인.
-      // 경계 데이터가 없는 지역은 아예 열지 않는다 — 열어봐야 오류 배너만 뜬다.
-      if (drillable) card.addEventListener('click', function () {
+      // 열기 단추 클릭(Enter·Space 포함) → 전국 지도 탭으로 전환 후 해당 지역 구/시군 드릴인.
+      // 경계 데이터가 없는 지역은 단추가 아예 없다 — 열어봐야 오류 배너만 뜬다.
+      const openBtn = card.querySelector('button.rg-open');
+      if (openBtn) openBtn.addEventListener('click', function () {
         const mapBtn = document.querySelector('.tab-btn[data-tab="map"]');
         if (mapBtn) mapBtn.click();
         // 지도 탭은 직전 화면(이전 시도 상세 등) 그대로 켜진다 — 확대 연출이 끝나는 ~1초 동안
@@ -1434,12 +1439,13 @@
       });
       grid.appendChild(card);
     });
+    if (focusCode) { const again = grid.querySelector('.star[data-code="' + focusCode + '"]'); if (again) again.focus(); }
   };
 
   render.drawPinBar = function () {
     const bar = document.getElementById('pin-bar'); if (!bar) return;
     bar.innerHTML = ''; const watch = store.loadWatch();
-    if (!watch.length) { bar.innerHTML = '<small style="color:var(--muted)">관심 지역을 별표(' + render.ICONS.starLine + ')로 지정하면 여기 쌓입니다 (드래그로 순서 변경).</small>'; return; }
+    if (!watch.length) { bar.innerHTML = '<small style="color:var(--muted)">관심 지역을 별표(<span role="img" aria-label="별">' + render.ICONS.starLine + '</span>)로 지정하면 여기 쌓입니다 (드래그로 순서 변경).</small>'; return; }
     watch.forEach(function (code, idx) {
       const pin = document.createElement('div'); pin.className = 'pin'; pin.draggable = true; pin.dataset.idx = idx;
       pin.innerHTML = render.ICONS.starFill + ' ' + logic.esc(render.REGION_NAME[code] || code);

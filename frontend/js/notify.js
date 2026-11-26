@@ -99,7 +99,7 @@
   }
 
   // 한 쪽지: 안 읽음 = 점·굵은 글씨·"새 쪽지" 표시 / 읽음 = 흐린 글씨·"읽음" 글자(누르는 것이 아니다).
-  // 눌러야 하는 것은 오직 파란 버튼(이동 · 읽음으로 표시)이다.
+  // 눌러야 하는 것은 오직 보통 테두리 버튼(이동 · 읽음으로 표시)이다.
   notify.renderList = function (el, list, scope) {
     const rows = notify.rows(list);
     const empty = (notify.TABS.filter(function (t) { return t.key === scope; })[0] || notify.TABS[0]).empty;
@@ -111,7 +111,7 @@
       const auto = notify.autoReadsOnClick(scope);
       const actions = [];
       if (r.dest) {
-        actions.push('<button class="nt-go primary" data-id="' + esc(r.id) + '">' + esc(r.dest.label) + ' 열기 →</button>');
+        actions.push('<button class="nt-go" data-id="' + esc(r.id) + '">' + esc(r.dest.label) + ' 열기</button>');
       }
       if (!r.read && !r.dest) {
         actions.push('<button class="nt-read" data-id="' + esc(r.id) + '"' +

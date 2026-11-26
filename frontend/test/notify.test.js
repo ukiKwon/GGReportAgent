@@ -104,8 +104,9 @@ test('renderList: 상태는 글자·점·띠로, 누르는 것은 버튼으로 �
   const html = box.innerHTML;
   assert.ok(html.indexOf('새 쪽지') > 0);                         // 안 읽음 표시
   assert.ok(html.indexOf('<span class="nt-state">읽음</span>') > 0);   // 읽음은 글자
-  assert.ok(html.indexOf('결재함 › 받은 결재 열기 →') > 0);      // 조사 없이 "…열기 →"
-  assert.ok(html.indexOf('결재함 › 내가 올린 요청 열기 →') > 0);
+  assert.ok(html.indexOf('결재함 › 받은 결재 열기</button>') > 0);      // 조사 없이 "…열기"
+  assert.ok(html.indexOf('결재함 › 내가 올린 요청 열기</button>') > 0);
+  assert.ok(html.indexOf('class="nt-go primary"') < 0 && html.indexOf('열기 →') < 0);
   assert.ok(html.indexOf('nt-go') > 0);                           // 결재 쪽지는 이동 버튼
   assert.ok(html.indexOf('nt-row unread autoread') > 0);          // 개인 안 읽음은 눌러서 읽힘
   // 이동할 곳이 없는 안 읽음 쪽지에만 "읽음으로 표시" 버튼이 있다.
