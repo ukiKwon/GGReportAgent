@@ -12,6 +12,17 @@
      2026-11-17_KRDS_화면개편_규격초안.md. 지도 팔레트는 render.js DEFAULT_THEME가
      정본이며 테마 모달로 사용자 조정 가능. 변수명·클래스·id는 JS 생성 마크업과
      공유 — 이름 변경 금지(값만 바꾼다). */
+  /* KB금융 글꼴(사용자 11-26, NEXT 130) — 본문체 Light=400·Medium=600·Bold=700, 제목체 Bold. 설치돼 있으면 local()로 쓰고 없을 때만 fonts/를 내려받는다(preload 금지: local()을 무시한다). family 이름을 설치명(KBFG Text)과 다르게 둔 것은 400→Medium 기본 대응을 피하려는 것 — 400이 Light로 가야 맑은 고딕과 농도가 같다. 제목체 안의 400 이하 글자는 본문체 Light로 그린다(제목체는 Bold 면뿐이라 그냥 두면 굵게 나온다). */
+  @font-face{font-family:"KB Text";font-weight:300 400;font-display:swap;
+    src:local("KBFGText-Light"),local("KBFG Text Light"),local("KB금융 본문체 Light"),url("fonts/KBFGText-Light.woff2") format("woff2");}
+  @font-face{font-family:"KB Text";font-weight:500 600;font-display:swap;
+    src:local("KBFGText-Medium"),local("KBFG Text Medium"),local("KB금융 본문체 Medium"),url("fonts/KBFGText-Medium.woff2") format("woff2");}
+  @font-face{font-family:"KB Text";font-weight:700 900;font-display:swap;
+    src:local("KBFGText-Bold"),local("KBFG Text Bold"),local("KB금융 본문체 Bold"),url("fonts/KBFGText-Bold.woff2") format("woff2");}
+  @font-face{font-family:"KB Display";font-weight:100 400;font-display:swap;
+    src:local("KBFGText-Light"),local("KBFG Text Light"),local("KB금융 본문체 Light"),url("fonts/KBFGText-Light.woff2") format("woff2");}
+  @font-face{font-family:"KB Display";font-weight:500 900;font-display:swap;
+    src:local("KBFGDisplay-Bold"),local("KBFG Display Bold"),local("KB금융 제목체 Bold"),url("fonts/KBFGDisplay-Bold.woff2") format("woff2");}
   :root { --bg:#e9ecf0; --panel:#ffffff; --panel2:#f6f7f9; --line:#c3c9d1;
           --line-strong:#6d7882; --fg:#1e2124; --muted:#464c53;
           --red:#bd2c0f; --orange:#8a5c00; --yellow:#6b6000; --blue:#0a65ab; --gray:#5c6670;
@@ -19,14 +30,16 @@
           /* 은행 CI 예외(사용자 11-19), 출처 kbfg.com/kor/about/corporate/ci.htm — KB Yellow Positive / 잉크 / KB Dark Gray. 대비는 kbboard-1119.test.js가 지킨다 */
           --bk-kb:#FFBC00; --bk-kb-ink:#1e2124; --bk-kb-edge:#545045;
           --green:#1d6f3a;   /* 11-19 저녁 design 4-2 — 신규 확정 태그(.pt-chip.tag.won) 전용, 흰 바탕 위 글자 대비 약 6.2:1(12% 틴트 위 약 5.3:1, 둘 다 4.5 이상 — 메인이 실측 확인) */
-          --mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace;
+          --mono:"KB Text",Consolas,"Malgun Gothic",monospace;
+          --font-text:"KB Text","Malgun Gothic","Segoe UI",sans-serif;
+          --font-display:"KB Display","KB Text","Malgun Gothic","Segoe UI",sans-serif;
           --shadow:none;
           --r-lg:2px; --r:2px; --r-sm:2px;
           /* 브라우저가 직접 그리는 컨트롤(체크박스·스크롤바 등)은 밝은 모양으로 둔다. */
           color-scheme:light; }
   * { box-sizing:border-box; }
   html, body { height:100%; }
-  body { margin:0; font-family:"Malgun Gothic","Segoe UI",sans-serif; font-size:13px;
+  body { margin:0; font-family:var(--font-text); font-size:13px;
          background:var(--bg); color:var(--fg); font-variant-numeric:tabular-nums;
          display:flex; flex-direction:column; overflow:hidden; }
   ::selection { background:var(--accent-color); color:#fff; }
@@ -36,6 +49,14 @@
   ::-webkit-scrollbar-track { background:transparent; }
   :focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
   input, select, textarea { accent-color:var(--accent-color); caret-color:var(--accent-color); }
+  input, select, textarea { font-family:inherit; }   /* type=search·file 같은 51행 선택자 밖 입력이 브라우저 기본 글꼴(Arial)로 나오던 것 */
+
+  /* 제목체(KB금융 제목체 Bold) = 14px 이상·700인 제목만. 맨 아래 (0,0,1)이라 클래스 규칙이 모두 이긴다. 13px 이하 제목 태그와 제목 안의 작은 글자는 아래에서 본문체로 되돌린다. */
+  h1, h2, h3, h4 { font-family:var(--font-display); }
+  .bd-w-title, .lg-brand, .lg-rows .lg-name, .lg-cards .lg-cname, .wf-cards-title, .tm-title, .ts-step-title, #ad-head, .dlg-t, .isf-title { font-family:var(--font-display); }
+  .bd-m-return h3, .mn h4, .db-sub-h h4, .hb-rec h4, .bs-auto h3, .rs-rm-h h3,
+  .ad-sub, .ts-sec-h, .ts-doc-h, .dc-h, #dg-memo-h,
+  .db-rec h3 small, #ad-head .dg-hint, .isf-title .isf-bid, .dg-bucket h4 span { font-family:var(--font-text); }
 
   /* 공통 컨트롤 — 부드러운 라운드, 200ms 전이, 눌림 피드백 */
   button { background:var(--panel); color:var(--fg); border:1px solid var(--line-strong);
@@ -700,8 +721,8 @@
      색은 앱 :root 변수를 그대로 쓰고, 이 화면 전용 값만 --lg-* 로 둔다(테마를 바꿀 때 이 줄만 고친다). */
   :root { --lg-card:480px; --lg-gap:56px; --lg-dur:6000ms; --lg-swap:320ms;
           --lg-hot:#e8606b; --lg-far:#4f72b8;
-          --lg-sans:"Malgun Gothic","맑은 고딕","Segoe UI",sans-serif;
-          --lg-thin:"Malgun Gothic Semilight","Malgun Gothic","맑은 고딕",sans-serif;
+          --lg-sans:var(--font-text);
+          --lg-thin:"KB Text","Malgun Gothic Semilight","Malgun Gothic",sans-serif;
           --lg-serif:Batang,"바탕",BatangChe,serif;
           --lg-edge:max(24px, calc((100vw - 1200px) / 2)); }
   #login-view { position:fixed; inset:0; z-index:100; overflow-y:auto; overflow-x:hidden; background:var(--bg); color:var(--fg);
@@ -2171,7 +2192,7 @@
   .hb-k:first-child { border-left:0; }
   .hb-k .l { font-size:12px; color:var(--muted); }
   .hb-k .v { font:700 16px var(--mono); color:var(--fg); }
-  .hb-k .v span { margin-left:2px; font:400 12px "Malgun Gothic","Segoe UI",sans-serif; color:var(--muted); }
+  .hb-k .v span { margin-left:2px; font:400 12px var(--font-text); color:var(--muted); }
   .hb-k .v.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }   /* 본문색 쪽으로 섞는다 — 밝은 테마에서도 대비가 난다(세션 44 요청) */
   .hb-k .s { font-size:12px; line-height:1.45; color:var(--muted); }
   .hb-k .s b { font:400 12px var(--mono); color:var(--fg); }   .hb-k .s .nw { white-space:nowrap; }
@@ -2579,7 +2600,7 @@
   .pt-k[aria-pressed=true] .l { color:var(--fg); font-weight:700; }
   .pt-k .l, .pt-k .s { font-size:12px; line-height:16px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .pt-k .v { font:700 16px/22px var(--mono); color:var(--fg); }
-  .pt-k .v span { margin-left:2px; font:400 12px "Malgun Gothic","Segoe UI",sans-serif; color:var(--muted); }
+  .pt-k .v span { margin-left:2px; font:400 12px var(--font-text); color:var(--muted); }
   .pt-k .v.hot { color:color-mix(in srgb, var(--red) 72%, var(--fg)); }
   .pt-k .s b { font:400 12px var(--mono); color:var(--fg); }
 
@@ -3274,7 +3295,7 @@
   .isf-years th, .isf-years td { padding:4px; border:1px solid var(--line); text-align:right; vertical-align:middle; }   /* 칸 = MMDA 연평잔·자금수익 금액(instsummary.js:1401-1410)이라 오른쪽, 머리는 아래에서 가운데 */
   .isf-years thead th { text-align:center; }
   .isf-years thead th { background:var(--panel2); font-family:var(--mono); font-weight:400; color:var(--fg); }
-  .isf-years thead th small { display:block; font:12px "Malgun Gothic", sans-serif; color:var(--muted); }
+  .isf-years thead th small { display:block; font:12px var(--font-text); color:var(--muted); }
   .isf-years th:first-child, .isf-years td:first-child { position:sticky; left:0; z-index:1; min-width:140px; background:var(--panel); text-align:center; font-family:inherit; }
   .isf-years thead th:first-child { background:var(--panel2); }
   .isf-years input { width:72px; box-sizing:border-box; font-family:var(--mono); text-align:right; }
@@ -3313,10 +3334,10 @@
   --ld-bg:#e9ecf0; --ld-panel:#fff; --ld-panel2:#f6f7f9; --ld-head:#eef1f5; --ld-edge-panel:#aeb5bf;
   --ld-red:#bd2c0f; --ld-orange:#8a5c00; --ld-gray-chip:#5c6670;
   --ld-hl:rgba(255,188,0,.28);              /* 형광펜 = 'AI가 읽는 중' 단 하나의 표시 */
-  --ld-sans:"Malgun Gothic","맑은 고딕","Segoe UI",sans-serif;
-  --ld-thin:"Malgun Gothic Semilight","Malgun Gothic","맑은 고딕",sans-serif;
+  --ld-sans:var(--font-text);
+  --ld-thin:"KB Text","Malgun Gothic Semilight","Malgun Gothic",sans-serif;
   --ld-serif:Batang,"바탕",serif;           /* 예시 속 공고문·제안서 본문만 */
-  --ld-mono:Consolas,"Cascadia Mono","Malgun Gothic",monospace;
+  --ld-mono:var(--mono);
   --ld-r:2px;
   --ld-ease:cubic-bezier(.22,.9,.3,1);
   --ld-wrap:min(1200px, 100% - 80px);       /* 100vw 금지: 윈도 스크롤바 17px 때문에 1280에서 가로 넘침 */
@@ -3716,7 +3737,7 @@ THESIS: 밝은 업무 포털 크롬(KRDS 참고) 위에서 파스텔 지도가 �
 데이터(임박도)만 갖는다. 크롬이 데이터보다 화려한 대시보드를 거부한다.
 OWN-WORLD: 옅은 회색 바탕(#f4f5f7)·흰 패널·1px 선, 저채도 파스텔 임박 팔레트
 (1.0 계승), 파랑(#0b50d0) 선택 강조, 모서리 2px·그림자 없음,
-맑은 고딕 + Consolas tabular 숫자.
+KB금융 본문체 + 고정폭 숫자, 없으면 맑은 고딕·Consolas.
 STORY: 담당자는 무채색 크롬을 지나 색이 있는 지도로 직행하고, 임박 지역을 눌러
 랭킹에서 기관을 골라 업무로 넘어간다.
 FIRST VIEWPORT: 제호+세그먼트 탭 → 컨트롤 스트립 → 예상 공고현황 머리 줄 → 중앙 파스텔

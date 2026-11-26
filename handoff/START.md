@@ -19,6 +19,7 @@
 - **c3(랜딩)**: NEXT 127(캡처 4자리 가상 자료로). 자료: handoff/sessions/2026-11-26_1112_c3.md.
 - **f4(AI 기능 개발)**: NEXT 129 — 이 PC Ollama 시범으로 ⑤ 대본 서술 4칸 초안 → ⑥ 기대효과 → ① 이유 한 줄, 랜딩과 다른 3곳은 기능을 랜딩에 맞춰 만듦, '오늘 할 일'은 급함 7일·모든 줄에 다음 할 일까지(사용자 11-26 저녁). 모델 `gemma4:12b`. **내일 첫 걸음**: backend-dev(Opus) 'Ollama 어댑터+⑤ 초안 API' 설계 보고서(handoff/agents/backend-dev/2026-11-26_19*.md — 11-26 마무리 때 실행 중이라 미커밋일 수 있음, 없으면 다시 맡김)를 읽고 security → backend-dev-write 적용, planner에게 '다음 할 일' 문구 초안. 자료: handoff/agents/history/2026-11-26_AI기능_개발.md(대조 결과·결정·순서), 이유 문장표 handoff/agents/planner/2026-11-26_1841_a39e4cc0.md, 세션 기록 handoff/sessions/2026-11-26_1825_f4.md.
 - **bf(예상 공고현황, 미기동)**: NEXT 122 qa P2-1·P2-2, 119. 자료: handoff/sessions/2026-11-25_1755_map.md.
+- **e2(디자인 — KB글꼴)**: NEXT 130 — 화면 적용·커밋 끝(11-27 0시). 사용자 답 대기: 글꼴 파일(`frontend/fonts/` woff2 4개 7.3MB, 미추적)을 저장소·운영에 실을지, 웹 글꼴 사용권 범위. 답 받으면 woff2 커밋 + 문서 3곳. 자료: handoff/sessions/2026-11-26_2350_e2.md(해시·남은 일), 규격 handoff/agents/design-reviewer/2026-11-26_2350_ade0d3e8.md, 검증 handoff/agents/qa-verifier/2026-11-27_0006_a737c488.md. design_history 다음 장 **137**(a6가 쓸 예정이면 그 뒤).
 - **main**: W48 주간 보고(11-27 금, docs/pm_history/index.html) + 질문 장부 정리(아래), NEXT 108 → 99 → 100, worktree 정리(_gg_ca·_gg_dash·_gg_e4test에 미커밋 시험 변경 — 각 세션 확인 뒤).
 
 ## 다시 물을 것 (선택식, 답 받을 때까지 멈춤)

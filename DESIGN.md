@@ -29,13 +29,13 @@ colors:
   map-mix-gray: "#7c8699"
   map-inactive: "#c3cad9"
 typography:
-  title: { fontFamily: "\"Malgun Gothic\", \"Segoe UI\", sans-serif", fontSize: "16px", fontWeight: 700, letterSpacing: "-0.01em" }
+  title: { fontFamily: "\"KB Display\", \"KB Text\", \"Malgun Gothic\", \"Segoe UI\", sans-serif", fontSize: "16px", fontWeight: 700, letterSpacing: "-0.01em" }
   section-title: { fontSize: "15px", fontWeight: 700, letterSpacing: "-0.01em" }
   heading: { fontSize: "14px", fontWeight: 700, letterSpacing: "-0.01em" }
-  body: { fontSize: "13px", fontWeight: 400 }
+  body: { fontFamily: "\"KB Text\", \"Malgun Gothic\", \"Segoe UI\", sans-serif", fontSize: "13px", fontWeight: 400 }
   control: { fontSize: "12px", fontWeight: 400 }
   caption: { fontSize: "12px", fontWeight: 400 }
-  data-mono: { fontFamily: "Consolas, \"Cascadia Mono\", \"Malgun Gothic\", monospace", fontSize: "12px", fontFeature: "tabular-nums" }
+  data-mono: { fontFamily: "\"KB Text\", Consolas, \"Malgun Gothic\", monospace", fontSize: "12px", fontFeature: "tabular-nums" }
 rounded:
   r: "2px"
 spacing: { xs: "6px", sm: "8px", md: "10px", lg: "12px", xl: "14px", 2xl: "16px", strip: "20px" }
@@ -74,7 +74,7 @@ components:
 
 ## 글자
 
-한글 시스템 서체만(폐쇄망, 웹폰트 없음): Malgun Gothic / Segoe UI. 숫자·날짜·D-day는 Consolas(`--mono`)로 열을 맞춘다. 단계: 제목 16/700, 절 제목 15/700, 소제목 14/700, 본문 13, 컨트롤·캡션 12. 자간은 제목류 −0.01em뿐, 확장 자간(+0.08em)은 쓰지 않는다. 계층은 굵기·색·간격으로 만든다.
+KB금융 글꼴(2026-11-26 사용자 결정, NEXT 130): 본문·표·컨트롤은 **KB금융 본문체**(`--font-text`), 14px 이상·700인 제목은 **KB금융 제목체 Bold**(`--font-display`), 13px 이하 제목 태그와 제목 안의 작은 글자는 본문체로 되돌린다. 굵기 값은 그대로 쓰고 `@font-face` 굵기 범위가 대응한다 — **400 → Light, 600 → Medium, 700 → Bold**(400을 Medium으로 두면 본문이 12% 진해지고 굵게와의 차이가 13%로 줄어 위계가 사라진다). family 이름은 설치명(KBFG Text)과 다른 `"KB Text"`·`"KB Display"`를 쓴다(같은 이름이면 400이 Medium으로 간다). PC에 설치돼 있으면 `local()`로 쓰고 없을 때만 `frontend/fonts/*.woff2`를 내려받는다(외부 CDN 없음, preload 금지 — `local()`을 무시한다). 글꼴이 없으면 Malgun Gothic / Segoe UI로 돌아간다. 숫자·날짜·D-day 칸(`--mono`)도 본문체가 먼저다 — 숫자 폭이 고정이라 열이 맞고, 없으면 Consolas. 문서 흉내용 명조(`--lg-serif`·`--ld-serif`)는 그대로. 단계: 제목 16/700, 절 제목 15/700, 소제목 14/700, 본문 13, 컨트롤·캡션 12. 자간은 제목류 −0.01em뿐, 확장 자간(+0.08em)은 쓰지 않는다. 계층은 굵기·색·간격으로 만든다.
 
 **최소 12px.** 예외는 둘뿐이다: ① SVG 지도 라벨(`.label .sub` 10px, `.label .tri` 11px, 880px 이하 10px — 라벨 충돌 방지 결정) ② 숫자 칩(`.nav-count`, `#notify-badge`, `.ov-stamp` 11px/700 모노). 로그인 표면만 큰 글자 예외(슬라이드 문구 40px·D-day 64px·카드 제목 26px)를 가지며 로그인 미니 지도 라벨 `.lg-gu-label`은 11px이다.
 

@@ -189,6 +189,7 @@
   <a href="#c133">133 입찰 결과 표 열 폭 정정 — 1280px에서 패널 밖으로 넘치던 것(130장 회귀) 바로잡기</a>
   <a href="#c134">134 빈 표 — 0건이어도 머리 줄 + 빈 행 1줄, 안내 문장은 표 아래(공통 화면), 배정 이력 빈 사유 '—' 가운데</a>
   <a href="#c135">135 시작화면 입찰 일정 표 — 칸 잘림 해소·판정 기록 표기·[기본 순서로]</a>
+  <a href="#c136">136 전 화면 글꼴 — 맑은 고딕에서 KB금융 본문체·제목체로</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2662,6 +2663,20 @@
 <p style="font-size:12px">은행 칸 12%. 단추 [임박순으로].</p></div></div></div>
 <div class="col after"><header>후</header><div class="body"><div class="mock"><table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center"><tr style="color:#464c53"><th>기관</th><th>공고까지</th><th>현 금고 은행</th></tr><tr><td style="text-align:left">○○지방법원<br>○○지원</td><td>추정일 지남</td><td>농협은행·경남은행</td></tr><tr><td style="text-align:left">○○구청</td><td>다음 확인 11-30</td><td>○○은행</td></tr></table>
 <p style="font-size:12px">은행 칸 18%, 긴 이름 두 줄. 판정 기록에 따라 '공고 중·마감일 미확인', '다음 확인 MM-DD', '공고 종료'. 단추 [기본 순서로]. 예시 이름.</p></div></div></div>
+</div>
+</section>
+<section class="ch" id="c136">
+<h2>136 전 화면 글꼴 — 맑은 고딕에서 KB금융 본문체·제목체로 (2026-11-26, NEXT 130)</h2>
+<div class="why">왜: 은행 글꼴로 통일해 달라는 요청입니다. 제목과 본문, 굵게를 글꼴 굵기에 맞춰 나눴습니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock" style="font-family:'Malgun Gothic',sans-serif">
+<p style="font-size:16px;font-weight:700;margin:0 0 6px">기관별 입찰 일정</p>
+<p style="font-size:13px;margin:0 0 4px">경기 <b>가평군청</b> · <span style="font-weight:600">공고 전</span> · <span style="font-family:Consolas,monospace">2026-12-31 (목)</span></p>
+<p style="font-size:12px">전 화면 맑은 고딕. 숫자·날짜는 Consolas, 괄호 속 요일은 맑은 고딕이라 한 줄에 글꼴이 섞였습니다. 약한 강조(600)는 맑은 고딕에 그 굵기가 없어 굵게(700)와 똑같이 보였습니다.</p></div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock" style="font-family:'KBFG Text Light','KB금융 본문체 Light','Malgun Gothic',sans-serif">
+<p style="font-family:'KBFG Display Bold','KB금융 제목체 Bold','Malgun Gothic',sans-serif;font-size:16px;margin:0 0 6px">기관별 입찰 일정</p>
+<p style="font-size:13px;margin:0 0 4px">경기 <span style="font-family:'KBFG Text Bold','KB금융 본문체 Bold','Malgun Gothic',sans-serif">가평군청</span> · <span style="font-family:'KBFG Text Medium','KB금융 본문체 Medium','Malgun Gothic',sans-serif">공고 전</span> · 2026-12-31 (목)</p>
+<p style="font-size:12px">본문은 KB금융 본문체(보통 → Light, 약한 강조 → Medium, 굵게 → Bold), 14px 이상 제목은 KB금융 제목체 Bold. 숫자·날짜 칸도 본문체(숫자 폭 고정). 본문 농도는 맑은 고딕과 거의 같고(−5%) 글자 폭은 약 10% 좁아 줄바꿈이 줄었습니다. KB글꼴이 설치된 PC는 내려받지 않고, 없으면 한 번 내려받거나 맑은 고딕으로 보입니다. (이 칸은 KB글꼴이 설치된 PC에서만 KB글꼴로 보입니다.)</p></div></div></div>
 </div>
 </section>
 <p class="foot">추가 규칙: 이 파일은 화면(마크업·CSS·문구·메뉴)이 바뀌는 커밋마다 새 장(section.ch)을 아래에 이어 붙이고, design-reviewer가 커밋 전 확인합니다(CLAUDE.md 5절). 근거 보고서: handoff/agents/design-reviewer/.</p>
