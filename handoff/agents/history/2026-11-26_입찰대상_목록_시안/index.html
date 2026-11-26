@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>입찰 건 목록 시안 — 행별(A) / 기관 아래 펼침(B)</title>
+<style>
+  :root { --fg:#1e2124; --muted:#464c53; --line:#d9dde3; --line-strong:#b9c0c9; --bg:#fff; --soft:#f5f6f8; --accent:#0b50d0; --red:#bd2c0f; --r:6px; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--soft); color:var(--fg); font:14px/1.5 "Malgun Gothic","맑은 고딕",system-ui,sans-serif; }
+  .wrap { max-width:1240px; margin:0 auto; padding:24px 24px 64px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .lead { color:var(--muted); margin:0 0 20px; max-width:80ch; }
+  .tabs { display:flex; gap:8px; margin:0 0 16px; }
+  .tabs button { font:inherit; padding:8px 16px; border:1px solid var(--line-strong); background:var(--bg); border-radius:var(--r); cursor:pointer; color:var(--fg); }
+  .tabs button[aria-selected="true"] { border-color:var(--accent); color:var(--accent); font-weight:600; box-shadow:inset 0 -2px 0 var(--accent); }
+  .tabs button:focus-visible, .grp-btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .panel { background:var(--bg); border:1px solid var(--line); border-radius:var(--r); padding:16px; }
+  .panel h2 { font-size:16px; margin:0 0 4px; }
+  .panel .desc { color:var(--muted); margin:0 0 12px; }
+  .bar { display:flex; align-items:center; gap:12px; margin:0 0 8px; color:var(--muted); font-size:13px; }
+  .bar label { display:flex; align-items:center; gap:6px; }
+  .bar select { font:inherit; padding:4px 8px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; min-width:880px; }
+  th, td { border-bottom:1px solid var(--line); padding:8px 10px; text-align:center; vertical-align:middle; }
+  thead th { background:var(--soft); font-weight:600; border-bottom:1px solid var(--line-strong); white-space:nowrap; }
+  td.name, th.name { text-align:left; }
+  .num { font-variant-numeric:tabular-nums; }
+  .chip { display:inline-block; padding:1px 8px; border:1px solid var(--line-strong); border-radius:999px; font-size:12px; white-space:nowrap; }
+  .chip.sub { border-color:var(--accent); color:var(--accent); }
+  .due-soon { color:var(--red); font-weight:600; }
+  .muted { color:var(--muted); }
+  /* B안 */
+  tr.grp > td { background:#fbfbfc; }
+  .grp-btn { font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer; display:inline-flex; align-items:center; gap:8px; text-align:left; font-weight:600; }
+  .caret { display:inline-block; width:0; height:0; border-left:6px solid var(--muted); border-top:5px solid transparent; border-bottom:5px solid transparent; transition:transform .12s; }
+  .grp-btn[aria-expanded="true"] .caret { transform:rotate(90deg); }
+  tr.child > td.name { padding-left:34px; }
+  tr.child > td { background:var(--bg); }
+  .count { font-weight:400; color:var(--muted); font-size:13px; }
+  .cmp { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:20px; }
+  .cmp section { background:var(--bg); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; }
+  .cmp h3 { margin:0 0 6px; font-size:15px; }
+  .cmp ul { margin:0; padding-left:18px; }
+  .cmp li { margin:2px 0; }
+  .note { margin-top:16px; color:var(--muted); font-size:13px; }
+  @media (max-width:900px) { .cmp { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>입찰 건 목록 시안</h1>
+  <p class="lead">같은 기관에 입찰 건이 여러 개일 때 목록을 어떻게 보일지 두 안을 같은 자료로 비교합니다. 아래 자료는 모두 시안용 가상 값입니다(기관 이름·입찰 대상만 실제 사례를 본떴습니다). 열 머리를 고르면 정렬이 바뀌고, B안은 기관 줄을 누르면 펼쳐집니다.</p>
+
+  <div class="tabs" role="tablist" aria-label="시안 고르기">
+    <button role="tab" id="tab-a" aria-selected="true" aria-controls="pane-a">A안 · 한 줄 = 입찰 건</button>
+    <button role="tab" id="tab-b" aria-selected="false" aria-controls="pane-b">B안 · 기관 아래 펼침</button>
+  </div>
+
+  <div class="bar">
+    <label>정렬
+      <select id="sort">
+        <option value="due">마감 임박 순</option>
+        <option value="inst">기관 이름 순</option>
+      </select>
+    </label>
+    <span id="sum"></span>
+  </div>
+
+  <div class="panel" id="pane-a" role="tabpanel" aria-labelledby="tab-a">
+    <h2>A안 — 입찰 건마다 한 줄</h2>
+    <p class="desc">기관 이름이 줄마다 반복됩니다. 급한 입찰이 기관과 상관없이 맨 위로 올라옵니다.</p>
+    <div class="scroll"><table>
+      <thead><tr><th class="name">기관</th><th>입찰 대상</th><th>마감</th><th>남은 날</th><th>담당</th><th>단계</th></tr></thead>
+      <tbody id="body-a"></tbody>
+    </table></div>
+  </div>
+
+  <div class="panel" id="pane-b" role="tabpanel" aria-labelledby="tab-b" hidden>
+    <h2>B안 — 기관 한 줄, 누르면 입찰 건이 아래에</h2>
+    <p class="desc">기관 줄에는 입찰 건 수와 가장 급한 마감만 보입니다. 입찰 건이 하나뿐인 기관은 펼침 없이 바로 한 줄로 보입니다.</p>
+    <div class="scroll"><table>
+      <thead><tr><th class="name">기관 / 입찰 대상</th><th>입찰 건</th><th>마감</th><th>남은 날</th><th>담당</th><th>단계</th></tr></thead>
+      <tbody id="body-b"></tbody>
+    </table></div>
+  </div>
+
+  <div class="cmp">
+    <section>
+      <h3>A안이 잘하는 것 / 아쉬운 것</h3>
+      <ul>
+        <li>마감 순으로 볼 때 급한 입찰 건이 묻히지 않습니다.</li>
+        <li>담당·단계·결재가 입찰 건마다 따로라는 사실과 화면이 그대로 맞습니다.</li>
+        <li>열 정렬·찾기·인쇄가 단순합니다.</li>
+        <li>아쉬움: 같은 기관이 떨어져 보일 수 있습니다(기관 이름 순으로 정렬하면 붙습니다).</li>
+      </ul>
+    </section>
+    <section>
+      <h3>B안이 잘하는 것 / 아쉬운 것</h3>
+      <ul>
+        <li>기관 수가 한눈에 들어오고 목록이 짧아집니다.</li>
+        <li>한 기관의 입찰 건을 묶어서 봅니다.</li>
+        <li>아쉬움: 접힌 상태에서는 둘째 입찰 건의 담당·단계가 안 보입니다. 한 번 더 눌러야 합니다.</li>
+        <li>아쉬움: 기관 줄의 '마감'이 어느 입찰 건의 것인지 설명이 필요합니다(가장 급한 것 기준).</li>
+      </ul>
+    </section>
+  </div>
+  <p class="note">절충안: 기본은 A안으로 두고, 기관 이름 순으로 정렬했을 때만 같은 기관의 둘째 줄부터 기관 이름을 흐리게 보이는 방법도 있습니다. 이 시안은 저장하거나 서버에 보내는 동작이 없습니다.</p>
+</div>
+
+<script>
+(function () {
+  const TODAY = new Date('2026-11-26');
+  // 시안용 가상 자료 — 기관·입찰 대상 이름만 실제 사례를 본뜸
+  const ROWS = [
+    { inst: '소상공인시장진흥공단', sub: '법인카드 사업자', due: '2026-12-04', who: '김영업', step: '입찰 자료확인' },
+    { inst: '소상공인시장진흥공단', sub: '자금관리 금융기관', due: '2027-01-15', who: '이영업', step: '제안 준비' },
+    { inst: '가상시청', sub: '주거래은행·금고 (1금고)', due: '2026-12-10', who: '박영업', step: '제안 준비' },
+    { inst: '가상시청', sub: '주거래은행·금고 (2금고)', due: '2026-12-22', who: '박영업', step: '입찰 자료확인' },
+    { inst: '가상대학교', sub: '주거래은행·금고', due: '2026-12-18', who: '최영업', step: '협약 이행 준비' },
+    { inst: '가상연구원', sub: '주거래은행·금고', due: '2027-02-02', who: '김영업', step: '입찰 자료확인' },
+    { inst: '가상공단', sub: '법인카드 사업자', due: '2026-12-29', who: '담당 미정', step: '담당자 지정 전' }
+  ];
+  const esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  const left = function (d) { return Math.round((new Date(d) - TODAY) / 86400000); };
+  const dueCell = function (d) { const n = left(d); return '<td class="num">' + esc(d) + '</td><td class="num' + (n <= 14 ? ' due-soon' : '') + '">' + n + '일</td>'; };
+  const open = {};
+
+  function sorted(mode) {
+    const a = ROWS.slice();
+    a.sort(function (x, y) { return mode === 'inst' ? (x.inst.localeCompare(y.inst, 'ko') || x.due.localeCompare(y.due)) : x.due.localeCompare(y.due); });
+    return a;
+  }
+  function drawA(mode) {
+    document.getElementById('body-a').innerHTML = sorted(mode).map(function (r) {
+      return '<tr><td class="name">' + esc(r.inst) + '</td><td><span class="chip sub">' + esc(r.sub) + '</span></td>' + dueCell(r.due) +
+        '<td>' + esc(r.who) + '</td><td><span class="chip">' + esc(r.step) + '</span></td></tr>';
+    }).join('');
+  }
+  function drawB(mode) {
+    const by = {}, order = [];
+    sorted('due').forEach(function (r) { if (!by[r.inst]) { by[r.inst] = []; order.push(r.inst); } by[r.inst].push(r); });
+    if (mode === 'inst') order.sort(function (x, y) { return x.localeCompare(y, 'ko'); });
+    let h = '';
+    order.forEach(function (inst, i) {
+      const g = by[inst];
+      if (g.length === 1) {
+        const r = g[0];
+        h += '<tr><td class="name"><strong>' + esc(inst) + '</strong> <span class="chip sub">' + esc(r.sub) + '</span></td><td class="num">1건</td>' + dueCell(r.due) +
+          '<td>' + esc(r.who) + '</td><td><span class="chip">' + esc(r.step) + '</span></td></tr>';
+        return;
+      }
+      const isOpen = !!open[inst], id = 'g' + i;
+      h += '<tr class="grp"><td class="name"><button type="button" class="grp-btn" data-inst="' + esc(inst) + '" aria-expanded="' + isOpen + '" aria-controls="' + id + '">' +
+        '<span class="caret" aria-hidden="true"></span>' + esc(inst) + ' <span class="count">입찰 건 ' + g.length + '개</span></button></td>' +
+        '<td class="num">' + g.length + '건</td>' + dueCell(g[0].due) + '<td class="muted">' + (isOpen ? '' : '펼쳐서 보기') + '</td><td class="muted">' + (isOpen ? '' : '가장 급한 건 기준') + '</td></tr>';
+      if (isOpen) g.forEach(function (r, k) {
+        h += '<tr class="child"' + (k === 0 ? ' id="' + id + '"' : '') + '><td class="name"><span class="chip sub">' + esc(r.sub) + '</span></td><td></td>' + dueCell(r.due) +
+          '<td>' + esc(r.who) + '</td><td><span class="chip">' + esc(r.step) + '</span></td></tr>';
+      });
+    });
+    document.getElementById('body-b').innerHTML = h;
+  }
+  function draw() {
+    const mode = document.getElementById('sort').value;
+    drawA(mode); drawB(mode);
+    const insts = new Set(ROWS.map(function (r) { return r.inst; })).size;
+    document.getElementById('sum').textContent = '기관 ' + insts + '곳 · 입찰 건 ' + ROWS.length + '개 (기준일 2026-11-26, 14일 안은 붉게)';
+  }
+  document.getElementById('sort').addEventListener('change', draw);
+  document.getElementById('body-b').addEventListener('click', function (e) {
+    const b = e.target.closest('.grp-btn'); if (!b) return;
+    const inst = b.getAttribute('data-inst'); open[inst] = !open[inst]; draw();
+    const again = Array.prototype.find.call(document.querySelectorAll('.grp-btn'), function (x) { return x.getAttribute('data-inst') === inst; });
+    if (again) again.focus();
+  });
+  function pick(which) {
+    ['a', 'b'].forEach(function (k) {
+      document.getElementById('tab-' + k).setAttribute('aria-selected', String(k === which));
+      document.getElementById('pane-' + k).hidden = k !== which;
+    });
+  }
+  document.getElementById('tab-a').addEventListener('click', function () { pick('a'); });
+  document.getElementById('tab-b').addEventListener('click', function () { pick('b'); });
+  draw();
+})();
+</script>
+</body>
+</html>
