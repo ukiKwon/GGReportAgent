@@ -394,6 +394,32 @@ public class PrepBoardApiTest {
         assertTrue(row(json(list(MEMBER2, "scope=mine", "refresh")), bid).path("cells").path("NOTICE_CHECK").path("mark_cd").isNull());
     }
 
+    private MvcResult checkAs(String emp, String bid, String col, String body, String screen, String button) throws Exception {
+        return mockMvc.perform(put("/bidcases/" + bid + "/prep/board-checks/" + col).contentType(MediaType.APPLICATION_JSON)
+                .content(body).header("X-Emp-No", emp).header("X-Screen-Id", screen).header("X-Button-Id", button)).andReturn();
+    }
+
+    @Test
+    public void D15c_상세_2단계_다음_확인은_prep_detail_notice_confirm으로_체크와_감사에_남는다() throws Exception {
+        String bid = opened(INST);
+        MvcResult ok = checkAs(MEMBER2, bid, "NOTICE_CHECK", mark("DONE", 0), "prep_detail", "notice_confirm");
+        assertEquals(ok.getResponse().getContentAsString(), 200, ok.getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_CHECK WHERE BID_CASE_ID=? AND COL_CD='NOTICE_CHECK' AND SCREEN_ID='prep_detail'"
+                + " AND BUTTON_ID='notice_confirm' AND UI_VALID=1 AND ACTOR_EMP_NO=?", bid, MEMBER2));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_CHECK' AND OUTCOME='OK'"
+                + " AND TASK_CD='CK_NOTICE_CHECK' AND SCREEN_ID='prep_detail' AND BUTTON_ID='notice_confirm' AND UI_VALID=1", bid));
+    }
+
+    @Test
+    public void D15d_다음_확인_이름을_다른_칸에_붙이면_저장은_되고_감사는_UNKNOWN이다() throws Exception {
+        String bid = opened(INST);
+        setState(bid, "WRITABLE");   // D22 와 같은 바탕
+        MvcResult r = checkAs(MEMBER2, bid, COL, mark("DONE", 0), "prep_detail", "notice_confirm");
+        assertEquals(r.getResponse().getContentAsString(), 200, r.getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_CHECK WHERE BID_CASE_ID=? AND COL_CD=? AND SCREEN_ID='UNKNOWN'"
+                + " AND BUTTON_ID='UNKNOWN' AND UI_VALID=0", bid, COL));
+    }
+
     @Test
     public void D16_표시와_개정_번호가_틀리면_400이고_저장되지_않는다() throws Exception {
         String bid = opened(INST);

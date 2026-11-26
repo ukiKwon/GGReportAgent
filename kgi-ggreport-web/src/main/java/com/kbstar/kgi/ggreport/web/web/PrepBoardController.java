@@ -92,7 +92,7 @@ public class PrepBoardController {
     public Map<String, Object> check(@PathVariable String bidCaseId, @PathVariable String colCd,
                                      @RequestBody(required = false) PrepBoardIn.Check body, HttpServletRequest req) {
         Actor actor = Actor.of(req);
-        BoardUiIds.Ui ui = PrepBoardUiIds.of(req);
+        BoardUiIds.Ui ui = PrepBoardUiIds.forCheck(req, colCd);   // 현황판 dash_check + 상세 [다음] 확인 notice_confirm(NEXT 121 N1)
         String act = PrepBoardService.ACT_CHECK;
         String auditBid = caseKey(bidCaseId);
         String auditCol = colCd != null && colCd.matches("[A-Z0-9_]{1,17}") ? "CK_" + colCd : null;

@@ -32,6 +32,12 @@ public final class PrepUiIds {
     public static final String START_SCREEN = "prep_detail";
     public static final String START_BUTTON = "open_start";
 
+    /** 3단계 선정 평가표 읽기 감사용(NEXT 121 하-3) — prep_detail/scoring_read. 일반 BUTTONS 에는 넣지 않는다(다른 화면 짝으로 유효해지지 않게). */
+    public static final String SCORING_BUTTON = "scoring_read";
+
+    /** 발표 대본 Word 감사용(NEXT 113 ⑤) — prep_detail/script_docx. 일반 BUTTONS 에는 넣지 않는다. */
+    public static final String SCRIPT_BUTTON = "script_docx";
+
     private PrepUiIds() {
     }
 
@@ -70,6 +76,30 @@ public final class PrepUiIds {
         String b = clean(req.getHeader(BoardUiIds.H_BUTTON));
         boolean sv = START_SCREEN.equals(s);
         boolean bv = "assignee_change".equals(b);
+        return new BoardUiIds.Ui(sv ? s : BoardUiIds.UNKNOWN, bv ? b : BoardUiIds.UNKNOWN, sv && bv);
+    }
+
+    /**
+     * 선정 평가표 읽기(GET …/prep/notice-scoring) 전용 — 전용 짝 prep_detail/scoring_read 와 호환용 옛 짝 prep_detail/refresh(열려 있는 옛 화면) 둘만 유효.
+     * 그 밖은 UNKNOWN·ui_valid=false(다른 화면 짝은 {@link #of} 로 넘기지 않는다 — security 11-26 하). 거절(400)하지 않는다. ⚠️ 자기신고 값.
+     * 호환 분기는 BID_PREP_ACT 에서 SCORING_READ·BUTTON_ID='refresh' 가 1주 0건이면 거둔다.
+     */
+    public static BoardUiIds.Ui forScoring(HttpServletRequest req) {
+        String s = clean(req.getHeader(BoardUiIds.H_SCREEN));
+        String b = clean(req.getHeader(BoardUiIds.H_BUTTON));
+        if (START_SCREEN.equals(s) && (SCORING_BUTTON.equals(b) || "refresh".equals(b))) {
+            return new BoardUiIds.Ui(s, b, true);
+        }
+        // 그 밖의 짝: 버튼은 어떤 것이든 UNKNOWN, 화면은 허용 목록 이름만 남기고(옛 시험·감사 읽기와 같음) ui_valid=false
+        return new BoardUiIds.Ui(s != null && SCREENS.contains(s) ? s : BoardUiIds.UNKNOWN, BoardUiIds.UNKNOWN, false);
+    }
+
+    /** 발표 대본 Word(NEXT 113 ⑤) 전용 — 화면 prep_detail, 버튼 script_docx 일 때만 그 값, 아니면 UNKNOWN·ui_valid=false(거절하지 않는다 — forAssigneeChange 와 같다). 일반 BUTTONS 에는 넣지 않는다. */
+    public static BoardUiIds.Ui forScript(HttpServletRequest req) {
+        String s = clean(req.getHeader(BoardUiIds.H_SCREEN));
+        String b = clean(req.getHeader(BoardUiIds.H_BUTTON));
+        boolean sv = START_SCREEN.equals(s);
+        boolean bv = SCRIPT_BUTTON.equals(b);
         return new BoardUiIds.Ui(sv ? s : BoardUiIds.UNKNOWN, bv ? b : BoardUiIds.UNKNOWN, sv && bv);
     }
 

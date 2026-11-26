@@ -41,6 +41,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTrPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STBrType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STJc;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STLineSpacingRule;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STShd;import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblLayoutType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblWidth;
@@ -70,11 +71,64 @@ public final class DocxKit {
     static final int PAGE_H = 16838;
     static final int MARGIN = 1134;
     public static final int BODY_W = PAGE_W - 2 * MARGIN;
-    private static final int CELL_MAR_LR = 100;
-    private static final int CELL_MAR_TB = 40;
+    static final int CELL_MAR_LR = 100;
+    static final int CELL_MAR_TB = 40;
     private static final String W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     /** render 가 도는 동안만 현재 문서를 든다 — 그림(Picture)이 문서 부품에 등록돼야 해서. 스레드마다 따로, render 끝에 반드시 비운다. */
     private static final ThreadLocal<XWPFDocument> CUR_DOC = new ThreadLocal<XWPFDocument>();
+    /** render 가 도는 동안 간격용 문단의 exact 줄 높이(tw) — 없으면(-1) 지금까지와 같은 XML. */
+    private static final ThreadLocal<Integer> SPACER_TW = new ThreadLocal<Integer>();
+
+    /** 쪽 여백(twips)과 머리글·바닥글 거리. 기본은 위·아래·좌·우 1134, 머리글·바닥글 709. */
+    public static final class PageMargins {
+        private final int top;
+        private final int bottom;
+        private final int left;
+        private final int right;
+        private final int header;
+        private final int footer;
+
+        public PageMargins(int top, int bottom, int left, int right, int header, int footer) {
+            if (top < 0 || bottom < 0 || left < 0 || right < 0 || header < 0 || footer < 0
+                    || top > 5000 || bottom > 5000 || left > 5000 || right > 5000 || header > 5000 || footer > 5000) {
+                throw new IllegalArgumentException("page margins");
+            }
+            this.top = top;
+            this.bottom = bottom;
+            this.left = left;
+            this.right = right;
+            this.header = header;
+            this.footer = footer;
+        }
+
+        public static PageMargins standard() {
+            return new PageMargins(MARGIN, MARGIN, MARGIN, MARGIN, 709, 709);
+        }
+
+        public int getTop() {
+            return top;
+        }
+
+        public int getBottom() {
+            return bottom;
+        }
+
+        public int getLeft() {
+            return left;
+        }
+
+        public int getRight() {
+            return right;
+        }
+
+        public int getHeader() {
+            return header;
+        }
+
+        public int getFooter() {
+            return footer;
+        }
+    }
 
     /** 바닥글 — 가운데 쪽 번호(PAGE 필드) 하나와 고정 문구. null 이면 바닥글 없음. */
     public static final class Footer {
@@ -100,10 +154,17 @@ public final class DocxKit {
     }
 
     public static byte[] render(DocModel doc, Footer footer) {
+        return render(doc, footer, null);
+    }
+
+    /** @param margins null 이면 모델이 정한 여백, 그것도 없으면 기본(1134 전부, 머리글·바닥글 709). */
+    public static byte[] render(DocModel doc, Footer footer, PageMargins margins) {
+        PageMargins m = margins != null ? margins : doc.getPageMargins() != null ? doc.getPageMargins() : PageMargins.standard();
         try (XWPFDocument d = new XWPFDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             CUR_DOC.set(d);
+            SPACER_TW.set(Integer.valueOf(doc.getSpacerLineTw()));
             final CTBody body = d.getDocument().getBody();
-            final CTSectPr sect = page(body, doc.isPageBorder());
+            final CTSectPr sect = page(body, doc.isPageBorder(), m);
             Sink bodySink = new Sink() {
                 @Override
                 public XmlCursor open() {
@@ -120,21 +181,31 @@ public final class DocxKit {
             throw new IllegalStateException("docx build failed");
         } finally {
             CUR_DOC.remove();
+            SPACER_TW.remove();
         }
     }
 
-    private static CTSectPr page(CTBody body, boolean pageBorder) {
+    /** 간격용 문단에 exact 줄 높이를 건다 — 모델이 정했을 때만(없으면 아무것도 하지 않아 XML 이 그대로). */
+    private static void spacerLine(CTSpacing sp) {
+        Integer tw = SPACER_TW.get();
+        if (tw != null && tw.intValue() >= 0) {
+            sp.setLine(BigInteger.valueOf(tw.intValue()));
+            sp.setLineRule(STLineSpacingRule.EXACT);
+        }
+    }
+
+    private static CTSectPr page(CTBody body, boolean pageBorder, PageMargins pm) {
         CTSectPr s = body.isSetSectPr() ? body.getSectPr() : body.addNewSectPr();
         CTPageSz sz = s.isSetPgSz() ? s.getPgSz() : s.addNewPgSz();
         sz.setW(BigInteger.valueOf(PAGE_W));
         sz.setH(BigInteger.valueOf(PAGE_H));
         CTPageMar mar = s.isSetPgMar() ? s.getPgMar() : s.addNewPgMar();
-        mar.setTop(BigInteger.valueOf(MARGIN));
-        mar.setBottom(BigInteger.valueOf(MARGIN));
-        mar.setLeft(BigInteger.valueOf(MARGIN));
-        mar.setRight(BigInteger.valueOf(MARGIN));
-        mar.setHeader(BigInteger.valueOf(709));
-        mar.setFooter(BigInteger.valueOf(709));
+        mar.setTop(BigInteger.valueOf(pm.getTop()));
+        mar.setBottom(BigInteger.valueOf(pm.getBottom()));
+        mar.setLeft(BigInteger.valueOf(pm.getLeft()));
+        mar.setRight(BigInteger.valueOf(pm.getRight()));
+        mar.setHeader(BigInteger.valueOf(pm.getHeader()));
+        mar.setFooter(BigInteger.valueOf(pm.getFooter()));
         mar.setGutter(BigInteger.ZERO);
         if (pageBorder) {
             addPageBorder(s);
@@ -179,11 +250,22 @@ public final class DocxKit {
                 CTSpacing sp = pPr.addNewSpacing();
                 sp.setBefore(BigInteger.ZERO);
                 sp.setAfter(BigInteger.valueOf(120));
+                if (h.getLineTw() >= 0) {
+                    sp.setLine(BigInteger.valueOf(h.getLineTw()));
+                    sp.setLineRule(STLineSpacingRule.EXACT);
+                }
                 emitRun(p, h.getText(), h.getSize(), true, false);
             } else if (b instanceof DocModel.Para) {
                 emitPara(sink, (DocModel.Para) b, cellAlign);
             } else if (b instanceof DocModel.PageBreak) {
                 CTP p = insert(sink, "p", CTP.class);
+                Integer stw = SPACER_TW.get();
+                if (stw != null && stw.intValue() >= 0) {   // 쪽 나눔 문단이 앞 쪽 끝·다음 쪽 첫머리에서 한 줄 높이를 차지하지 않게
+                    CTSpacing psp = p.addNewPPr().addNewSpacing();
+                    psp.setBefore(BigInteger.ZERO);
+                    psp.setAfter(BigInteger.ZERO);
+                    spacerLine(psp);
+                }
                 CTR r = p.addNewR();
                 r.addNewBr().setType(STBrType.PAGE);
             } else if (b instanceof DocModel.Picture) {
@@ -247,6 +329,7 @@ public final class DocxKit {
         CTSpacing sp = pPr.addNewSpacing();
         sp.setBefore(BigInteger.ZERO);
         sp.setAfter(BigInteger.ZERO);
+        spacerLine(sp);
         pPr.addNewRPr().addNewSz().setVal(BigInteger.valueOf(2));   // 1pt
     }
 
@@ -256,6 +339,10 @@ public final class DocxKit {
         CTSpacing sp = pPr.addNewSpacing();
         sp.setBefore(BigInteger.valueOf(para.getSpaceBeforePt() >= 0 ? para.getSpaceBeforePt() * 20L : 0L));
         sp.setAfter(BigInteger.valueOf(para.getSpaceAfterPt() >= 0 ? para.getSpaceAfterPt() * 20L : 40L));
+        if (para.getLineTw() >= 0) {
+            sp.setLine(BigInteger.valueOf(para.getLineTw()));
+            sp.setLineRule(STLineSpacingRule.EXACT);
+        }
         DocModel.Align a = para.getAlign() != DocModel.Align.LEFT ? para.getAlign() : cellAlign;
         if (a == DocModel.Align.CENTER) {
             pPr.addNewJc().setVal(STJc.CENTER);
@@ -384,7 +471,7 @@ public final class DocxKit {
 
     // ── 표 ──────────────────────────────────────────────────────────────
 
-    private static int[] widths(DocModel.Table t, int total) {
+    static int[] widths(DocModel.Table t, int total) {
         int n = t.getColumns();
         double[] pct = t.getColWidthsPct();
         double sum = 0;
@@ -505,7 +592,8 @@ public final class DocxKit {
                         shd.setFill("F2F2F2");
                     }
                 }
-                tcPr.addNewVAlign().setVal(cell.isHeader() ? STVerticalJc.CENTER : STVerticalJc.TOP);
+                boolean vCenter = cell.getVAlign() != null ? cell.getVAlign() == DocModel.VAlign.CENTER : cell.isHeader();
+                tcPr.addNewVAlign().setVal(vCenter ? STVerticalJc.CENTER : STVerticalJc.TOP);
                 if (kind[r][c] == 1) {
                     Sink cellSink = new Sink() {
                         @Override
@@ -529,6 +617,7 @@ public final class DocxKit {
         CTSpacing sp = pPr.addNewSpacing();
         sp.setBefore(BigInteger.ZERO);
         sp.setAfter(BigInteger.ZERO);
+        spacerLine(sp);
         pPr.addNewRPr().addNewSz().setVal(BigInteger.valueOf(2));
     }
 

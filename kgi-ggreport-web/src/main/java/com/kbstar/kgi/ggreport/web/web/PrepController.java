@@ -3,13 +3,17 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.kbstar.kgi.ggreport.web.config.AccessLogInterceptor;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.PrepIn;
+import com.kbstar.kgi.ggreport.web.dto.PrepScriptIn;
 import com.kbstar.kgi.ggreport.web.service.ApprovalRequestService;
+import com.kbstar.kgi.ggreport.web.service.BoardMaterialAudit;
 import com.kbstar.kgi.ggreport.web.service.PrepAttachService;
 import com.kbstar.kgi.ggreport.web.service.PrepAudit;
 import com.kbstar.kgi.ggreport.web.service.PrepNobidService;
+import com.kbstar.kgi.ggreport.web.service.PrepScriptService;
 import com.kbstar.kgi.ggreport.web.service.PrepService;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
 import com.kbstar.kgi.ggreport.web.support.PrepUiIds;
+import com.kbstar.kgi.ggreport.web.support.Times;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -63,15 +67,20 @@ public class PrepController {
     private final PrepAudit audit;
     private final MenuGuard guard;
     private final PrepNobidService nobid;
+    private final PrepScriptService script;
+    private final BoardMaterialAudit boardAudit;
 
     public PrepController(PrepService prep, PrepAttachService attach, ApprovalRequestService approvals,
-                          PrepAudit audit, MenuGuard guard, PrepNobidService nobid) {
+                          PrepAudit audit, MenuGuard guard, PrepNobidService nobid, PrepScriptService script,
+                          BoardMaterialAudit boardAudit) {
         this.prep = prep;
         this.attach = attach;
         this.approvals = approvals;
         this.audit = audit;
         this.guard = guard;
         this.nobid = nobid;
+        this.script = script;
+        this.boardAudit = boardAudit;
     }
 
     /** 목록(1) — 기관명·상태·진척 n/m·담당자 이름만. */
@@ -244,6 +253,49 @@ public class PrepController {
         return ResponseEntity.status(saved ? HttpStatus.CREATED : HttpStatus.OK).body(out);
     }
 
+    /**
+     * 이사회 발표 대본 Word(NEXT 113 ⑤, T6 선택 과제) — 저장 없음. 손 입력 칸(PrepScriptIn)을 받아 docx 를 돌려준다. 열람 규칙은 상세와 같고(못 보면 404),
+     * BID_PREP_ACT 에 SCRIPT_DOCX(과제 T6)로 성공·실패를 남긴다(화면 prep_detail·버튼 script_docx — PrepUiIds.forScript 만 유효).
+     * 확정(CONFIRMED) 이사회 자료를 읽어 만들었으면 BOARD_MATERIAL_ACT 에도 SCRIPT_DOCX 한 줄(security 11-26 상) — 서비스(읽기 전용 트랜잭션) 밖,
+     * 이 호출 안에서 쓰며 실패하면 500(fail-closed, 파일 안 나감). 접근 이력 DETAIL 끝에 {@code board=<자료 번호|-> snap=<판|-> form_ver=<요약 양식 판|-> draft=Y|N}
+     * (숫자·Y/N만)을 붙인다. 손 입력 본문은 감사·접근 이력에 싣지 않는다.
+     * 응답 헤더 X-Script-Draft: Y(이사회 자료·요약 양식 중 확정 아닌 것이 있어 제목에 [확정 전 초안] 표시) | N.
+     */
+    @PostMapping("/bidcases/{bidCaseId}/prep/board-script-docx")
+    public ResponseEntity<byte[]> boardScriptDocx(@PathVariable String bidCaseId,
+                                                  @RequestBody(required = false) PrepScriptIn body,
+                                                  HttpServletRequest req) {
+        Actor actor = Actor.of(req);
+        BoardUiIds.Ui ui = PrepUiIds.forScript(req);                                        // prep_detail/script_docx 만 유효
+        BoardUiIds.Ui boardUi = BoardUiIds.of(req, BoardUiIds.ACT_SCRIPT_DOCX);             // 이사회 자료 감사 줄용 — 같은 짝만 유효
+        PrepScriptService.DocOut out = run(req, bidCaseId, "SCRIPT_DOCX", "T6", null, ui, false, me -> {
+            PrepScriptService.DocOut d = script.docx(me, bidCaseId, body);
+            if (d.isBoardConfirmed() && d.getBoardId() != null) {
+                boardAudit.record(boardAudit.before(String.valueOf(d.getBoardId())), "SCRIPT_DOCX", "OK", actor, boardUi);
+            }
+            return d;
+        });
+        req.setAttribute(AccessLogInterceptor.DETAIL, req.getAttribute(AccessLogInterceptor.DETAIL)
+                + " board=" + (out.getBoardId() == null ? "-" : out.getBoardId())
+                + " snap=" + (out.getBoardSnap() == null ? "-" : out.getBoardSnap())
+                + " form_ver=" + (out.getFormVer() == null ? "-" : out.getFormVer())
+                + " draft=" + (out.isDraft() ? "Y" : "N"));
+        String safe = (out.getInstName() == null ? "" : out.getInstName()).replaceAll("[^0-9A-Za-z가-힣]", "_");
+        if (safe.length() > 40) {
+            safe = safe.substring(0, 40);
+        }
+        String file = "발표대본_" + safe + (out.isDraft() ? "_초안" : "") + "_" + Times.todayKst().replace("-", "") + ".docx";
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+        h.setContentLength(out.getBytes().length);
+        h.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"board_script.docx\"; filename*=UTF-8''" + encodeName(file));
+        h.set(HttpHeaders.CACHE_CONTROL, "no-store");
+        h.set(HttpHeaders.PRAGMA, "no-cache");
+        h.set("X-Content-Type-Options", "nosniff");
+        h.set("X-Script-Draft", out.isDraft() ? "Y" : "N");
+        return new ResponseEntity<byte[]>(out.getBytes(), h, HttpStatus.OK);
+    }
+
     // ── T3 확정본·첨부 원본(NEXT 71, 025) ────────────────────────────────
 
     /** T3 확정본 지정(8) — 활성 담당자. */
@@ -285,7 +337,8 @@ public class PrepController {
     public Map<String, Object> noticeScoring(@PathVariable String bidCaseId,
                                              @RequestParam(name = "table", required = false) String table,
                                              HttpServletRequest req) {
-        return run(req, bidCaseId, "SCORING_READ", null, null, me -> attach.scoring(me, bidCaseId, table));
+        return run(req, bidCaseId, "SCORING_READ", null, null, PrepUiIds.forScoring(req), false,
+                me -> attach.scoring(me, bidCaseId, table));   // prep_detail/scoring_read(NEXT 121 하-3)
     }
 
     /**

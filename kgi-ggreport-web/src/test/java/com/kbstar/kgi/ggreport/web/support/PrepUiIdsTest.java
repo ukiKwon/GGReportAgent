@@ -89,6 +89,61 @@ public class PrepUiIdsTest {
         assertFalse(b.isValid());
     }
 
+    private static BoardUiIds.Ui scoringOf(String screen, String button) {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        if (screen != null) { req.addHeader(BoardUiIds.H_SCREEN, screen); }
+        if (button != null) { req.addHeader(BoardUiIds.H_BUTTON, button); }
+        return PrepUiIds.forScoring(req);
+    }
+
+    @Test
+    public void 평가표_읽기는_prep_detail_scoring_read만_새_이름으로_유효하고_옛_refresh도_받는다() {
+        BoardUiIds.Ui ok = scoringOf("prep_detail", "scoring_read");
+        assertEquals("scoring_read", ok.getButton());
+        assertTrue(ok.isValid());
+        assertTrue(scoringOf("prep_detail", "refresh").isValid());            // 열려 있는 옛 화면
+        BoardUiIds.Ui other = scoringOf("prep_list", "scoring_read");
+        assertEquals("prep_list", other.getScreen());   // 허용 목록 화면 이름은 남지만 짝이 아니라 무효(PrepAttachApiTest 와 같다)
+        assertEquals(BoardUiIds.UNKNOWN, other.getButton());
+        assertFalse(other.isValid());
+        assertEquals(BoardUiIds.UNKNOWN, of("prep_detail", "scoring_read").getButton());   // 일반 of 에는 없다
+    }
+
+    @Test
+    public void 평가표_읽기는_두_짝_밖의_짝을_일반_목록으로_넘기지_않는다() {
+        String[][] others = {{"approvals_inbox", "approve"}, {"prep_list", "refresh"}, {"prep_detail", "approve"},
+                {"prep_detail", "attach_upload"}, {"bid_board", "confirm"}, {null, null}};
+        for (String[] p : others) {
+            BoardUiIds.Ui u = scoringOf(p[0], p[1]);
+            assertEquals(p[0] + "/" + p[1], BoardUiIds.UNKNOWN, u.getButton());   // 버튼 이름은 남기지 않는다
+            assertFalse(p[0] + "/" + p[1], u.isValid());
+        }
+    }
+
+    private static BoardUiIds.Ui scriptOf(String screen, String button) {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        if (screen != null) { req.addHeader(BoardUiIds.H_SCREEN, screen); }
+        if (button != null) { req.addHeader(BoardUiIds.H_BUTTON, button); }
+        return PrepUiIds.forScript(req);
+    }
+
+    @Test
+    public void 발표_대본은_prep_detail_script_docx만_유효하고_일반_목록에는_없다() {
+        BoardUiIds.Ui ok = scriptOf("prep_detail", "script_docx");
+        assertEquals("prep_detail", ok.getScreen());
+        assertEquals("script_docx", ok.getButton());
+        assertTrue(ok.isValid());
+        BoardUiIds.Ui otherScreen = scriptOf("prep_list", "script_docx");
+        assertEquals(BoardUiIds.UNKNOWN, otherScreen.getScreen());
+        assertFalse(otherScreen.isValid());
+        BoardUiIds.Ui otherButton = scriptOf("prep_detail", "attach_upload");
+        assertEquals(BoardUiIds.UNKNOWN, otherButton.getButton());
+        assertFalse(otherButton.isValid());
+        BoardUiIds.Ui general = of("prep_detail", "script_docx");   // 일반 of — 첨부 올리기 같은 다른 사전준비 주소
+        assertEquals(BoardUiIds.UNKNOWN, general.getButton());
+        assertFalse(general.isValid());
+    }
+
     @Test
     public void 입찰_없음_알림의_계속_작성은_prep_detail_nobid_continue로_받아들여진다() {
         BoardUiIds.Ui ui = of("prep_detail", "nobid_continue");

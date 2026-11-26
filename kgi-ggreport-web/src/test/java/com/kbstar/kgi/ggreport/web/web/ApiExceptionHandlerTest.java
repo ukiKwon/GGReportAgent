@@ -74,6 +74,20 @@ public class ApiExceptionHandlerTest {
     }
 
     @Test
+    public void 운영에서_BadSqlGrammar는_SQL_테이블_ORA코드_없이_일반_문구와_참조_머리글이다() {
+        ResponseEntity<Map<String, Object>> r = new ApiExceptionHandler(false).handleUnexpected(
+                new org.springframework.jdbc.BadSqlGrammarException("t", "SELECT * FROM SECRET_T",
+                        new java.sql.SQLSyntaxErrorException("ORA-00942")));
+        assertEquals(500, r.getStatusCodeValue());
+        String body = String.valueOf(r.getBody());
+        assertFalse(body, body.contains("SELECT"));
+        assertFalse(body, body.contains("SECRET_T"));
+        assertFalse(body, body.contains("ORA-00942"));
+        assertEquals(ApiExceptionHandler.GENERIC_500, detail(r));
+        assertTrue(r.getHeaders().containsKey("X-Error-Ref"));
+    }
+
+    @Test
     public void 전역_업로드_한도_초과는_413_객체이고_파일명이_없다() {
         ResponseEntity<Map<String, Object>> r = new ApiExceptionHandler(false, "50MB")
                 .handleUploadTooLarge(new org.springframework.web.multipart.MaxUploadSizeExceededException(-1));

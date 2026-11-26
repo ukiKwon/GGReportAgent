@@ -9,9 +9,11 @@ import com.kbstar.kgi.ggreport.web.dto.ApprovalIn;
 import com.kbstar.kgi.ggreport.web.dto.PrepIn;
 import com.kbstar.kgi.ggreport.web.service.ApprovalDeputyService;
 import com.kbstar.kgi.ggreport.web.service.ApprovalRequestService;
+import com.kbstar.kgi.ggreport.web.service.BoardMaterialAudit;
 import com.kbstar.kgi.ggreport.web.service.PrepAttachService;
 import com.kbstar.kgi.ggreport.web.service.PrepAudit;
 import com.kbstar.kgi.ggreport.web.service.PrepNobidService;
+import com.kbstar.kgi.ggreport.web.service.PrepScriptService;
 import com.kbstar.kgi.ggreport.web.service.PrepService;
 import com.kbstar.kgi.ggreport.web.support.ApprovalTypes;
 import org.junit.After;
@@ -83,7 +85,8 @@ public class PrepAuditIsolationTest {
         deputies = mock(ApprovalDeputyService.class);
         audit = mock(PrepAudit.class);
         guard = mock(MenuGuard.class);
-        prepCtl = new PrepController(prep, attach, approvals, audit, guard, mock(PrepNobidService.class));
+        prepCtl = new PrepController(prep, attach, approvals, audit, guard, mock(PrepNobidService.class), mock(PrepScriptService.class),
+                mock(BoardMaterialAudit.class));
         lineCtl = new ApprovalLineController(approvals, deputies, audit, guard);
 
         SysUser me = new SysUser();
@@ -310,7 +313,8 @@ public class PrepAuditIsolationTest {
     @Test
     public void 감사가_터지지_않으면_로그도_없다_대조군() throws Exception {
         PrepAudit ok = mock(PrepAudit.class);
-        PrepController ctl = new PrepController(prep, attach, approvals, ok, guard, mock(PrepNobidService.class));
+        PrepController ctl = new PrepController(prep, attach, approvals, ok, guard, mock(PrepNobidService.class), mock(PrepScriptService.class),
+                mock(BoardMaterialAudit.class));
         ApiException original = api(409);
         when(prep.confirm(any(), any(), any())).thenThrow(original);
 

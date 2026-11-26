@@ -260,6 +260,19 @@ public class BoardWriteLimitFilterTest {
     }
 
     @Test
+    public void 발표_대본_손_입력은_32KB_한도다() throws Exception {   // NEXT 113 ⑤
+        for (String uri : new String[]{"/bidcases/B1/prep/board-script-docx", "/bidcases//B1//prep//board-script-docx/",
+                "/BIDCASES/B1/prep/board-script-docx;x=1"}) {
+            MockHttpServletResponse res = filter("POST", uri, 40000, true);
+            assertEquals(uri, 413, res.getStatus());
+            assertTrue(res.getContentAsString().contains("BODY_TOO_LARGE"));
+            assertFalse(lastPassed);
+            assertEquals(uri, 200, filter("POST", uri, 1024, true).getStatus());
+            assertTrue(lastPassed);
+        }
+    }
+
+    @Test
     public void 접근_이력_413_경로는_컨텍스트와_경로_매개변수를_뗀_값이다() throws Exception {
         AccessLogService log = org.mockito.Mockito.mock(AccessLogService.class);
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/ggreport/institutions/x/head/photos;jsessionid=1");

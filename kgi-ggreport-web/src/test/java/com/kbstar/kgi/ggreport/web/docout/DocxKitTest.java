@@ -256,6 +256,61 @@ public class DocxKitTest {
     }
 
     @Test
+    public void 줄_간격을_지정하면_exact_line이_기록되고_지정하지_않으면_line_속성이_없다() throws Exception {
+        String plain = part(render(DocModel.Para.plain("가"), table(1, true, row(cell("x")))), "word/document.xml");
+        assertFalse("미지정은 line 없음", plain.contains("w:line="));
+        assertFalse(plain.contains("w:lineRule"));
+        DocModel.Para exact = DocModel.Para.plain("나").withSpacing(0, 0).withLineSpacing(12.5);
+        String xml = part(render(exact), "word/document.xml");
+        assertTrue(xml.contains("w:line=\"250\""));
+        assertTrue(xml.contains("w:lineRule=\"exact\""));
+        assertTrue("앞뒤 간격과 함께", xml.contains("w:before=\"0\"") && xml.contains("w:after=\"0\""));
+        String head = part(render(new DocModel.Heading("제목", 14).withLineSpacing(18)), "word/document.xml");
+        assertTrue(head.contains("w:line=\"360\"") && head.contains("w:lineRule=\"exact\""));
+        try {
+            DocModel.Para.plain("x").withLineSpacing(12.3);
+            fail("0.5pt 단위만");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+    }
+
+    @Test
+    public void 간격용_문단은_모델이_정했을_때만_exact_줄_높이를_받는다() throws Exception {
+        DocModel.Table t = table(1, true, row(cell("x")));
+        String def = part(render(t), "word/document.xml");
+        assertFalse("기본은 간격용 문단에도 line 없음", def.contains("w:line="));
+        String tight = part(DocxKit.render(new DocModel(Arrays.<DocModel.Block>asList(t, new DocModel.PageBreak())).withSpacerLine(3), null),
+                "word/document.xml");
+        assertTrue(tight.contains("w:line=\"60\""));
+        assertTrue(tight.contains("w:lineRule=\"exact\""));
+    }
+
+    @Test
+    public void 쪽_여백은_기본_1134이고_PageMargins를_주면_그_값이다() throws Exception {
+        DocModel m = new DocModel(Collections.<DocModel.Block>singletonList(DocModel.Para.plain("가")));
+        String def = part(DocxKit.render(m, null), "word/document.xml");
+        assertTrue(def.contains("w:top=\"1134\"") && def.contains("w:bottom=\"1134\"") && def.contains("w:left=\"1134\"") && def.contains("w:right=\"1134\""));
+        assertTrue(def.contains("w:header=\"709\"") && def.contains("w:footer=\"709\""));
+        String custom = part(DocxKit.render(m, null, new DocxKit.PageMargins(850, 800, 1000, 1100, 600, 425)), "word/document.xml");
+        assertTrue(custom.contains("w:top=\"850\"") && custom.contains("w:bottom=\"800\"") && custom.contains("w:left=\"1000\"")
+                && custom.contains("w:right=\"1100\"") && custom.contains("w:header=\"600\"") && custom.contains("w:footer=\"425\""));
+        String viaModel = part(DocxKit.render(m.withPageMargins(new DocxKit.PageMargins(850, 850, 1134, 1134, 709, 425)), null), "word/document.xml");
+        assertTrue(viaModel.contains("w:top=\"850\"") && viaModel.contains("w:footer=\"425\""));
+    }
+
+    @Test
+    public void 칸_세로_맞춤은_지정이_우선이고_미지정이면_머리_칸만_가운데다() throws Exception {
+        DocModel.Cell centered = cell("a").withVAlign(DocModel.VAlign.CENTER);
+        DocModel.Cell topHeader = DocModel.Cell.header("b").withVAlign(DocModel.VAlign.TOP);
+        XWPFTable t = read(render(table(4, true, row(centered, topHeader, DocModel.Cell.header("c"), cell("d"))))).getTables().get(0);
+        assertEquals("center", t.getRow(0).getCell(0).getCTTc().getTcPr().getVAlign().getVal().toString());
+        assertEquals("top", t.getRow(0).getCell(1).getCTTc().getTcPr().getVAlign().getVal().toString());
+        assertEquals("center", t.getRow(0).getCell(2).getCTTc().getTcPr().getVAlign().getVal().toString());
+        assertEquals("top", t.getRow(0).getCell(3).getCTTc().getTcPr().getVAlign().getVal().toString());
+    }
+
+    @Test
     public void 격자_검증_겹침_열_초과_덜_채운_행은_거부한다() {
         try {
             table(2, true, row(cell("a").withSpan(3, 1)));

@@ -1063,6 +1063,57 @@ public class BoardMaterialApiTest {
         return mockMvc.perform(as(get(path).header("X-Screen-Id", screen).header("X-Button-Id", button), emp)).andReturn();
     }
 
+    @Test
+    public void 사전준비_자동_초안은_prep_detail_profit_upload로_쓰고_확정_자료_열람에_그_이름이_남는다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        String in = "{\"bid_case_id\":\"" + bc + "\",\"year\":2026}";
+        MvcResult bad = act("/board-materials", MEMBER, in, "board_list", "profit_upload");   // 다른 화면 짝 — 쓰기 400
+        assertEquals(text(bad), 400, bad.getResponse().getStatus());
+        assertEquals("UI_ID_REQUIRED", json(bad).path("detail").path("code").asText());
+        MvcResult c = act("/board-materials", MEMBER, in, "prep_detail", "profit_upload");
+        assertEquals(text(c), 201, c.getResponse().getStatus());
+        long id = json(c).path("material_id").asLong();
+        String[] cell = cell(true);
+        assertNotNull(cell);
+        MvcResult s = act("/board-materials/" + id + "/snapshots", MEMBER, body(0, cell[0], cell[1], "5"), "prep_detail", "profit_upload");
+        assertEquals(text(s), 201, s.getResponse().getStatus());
+        jdbc.update("UPDATE BOARD_MATERIAL SET STATUS_CD='CONFIRMED', CONFIRMED_SNAP=1, CONFIRMED_BY=?, CONFIRMED_AT=? WHERE MATERIAL_ID=?",
+                LEAD, "2026-11-10T09:00:00+09:00", id);
+        flushCache();
+        assertEquals(200, actGet("/board-materials/" + id, MEMBER, "prep_detail", "profit_upload").getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='VIEW' AND OUTCOME='OK'"
+                + " AND SCREEN_ID='prep_detail' AND BUTTON_ID='profit_upload' AND UI_VALID=1", id));
+    }
+
+    @Test
+    public void profit_upload는_목록_만들기_열기_저장_밖의_이사회_자료_주소에서는_UNKNOWN이고_쓰기는_400이다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        String[] cell = cell(true);
+        assertNotNull(cell);
+        save(id, MEMBER, body(0, cell[0], cell[1], "5"), 201);
+        // 회의 날짜 저장(쓰기) — prep_detail/profit_upload 는 이 행위에서 무효 → 400 UI_ID_REQUIRED
+        MvcResult m = act("/board-materials/" + id + "/meeting-date", MEMBER, "{}", "prep_detail", "profit_upload");
+        assertEquals(text(m), 400, m.getResponse().getStatus());
+        assertEquals("UI_ID_REQUIRED", json(m).path("detail").path("code").asText());
+        // 확정본 내려받기(식별자 필수 읽기) — 같은 이유로 400
+        jdbc.update("UPDATE BOARD_MATERIAL SET STATUS_CD='CONFIRMED', CONFIRMED_SNAP=1, CONFIRMED_BY=?, CONFIRMED_AT=? WHERE MATERIAL_ID=?",
+                LEAD, "2026-11-10T09:00:00+09:00", id);
+        flushCache();
+        MvcResult d = actGet("/board-materials/" + id + "/confirmed-docx", MEMBER, "prep_detail", "profit_upload");
+        assertEquals(400, d.getResponse().getStatus());
+        // 읽기(스냅샷 목록)는 통과하되 확정 자료 감사 줄은 UNKNOWN·ui_valid=0
+        assertEquals(200, actGet("/board-materials/" + id + "/snapshots", MEMBER, "prep_detail", "profit_upload").getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='SNAPSHOT_LIST' AND OUTCOME='OK'"
+                + " AND SCREEN_ID='prep_detail' AND BUTTON_ID='UNKNOWN' AND UI_VALID=0", id));
+        // 열기(VIEW)는 그대로 유효
+        assertEquals(200, actGet("/board-materials/" + id, MEMBER, "prep_detail", "profit_upload").getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='VIEW' AND OUTCOME='OK'"
+                + " AND BUTTON_ID='profit_upload' AND UI_VALID=1", id));
+    }
+
     private MvcResult review(long id, String emp) throws Exception {
         return actGet("/board-materials/" + id + "/review", emp, "board_review", "review_open");
     }

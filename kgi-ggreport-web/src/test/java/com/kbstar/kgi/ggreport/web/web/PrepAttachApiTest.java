@@ -237,6 +237,23 @@ public class PrepAttachApiTest {
                 new String[]{"application/hwp+zip", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><sec><p>" + body + "</p></sec>"});
     }
 
+    /** NEXT 121 하-3 — 평가표 읽기 감사는 prep_detail/scoring_read. 옛 화면 prep_detail/refresh 도 유효, 다른 화면 짝은 UNKNOWN. */
+    @Test
+    public void 선정_평가표_읽기_감사는_전용_버튼_이름으로_남는다() throws Exception {
+        String bid = opened();
+        String path = "/bidcases/" + bid + "/prep/notice-scoring";
+        String[][] cases = {{"prep_detail", "scoring_read"}, {"prep_detail", "refresh"}, {"prep_list", "scoring_read"}};
+        for (String[] c : cases) {
+            MvcResult r = mockMvc.perform(as(get(path).header("X-Screen-Id", c[0]).header("X-Button-Id", c[1]), MEMBER2)).andReturn();
+            assertEquals(200, r.getResponse().getStatus());   // 공고 원본 없음(NO_FILE)도 200
+        }
+        String q = "SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='SCORING_READ' AND OUTCOME='OK'"
+                + " AND SCREEN_ID=? AND BUTTON_ID=? AND UI_VALID=?";
+        assertEquals(1, count(q, bid, "prep_detail", "scoring_read", 1));
+        assertEquals(1, count(q, bid, "prep_detail", "refresh", 1));
+        assertEquals(1, count(q, bid, "prep_list", "UNKNOWN", 0));
+    }
+
     // ── 올리기 ───────────────────────────────────────────────────────
 
     @Test

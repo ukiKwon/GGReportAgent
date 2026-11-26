@@ -372,6 +372,11 @@ public class PrepFormService {
         return false;
     }
 
+    /** 양식 열람 판정을 다른 서비스(발표 대본 NEXT 113 ⑤)가 같은 규칙으로 쓰도록 연 것 — {@link #canRead} 그대로, 동작 변경 없음. */
+    public boolean canReadForm(SysUser me, BidPrep p) {
+        return p != null && canRead(me, p);
+    }
+
     private boolean canWrite(SysUser me, String bid) {
         return (isMember(me) || isLead(me)) && activeAssignee(bid, me);
     }

@@ -67,7 +67,7 @@ public class BoardMaterialController {
         Map<String, Object> out = service.list(me, q, status, year, assignee, meetingFrom, meetingTo);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> items = (List<Map<String, Object>>) out.get("items");
-        audit.recordList(items, Actor.of(req), BoardUiIds.of(req));   // 확정 행마다 LIST — 응답 전(fail-closed)
+        audit.recordList(items, Actor.of(req), BoardUiIds.of(req, BoardUiIds.ACT_LIST));   // 확정 행마다 LIST — 응답 전(fail-closed)
         return out;
     }
 
@@ -197,7 +197,7 @@ public class BoardMaterialController {
 
     private <T> T run(HttpServletRequest req, String id, String action, boolean write, Function<SysUser, T> call) {
         Actor actor = Actor.of(req);
-        BoardUiIds.Ui ui = BoardUiIds.of(req);
+        BoardUiIds.Ui ui = BoardUiIds.of(req, action);   // 사전준비 전용 버튼(profit_upload)은 LIST·CREATE·VIEW·SAVE 에서만 유효(security 11-26)
         SysUser me;
         try {
             me = guard.requireActiveUser(req);

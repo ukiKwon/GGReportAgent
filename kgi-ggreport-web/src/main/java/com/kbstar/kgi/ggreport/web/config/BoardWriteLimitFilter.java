@@ -86,6 +86,9 @@ public class BoardWriteLimitFilter implements Filter {
     private static final Pattern DOC_CHECK = Pattern.compile(
             "(?:^|/)tasks/+[^/]+/+files/+.+/+doc-check(?:/+ack)?/*$", Pattern.CASE_INSENSITIVE);
 
+    /** POST /bidcases/{id}/prep/board-script-docx — 발표 대본 손 입력 칸(NEXT 113 ⑤). 여러 줄 칸 4개 × 1,000자(한글 3바이트) + 짧은 칸 → 32KB. */
+    private static final Pattern SCRIPT = Pattern.compile("(?:^|/)bidcases/+[^/]+/+prep/+board-script-docx/*$", Pattern.CASE_INSENSITIVE);
+
     private final AccessLogService accessLog;
     private final int maxMb;
 
@@ -139,6 +142,7 @@ public class BoardWriteLimitFilter implements Filter {
                 : post && FORM_SMALL.matcher(path).find() ? COPY_MAX
                 : post && TARGET_WRITE.matcher(path).find() ? TARGET_MAX
                 : post && DOC_CHECK.matcher(path).find() ? DOC_ACK_MAX
+                : post && SCRIPT.matcher(path).find() ? TARGET_MAX
                 : put && FORM_DRAFT.matcher(path).find() ? FORM_DRAFT_MAX
                 : put && SAVE.matcher(path).find() ? SAVE_MAX : -1;
         long len = req.getContentLengthLong();

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 발표 대본(NEXT 113 ⑤) 읽기 전용. ANSI 문장(양쪽 방언 공통, databaseId 분기 없음) — 읽기는 flushCache. -->
+<mapper namespace="com.kbstar.kgi.ggreport.web.mapper.PrepScriptMapper">
+
+  <select id="selectBoardIds" resultType="long" flushCache="true">
+    SELECT MATERIAL_ID FROM BOARD_MATERIAL
+     WHERE BID_CASE_ID = #{bidCaseId}
+     ORDER BY BOARD_YEAR DESC, MATERIAL_ID DESC
+  </select>
+</mapper>

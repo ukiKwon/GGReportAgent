@@ -22,29 +22,56 @@ public final class DocModel {
 
     public enum Align { LEFT, CENTER, RIGHT }
 
+    public enum VAlign { TOP, CENTER }
+
     /** 문서를 이루는 블록: Heading · Para · Table · PageBreak. */
     public interface Block {
     }
 
     private final List<Block> blocks;
     private final boolean pageBorder;
+    private final DocxKit.PageMargins margins;   // null = 렌더러 기본(1134 전부)
+    private final int spacerLineTw;              // -1 = 간격용·쪽 나눔 문단에 줄 높이를 정하지 않음
 
     public DocModel(List<Block> blocks) {
-        this(blocks, false);
+        this(blocks, false, null, -1);
     }
 
-    private DocModel(List<Block> blocks, boolean pageBorder) {
+    private DocModel(List<Block> blocks, boolean pageBorder, DocxKit.PageMargins margins, int spacerLineTw) {
         this.blocks = Collections.unmodifiableList(new ArrayList<Block>(blocks));
         this.pageBorder = pageBorder;
+        this.margins = margins;
+        this.spacerLineTw = spacerLineTw;
     }
 
     /** 같은 내용에 쪽 전체 테두리(가는 선)를 켠 새 모델 — 기관장 프로필 양식용(추가만, e4 11-20). */
     public DocModel withPageBorder() {
-        return new DocModel(blocks, true);
+        return new DocModel(blocks, true, margins, spacerLineTw);
+    }
+
+    /** 같은 내용에 쪽 여백을 정한 새 모델(추가만, 기관 요약 v3). {@code DocxKit.render(doc, footer, margins)} 로 따로 주면 그쪽이 우선한다. */
+    public DocModel withPageMargins(DocxKit.PageMargins m) {
+        return new DocModel(blocks, pageBorder, m, spacerLineTw);
+    }
+
+    /**
+     * 간격용 빈 문단·표 칸 끝 문단·쪽 나눔 문단의 줄 높이(pt, 0.5 단위, exact)를 정한 새 모델(추가만).
+     * 정하지 않으면 지금까지와 같은 XML 이다.
+     */
+    public DocModel withSpacerLine(double pt) {
+        return new DocModel(blocks, pageBorder, margins, Para.toLineTw(pt));
     }
 
     public boolean isPageBorder() {
         return pageBorder;
+    }
+
+    public DocxKit.PageMargins getPageMargins() {
+        return margins;
+    }
+
+    public int getSpacerLineTw() {
+        return spacerLineTw;
     }
 
     public List<Block> getBlocks() {
@@ -109,13 +136,28 @@ public final class DocModel {
     public static final class Heading implements Block {
         private final String text;
         private final int size;
+        private final int lineTw;   // -1 = 줄 높이 지정 없음(Word 기본)
 
         public Heading(String text, int size) {
+            this(text, size, -1);
+        }
+
+        private Heading(String text, int size, int lineTw) {
             if (size < 6 || size > 40) {
                 throw new IllegalArgumentException("heading size");
             }
             this.text = text == null ? "" : text;
             this.size = size;
+            this.lineTw = lineTw;
+        }
+
+        /** 줄 높이를 pt(0.5 단위, 6~100)로 고정(exact)한 새 제목(추가만). */
+        public Heading withLineSpacing(double pt) {
+            return new Heading(text, size, Para.toLineTw(pt));
+        }
+
+        public int getLineTw() {
+            return lineTw;
         }
 
         public String getText() {
@@ -137,12 +179,31 @@ public final class DocModel {
         private final Align align;
         private final int spaceBeforePt;   // -1 = 기본(앞 0)
         private final int spaceAfterPt;    // -1 = 기본(뒤 2pt)
+        private final int lineTw;          // -1 = 줄 높이 지정 없음(Word 기본), 그 밖 = exact 줄 높이(twips)
 
         public Para(List<Run> runs, Bullet bullet, int level, int size, Align align) {
-            this(runs, bullet, level, size, align, -1, -1);
+            this(runs, bullet, level, size, align, -1, -1, -1);
         }
 
-        private Para(List<Run> runs, Bullet bullet, int level, int size, Align align, int spaceBeforePt, int spaceAfterPt) {
+        /** pt(0.5 단위, 1~100) → twips. 0.5pt 단위가 아니거나 범위 밖이면 IllegalArgumentException. */
+        static int toLineTw(double pt) {
+            double half = pt * 2;
+            if (!(pt >= 1) || pt > 100 || half != Math.rint(half)) {
+                throw new IllegalArgumentException("line spacing");
+            }
+            return (int) Math.round(half) * 10;
+        }
+
+        /** 줄 높이를 pt(0.5 단위, 6~100)로 고정(exact)한 새 문단(추가만) — 글자 크기·문단 표시 크기와 무관하게 줄 높이가 일정해진다. */
+        public Para withLineSpacing(double pt) {
+            return new Para(runs, bullet, level, size, align, spaceBeforePt, spaceAfterPt, toLineTw(pt));
+        }
+
+        public int getLineTw() {
+            return lineTw;
+        }
+
+        private Para(List<Run> runs, Bullet bullet, int level, int size, Align align, int spaceBeforePt, int spaceAfterPt, int lineTw) {
             if (level < 0 || level > 2) {
                 throw new IllegalArgumentException("level 0~2");
             }
@@ -156,6 +217,7 @@ public final class DocModel {
             this.align = align == null ? Align.LEFT : align;
             this.spaceBeforePt = spaceBeforePt;
             this.spaceAfterPt = spaceAfterPt;
+            this.lineTw = lineTw;
         }
 
         /** 앞·뒤 간격(pt, 0~72)을 정한 새 문단(추가만). */
@@ -163,7 +225,7 @@ public final class DocModel {
             if (beforePt < 0 || beforePt > 72 || afterPt < 0 || afterPt > 72) {
                 throw new IllegalArgumentException("para spacing");
             }
-            return new Para(runs, bullet, level, size, align, beforePt, afterPt);
+            return new Para(runs, bullet, level, size, align, beforePt, afterPt, lineTw);
         }
 
         public int getSpaceBeforePt() {
@@ -315,8 +377,13 @@ public final class DocModel {
         private final Shade shade;
         private final Align align;
         private final int depth;   // 이 칸 안의 가장 깊은 표 깊이(없으면 0)
+        private final VAlign valign;   // null = 기본(머리 칸이면 가운데, 아니면 위)
 
         public Cell(List<Block> blocks, int colspan, int rowspan, boolean header, Shade shade, Align align) {
+            this(blocks, colspan, rowspan, header, shade, align, null);
+        }
+
+        private Cell(List<Block> blocks, int colspan, int rowspan, boolean header, Shade shade, Align align, VAlign valign) {
             if (colspan < 1 || rowspan < 1) {
                 throw new IllegalArgumentException("span >= 1");
             }
@@ -335,6 +402,16 @@ public final class DocModel {
             this.shade = shade == null ? Shade.NONE : shade;
             this.align = align == null ? Align.LEFT : align;
             this.depth = d;
+            this.valign = valign;
+        }
+
+        /** 칸 안 세로 맞춤을 정한 새 칸(추가만). null 이면 기본(머리 칸 가운데, 그 밖 위). */
+        public Cell withVAlign(VAlign v) {
+            return new Cell(blocks, colspan, rowspan, header, shade, align, v);
+        }
+
+        public VAlign getVAlign() {
+            return valign;
         }
 
         /** 글자 한 줄 칸. */
@@ -353,11 +430,11 @@ public final class DocModel {
         }
 
         public Cell withSpan(int colspan, int rowspan) {
-            return new Cell(blocks, colspan, rowspan, header, shade, align);
+            return new Cell(blocks, colspan, rowspan, header, shade, align, valign);
         }
 
         public Cell withShade(Shade s) {
-            return new Cell(blocks, colspan, rowspan, header, s, align);
+            return new Cell(blocks, colspan, rowspan, header, s, align, valign);
         }
 
         public List<Block> getBlocks() {
