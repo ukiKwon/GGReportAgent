@@ -218,7 +218,8 @@
   .bd-l-count { margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--muted); }
   .bd-l-state { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .bd-l-tbl td.bd-l-name { white-space:normal; }
-  .ad-table.bd-l-tbl th, .ad-table.bd-l-tbl td { text-align:center; }   /* 목록 전체 가운데 정렬(사용자 11-20) — 뒤쪽 공통 .ad-table 왼쪽 정렬을 이기도록 두 클래스 */
+  .ad-table.bd-l-tbl th, .ad-table.bd-l-tbl td { text-align:center; }   /* 목록 전체 가운데 정렬(사용자 11-20) — 기관명 칸만 아래에서 왼쪽(11-26). 뒤쪽 공통 .ad-table 왼쪽 정렬을 이기도록 두 클래스 */
+  .ad-table.bd-l-tbl td.bd-l-name { text-align:left; }   /* 기관명 칸만 몸통 왼쪽 — 행 머리 이름 칸 예외(사용자 11-26, 11-20 '목록 전체 가운데'를 바꿈) */
   .bd-l-open { background:none; border:0; padding:4px 0; min-height:28px; font:inherit; font-size:13px; font-weight:700;
                color:var(--fg); text-align:center; cursor:pointer; }
   .bd-l-open:hover { background:none; text-decoration:underline; text-decoration-color:var(--accent-color); transform:none; box-shadow:none; }
@@ -1664,6 +1665,7 @@
   .pp-files.pp-files-flat { margin:0; }
   /* 파일 표: 머리·칸 모두 가운데(사용자 11-25) */
   .pp-files .ad-table.pp-ftbl th, .pp-files .ad-table.pp-ftbl td { text-align:center; vertical-align:middle; }
+  .pp-files .ad-table.pp-ftbl td.pp-fname { text-align:left; }   /* 파일명 칸만 몸통 왼쪽 — 행 머리 이름 칸 예외(사용자 11-26, 11-25 '전부 가운데'를 바꿈). 크기 줄(.pp-fsize)도 같은 왼쪽 선 */
   .ts-okline { margin:0; padding:8px 12px; font-size:13px; color:var(--green); border:1px solid var(--line); border-radius:var(--r); background:var(--panel2); }
   .ts-okline.is-note { color:var(--fg); }
   .ts-notice { border:1px solid var(--line); border-radius:var(--r); padding:0 14px; }

@@ -181,6 +181,7 @@
   <a href="#c125">125 입찰 현황판 — 12개월 일정 띠와 줄 끝 단추를 빼고, 줄을 고르면 띠에 [수정하기][관심 기관으로][목표 기관에서 제외], 표 가운데 정렬(기관 이름만 왼쪽)</a>
   <a href="#c126">126 표 정렬 — 줄을 대표하는 기관·메뉴 이름 칸만 몸통 왼쪽(입찰 결과·준비 현황·권한 관리 등 9곳)</a>
   <a href="#c127">127 표 정렬 — 여러 줄 본문 칸이 있는 줄은 줄 전체를 위로(기관 사업계획·담당자/버전 이력)</a>
+  <a href="#c129">129 표 정렬 — 이사회 자료 목록 기관명·제안서 첨부 파일명도 몸통 왼쪽(사용자 답)</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2558,6 +2559,17 @@
 <div class="col after"><header>후</header><div class="body"><div class="mock"><table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#6b6b6b"><th style="padding:4px;text-align:center">번호</th><th style="padding:4px;text-align:center">사업명·내용</th><th style="padding:4px;text-align:center">예산</th></tr><tr><td style="text-align:center;vertical-align:top;padding:4px;border-top:1px solid #ddd">1</td><td style="text-align:left;vertical-align:top;padding:4px;border-top:1px solid #ddd"><b>청년 창업 지원</b><br>창업 공간 운영<br>멘토링·교육<br>판로 지원</td><td style="text-align:right;vertical-align:top;padding:4px;border-top:1px solid #ddd">12,300</td></tr></table>
 <p style="font-size:12px">적용: 기관 사업계획 표(.pl-tbl 몸통 칸 전부 위), 담당자 이력·이사회 자료 버전/작업 이력(.ad-table에서 사유 칸 tm-t-reason이 있는 줄 전체 위, :has). 빈 메모 '—'는 가운데. 가로 정렬·머리값(세로 가운데)은 그대로.</p>
 <p class="legend-note">:has를 모르는 옛 브라우저는 이력 표가 가운데로 남을 뿐 깨지지 않음. 정렬 시험 16건 통과.</p>
+</div></div></div>
+</div>
+</section>
+<section class="ch" id="c129">
+<h2>129 표 정렬 — 이사회 자료 목록 기관명·제안서 첨부 파일명도 몸통 왼쪽 (2026-11-26, 사용자 "권장안대로")</h2>
+<div class="why">왜: 두 표는 11-20·11-25에 '전체 가운데'로 정했지만, 126장의 행 머리 이름 칸 기준(줄을 대표하고 길이가 들쭉날쭉, 위아래로 훑는 목록)에 그대로 들어맞아 사용자에게 물었고, 권장안(왼쪽)으로 답을 받았습니다. 파일명은 길이 차이가 가장 큰 칸입니다.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock"><table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#6b6b6b"><th style="padding:4px;text-align:center">파일명</th><th style="padding:4px;text-align:center">올린 사람</th></tr><tr><td style="text-align:center;padding:4px;border-top:1px solid #ddd">제안서_초안.hwp<br><span style="color:#6b6b6b">1.2MB</span></td><td style="text-align:center;padding:4px;border-top:1px solid #ddd">김영업</td></tr><tr><td style="text-align:center;padding:4px;border-top:1px solid #ddd">2027_○○시_금고지정_평가표_최종본.xlsx<br><span style="color:#6b6b6b">340KB</span></td><td style="text-align:center;padding:4px;border-top:1px solid #ddd">이영업</td></tr></table><p class="hint12">파일명·크기 줄이 가운데라 시작 자리가 줄마다 다름.</p></div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock"><table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#6b6b6b"><th style="padding:4px;text-align:center">파일명</th><th style="padding:4px;text-align:center">올린 사람</th></tr><tr><td style="text-align:left;padding:4px;border-top:1px solid #ddd">제안서_초안.hwp<br><span style="color:#6b6b6b">1.2MB</span></td><td style="text-align:center;padding:4px;border-top:1px solid #ddd">김영업</td></tr><tr><td style="text-align:left;padding:4px;border-top:1px solid #ddd">2027_○○시_금고지정_평가표_최종본.xlsx<br><span style="color:#6b6b6b">340KB</span></td><td style="text-align:center;padding:4px;border-top:1px solid #ddd">이영업</td></tr></table>
+<p style="font-size:12px">적용: 이사회 자료 목록(.bd-l-tbl td.bd-l-name), 제안 준비 상세 첨부 파일 표(.pp-ftbl td.pp-fname, 크기 줄 포함). 머리값과 다른 칸은 가운데 그대로.</p>
+<p class="legend-note">DESIGN.md '표 정렬' 적용 표 목록에 추가. 화면 시험 2159/2159.</p>
 </div></div></div>
 </div>
 </section>

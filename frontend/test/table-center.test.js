@@ -97,7 +97,8 @@ test('칸 안 flex·버튼은 가운데를 따른다', function () {
 const NAME_LEFT = [
   '.rs-tt tbody th[scope=row]', '.pb-t tbody th', '.ad-perms tbody th', '.wf-ov tbody td:first-child',
   '.cr-table td.cr-inst', '.dc-hits td.c-name', '.more-table td:first-child', '.pl-dlg-tbl td:first-child',
-  '.wf-cov tr.ok > td:first-child, .wf-cov tr.gap > td:first-child, .wf-cov tr.none > td:first-child'
+  '.wf-cov tr.ok > td:first-child, .wf-cov tr.gap > td:first-child, .wf-cov tr.none > td:first-child',
+  '.ad-table.bd-l-tbl td.bd-l-name', '.pp-files .ad-table.pp-ftbl td.pp-fname'   // 사용자 11-26 권장안 승인: 이사회 자료 목록 기관명·제안서 첨부 파일명
 ];
 
 test('행 머리 이름 칸은 몸통만 왼쪽', function () {
@@ -116,7 +117,9 @@ test('그 표들의 머리값은 그대로 가운데', function () {
 
 test('왼쪽 규칙이 같은 표의 가운데 규칙보다 뒤에 있다', function () {
   [['.more-table td', '.more-table td:first-child'], ['.pl-dlg-tbl td', '.pl-dlg-tbl td:first-child'],
-    ['.dc-hits td', '.dc-hits td.c-name'], ['.rs-tt th, .rs-tt td', '.rs-tt tbody th[scope=row]']
+    ['.dc-hits td', '.dc-hits td.c-name'], ['.rs-tt th, .rs-tt td', '.rs-tt tbody th[scope=row]'],
+    ['.ad-table.bd-l-tbl th, .ad-table.bd-l-tbl td', '.ad-table.bd-l-tbl td.bd-l-name'],
+    ['.pp-files .ad-table.pp-ftbl th, .pp-files .ad-table.pp-ftbl td', '.pp-files .ad-table.pp-ftbl td.pp-fname']
     // .ad-perms tbody th 는 .ad-table th 보다 앞 줄이지만 선택자 우선순위(0,1,2 > 0,1,1)로 이긴다 — 순서 검사 제외
   ].forEach(function (p) {
     assert.ok(css.indexOf(p[1] + ' {') > css.indexOf(p[0] + ' {'), p[1] + ' 가 ' + p[0] + ' 뒤여야 한다');
@@ -132,8 +135,6 @@ test('짧고 고른 이름·라벨 칸과 사용자 지정 표는 가운데 유�
   assert.ok(!/\.mn-spk-tbl tbody th \{[^}]*text-align:\s*left/.test(css));         // 참석자 N
   assert.ok(!/\.ap-changes th:first-child|\.ap-changes tbody th \{/.test(css));    // 결재 카드 1–3줄
   assert.ok(/text-align:\s*center/.test(rule('.isf-years th:first-child, .isf-years td:first-child')));
-  assert.ok(!/\.bd-l-tbl td\.bd-l-name \{[^}]*text-align:\s*left/.test(css));      // 사용자 11-20 '목록 전체 가운데' — 질문 답 전까지
-  assert.ok(!/td\.pp-fname \{[^}]*text-align:\s*left/.test(css));                  // 사용자 11-25 '파일 표 전부 가운데' — 질문 답 전까지
 });
 
 test('위 정렬 본문 칸이 있는 줄은 줄 전체를 위로', function () {
