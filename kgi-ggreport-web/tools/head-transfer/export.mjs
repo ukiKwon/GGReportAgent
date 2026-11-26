@@ -41,7 +41,8 @@ for (const row of list) {
     dates: DATE_FIELDS.filter((k) => f[k] && f[k].value).map((k) => ({ field: k, date: f[k].value, src: srcOf(f[k].source) })),
     items: [].concat(
       (h.education || []).map((i) => ({ field: 'EDU', value: i.value, from: i.from, to: i.to, src: srcOf(i.source) })),
-      (h.career || []).map((i) => ({ field: 'CAREER', value: i.value, from: i.from, to: i.to, src: srcOf(i.source) }))),
+      // 경력만 현직 표시(current)를 싣는다 — 학력에는 없다. 옛 줄 SQL(시작 연도 없음)은 current 대상이 아니다(VAL_FLAG 비움)
+      (h.career || []).map((i) => ({ field: 'CAREER', value: i.value, from: i.from, to: i.to, current: !!i.current, src: srcOf(i.source) }))),
     photo: null,
   };
   if (h.photo && h.photo.photo_id) {

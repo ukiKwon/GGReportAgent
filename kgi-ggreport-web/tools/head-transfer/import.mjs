@@ -58,7 +58,9 @@ for (const rec of bundle.heads) {
     if (have.has(it.value)) { log.skip++; continue; }
     if (!it.from) { log.old_sql++; continue; }   // 시작 연도 없는 옛 줄 — API로 못 넣음, 묶음의 old-items.sql 로 넣는다
     const body = { head_id: headId, field_cd: it.field, value: it.value, from: it.from, source: src(it.src) };
-    if (it.to) body.to = it.to;
+    // 현직 표시(경력만): current:true 면 끝은 비운다. 예전 묶음(current 키 없음)은 지금처럼 끝 없음='미상'
+    if (it.field === 'CAREER' && it.current === true) body.current = true;
+    else if (it.to) body.to = it.to;
     const r = await post(base + '/head/items', body, 'item_add');
     if (bad(r)) log.fail.push(rec.inst + ':' + it.field + ' ' + why(r)); else log.items++;
   }
