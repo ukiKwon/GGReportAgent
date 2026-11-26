@@ -17,24 +17,23 @@ function mkCtx(extra) {
   const recs = { IA: rec('IA', '가', { confirmed: true, contractEnd: p(-3), receiveTo: p(12) }), ID: rec('ID', '라', { contractEnd: p(-140) }) };
   return Object.assign({ byInst: recs, sumById: {}, today: TODAY, verified: [], lofin: null, entries: {}, prepOk: true, delayDays: 30, years: [2026, 2027, 2028], actOf: function () { return 'confirm'; } }, extra || {});
 }
-const WIN = kbb.laneWindow(TODAY, 2026);
 const NOBID = { byId: { ID: { handled_at: '2026-11-17', status_cd: 'NO_BID' } } };   // 가평형: 목표 밖 준비 + 올해 입찰 없음
 function outRow(ctx) { return kbb.outRows([{ institutionId: 'ID', name: '라' }], {}, ctx)[0]; }
 function cap(h) { return /<caption class="sr-only">([^<]*)<\/caption>/.exec(h)[1]; }
 
-test('A. 목표 밖 준비 줄도 서버 근거(공고 현황·시작 전 약정)로 입찰 종료 — 마감까지 칸·일정 칸', function () {
+test('A. 목표 밖 준비 줄도 서버 근거(공고 현황·시작 전 약정)로 입찰 종료 — 마감까지 칸·동작 칸', function () {
   const r = outRow(mkCtx({ snap: NOBID }));
   assert.deepStrictEqual(r.closed, { cd: 'NOTICE_NO_BID', date: '2026-11-17' });
   assert.strictEqual(r.late, false); assert.strictEqual(r.hold, false); assert.strictEqual(r.note, null);
   const why = '근거: 입찰 공고 현황 2026-11-17 입찰 없음';
   [true, false].forEach(function (canEdit) {
-    const h = kbb.goalRowHtml(r, { win: WIN, canEdit: canEdit });
+    const h = kbb.goalRowHtml(r, { canEdit: canEdit });
     assert.ok(h.indexOf('<td title="' + why + '"><b class="hb-dd tx end">입찰 종료</b><span class="sr-only">' + why + '</span></td>') > 0);
-    assert.ok(h.indexOf('<td class="ln"><div class="hb-lane" aria-hidden="true"><span class="unk">올해 입찰 끝남</span></div><span class="sr-only">올해 입찰이 끝난 기관</span></td>') > 0);
-    assert.ok(h.indexOf('hb-acts') < 0 && h.indexOf('data-act="towatch"') < 0 && h.indexOf('data-act="tonext"') < 0);   // 옮길 목표가 없다
+    assert.ok(h.indexOf('class="act"') < 0 && h.indexOf('hb-lane') < 0 && h.indexOf('올해 입찰 끝남') < 0);   // 동작 칸 없음(사용자 11-26) — 사실은 마감까지 칸 title·sr
+    assert.ok(h.indexOf('hb-wacts') < 0 && h.indexOf('data-act="towatch"') < 0 && h.indexOf('data-act="tonext"') < 0);   // 옮길 목표가 없다
     assert.ok(h.indexOf('D+') < 0 && h.indexOf('추정 지남') < 0 && h.indexOf('class="late"') < 0 && h.indexOf('hb-late') < 0);
   });
-  assert.ok(kbb.goalRowHtml(r, { win: WIN, canEdit: true }).indexOf('data-act="add"') > 0);   // 구분 칸의 [목표에 넣기]는 그대로
+  assert.ok(kbb.goalRowHtml(r, { canEdit: true }).indexOf('data-act="add"') > 0);   // 구분 칸의 [목표에 넣기]는 그대로
   // 정렬·거르기: 목표 밖 묶음 안에서 맨 아래, 상태 '입찰 종료'에 걸린다
   const ctx = mkCtx({ snap: NOBID }), two = kbb.outRows([{ institutionId: 'ID', name: '라' }, { institutionId: 'IA', name: '가' }], {}, ctx);
   assert.deepStrictEqual(kbb.filterRows(two, { status: 'closed' }).map(function (x) { return x.id; }), ['ID']);
@@ -45,12 +44,12 @@ test('A. 근거 두 종류만: 시작 전 약정은 종료, 지난해 판정·sn
   const sum = { ID: { lines_now: [{ rank_cd: 'SINGLE', bank_name: '우리은행', term_from: '2027-01-01', term_to: '2030-12-31' }] } };
   const c = outRow(mkCtx({ sumById: sum }));
   assert.deepStrictEqual(c.closed, { cd: 'CONTRACT_DECIDED', date: '2027-01-01' });
-  assert.ok(kbb.goalRowHtml(c, { win: WIN, canEdit: true }).indexOf('근거: 금고 약정 2027-01-01 시작 약정이 이미 정해져 있음') > 0);
+  assert.ok(kbb.goalRowHtml(c, { canEdit: true }).indexOf('근거: 금고 약정 2027-01-01 시작 약정이 이미 정해져 있음') > 0);
   assert.strictEqual(outRow(mkCtx({ snap: { byId: { ID: { handled_at: '2025-11-17', status_cd: 'NO_BID' } } } })).closed, null);   // 지난해 판정
   assert.strictEqual(outRow(mkCtx({ snap: { byId: { ID: { handled_at: '2026-11-17', status_cd: 'OPEN' } } } })).closed, null);
   const none = outRow(mkCtx());                                                                                              // snap·약정 없음 = 예전과 같다
   assert.strictEqual(none.closed, null);
-  assert.ok(kbb.goalRowHtml(none, { win: WIN, canEdit: true }).indexOf('올해 입찰 끝남') < 0);
+  assert.ok(kbb.goalRowHtml(none, { canEdit: true }).indexOf('올해 입찰 끝남') < 0);
   assert.strictEqual(outRow(mkCtx({ snap: NOBID, year: 2027 })).closed, null);                                              // 2027 목표를 보는 중: 올해 근거는 붙이지 않는다
   assert.deepStrictEqual(outRow(mkCtx({ snap: NOBID, year: 2026 })).closed, { cd: 'NOTICE_NO_BID', date: '2026-11-17' });
   const k = src('js/kbboard.js');
@@ -59,7 +58,7 @@ test('A. 근거 두 종류만: 시작 전 약정은 종료, 지난해 판정·sn
 
 test('B. 표 caption: 목표 수와 그 밖의 준비 수를 나눠 말하고 \'…곳 중 …곳 보임\'', function () {
   const ctx = mkCtx(), g = kbb.goalRows([{ institution_id: 'IA', tag_cd: 'RETAIN', kind_cd: 'GOAL' }], ctx), o = kbb.outRows([{ institutionId: 'ID', name: '라' }], {}, ctx);
-  const base = { st: 'ok', year: 2026, win: WIN, tab: 'goal', canEdit: true, sort: { key: 'due', dir: 'asc' } };
+  const base = { st: 'ok', year: 2026, tab: 'goal', canEdit: true, sort: { key: 'due', dir: 'asc' } };
   const t = function (x) { return cap(kbb.goalTableHtml(Object.assign({}, base, x))); };
   assert.strictEqual(t({ rows: g.concat(g), out: [], total: 3 }), '2026 목표 기관 3곳 중 2곳 보임, 마감까지 오름차순');                                              // 목표 밖 없음
   assert.strictEqual(t({ rows: g, out: o, total: 2, nGoal: 1, nOut: 1 }), '2026 목표 기관 1곳과 그 밖의 제안서 준비 중인 기관 1곳, 2곳 중 2곳 보임, 마감까지 오름차순');
@@ -145,17 +144,12 @@ test('F. 팝업 canAdd: 목표·관심 칩, 권한 없음, 다음 협약, 2년 �
   assert.ok(/Object\.keys\(gs\.sum \|\| \{\}\)\.forEach\(function \(id\) \{ ids\[id\] = true; \}\)/.test(k));   // closedIdsNow: 시작 전 약정(gs.sum)도 포함
 });
 
-test('E. CSS: 일정 칸 글자 뒤 바탕은 줄 바탕 변수(hover·late 대응), 새 색·opacity 없음', function () {
+test('E. CSS: 12개월 칸 CSS(줄 바탕 변수·글자 뒤 바탕)는 없다, 새 색·opacity 없음', function () {
   const html = src('index.html');
   const a = html.indexOf('/* 국민은행 상태 현황판(kbboard.js) 시작'), b = html.indexOf('/* 국민은행 상태 현황판 끝 */');
   assert.ok(a > 0 && b > a);
   const css = html.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.ok(/\.hb-tt tbody td\.ln \{ --rowbg:var\(--panel\); \}/.test(css));
-  assert.ok(/\.hb-tt tbody tr:hover > td\.ln \{ --rowbg:color-mix\(in srgb, var\(--accent-color\) 6%, var\(--panel\)\); \}/.test(css));
-  assert.ok(/\.hb-tt tr\.late > td\.ln \{ --rowbg:color-mix\(in srgb, var\(--red\) 8%, var\(--panel\)\); \}/.test(css));
-  assert.ok(css.indexOf('tr:hover > td.ln') < css.indexOf('tr.late > td.ln'));
-  assert.ok(/\.hb-lane \.off, \.hb-lane \.unk \{ background:var\(--rowbg, var\(--panel\)\); padding:0 4px; box-sizing:border-box; \}/.test(css));
-  assert.ok(/\.hb-lane \.off \{ right:2px; max-width:calc\(100% - 4px\);/.test(css));
+  assert.ok(css.indexOf('--rowbg') < 0 && css.indexOf('hb-lane') < 0 && css.indexOf('td.ln') < 0);
   assert.ok(!/opacity:\s*(0|\.)/.test(css) && (css.match(/#[0-9a-fA-F]{3,8}\b/g) || []).length === 0);
   assert.ok(/\.db-soon-tag \{[^}]*font-size:12px;[^}]*border-radius:var\(--r\)/.test(css));   // DESIGN.md 최소 12px·반경 var(--r)(0f qa 이관 11-19)
 });
@@ -213,10 +207,11 @@ test('H. 4-4 결과 알림: 띠 아래 순서·상태 영역 밖 버튼·옮긴 
   assert.ok(/kbb\.onProfileChange = function \(\) \{[\s\S]*?gs\.just = null; gs\.seeInst = '';[\s\S]*?dash\.clearGoals\(\)/.test(k) && /kbb\.onProfileChange = function \(\) \{[\s\S]*?gs\.focusNext = null;/.test(k));
   assert.strictEqual(kbb.seeWatchHtml(), '<button type="button" class="hb-tag" id="hb-see-watch" data-see="watch">내 관심 탭에서 보기</button>');
   assert.ok(/function flash\(msg, act, kind\) \{[\s\S]*?\$\('hb-flash-act'\)[\s\S]*?msg && act === 'watch' \? kbb\.seeWatchHtml\(\) : ''/.test(k));
-  assert.ok(/gs\.focusNext = \{ inst: r\.id, reveal: true \};\s*if \(toWatch && !noWatchNow\(\)\) \{ gs\.focusNext = \{ note: true \}; gs\.just = \{ tab: 'watch' \}; gs\.seeInst = r\.id; \}/.test(k));   // 목표→관심: 탭은 그대로
-  assert.ok(/say\(kbb\.flashMoved\(r\.name, toWatch \? 'WATCH' : 'GOAL', m\.year\)[^\n]*, false, toWatch && !noWatchNow\(\) \? 'watch' : ''\)/.test(k));
+  assert.ok(!/const toWatch = m\.cmd === 'towatch'/.test(k) && !/toWatch && !noWatchNow\(\)\) \{ gs\.focusNext = \{ note: true \}/.test(k));   // 줄 단추 목표→관심 갈래는 없다(사용자 11-26, qa P3-2) — 이 창은 관심→목표만
+  assert.ok(/gs\.focusNext = \{ inst: r\.id, reveal: true \};\s*gs\.just = \{ inst: r\.id \};/.test(k));   // 관심→목표: 그 줄 강조
+  assert.ok(/say\(kbb\.flashMoved\(r\.name, 'GOAL', m\.year\)[^\n]*, false, ''\)/.test(k));
   assert.ok(/if \(f\.note\) \{[^}]*\$\('hb-see-watch'\)[^}]*\$\('hb-add'\)[\s\S]*?return;\s*\}/.test(k));                                  // 포커스: [관심 탭에서 보기], 없으면 [목표 기관 추가]
-  assert.ok(/gs\.just = \{ inst: m\.inst\.id \};/.test(k) && /gs\.just = id \? \{ inst: id \} : null;/.test(k) && /else gs\.just = \{ inst: r\.id \};/.test(k));
+  assert.ok(/gs\.just = \{ inst: m\.inst\.id \};/.test(k) && /gs\.just = id \? \{ inst: id \} : null;/.test(k) && /gs\.just = \{ inst: r\.id \};/.test(k));
   assert.ok(/restoreFocus\(sc, keepKey\);\s*applyFocusNext\(\);\s*applyJust\(\);/.test(k));
   assert.ok(/function applyJust\(\) \{[\s\S]*?gs\.st === 'loading'\) return;[\s\S]*?classList\.add\('hb-just'\);[\s\S]*?setTimeout\(function \(\) \{ el\.classList\.remove\('hb-just'\); \}, 4000\)/.test(k));
   assert.ok(/else if \(btn\.id === 'hb-see-watch'\) seeWatch\(\);/.test(k) && /function seeWatch\(\) \{[\s\S]*?showRow\('watch', gs\.seeInst \|\| '', 0\);/.test(k));

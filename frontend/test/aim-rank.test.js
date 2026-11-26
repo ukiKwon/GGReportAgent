@@ -110,13 +110,13 @@ test('5 본문·검사·결과 문장', function () {
 });
 
 test('6 표 머리·열·거르기·세기·구분 빈 칩', function () {
-  const win = kbb.laneWindow(TODAY, 2026), ctx = mkCtx();
+  const ctx = mkCtx();
   const rows = kbb.goalRows([tgt('A', 'RETAIN'), tgt('B', null), tgt('C', 'NEW')], ctx);
-  const base = { year: 2026, win: win, rows: rows, out: [], canEdit: true, cands: [], st: 'ok', sort: { key: 'tag', dir: 'asc' } };
+  const base = { year: 2026, rows: rows, out: [], canEdit: true, cands: [], st: 'ok', sort: { key: 'tag', dir: 'asc' } };
   const h = kbb.goalTableHtml(base);
   assert.ok(h.indexOf('data-sort="tag"') > 0 && h.indexOf('data-sort="tag"') < h.indexOf('금고 방식</th>') && h.indexOf('금고 방식</th>') < h.indexOf('data-sort="due"'));
   assert.ok(h.indexOf('<col class="c-tag"><col class="c-aim"><col class="c-due">') > 0);
-  assert.ok(kbb.goalTableHtml(Object.assign({}, base, { rows: [] })).indexOf('colspan="8"') > 0);
+  assert.ok(kbb.goalTableHtml(Object.assign({}, base, { rows: [] })).indexOf('colspan="7"') > 0);
   const ids = function (a) { return a.map(function (r) { return r.id; }); };
   assert.deepStrictEqual(ids(kbb.filterRows(rows, { tag: 'NONE' })), ['B']);
   assert.deepStrictEqual(ids(kbb.sortBy(rows, 'tag', 'asc')), ['A', 'C', 'B']);
@@ -153,19 +153,18 @@ test('8 배선 소스 단언', function () {
 test('9 CSS 단언', function () {
   const html = src('index.html');
   assert.ok(html.indexOf('.hb-tt col.c-aim { width:92px; }') > 0);
-  assert.ok(html.indexOf('.hb-tt td.aim { padding:0 4px 0 8px; }') > 0);
+  assert.ok(html.indexOf('.hb-tt td.aim { padding:0 6px; }') > 0);
   assert.ok(html.indexOf('.hb-tt:not(.wt) thead th:nth-child(7)') > 0 && html.indexOf('.hb-tt.sel:not(.wt) thead th:nth-child(8)') > 0);
   assert.ok(html.indexOf('.hb-tt.wt thead th:nth-child(6)') > 0 && html.indexOf('.hb-tt.wt.sel thead th:nth-child(7)') > 0);   // 관심 표는 이전 규칙 그대로
   assert.ok(/\.hb-tag\.draft/.test(html) && html.indexOf('꼬리표 없이 점선 + 낭독문') > 0);
 });
 
 test('10 관심 탭: 금고 방식 칸 없음, 표에 wt 표식', function () {
-  const win = kbb.laneWindow(TODAY, 2026);
-  const base = { year: 2026, win: win, rows: [], out: [], canEdit: true, cands: [], st: 'ok', tab: 'watch' };
+  const base = { year: 2026, rows: [], out: [], canEdit: true, cands: [], st: 'ok', tab: 'watch' };
   const h = kbb.goalTableHtml(base);
   assert.ok(h.indexOf('금고 방식') < 0 && h.indexOf('c-aim') < 0 && h.indexOf('<table class="hb-tt wt">') === 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { selCol: true })).indexOf('<table class="hb-tt sel wt">') === 0);
-  assert.ok(kbb.watchRowHtml(row('A', 'RETAIN'), { win: win, canEdit: true }).indexOf('class="aim') < 0);
+  assert.ok(kbb.watchRowHtml(row('A', 'RETAIN'), { canEdit: true }).indexOf('class="aim') < 0);
 });
 
 test('11 구분 null 줄: 금고 방식만 바꾼 EDIT·대기 정리', function () {
@@ -210,10 +209,29 @@ test('13 확인 상자 제목: 바뀐 내용에 맞춘다', function () {
   assert.strictEqual(tc.bulkTitle({ kind: 'edit', what: '구분', n: 2 }), '구분 수정 — 2곳');
   assert.strictEqual(tc.bulkTitle({ kind: 'edit', what: '금고 방식', n: 2 }), '금고 방식 수정 — 2곳');
   assert.strictEqual(tc.bulkTitle({ kind: 'edit', what: '구분·금고 방식', n: 3 }), '구분·금고 방식 수정 — 3곳');
-  assert.strictEqual(tc.bulkTitle({ kind: 'delete', n: 1 }), '목표에서 빼기 — 1곳');
+  assert.strictEqual(tc.bulkTitle({ kind: 'delete', n: 1 }), '목표 기관에서 제외 — 1곳');
 });
 
 test('14 결재 중 줄: 금고 방식은 값만 보이는 span', function () {
   const h = kbb.aimCellHtml(row('A', 'RETAIN', { aim_rank_cd: 'FIRST', aim_rank_name: '1금고', change_pending: true }), { canEdit: true });
   assert.ok(h.indexOf('1금고') > 0 && h.indexOf('<span class="hb-tag ro">') > 0 && h.indexOf('<button') < 0 && h.indexOf('data-act="aim"') < 0);
+});
+
+test('15 결재함 카드: 금고 방식이 바뀌면 "A → B" 줄, 같으면 줄 없음, 이름은 이스케이프', function () {
+  const bf = { kind_cd: 'GOAL', target_year: 2026, tag_name: '재유치 도전', owner_name: '김영업', memo: '', aim_rank_cd: 'FIRST', aim_rank_name: '1금고' };
+  const base = { institution_name: '가', op_cd: 'EDIT', to_year: 2026, tag_name: '재유치 도전', owner_name: '이팀장', memo: '', before: bf };
+  const ch = tc.cardItemsHtml([Object.assign({}, base, { aim_rank_cd: 'SECOND', aim_rank_name: '2금고' })]);
+  assert.ok(ch.indexOf('금고 방식: 1금고 → <b>2금고</b>') > 0);
+  const same = tc.cardItemsHtml([Object.assign({}, base, { aim_rank_cd: 'FIRST', aim_rank_name: '1금고' })]);
+  assert.ok(same.indexOf('금고 방식') < 0);
+  const none = tc.cardItemsHtml([Object.assign({}, base, { aim_rank_cd: null, aim_rank_name: null })]);
+  assert.ok(none.indexOf('금고 방식: 1금고 → <b>정하지 않음</b>') > 0 && none.indexOf('null') < 0);
+  const first = tc.cardItemsHtml([Object.assign({}, base, { before: Object.assign({}, bf, { aim_rank_cd: null, aim_rank_name: null }), aim_rank_cd: 'SINGLE', aim_rank_name: '단수금고' })]);
+  assert.ok(first.indexOf('금고 방식: 정하지 않음 → <b>단수금고</b>') > 0);
+  const xss = tc.cardItemsHtml([Object.assign({}, base, { aim_rank_cd: 'X', aim_rank_name: '<img src=x>' })]);
+  assert.ok(xss.indexOf('<img') < 0 && xss.indexOf('&lt;img') > 0);
+  const onlyAim = tc.cardItemsHtml([Object.assign({}, base, { owner_name: '김영업', to_year: 2027, aim_rank_cd: 'SECOND', aim_rank_name: '2금고' })]);
+  assert.ok(onlyAim.indexOf(tc.opLong('NEXT')) < 0);
+  const w = tc.cardItemsHtml([{ institution_name: '가', op_cd: 'TO_WATCH', before: bf, aim_rank_cd: 'FIRST', aim_rank_name: '1금고' }]);
+  assert.ok(w.indexOf('금고 방식') < 0);
 });

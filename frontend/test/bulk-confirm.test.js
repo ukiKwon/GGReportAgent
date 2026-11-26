@@ -13,10 +13,10 @@ const K = rd('js/kbboard.js'), D = rd('js/dashboard.js'), CSS = rd('index.html')
 const E = function (id, o) { return Object.assign({ id: id, name: id + '구청', regionName: '서울', kind: 'GOAL', targetNo: 1, revNo: 2, year: 2026, tagCd: 'RETAIN', tagName: '재유치 도전', memo: '', ownerEmpNo: '', moveYear: 0 }, o || {}); };
 function sel(list) { const s = tc.newSel(); list.forEach(function (e) { tc.pick(s, e); }); return s; }
 
-test('띠: [수정하기] 다음 [삭제하기]가 오른쪽 끝, 둘 다 꺼짐(aria-disabled)으로 시작, hidden 아님', function () {
+test('띠: [수정하기] [관심 기관으로] [목표 기관에서 제외]가 오른쪽 끝, 셋 다 꺼짐(aria-disabled)으로 시작, hidden 아님', function () {
   const b = tc.selbarHtml();
-  assert.ok(b.indexOf('id="hb-seledit"') < b.indexOf('id="hb-seldel"') && b.indexOf('id="hb-seldel"') < b.indexOf('</div>', b.indexOf('id="hb-seldel"')));
-  assert.ok(b.indexOf('hidden>수정하기') < 0 && (b.match(/aria-disabled="true"/g) || []).length === 2);
+  assert.ok(b.indexOf('id="hb-seledit"') < b.indexOf('id="hb-seltow"') && b.indexOf('id="hb-seltow"') < b.indexOf('id="hb-seldel"') && b.indexOf('id="hb-seldel"') < b.indexOf('</div>', b.indexOf('id="hb-seldel"')));
+  assert.ok(b.indexOf('hidden>수정하기') < 0 && (b.match(/aria-disabled="true"/g) || []).length === 3 && b.indexOf('삭제하기') < 0);
   assert.strictEqual(tc.autoPickNote(2), '구분 바뀜 2곳 — [수정하기]로 저장');
 });
 
@@ -63,7 +63,7 @@ test('bulkDialogHtml: 수정은 사유 칸 없음, 삭제는 사유 칸 하나·
   assert.ok(h.indexOf('&lt;b&gt;노원&lt;/b&gt;') > 0 && h.indexOf('<b>노원') < 0);
   assert.ok(h.indexOf('바뀐 내용 없음 — 제외') > 0 && h.indexOf('tc-bd-rs') < 0 && h.indexOf('class="dlg-go">수정</button>') > 0);
   const hd = tc.bulkDialogHtml({ kind: 'delete', mode: 'APPROVAL', role: '영업팀', rows: rows, n: 1, total: 1, thisYear: true, reasons: [{ code: 'A', name: '예산 없음' }, { code: 'ETC', name: '기타' }] });
-  assert.ok(hd.indexOf('팀장 결재를 요청하시겠습니까?') > 0 && hd.indexOf('class="dlg-go">결재 요청</button>') > 0);
+  assert.ok(hd.indexOf('어느 쪽이든 팀장 결재 요청으로 올라갑니다.') > 0 && hd.indexOf('class="dlg-go">결재 요청</button>') > 0 && hd.indexOf('tc-bd-items') < 0);   // 제외 창은 라디오 + 공통 문장(줄 목록 없음, 사용자 11-26)
   assert.strictEqual((hd.match(/<select/g) || []).length, 1);
   assert.ok(hd.indexOf('<option value="ETC">기타</option>') > 0 && hd.indexOf('id="tc-bd-etcrow" hidden') > 0);
   assert.ok(tc.bulkDialogHtml({ kind: 'delete', mode: 'DIRECT', role: '영업부장', rows: [], n: 0, total: 0, reasons: [] }).indexOf('class="dlg-danger">빼기</button>') > 0);
@@ -177,11 +177,11 @@ test('bulkError: 잠김·이미 빠짐은 다시 읽고(refresh) 기관 이름�
 
 test('P3 배선·마크업: 줄 이름 title, 지난해 입찰 종료 줄은 [관심 기관으로…] 없음, 바로 반영 오류는 상자에, 성공 뒤 포커스', function () {
   assert.ok(tc.bulkItemsHtml([{ name: '긴 이름 <b>', regionName: '서울', text: 't' }]).indexOf('<span class="nm" title="서울 긴 이름 &lt;b&gt;">') > 0);
-  assert.ok(K.indexOf("(o.noWatch || tc.isPastYear(r.targetYear, o.y0) ? '' : a('towatch'") > 0 && K.indexOf('y0: U.todayDate().getFullYear() })') > 0);
+  assert.ok(K.indexOf('closedActsHtml') < 0 && K.indexOf('y0: U.todayDate().getFullYear() })') > 0);   // 줄 끝 동작 칸 단추는 없다(사용자 11-26)
   assert.ok(K.indexOf("else if (e.field && chq(d, 'tc-reason')) toWatchFieldErr(d, e.msg);") > 0);
   const f = K.slice(K.indexOf('function finishToWatch('), K.indexOf('// ── 결재 진행 중 창(보는 창)'));
   assert.ok(f.indexOf("document.getElementById('dm-name')") > 0 && f.indexOf("$('hb-goals')") > 0 && f.indexOf("$('hb-goals')") < f.indexOf('loadGoals()'));
-  assert.ok(K.indexOf("const e = tc.bulkError(x, items, del ? 'delete' : 'edit'), msg = e.msg;") > 0);
+  assert.ok(K.indexOf("const e = tc.bulkError(x, items, op), msg = e.msg;") > 0);
 });
 
 test('popupHtml: extraHtml은 주 동작 뒤·구분선 앞, 주 동작이 없어도 구분선이 생기고, 약정 편집 중에는 숨는다', function () {
@@ -206,13 +206,13 @@ test('배선(dashboard.js): headExtra 저장·머리 단추 위임·다시 그�
 });
 
 test('배선(kbboard.js): 띠 두 갈래·paintBulk, 성공은 보낸 줄만 비우고 실패는 비우지 않는다, 감사 이름은 tchange 한 곳', function () {
-  assert.ok(K.indexOf("case 'hb-seledit': bulkClick('edit', btn); break;") > 0 && K.indexOf("case 'hb-seldel': bulkClick('delete', btn); break;") > 0);
+  assert.ok(K.indexOf("case 'hb-seledit': bulkClick('edit', btn); break;") > 0 && K.indexOf("case 'hb-seltow': bulkClick('towatchn', btn); break;") > 0 && K.indexOf("case 'hb-seldel': bulkClick('delete', btn); break;") > 0);
   const p = K.indexOf('function paintSel() {'), pe = K.indexOf('function canBulkEdit()');
   assert.ok(p > 0 && pe > p && K.slice(p, pe).indexOf('paintBulk();') > 0);
   const a = K.indexOf('function submitBulk(d) {'), b = K.indexOf('function finishBulk('), c = K.indexOf('function towatchRow(id)');
   assert.ok(a > 0 && b > a && c > b);
   const sub = K.slice(a, b), fin = K.slice(b, c);
-  assert.ok(sub.indexOf('del ? undefined : tc.BTN.values') > 0 && K.indexOf('save_target_values') < 0);
+  assert.ok(sub.indexOf('del || tw ? undefined : tc.BTN.values') > 0 && K.indexOf('save_target_values') < 0);
   assert.ok(sub.indexOf('unpick') < 0 && sub.indexOf('clearSel') < 0 && sub.indexOf('dropDraftChips') < 0);   // 실패 경로는 선택·대기를 건드리지 않는다
   assert.ok(fin.indexOf('tc.unpickRow(gs.sel, e.id, e.targetNo)') > 0 && fin.indexOf('dropDraftChips();') > 0 && fin.indexOf('clearSel') < 0);
   assert.ok(K.indexOf("openChange({ opener: btn, kind: 'edit' })") < 0);   // 띠가 두 칸 창을 더는 열지 않는다
@@ -221,9 +221,10 @@ test('배선(kbboard.js): 띠 두 갈래·paintBulk, 성공은 보낸 줄만 비
 
 test('배선(kbboard.js): [관심 기관으로…] — 팝업 headExtra·일정 칸 단추·두 칸 창 대신 새 상자, 결재 모드도 같은 상자', function () {
   assert.ok(K.indexOf('headExtra: headExtra() });') > 0 && K.indexOf('function openToWatch(r, opener, pm) {') > 0);
-  assert.ok(K.indexOf("else if (act === 'towatch') { const r = rowOfBtn(btn, false); if (r) openToWatch(r, btn, null); }") > 0);
-  assert.ok(K.indexOf("else if (act === 'tonext' || act === 'togoal') {") > 0 && K.indexOf("act === 'towatch' || act === 'tonext'") < 0);
-  assert.ok(K.indexOf("a('towatch', '관심 기관으로…', '관심 기관으로 옮기기')") > 0 && K.indexOf("'내 관심으로…'") < 0);
+  assert.ok(K.indexOf("act === 'towatch'") < 0 && K.indexOf('openToWatch(r, btn, null)') < 0 && K.indexOf('줄 끝 동작 칸 단추') < 0);   // 줄 끝 단추 처리기·갈래는 없다(사용자 11-26, qa P3-2) — 입구는 팝업 headExtra 하나
+  assert.ok(K.indexOf("if (btn.id === 'dm-towatch' && host) openToWatch(towatchRow(String(m.rec.institutionId || '')), btn, m);") > 0);
+  assert.ok(K.indexOf("else if (act === 'togoal') {") > 0 && K.indexOf('tonext') < 0);   // 다음 회차 목표로 입구 없음(사용자 11-26)
+  assert.ok(K.indexOf("a('towatch', '관심 기관으로…'") < 0 && K.indexOf("'내 관심으로…'") < 0);   // 줄 끝 단추 없음
   const o = K.indexOf('function openToWatch('), e = K.indexOf('// ── 결재 진행 중 창(보는 창)');
   const tw = K.slice(o, e);
   assert.ok(tw.indexOf("tc.setOp(it, 'TO_WATCH')") > 0 && tw.indexOf('kbb.submitChanges(tc.buildBody([it]') > 0 && tw.indexOf('tc.toWatchError(x, [it])') > 0);

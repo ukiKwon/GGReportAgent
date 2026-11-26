@@ -437,12 +437,11 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   assert.ok(/\.hb-tt \{[^}]*table-layout:fixed/.test(css) && /\.hb-tt thead th \{[^}]*position:sticky/.test(css));
   assert.ok(/\.hb-tt tr\.late > \* \{[^}]*var\(--red\) 8%/.test(css));                                         // 지연 행 = 빨강 8% 바탕(글자 칩 '지연'이 함께)
   assert.ok(/\.hb-tag \{[^}]*min-height:24px[^}]*border:1px solid var\(--line-strong\)/.test(css));              // 칩 높이 24px·테두리(밝은 테마: 토큰)
-  assert.ok(/\.hb-lane \.w\.est \{[^}]*repeating-linear-gradient/.test(css) && /\.hb-lane \.now \{[^}]*dashed var\(--muted\)/.test(css));   // 추정 = 빗금, 오늘 = 점선(틸 아님)
-  assert.ok(/\.hb-lane \.w \{[^}]*min-width:6px/.test(css));
   assert.ok(!/\.hb-cols\b|\.hb-col\b|\.hb-nlink|\.hb-li\b|\.hb-act\b|\.hb-none\b|#hb-preps|#hb-notice/.test(css));   // 옛 3열·2번 구획 규칙은 지웠다
   assert.ok(!/\.hb-list\b|\.hb-grid\b|\.hb-cards\b|\.kb-card\b|\.hb-alert\b|\.hb-chip\b/.test(css));
-  assert.ok(/@media \(max-width:1279px\) \{ \.hb-tt \.ln, \.hb-tf \.lg \{ display:none; \} \.hb-tt col\.c-nm \{ width:auto; \} \}/.test(css));   // 1279 이하(사용자 11-26): 일정 열·범례 숨김, 기관 열이 남는 폭을 받는다(design 11-17 P2-1)
-  assert.ok(/@media \(max-width:880px\) \{[^@]*\.hb-band \{ grid-template-columns:1fr 1fr; \}[^@]*\.hb-tp \{ height:auto; \}[^@]*\.hb-tt \{ min-width:856px; \}/.test(css));   // 856 = 기관 150 + 나머지 고정 열 706
+  assert.ok(!/@media \(max-width:1279px\)/.test(css.slice(css.indexOf('.hb-tt {'))) && /\.hb-tt col\.c-nm \{ width:auto; \}/.test(css));   // 12개월 열·범례와 1279px 숨김 규칙은 없다(사용자 11-26), 기관 열이 남는 폭을 받는다
+  assert.ok(/@media \(max-width:880px\) \{[^@]*\.hb-band \{ grid-template-columns:1fr 1fr; \}[^@]*\.hb-tp \{ height:auto; \}/.test(css));
+  assert.ok(/\.hb-tt \{ width:100%; min-width:888px;/.test(css) && /\.hb-tt\.wt \{ min-width:1028px; \}/.test(css) && !/@media[^{]*\{[^@]*\.hb-tt \{ min-width/.test(css) && /\.hb-ts \{[^}]*overflow:auto/.test(css));   // 888 = 기관 150 + 고르기 열 32(쓰기 모드는 늘 붙는다) + 고정 열 706(구분 166·금고 방식 92·마감까지 120·은행 124·준비 단계 148·설명회 56), 관심 표는 996 + 32 = 1028. 모든 폭에서 가로 스크롤(.hb-ts overflow:auto), 880px 미디어쿼리 밖(qa P2-1)
   assert.ok(/\.hb-menu \{[^}]*border-radius:var\(--r\)/.test(css) && /\.hb-menu button\[aria-checked=false\] \.ck \{ visibility:hidden; \}/.test(css));
   // 줄: 종료 D-n(크게 16px mono), 빨강·주황은 글자색만(채운 배경 없음), 종료일 미상은 muted, 행 이름 13px
   assert.ok(/\.hb-end b \{ font:700 16px\/1\.2 var\(--mono\)/.test(css) && /\.hb-end\.urgent b \{ color:color-mix\(in srgb, var\(--red\) 72%, var\(--fg\)\)/.test(css) && /\.hb-end\.soon b \{ color:color-mix\(in srgb, var\(--orange\) 72%, var\(--fg\)\)/.test(css));
@@ -463,7 +462,7 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   assert.ok(/#hb-ours:focus:not\(:focus-visible\) \{ outline:none; \}/.test(css) && !/#hb-ours:focus \{/.test(css));   // 키보드 포커스 링은 살린다(design P3-a)
   // 채운 버튼 금지 — 와플 범례 색 견본(.lg i.k)·국민은행 막대 채움(.bar.k)·진행 막대 채움(.hb-pg i)·마감 눈금(::after)은 버튼이 아니라 값을 알려 주는 표지라 뺀다
   assert.ok(!/background:var\(--(accent-color|red|fg)\)\s*;/.test(css.replace(/\.hb-waf \.lg i\.k \{[^}]*\}/, '').replace(/\.hb-bk \.bar\.k \{[^}]*\}/, '')
-    .replace(/\.hb-pg i \{[^}]*\}/, '').replace(/\.hb-lane \.w:not\(\.est\)::after \{[^}]*\}/, '')
+    .replace(/\.hb-pg i \{[^}]*\}/, '')
     .replace(/#hb-add \{[^}]*\}/, '')));   // 채운 주버튼 예외 4곳째 = [목표 기관 추가](DESIGN.md, 사용자 11-24 강조 요청) — 그 밖에는 여전히 없음
   // 마크업 순서(design 6-C): 제목 줄 → 요약 띠 → 알림·오류 → 목표 표 → 접힌 협약 구획. 3열·2번 구획·3번 구획은 없다
   const k0 = src('js/kbboard.js');

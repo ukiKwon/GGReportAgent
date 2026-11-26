@@ -1,4 +1,4 @@
-// 입찰 현황판 '올해 목표 기관' 표(kbboard.js 순수 부분, 2026-11-17 규격 design-reviewer acfdd5da): 12개월 레인·구분 기본값·마감까지·지연 판정·빈 상태 후보·행 마크업·대화창 검증·응답 처리·보기 전용·CSS 구조.
+// 입찰 현황판 '올해 목표 기관' 표(kbboard.js 순수 부분, 2026-11-17 규격 design-reviewer acfdd5da): 구분 기본값·마감까지·지연 판정·빈 상태 후보·행 마크업·대화창 검증·응답 처리·보기 전용·CSS 구조.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -13,49 +13,6 @@ const TODAY = new Date(2026, 10, 17);   // 2026-11-17 (로컬)
 function p(n) { return logic.localDateStr(new Date(2026, 10, 17 + n)); }
 function src(f) { return fs.readFileSync(path.join(ROOT, f), 'utf8'); }
 function rec(id, name, extra) { return Object.assign({ institutionId: id, name: name, region: '11', type: '지자체', confirmed: false }, extra || {}); }
-
-// ── 12개월 레인 ─────────────────────────────────────────────────────
-test('laneWindow: 시작 = max(이번 달 1일, 목표 연도 1월 1일), 12개월, 오늘 위치(%)', function () {
-  const w = kbb.laneWindow(TODAY, 2026);
-  assert.strictEqual(w.start, '2026-11-01');
-  assert.strictEqual(w.label, '2026.11 ~ 2027.10');
-  assert.deepStrictEqual(w.months.slice(0, 3), [{ y: 2026, m: 11 }, { y: 2026, m: 12 }, { y: 2027, m: 1 }]);
-  assert.strictEqual(w.months.length, 12);
-  assert.strictEqual(w.nowPct, 4.444);                                        // 11월 17일 = (16/30)/12
-  const y27 = kbb.laneWindow(TODAY, 2027);                                    // 2027 목표 = 2027.01~12, 오늘은 창 밖
-  assert.strictEqual(y27.start, '2027-01-01');
-  assert.strictEqual(y27.label, '2027.01 ~ 2027.12');
-  assert.strictEqual(y27.nowPct, null);
-  assert.strictEqual(kbb.laneWindow(TODAY, 2025).start, '2026-11-01');        // 지난 해는 이번 달부터
-  assert.strictEqual(kbb.laneWindow('2026-12-31', 2026).label, '2026.12 ~ 2027.11');
-  assert.strictEqual(kbb.laneWindow('2026-12-31', 2026).nowPct, 8.065);
-  assert.strictEqual(kbb.laneWindow(TODAY, 0).start, '2026-11-01');            // 연도 없음 = 올해
-});
-
-test('laneGeom: 확정 = 공고일~접수 마감(달 눈금에 맞춘 비율), 추정 = 그 달 한 칸, 창 밖은 off', function () {
-  const w = kbb.laneWindow(TODAY, 2026);
-  assert.deepStrictEqual(kbb.laneGeom('2026-11-20', '2026-11-29', false, w), { left: 5.278, width: 2.778, off: null });   // 규격 시안 5.3%·2.5%
-  assert.deepStrictEqual(kbb.laneGeom('2027-06-15', '', true, w), { left: 58.333, width: 8.333, off: null });           // 추정 = 7번째 칸
-  assert.deepStrictEqual(kbb.laneGeom('', '2027-06-15', true, w), { left: 58.333, width: 8.333, off: null });
-  assert.strictEqual(kbb.laneGeom('2028-01-10', '', true, w).off, 'after');
-  assert.strictEqual(kbb.laneGeom('2026-09-10', '', true, w).off, 'before');
-  assert.strictEqual(kbb.laneGeom('2026-11-01', '2026-11-01', true, w).left, 0);
-  assert.strictEqual(kbb.laneGeom('2027-10-30', '', true, w).off, null);       // 12번째 칸(마지막 달)
-  assert.strictEqual(kbb.laneGeom('2027-11-01', '', true, w).off, 'after');     // 13번째 달부터 밖
-  // 창 시작 앞에서 걸치면 0에서 자른다
-  assert.deepStrictEqual(kbb.laneGeom('2026-10-25', '2026-11-05', false, w), { left: 0, width: 1.389, off: null });
-  // 공고일이 없으면 마감 앞 7일, 마감일이 없으면 공고일 하루
-  assert.deepStrictEqual(kbb.laneGeom('', '2026-11-29', false, w), { left: 5.833, width: 2.222, off: null });
-  assert.strictEqual(kbb.laneGeom('2026-11-10', '', false, w).width, 0.278);
-  assert.strictEqual(kbb.laneGeom('2026-10-01', '2026-10-20', false, w).off, 'before');
-  assert.strictEqual(kbb.laneGeom('2028-02-01', '2028-02-10', false, w).off, 'after');
-  assert.strictEqual(kbb.laneGeom('', '', false, w), null);
-  assert.strictEqual(kbb.laneGeom('엉터리', '2026-13-40', true, w), null);
-  // 2027 창
-  const w27 = kbb.laneWindow(TODAY, 2027);
-  assert.strictEqual(kbb.laneGeom('2027-01-05', '', true, w27).left, 0);
-  assert.strictEqual(kbb.laneGeom('2026-12-20', '', true, w27).off, 'before');
-});
 
 // ── 구분(태그) 기본값 ───────────────────────────────────────────────────
 test('defaultTag: 039 kb_now(KB→재유치, OTHER→신규유치) → NO_RECORD면 행안부 국민은행 줄 → KB_VERIFIED → 없음', function () {
@@ -91,7 +48,7 @@ test('defaultTag: 039 kb_now(KB→재유치, OTHER→신규유치) → NO_RECORD
   assert.strictEqual(kbb.tagWhy({ tag: 'NEW', why: 'other', bank: '우리은행' }), '지금 우리은행이 금고');
 });
 
-// ── 마감까지·레인 칸 ─────────────────────────────────────────────────
+// ── 마감까지 ─────────────────────────────────────────────────
 function itemOf(r) { return dash.itemForRec(r, TODAY); }
 test('dueOf·dueHtml: 확정 마감 D-n(30일 안이면 빨강) / 마감 미확인 / 마감 지남 / 예정일 지남 / 추정 / 확정 공고일 / 미상', function () {
   const fixed = kbb.dueOf(itemOf(rec('IA', '가', { confirmed: true, contractEnd: p(-3), receiveTo: p(12) })));
@@ -129,32 +86,17 @@ test('sortGoals: 확정 마감 가까운 순 → 공고 났으나 마감 미확�
   assert.deepStrictEqual(kbb.sortGoals(null), []);
 });
 
-test('laneCellHtml: 그림은 aria-hidden, 읽기용 문장, 추정 = est, 마감 30일 안 = hot, 창 밖·자료 없음 글, 2027 창은 오늘 선 없음', function () {
-  const w = kbb.laneWindow(TODAY, 2026);
-  const fx = kbb.laneCellHtml({ kind: 'fixed', days: 12, from: '2026-11-20', to: '2026-11-29' }, w);
-  assert.ok(fx.indexOf('<div class="hb-lane" aria-hidden="true"><span class="cur"></span><span class="now" style="left:4.444%"></span>') === 0);
-  assert.ok(fx.indexOf('<span class="w hot" style="left:5.278%;width:2.778%"></span>') > 0);
-  assert.ok(fx.indexOf('<span class="sr-only">공고 2026-11-20부터 접수 마감 2026-11-29까지</span>') > 0);
-  assert.ok(kbb.laneCellHtml({ kind: 'fixed', days: 40, from: '2026-12-20', to: '2026-12-27' }, w).indexOf('class="w"') > 0);   // 30일 밖은 무채색
-  const es = kbb.laneCellHtml({ kind: 'est', days: 200, date: '2027-06-15' }, w);
-  assert.ok(es.indexOf('class="w est" style="left:58.333%;width:8.333%"') > 0 && es.indexOf('추정 공고 2027-06') > 0);
-  const af = kbb.laneCellHtml({ kind: 'est', days: 800, date: '2028-01-10' }, w);
-  assert.ok(af.indexOf('<span class="off">2028-01 추정 · 목표 연도 밖 →</span>') > 0 && af.indexOf('12개월 밖') > 0);
-  assert.ok(kbb.laneCellHtml({ kind: 'over', days: 140, est: true, date: '2026-07-01' }, w).indexOf('<span class="unk before">← 추정일 지남</span>') > 0);
-  // 공고 예정일(plan)·공고 중 마감 미상(open)은 접수 마감 눈금이 없는 막대(pl·op 클래스, design 11-17 P2-3) — 확정(fixed)·마감 지남(closed)은 눈금 있는 보통 막대
-  const pl = kbb.laneCellHtml({ kind: 'plan', days: 30, date: '2026-12-17' }, w);
-  assert.ok(/<span class="w pl" style="left:\d/.test(pl) && pl.indexOf('<span class="sr-only">공고 예정 2026-12-17</span>') > 0 && pl.indexOf('class="w hot"') < 0);
-  const op = kbb.laneCellHtml({ kind: 'open', days: null, from: '2026-11-10', to: '' }, w);
-  assert.ok(op.indexOf('<span class="w op" style="left:') > 0 && op.indexOf('<span class="sr-only">공고 2026-11-10, 접수 마감일 미확인</span>') > 0);
-  const cl = kbb.laneCellHtml({ kind: 'closed', days: null, from: '2026-10-20', to: '2026-11-05' }, w);
-  assert.ok(cl.indexOf('class="w"') > 0 && cl.indexOf(' pl') < 0 && cl.indexOf(' op') < 0 && cl.indexOf('<span class="sr-only">접수 마감 2026-11-05 지남</span>') > 0);
-  assert.ok(fx.indexOf('class="w hot"') > 0 && fx.indexOf(' pl"') < 0 && fx.indexOf(' op"') < 0);
-  const un = kbb.laneCellHtml({ kind: 'unk' }, w);
-  assert.ok(un.indexOf('<span class="unk">입찰 예정일 자료 없음</span>') > 0 && un.indexOf('<span class="sr-only">입찰 예정일 자료 없음</span>') > 0);
-  const y27 = kbb.laneCellHtml({ kind: 'est', days: 400, date: '2027-03-10' }, kbb.laneWindow(TODAY, 2027));
-  assert.ok(y27.indexOf('class="now"') < 0 && y27.indexOf('class="cur"') < 0 && y27.indexOf('left:16.667%') > 0);
-  const evil = kbb.laneCellHtml({ kind: 'plan', days: 3, date: '<b>2026-11-20' }, w);
-  assert.ok(evil.indexOf('<b>') < 0);
+test('12개월 일정 띠 없음(사용자 11-26): 함수·열·머리·범례·CSS 모두 없고 목표 표에는 동작 칸이 없다', function () {
+  assert.strictEqual(typeof kbb.laneWindow, 'undefined');
+  assert.strictEqual(typeof kbb.laneGeom, 'undefined');
+  assert.strictEqual(typeof kbb.laneCellHtml, 'undefined');
+  assert.strictEqual(kbb.goalFootHtml(13), '<span>전국 공고 진행 중 <b>13</b>곳</span><button type="button" id="hb-to-notice">입찰 공고 현황에서 보기</button>');   // 범례(공고~접수 마감·추정 공고 달·오늘) 없이 공고 현황 링크만
+  const js = src('js/kbboard.js'), html = src('index.html');
+  ['hb-lane', 'has-acts', 'hb-acts', 'closedOutLaneHtml', 'class="ln"'].forEach(function (s) { assert.ok(js.indexOf(s) < 0, s); });
+  const a = html.indexOf('/* 국민은행 상태 현황판(kbboard.js) 시작'), b = html.indexOf('/* 국민은행 상태 현황판 끝 */');
+  const css = html.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
+  ['hb-lane', 'td.ln', '.hb-tt .ln', '.hb-tt .mh', '.hb-tt .yr', '.hb-tf .lg', '.hb-tf .sw', 'has-acts', '.hb-acts', '--rowbg'].forEach(function (s) { assert.ok(css.indexOf(s) < 0, s); });
+  assert.ok(!/@media \(max-width:1279px\)[^}]*\.hb-tt/.test(css));
 });
 
 // ── 현 금고 은행·직접 입력 약정 ──────────────────────────────────────
@@ -302,22 +244,22 @@ test('emptyCandidates: 협약 1년 안 종료 중 \'국민은행 확정\'·이�
 });
 
 // ── 행·표 마크업 ───────────────────────────────────────────────────
-function rowHtml(r, o) { return kbb.goalRowHtml(r, Object.assign({ win: kbb.laneWindow(TODAY, 2026), canEdit: true }, o || {})); }
+function rowHtml(r, o) { return kbb.goalRowHtml(r, Object.assign({ canEdit: true }, o || {})); }
 test('goalRowHtml: 지연 행(late·지연 칩·마감 D-n·준비 단계 막대) 마크업, 이름 버튼·구분 칩(메뉴 버튼)', function () {
   const ctx = mkCtx({ entries: { IA: { id: 'IA', stage: 2 } } });
   const r = kbb.goalRow(tgt('IA', 'RETAIN', { institution_name: '성동구청' }), ctx);
   const h = rowHtml(r);
-  assert.ok(h.indexOf('<tr class="late"><th scope="row"><button type="button" class="hb-nm" data-key="11|가" data-inst="IA" aria-haspopup="dialog"><span class="rg">11</span>가</button></th>') === 0);
+  assert.ok(h.indexOf('<tr class="late"><th scope="row" title="11 가"><button type="button" class="hb-nm" data-key="11|가" data-inst="IA" aria-haspopup="dialog"><span class="rg">11</span>가</button></th>') === 0);
   assert.ok(h.indexOf('<button type="button" class="hb-tag" data-act="tag" data-inst="IA" data-key="11|가" aria-haspopup="menu" aria-expanded="false"><span class="sr-only">구분: </span>재유치 도전<svg') > 0);
   assert.ok(h.indexOf('<b class="hb-dd hot">D-12</b><span class="hb-q">마감</span>') > 0);
   assert.ok(h.indexOf('<td class="hb-bank">국민은행<span class="r">단수</span></td>') > 0);
   assert.ok(h.indexOf('<span class="hb-stg"><span class="lb" title="사전준비">사전준비</span><span class="hb-pg" aria-hidden="true"><i style="width:60%"></i></span><span class="n">3/5</span><span class="hb-late">지연</span></span>') > 0);
   assert.ok(h.indexOf('<td class="mut"><span aria-hidden="true">—</span><span class="sr-only">설명회 기록 없음</span></td>') > 0);   // 설명회 열은 1단계에 '—'
-  assert.ok(h.indexOf('<td class="ln"><div class="hb-lane" aria-hidden="true">') > 0 && h.indexOf('class="w hot"') > 0);
-  assert.strictEqual((h.match(/<td/g) || []).length, 7);                                                      // th 1 + td 7 = 8열(금고 방식 칸 포함)
+  assert.ok(h.indexOf('hb-lane') < 0 && h.indexOf('class="ln"') < 0 && h.indexOf('class="w hot"') < 0 && h.endsWith('설명회 기록 없음</span></td></tr>'));   // 동작 칸 없음(사용자 11-26)
+  assert.strictEqual((h.match(/<td/g) || []).length, 6);                                                      // th 1 + td 6 = 7열(금고 방식 칸 포함)
   // 지연이 아니면 class 없음, 단계 기록이 없고 제안 사전준비가 가능하면 단계 칸에 '시작 전' 글자만(줄마다 있던 [제안 확정] 단추는 11-25에 없앴다)
   const ok = rowHtml(kbb.goalRow(tgt('IF', 'NEW'), mkCtx()));
-  assert.ok(ok.indexOf('<tr><th scope="row">') === 0 && ok.indexOf('hb-late') < 0);
+  assert.ok(ok.indexOf('<tr><th scope="row" title="') === 0 && ok.indexOf('hb-late') < 0);
   assert.ok(ok.indexOf('<span class="hb-stg"><span class="mut">시작 전</span><span class="sr-only">제안 사전준비 시작 전</span></span>') > 0);
   assert.ok(ok.indexOf('hb-confirm') < 0 && ok.indexOf('제안 확정') < 0);
   // 공고 전은 '공고 전', 진행 자료 없음은 —
@@ -329,7 +271,7 @@ test('goalRowHtml: 지연 행(late·지연 칩·마감 D-n·준비 단계 막대
 test('goalRowHtml: 추정·미상·예전 국민은행 표시·목표 밖 줄', function () {
   const ctx = mkCtx();
   const est = rowHtml(kbb.goalRow(tgt('IB', 'NEW'), ctx));
-  assert.ok(est.indexOf('<b class="hb-dd est">D-200</b><span class="hb-q">추정</span>') > 0 && est.indexOf('class="w est"') > 0);
+  assert.ok(est.indexOf('<b class="hb-dd est">D-200</b><span class="hb-q">추정</span>') > 0 && est.indexOf('class="w est"') < 0);   // 12개월 막대 없음(사용자 11-26)
   assert.ok(est.indexOf('<span class="hb-q hb-prev" title="되찾기 후보 — 예전에 국민은행 금고였던 기관(마지막 2022년)">되찾기</span>') > 0);   // 신규유치 칩 옆 작은 표시(사용자 11-17)
   assert.ok(est.indexOf('예전 국민은행 금고, 마지막 2022년') > 0);
   assert.ok(rowHtml(kbb.goalRow(tgt('IA', 'RETAIN'), ctx)).indexOf('hb-prev') < 0);                           // 재유치 도전은 표시 없음
@@ -341,7 +283,7 @@ test('goalRowHtml: 추정·미상·예전 국민은행 표시·목표 밖 줄', 
   assert.ok(prevOf(yr).indexOf('hb-prev') < 0);       // 올해는 '예전' 아님(올해보다 앞선 해만)
   assert.ok(prevOf(yr - 1).indexOf('hb-prev') > 0);   // 지난해는 칩이 붙는다
   const unk = rowHtml(kbb.goalRow(tgt('IE', 'NEW'), ctx));
-  assert.ok(unk.indexOf('<b class="hb-dd est tx">미상</b>') > 0 && unk.indexOf('<span class="unk">입찰 예정일 자료 없음</span>') > 0 && unk.indexOf('class="w') < 0);
+  assert.ok(unk.indexOf('<b class="hb-dd est tx">미상</b>') > 0 && unk.indexOf('<span class="unk">') < 0 && unk.indexOf('class="w') < 0);   // 12개월 칸 없음(사용자 11-26) — 미상은 마감까지 칸이 말한다
   // 목표 밖(제안을 준비 중인 기관): 구분 칸에 [목표에 넣기], 보기 전용은 '목표 아님'
   const out = kbb.goalRow({ institution_id: 'IA', institution_name: '가' }, ctx, true);
   const oh = rowHtml(out);
@@ -362,7 +304,7 @@ test('보기 전용(디자이너): 구분은 ▾ 없는 span.hb-tag.ro, 이름 �
   assert.ok(ro.indexOf('확인됨') < 0);
   const ver = rowHtml(kbb.goalRow(tgt('IA', 'RETAIN', { editor_name: '박영업', emp_verified: true, saved_at: '2026-11-17T10:20:30' }), mkCtx()));
   assert.ok(ver.indexOf('마지막 고침 박영업 2026-11-17 10:20') > 0 && ver.indexOf('자기신고') < 0);
-  const t = kbb.goalTableHtml({ st: 'ok', year: 2026, win: kbb.laneWindow(TODAY, 2026), rows: [], out: [], canEdit: false, cands: [{ id: 'I1', key: '11|가', name: '가', region: '11', endDate: '2026-12-31' }] });
+  const t = kbb.goalTableHtml({ st: 'ok', year: 2026, rows: [], out: [], canEdit: false, cands: [{ id: 'I1', key: '11|가', name: '가', region: '11', endDate: '2026-12-31' }] });
   assert.ok(t.indexOf('<h3 class="hb-eh">2026 목표 기관이 아직 없습니다</h3><p>협약이 1년 안에 끝나는 기관은 아래 &#39;협약 중인 기관&#39;에서 봅니다.</p>') > 0 && t.indexOf('<button') < 0);   // 제목 줄이 '영업부서가 넣고 뺍니다'를 말하므로 표는 다음 행동(design P3-2)
   const js = src('js/kbboard.js');
   assert.ok(js.indexOf('<button type="button" id="hb-add" hidden>') > 0 && js.indexOf("add.hidden = !can") > 0);   // [목표 기관 추가]는 hidden(disabled 아님)
@@ -381,23 +323,22 @@ test('서버 글(이름·메모·편집자)은 전부 이스케이프(S8) — �
   const res = kbb.resultsHtml([{ name: X, sub: X, taken: true }], 0, 2026);
   assert.ok(res.indexOf('<img') < 0 && res.indexOf('aria-disabled="true"') > 0 && res.indexOf('이미 2026 목표') > 0);
   assert.ok(kbb.emptyHtml({ year: 2026, canEdit: true, cands: [{ id: 'I1', key: X, name: X, region: '11', endDate: X }] }).indexOf('<img') < 0);
-  assert.ok(kbb.laneCellHtml({ kind: 'fixed', days: 3, from: X, to: X }, kbb.laneWindow(TODAY, 2026)).indexOf('<img') < 0);
 });
 
-test('goalTableHtml: 표 구조(caption·colgroup·머리 8열·월 머리), 상태별 문구(불러오는 중·서버 없음·권한·오류·빈 상태·목표 밖 묶음)', function () {
-  const win = kbb.laneWindow(TODAY, 2026), base = { year: 2026, win: win, rows: [], out: [], canEdit: true, cands: [] };
+test('goalTableHtml: 표 구조(caption·colgroup·머리 7열), 상태별 문구(불러오는 중·서버 없음·권한·오류·빈 상태·목표 밖 묶음)', function () {
+  const base = { year: 2026, rows: [], out: [], canEdit: true, cands: [] };
   const ctx = mkCtx();
   const rows = kbb.sortGoals(kbb.goalRows([tgt('IA', 'RETAIN'), tgt('IB', 'NEW')], ctx));
   const out = kbb.outRows([{ institutionId: 'IF', name: '바' }], {}, ctx);
   const ok = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, out: out }));
   assert.ok(ok.indexOf('<table class="hb-tt"><caption class="sr-only">2026 목표 기관 2곳과 그 밖의 제안서 준비 중인 기관 1곳, 마감 가까운 순</caption><colgroup>') === 0);
-  assert.ok(ok.indexOf('<col class="c-nm"><col class="c-tag"><col class="c-aim"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf"><col class="ln">') > 0);   // 열 폭은 CSS 클래스(인라인 px 없음)
+  assert.ok(ok.indexOf('<col class="c-nm"><col class="c-tag"><col class="c-aim"><col class="c-due"><col class="c-bank"><col class="c-stg"><col class="c-brf">') > 0);   // 열 폭은 CSS 클래스(인라인 px 없음)
   assert.ok(ok.indexOf('<col style') < 0);
   assert.ok(ok.indexOf('hb-pretry') < 0);                                                                       // 제안 진행 자료가 정상이면 오류 안내 없음
   ['기관', '구분', '금고 방식', '마감까지', '현 금고 은행', '준비 단계', '설명회'].forEach(function (c) { assert.ok(ok.indexOf('<th scope="col">' + c + '</th>') > 0, c); });
-  assert.ok(ok.indexOf('<span class="yr">2026.11 ~ 2027.10</span><span class="mh" aria-hidden="true"><span>11</span><span>12</span><span>1</span>') > 0);
-  assert.strictEqual((ok.match(/<span>\d+<\/span>/g) || []).length, 12);
-  assert.ok(ok.indexOf('<tr class="grp"><th scope="rowgroup" colspan="8">그 밖의 제안서 준비 중인 기관 <b>1</b>곳</th></tr>') > 0);
+  assert.ok(ok.indexOf('<th scope="col">설명회</th></tr></thead>') > 0 && ok.indexOf('c-act') < 0);   // 맨 끝 머리 = 설명회(동작 칸 없음)
+  assert.ok(ok.indexOf('class="mh"') < 0 && ok.indexOf('class="ln"') < 0 && ok.indexOf('12개월') < 0 && (ok.match(/<span>\d+<\/span>/g) || []).length === 0);
+  assert.ok(ok.indexOf('<tr class="grp"><th scope="rowgroup" colspan="7">그 밖의 제안서 준비 중인 기관 <b>1</b>곳</th></tr>') > 0);
   assert.ok(ok.indexOf('data-act="add"') > ok.indexOf('rowgroup'));                                            // 목표에 넣기는 묶음 안
   assert.ok(ok.indexOf('hb-nm') < ok.indexOf('rowgroup'));
   const M = kbb.GOAL_MSG;
@@ -410,7 +351,7 @@ test('goalTableHtml: 표 구조(caption·colgroup·머리 8열·월 머리), 상
   assert.ok(tb('error', 0).indexOf('서버에 연결되지 않음') > 0);
   // 제안 진행 자료 오류(qa 11-17 P2-1): 목표 밖 묶음 자리에 오류 안내 + [다시 시도](#hb-pretry). 목표 밖 기관이 있으면 안내 없이 묶음, 권한 없음(403)은 표에 안내를 두지 않는다(띠가 이유를 말한다)
   const pe = kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, prep: 'error', prepCode: 500 }));
-  assert.ok(pe.indexOf('<tr class="grp"><th scope="rowgroup" colspan="8">그 밖의 제안서 준비 중인 기관</th></tr><tr class="emp"><td colspan="8"><p class="db-state">제안 진행 자료를 불러오지 못했습니다(오류 500).') > 0);
+  assert.ok(pe.indexOf('<tr class="grp"><th scope="rowgroup" colspan="7">그 밖의 제안서 준비 중인 기관</th></tr><tr class="emp"><td colspan="7"><p class="db-state">제안 진행 자료를 불러오지 못했습니다(오류 500).') > 0);
   assert.ok(pe.indexOf('<button type="button" id="hb-pretry">다시 시도</button>') > 0 && pe.indexOf('id="hb-gretry"') < 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, prep: 'error', prepCode: 0 })).indexOf('제안 진행 자료를 불러오지 못했습니다(서버에 연결되지 않음).') > 0);
   assert.ok(kbb.goalTableHtml(Object.assign({}, base, { st: 'ok', rows: rows, out: out, prep: 'error' })).indexOf('hb-pretry') < 0);
@@ -426,8 +367,8 @@ test('goalTableHtml: 표 구조(caption·colgroup·머리 8열·월 머리), 상
   assert.strictEqual(kbb.oursHeadHtml(27, 8, 4), ' <b>27</b>곳 · 협약 종료 1년 안 <b>8</b>곳 · 그중 목표 <b>4</b>곳');
   assert.strictEqual(kbb.oursHeadHtml(27, 8, null), ' <b>27</b>곳 · 협약 종료 1년 안 <b>8</b>곳');
   const ft = kbb.goalFootHtml(13);
-  assert.ok(ft.indexOf('공고~접수 마감') > 0 && ft.indexOf('추정 공고 달') > 0 && ft.indexOf('오늘') > 0);
-  assert.ok(ft.indexOf('<span>전국 공고 진행 중 <b>13</b>곳</span><button type="button" id="hb-to-notice">입찰 공고 현황에서 보기</button>') > 0);
+  assert.ok(ft.indexOf('공고~접수 마감') < 0 && ft.indexOf('추정 공고 달') < 0 && ft.indexOf('class="lg"') < 0);   // 12개월 범례 없음(사용자 11-26)
+  assert.ok(ft.indexOf('<span>전국 공고 진행 중 <b>13</b>곳</span><button type="button" id="hb-to-notice">입찰 공고 현황에서 보기</button>') === 0);
 });
 
 test('menuHtml(11-25): 자동 제안 머리(aria-describedby) + 구분 라디오(현재 값 체크)만 — 빼기·옮기기 항목·구분선 없음, 메뉴 이름은 구분 고르기', function () {
@@ -677,13 +618,11 @@ test('되찾기: 정렬(재유치 → 되찾기 → 신규, 빈 값은 맨 아�
   assert.ok(h.indexOf('되찾기 도전') > 0 && h.indexOf('hb-prev') < 0);
 });
 
-test('index.html: 요약 띠·표·구분 칩·메뉴·레인 CSS가 규격(6-B)대로 — 새 변수 0개, 칩 24px, 행 40px, 월 눈금 12등분', function () {
+test('index.html: 요약 띠·표·구분 칩·메뉴 CSS가 규격(6-B)대로 — 새 변수 0개, 칩 24px, 행 40px', function () {
   const html = src('index.html');
   const a = html.indexOf('/* 국민은행 상태 현황판(kbboard.js) 시작'), b = html.indexOf('/* 국민은행 상태 현황판 끝 */');
   const css = html.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
   assert.ok(/\.hb-tt td, \.hb-tt tbody th \{[^}]*height:40px/.test(css));
-  assert.ok(/\.hb-lane \{[^}]*repeating-linear-gradient\(to right, transparent 0 calc\(100%\/12 - 1px\), var\(--line\) calc\(100%\/12 - 1px\) calc\(100%\/12\)\)/.test(css));
-  assert.ok(/\.hb-lane \.cur \{[^}]*width:calc\(100%\/12\)/.test(css));
   assert.ok(/\.hb-tt \.hb-nm:focus-visible \{ outline:2px solid var\(--accent-color\)/.test(css));                   // 키보드 포커스 링(틸)
   assert.ok(/\.hb-late \{[^}]*var\(--red\) 72%, var\(--fg\)[^}]*var\(--red\) 18%/.test(css));                          // 지연 칩 = 빨강 글자(본문색 쪽 섞기)·테두리·18% 바탕
   assert.ok(/\.hb-k \.v\.hot \{[^}]*var\(--red\) 72%, var\(--fg\)/.test(css) && /\.hb-dd\.hot \{[^}]*var\(--red\) 72%, var\(--fg\)/.test(css));
@@ -692,15 +631,13 @@ test('index.html: 요약 띠·표·구분 칩·메뉴·레인 CSS가 규격(6-B)
   assert.ok(/\.hb-tag\.ro \{[^}]*cursor:default/.test(css) && /\.hb-tag\.add \{[^}]*border-style:dashed/.test(css));
   assert.ok(/\.hb-dlg \.hb-rd input \{ width:auto;/.test(css) && /\.hb-res li\[aria-disabled=true\] \{ color:var\(--muted\); cursor:default; \}/.test(css));
   // design 11-17 6-A·6-B: 열 폭은 클래스(구분 166·마감까지 120·현 금고 은행 124), 2단 은행 막대, 눈금 없는 plan·open 막대, 후보 폭, 대화창 이름표 위·칸 전체 폭
-  assert.ok(/\.hb-tt col\.c-nm \{ width:150px; \} \.hb-tt col\.c-tag \{ width:166px; \} \.hb-tt col\.c-due \{ width:120px; \}/.test(css) && /\.hb-tt col\.c-bank \{ width:124px; \} \.hb-tt col\.c-stg \{ width:148px; \} \.hb-tt col\.c-brf \{ width:56px; \}/.test(css));
+  assert.ok(/\.hb-tt col\.c-nm \{ width:auto; \} \.hb-tt col\.c-tag \{ width:166px; \} \.hb-tt col\.c-due \{ width:120px; \}/.test(css) && /\.hb-tt col\.c-bank \{ width:124px; \} \.hb-tt col\.c-stg \{ width:148px; \} \.hb-tt col\.c-brf \{ width:56px; \}/.test(css));
   assert.ok(/\.hb-bk\.two \{ grid-template-columns:auto minmax\(0,1fr\) 20px auto minmax\(0,1fr\) 20px; column-gap:8px; \}/.test(css));
-  assert.ok(/\.hb-lane \.w\.pl::after, \.hb-lane \.w\.op::after \{ content:none; \}/.test(css) && /\.hb-lane \.w\.op \{ border-right-style:dashed; \}/.test(css));
-  assert.ok(/\.hb-lane \.unk, \.hb-lane \.unk\.before \{ left:calc\(100%\/12 \+ 2px\); max-width:calc\(100% - 100%\/12 - 4px\); \}/.test(css));
   assert.ok(/\.hb-cand \{[^}]*max-width:560px/.test(css));
   assert.ok(/\.hb-dlg #hb-a-q, \.hb-dlg #hb-a-memo, \.hb-dlg #hb-c-etc \{ display:block; width:100%; margin-top:4px; box-sizing:border-box; \}/.test(css));
   assert.ok(!/#hb-ours > summary/.test(css) && !/#hb-ours\[open\]/.test(css));                                         // 접힌 구획 규칙은 지웠다
   // :root 변수 이름은 동결 — 이 블록이 새 --변수를 정의하지 않는다
-  assert.deepStrictEqual((css.match(/(^|[\s;{])--[\w-]+\s*:/g) || []).map(function (s) { return s.trim().replace(/:$/, '').replace(/^[;{]/, ''); }), ['--rowbg', '--rowbg', '--rowbg']);   // :root 변수는 안 늘고 표 칸 지역 변수 --rowbg만(11-19 E)
+  assert.deepStrictEqual((css.match(/(^|[\s;{])--[\w-]+\s*:/g) || []).map(function (s) { return s.trim().replace(/:$/, '').replace(/^[;{]/, ''); }), []);   // :root 변수도, 표 칸 지역 변수(--rowbg)도 없다(12개월 칸과 함께 없앴다)
   // 새 글자 크기는 11px 이상
   (css.match(/font(?:-size)?:\s*(?:\d+\s+)?(\d+)px/g) || []).forEach(function (s) { assert.ok(Number(/(\d+)px/.exec(s)[1]) >= 11, s); });
   // 스크립트 순서: errtext.js가 kbboard.js보다 앞(오류 문구 해석)

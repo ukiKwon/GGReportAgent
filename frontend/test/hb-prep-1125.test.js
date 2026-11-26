@@ -244,9 +244,9 @@ test('D 구분 고르기는 저장하지 않고 대기에 담는다 → 자동 �
   assert.deepStrictEqual(tc.pick(full, { id: 'A', targetNo: 1, kind: 'GOAL' }), { ok: false, msg: tc.CAP_MSG });
 });
 
-test('E [수정하기][삭제하기]는 띠 오른쪽 끝 묶음(.sp 다음 마지막 두 단추, 삭제가 맨 오른쪽)', function () {
+test('E [수정하기][관심 기관으로][목표 기관에서 제외]는 띠 오른쪽 끝 묶음(.sp 다음 마지막 세 단추, 제외가 맨 오른쪽)', function () {
   const b = tc.selbarHtml();
-  assert.ok(b.indexOf('<span class="sp"></span><button type="button" id="hb-seledit" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seledit-why">수정하기</button><span id="hb-seledit-why" class="sr-only"></span><button type="button" id="hb-seldel" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seldel-why">삭제하기</button><span id="hb-seldel-why" class="sr-only"></span></div>') > 0);
+  assert.ok(b.indexOf('<span class="sp"></span><button type="button" id="hb-seledit" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seledit-why">수정하기</button><span id="hb-seledit-why" class="sr-only"></span><button type="button" id="hb-seltow" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seltow-why">관심 기관으로</button><span id="hb-seltow-why" class="sr-only"></span><button type="button" id="hb-seldel" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seldel-why">목표 기관에서 제외</button><span id="hb-seldel-why" class="sr-only"></span></div>') > 0);
   assert.strictEqual(tc.MAX_ITEMS, 20);
 });
 

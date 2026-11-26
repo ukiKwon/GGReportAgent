@@ -89,7 +89,8 @@ test('고르기: 20곳 한도·같은 기관 두 번(다른 연도 목표)은 �
 
 test('줄 → 고른 항목 스냅샷, 고를 수 있는 줄(목표 밖·결재 중·옮길 시기 아닌 관심 줄은 아님)', function () {
   const e = tc.entryOfRow(mk({ id: 'I1', targetNo: 3, revNo: 2, tagCd: 'RETAIN', tagName: '재유치 도전', memo: 'm', ownerEmpNo: 'E1', ownerName: '김영업' }));
-  assert.deepStrictEqual(e, { id: 'I1', name: '종로구청', regionName: '서울', kind: 'GOAL', targetNo: 3, revNo: 2, year: 2026, tagCd: 'RETAIN', tagName: '재유치 도전', aimCd: '', aimName: '', memo: 'm', ownerEmpNo: 'E1', ownerName: '김영업', moveYear: 0, closed: false });
+  assert.deepStrictEqual(e, { id: 'I1', name: '종로구청', regionName: '서울', kind: 'GOAL', targetNo: 3, revNo: 2, year: 2026, tagCd: 'RETAIN', tagName: '재유치 도전', aimCd: '', aimName: '', memo: 'm', ownerEmpNo: 'E1', ownerName: '김영업', moveYear: 0, closed: false, pend: false });
+  assert.strictEqual(tc.entryOfRow(mk({ pend: true })).pend, true);   // 결재 중 표시를 싣는다(qa 11-26 P3-1) — 띠 [관심 기관으로]가 이 값으로 그 줄을 건너뛴다
   assert.strictEqual(tc.entryOfRow(mk({ closed: { basis_cd: 'NOTICE_CLOSED' } })).closed, true);   // 다음 회차 목표로 옵션 판정용
   assert.strictEqual(tc.pickable(mk()), true);
   assert.strictEqual(tc.pickable(mk({ out: true })), false);
@@ -252,10 +253,10 @@ test('결과 문장: 결재 요청(잠김 안내)·바로 반영, 응답의 mode
 test('자동 이월 알림(5-5): 받은 숫자로만, 셋 다 0이면 알리지 않고, more면 합친다', function () {
   assert.strictEqual(tc.carryText({ carried: 0, revoked: 0, skipped: 0 }).text, '');
   const c = tc.carryText({ carried: 2, revoked: 0, skipped: 0 });
-  assert.strictEqual(c.text, '지난 목표 중 달성하지 못한 기관 2곳을 자동으로 넘겼습니다. 다른 은행이 약정한 곳은 다음 해 관심 기관으로 넘겼습니다.');
+  assert.strictEqual(c.text, '다른 은행이 약정한 기관 2곳을 관심 기관으로 넘겼습니다.');   // 목표 → 다음 해 목표 자동 이월은 없어졌다(서버 e01af679, qa 11-26 P2-3)
   assert.strictEqual(c.hasCarried, true); assert.strictEqual(c.changed, true);
   const all = tc.carryText({ carried: 1, revoked: 3, skipped: 4 });
-  assert.strictEqual(all.text, '지난 목표 중 달성하지 못한 기관 1곳을 자동으로 넘겼습니다. 다른 은행이 약정한 곳은 다음 해 관심 기관으로 넘겼습니다. 판정이 바뀐 3곳은 자동으로 넘긴 기록을 거뒀습니다(기록은 남습니다). 4곳은 결재 중이거나 처리하지 못해 다음에 다시 넘깁니다.');
+  assert.strictEqual(all.text, '다른 은행이 약정한 기관 1곳을 관심 기관으로 넘겼습니다. 판정이 바뀐 3곳은 관심 기관으로 자동으로 넘긴 기록을 거뒀습니다(기록은 남습니다). 4곳은 결재 중이거나 처리하지 못해 다음에 다시 넘깁니다.');
   const sk = tc.carryText({ carried: 0, revoked: 0, skipped: 2 });
   assert.strictEqual(sk.text, '2곳은 결재 중이거나 처리하지 못해 다음에 다시 넘깁니다.'); assert.strictEqual(sk.hasCarried, false); assert.strictEqual(sk.changed, false);
   assert.deepStrictEqual(tc.carryMerge({ carried: 1, revoked: 2, skipped: 3, more: true }, { carried: 4, revoked: 0, skipped: 1, more: false }), { carried: 5, revoked: 2, skipped: 4, more: false });
@@ -455,7 +456,7 @@ test('결재함: 카드 모델 필드·결재선 밖 영업부장은 [반려]만
 });
 
 test('현황판 줄 모델·표 마크업: 잠금·이월·판정일·고르기 열은 옵션이 있을 때만(없으면 예전 모양)', function () {
-  const ctx = mkCtx(), win = kbb.laneWindow(TODAY, 2026);
+  const ctx = mkCtx();
   const pendT = tgt('IF', 'NEW', { owner_name: '김영업', change_pending: true, change_pending_info: { req_id: 9, op_cd: 'CANCEL', requested_by_name: '김영업', created_at: '2026-11-20T05:06:07Z' } });
   const r = kbb.goalRow(pendT, ctx);
   assert.strictEqual(r.pend, true); assert.deepStrictEqual(r.pendInfo, { reqId: 9, op: 'CANCEL', by: '김영업', at: '2026-11-20T05:06:07Z' }); assert.strictEqual(r.ownerName, '김영업');
@@ -465,23 +466,23 @@ test('현황판 줄 모델·표 마크업: 잠금·이월·판정일·고르기 
   assert.strictEqual(o.pend, false); assert.strictEqual(o.carried, false);   // 목표 밖 줄은 해당 없음
   const plain = kbb.goalRow(tgt('IF', 'NEW'), ctx);
   assert.strictEqual(plain.pend, false); assert.strictEqual(plain.carried, false); assert.strictEqual(plain.judgeFrom, '');
-  const base = kbb.goalRowHtml(plain, { win: win, canEdit: true });
-  assert.ok(base.indexOf('<tr><th scope="row">') === 0 && base.indexOf('class="ck"') < 0 && base.indexOf('이월') < 0 && base.indexOf('hb-pend') < 0);   // 옵션 없음 = 예전 모양
-  const picked = kbb.goalRowHtml(plain, { win: win, canEdit: true, selCol: true, picked: { IF: 1 } });
-  assert.ok(picked.indexOf('<tr class="picked"><td class="ck"><label><input type="checkbox" data-pick="IF" aria-label="') === 0 && picked.indexOf(' 이름IF 고르기" checked></label></td><th scope="row">') > 0);
-  const lock = kbb.goalRowHtml(r, { win: win, canEdit: true, selCol: true, picked: {} });
+  const base = kbb.goalRowHtml(plain, { canEdit: true });
+  assert.ok(base.indexOf('<tr><th scope="row" title="') === 0 && base.indexOf('class="ck"') < 0 && base.indexOf('이월') < 0 && base.indexOf('hb-pend') < 0);   // 옵션 없음 = 예전 모양
+  const picked = kbb.goalRowHtml(plain, { canEdit: true, selCol: true, picked: { IF: 1 } });
+  assert.ok(picked.indexOf('<tr class="picked"><td class="ck"><label><input type="checkbox" data-pick="IF" aria-label="') === 0 && picked.indexOf(' 이름IF 고르기" checked></label></td><th scope="row" title="') > 0);
+  const lock = kbb.goalRowHtml(r, { canEdit: true, selCol: true, picked: {} });
   assert.ok(lock.indexOf('<tr class="locked"><td class="ck"><svg class="lk"') === 0 && lock.indexOf('class="hb-pend" data-act="pend" data-inst="IF" data-key="id:IF"') > 0);
-  assert.ok(lock.indexOf('data-act="tag"') < 0 && lock.indexOf('hb-acts') < 0);   // 구분 메뉴·동작 단추는 그리지 않는다
-  const ro = kbb.goalRowHtml(r, { win: win, canEdit: false, selCol: true });
+  assert.ok(lock.indexOf('data-act="tag"') < 0 && lock.indexOf('hb-wacts') < 0);   // 구분 메뉴·동작 단추는 그리지 않는다
+  const ro = kbb.goalRowHtml(r, { canEdit: false, selCol: true });
   assert.ok(ro.indexOf('<span class="hb-pend">') > 0 && ro.indexOf('<button type="button" class="hb-pend"') < 0);
-  const car = kbb.goalRowHtml(c, { win: win, canEdit: true });
+  const car = kbb.goalRowHtml(c, { canEdit: true });
   assert.ok(car.indexOf('</button><span class="hb-q">이월</span>') > 0 && car.indexOf('hb-prev') < 0 && car.indexOf('예전 국민은행 금고, 마지막 2022년') < 0);   // 예전 KB는 글자 대신 title·sr
   assert.strictEqual(car.split('예전 국민은행 금고(마지막 2022년)').length - 1, 2);   // title 한 번 + sr 한 번(sr 문장이 두 번 읽히지 않는다, qa P3-2)
-  const notCar = kbb.goalRowHtml(kbb.goalRow(tgt('IN', 'NEW'), ctx), { win: win, canEdit: true });
+  const notCar = kbb.goalRowHtml(kbb.goalRow(tgt('IN', 'NEW'), ctx), { canEdit: true });
   assert.ok(notCar.indexOf('예전 국민은행 금고, 마지막 2022년') > 0 && notCar.indexOf('hb-prev') > 0);   // 이월이 아닌 줄은 그대로
   assert.ok(car.indexOf('2025 목표에서 자동으로 넘어옴. 작년 결과: 협약 개시일이 지났는데 금고 약정 기록이 없음 · 되찾기 후보: 예전 국민은행 금고(마지막 2022년) · 달성 판정일 2027-01-01(추정)') > 0);
   const closedPend = kbb.goalRow(tgt('IE', 'NEW', { change_pending: true, bid_closed: { basis_cd: 'NOTICE_CLOSED', basis_date: '2026-09-30', round_seq: 1 } }), ctx);
-  assert.ok(kbb.goalRowHtml(closedPend, { win: win, canEdit: true }).indexOf('data-act="towatch"') < 0);   // 입찰 종료 줄 동작 단추도 잠기면 없음
+  assert.ok(kbb.goalRowHtml(closedPend, { canEdit: true }).indexOf('data-act="towatch"') < 0);   // 입찰 종료 줄 동작 단추도 잠기면 없음
   const w = kbb.goalRow({ institution_id: 'W1', institution_name: '행', kind_cd: 'WATCH', target_no: 3, rev_no: 1, target_year: null, tag_cd: 'NEW', tag_name: '신규유치 도전', memo: '', next_term_to: '2028-12-31', can_cancel: true }, ctx);
   assert.strictEqual(w.movable, 2028);
   const wh = kbb.watchRowHtml(w, { canEdit: true, selCol: true, picked: { W1: 3 } });
@@ -489,15 +490,46 @@ test('현황판 줄 모델·표 마크업: 잠금·이월·판정일·고르기 
   const wl = kbb.watchRowHtml(Object.assign({}, w, { pend: true }), { canEdit: true, selCol: true });
   assert.ok(wl.indexOf('<tr class="locked">') === 0 && wl.indexOf('data-act="togoal"') < 0);
   assert.ok(kbb.watchRowHtml(Object.assign({}, w, { movable: 0 }), { canEdit: true, selCol: true }).indexOf('<td class="ck"></td>') > 0);
-  assert.ok(kbb.watchRowHtml(w, { canEdit: true }).indexOf('<tr><th scope="row">') === 0);
-  const tb = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', win: win, rows: [plain], out: [], canEdit: true, selCol: true, picked: {}, sort: { key: 'due', dir: 'asc' }, total: 1 });
+  assert.ok(kbb.watchRowHtml(w, { canEdit: true }).indexOf('<tr><th scope="row" title="') === 0);
+  const tb = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', rows: [plain], out: [], canEdit: true, selCol: true, picked: {}, sort: { key: 'due', dir: 'asc' }, total: 1 });
   assert.ok(tb.indexOf('<table class="hb-tt sel">') === 0 && tb.indexOf('<colgroup><col class="c-ck"><col class="c-nm">') > 0 && tb.indexOf('<thead><tr><th scope="col" class="ck">') > 0);
-  const em = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', win: win, rows: [], out: [], canEdit: true, selCol: true, groups: [], total: 0 });
-  assert.ok(em.indexOf('colspan="9"') > 0);
-  const wt = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: win, rows: [w], out: [], canEdit: true, selCol: true, picked: {}, sort: { key: 'next', dir: 'asc' }, total: 1 });
+  const em = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', rows: [], out: [], canEdit: true, selCol: true, groups: [], total: 0 });
+  assert.ok(em.indexOf('colspan="8"') > 0);
+  const wt = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', rows: [w], out: [], canEdit: true, selCol: true, picked: {}, sort: { key: 'next', dir: 'asc' }, total: 1 });
   assert.ok(wt.indexOf('<colgroup><col class="c-ck"><col class="c-wnm">') > 0 && wt.indexOf('<th scope="col" class="ck">') > 0);
-  const no = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', win: win, rows: [plain], out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 1 });
+  const no = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', rows: [plain], out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 1 });
   assert.ok(no.indexOf('<table class="hb-tt">') === 0 && no.indexOf('c-ck') < 0 && no.indexOf('hb-pickall') < 0);
+});
+
+test('현황판 기관 이름 칸 title(design P2-1): 지역명+기관명(이스케이프), 지역명이 없으면 기관명만 — 목표 줄·관심 줄', function () {
+  const base = kbb.goalRow(tgt('IT', 'NEW'), mkCtx());
+  const g = kbb.goalRowHtml(Object.assign({}, base, { regionName: '서울', name: '<b>"종로구청' }), { canEdit: true });
+  assert.ok(g.indexOf('<th scope="row" title="서울 &lt;b&gt;&quot;종로구청">') > 0 && g.indexOf('title="서울 <b>') < 0);
+  const g2 = kbb.goalRowHtml(Object.assign({}, base, { regionName: '', name: '종로구청' }), { canEdit: true });
+  assert.ok(g2.indexOf('<th scope="row" title="종로구청">') > 0);   // 앞 공백 없음
+  const w = kbb.goalRow({ institution_id: 'W1', institution_name: '행', kind_cd: 'WATCH', target_no: 3, rev_no: 1, target_year: null, tag_cd: 'NEW', tag_name: '신규유치 도전', memo: '', next_term_to: '2028-12-31', can_cancel: true }, mkCtx());
+  const wh = kbb.watchRowHtml(Object.assign({}, w, { regionName: '부산' }), { canEdit: true });
+  assert.ok(wh.indexOf('<th scope="row" title="부산 행">') > 0);
+  assert.ok(kbb.watchRowHtml(Object.assign({}, w, { regionName: '' }), { canEdit: true }).indexOf('<th scope="row" title="행">') > 0);
+});
+
+test('현황판 입찰 종료 줄: 결재 중이면 동작 단추 없이 sr-only 문장만, 고르기 열이 있어도 8칸(동작 칸 없음)', function () {
+  const bc = { basis_cd: 'NOTICE_CLOSED', basis_date: '2026-09-30', round_seq: 1 };
+  const pend = kbb.goalRowHtml(kbb.goalRow(tgt('IE', 'NEW', { change_pending: true, bid_closed: bc }), mkCtx()), { canEdit: true });
+  assert.ok(pend.indexOf('data-act="tonext"') < 0 && pend.indexOf('data-act="towatch"') < 0);
+  assert.ok(pend.indexOf('class="act"') < 0);
+  const sel = kbb.goalRowHtml(kbb.goalRow(tgt('IE', 'NEW', { bid_closed: bc }), mkCtx()), { canEdit: true, selCol: true, picked: {} });
+  assert.strictEqual((sel.match(/<t[dh][ >]/g) || []).length, 8);   // 고르기 td 1 + 기관 th 1 + td 6
+  assert.ok(sel.indexOf('class="act"') < 0 && sel.endsWith('설명회 기록 없음</span></td></tr>'));
+});
+
+test('결재함 카드: 금고 방식만 바뀐 연도 +1은 이름이 다음 회차, 금고 방식·메모가 함께 바뀌면 메모 줄이 먼저(두 줄)', function () {
+  const before = { kind_cd: 'GOAL', target_year: 2026, tag_name: '재유치 도전', memo: '예전', owner_name: '김영업', aim_rank_cd: 'FIRST', aim_rank_name: '1금고' };
+  const same = tc.cardItemsHtml([{ institution_name: 'a', op_cd: 'EDIT', before: before, to_year: 2027, tag_name: '재유치 도전', owner_name: '김영업', memo: '예전', aim_rank_cd: 'FIRST', aim_rank_name: '1금고' }]);
+  assert.ok(same.indexOf('<td>' + tc.opLong('NEXT') + '</td>') > 0 && same.indexOf('금고 방식') < 0 && same.indexOf('tc-memo') < 0);
+  const both = tc.cardItemsHtml([{ institution_name: 'a', op_cd: 'EDIT', before: before, to_year: 2026, tag_name: '재유치 도전', owner_name: '김영업', memo: '새 메모', aim_rank_cd: 'SECOND', aim_rank_name: '2금고' }]);
+  assert.strictEqual((both.match(/class="tc-memo"/g) || []).length, 2);
+  assert.ok(both.indexOf('메모: 새 메모') > 0 && both.indexOf('메모: 새 메모') < both.indexOf('금고 방식: 1금고 → <b>2금고</b>'));
 });
 
 test('현황판: 상태 거르기 9개(결재 중·자동 이월)·관심 자동 이월, 구분 메뉴 협약 개시일·판정일 줄', function () {
@@ -519,7 +551,7 @@ test('현황판: 상태 거르기 9개(결재 중·자동 이월)·관심 자동
 test('현황판: 403 APPROVAL_REQUIRED는 목록을 다시 읽게 stale + 고정 문장, 409 CHANGE_PENDING은 서버 문장 + stale', function () {
   const a = kbb.outcome({ status: 403, body: { detail: { code: 'APPROVAL_REQUIRED', message: '목표 기관 정보를 바꾸려면 결재가 필요합니다. 체크한 뒤 [결재 요청]으로 올려 주세요.' } } }, 'edit');
   assert.deepStrictEqual(a, { kind: 'stale', code: 'APPROVAL_REQUIRED', msg: tc.APPROVAL_NOW_MSG });
-  assert.ok(tc.APPROVAL_NOW_MSG.indexOf('[삭제하기]') > 0 && tc.APPROVAL_NOW_MSG.indexOf('[관심 기관으로…]') > 0 && tc.APPROVAL_NOW_MSG.indexOf('빼기·옮기기 결재 요청') < 0);
+  assert.ok(tc.APPROVAL_NOW_MSG.indexOf('[목표 기관에서 제외]') > 0 && tc.APPROVAL_NOW_MSG.indexOf('[관심 기관으로]') > 0 && tc.APPROVAL_NOW_MSG.indexOf('빼기·옮기기 결재 요청') < 0);
   const p = kbb.outcome({ status: 409, body: { detail: { code: 'CHANGE_PENDING', message: '이 기관은 목표 변경 결재가 진행 중입니다. 결재가 끝난 뒤 다시 시도해 주세요.' } } }, 'edit');
   assert.strictEqual(p.kind, 'stale'); assert.ok(p.msg.indexOf('이 기관은 목표 변경 결재가 진행 중입니다.') === 0);
   assert.strictEqual(kbb.outcome({ status: 403, body: { detail: '올해 목표 기관은 영업부서만 넣고 고치고 뺄 수 있습니다.' } }, 'add').kind, 'denied');   // 기존 403은 그대로
@@ -594,7 +626,7 @@ test('index.html: tchange.js는 logic·errtext 뒤 approvals·kbboard 앞, 새 C
 // ── NEXT 114(design-reviewer 2026-11-24_2327_a59fddd3 6절): 결재 줄이기 — 구분·메모는 바로 저장, 옮기기·빼기만 결재 ─────────────
 test('NEXT 114 띠: 고른 목표 기관 n곳·선택 지우기·[수정하기…]·결재자 안내·주 단추, 섞임·화면 밖 문구', function () {
   const b = tc.selbarHtml();
-  assert.ok(b.indexOf('<span class="sp"></span><button type="button" id="hb-seledit" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seledit-why">수정하기</button><span id="hb-seledit-why" class="sr-only"></span><button type="button" id="hb-seldel" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seldel-why">삭제하기</button><span id="hb-seldel-why" class="sr-only"></span></div>') > 0);
+  assert.ok(b.indexOf('<span class="sp"></span><button type="button" id="hb-seledit" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seledit-why">수정하기</button><span id="hb-seledit-why" class="sr-only"></span><button type="button" id="hb-seltow" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seltow-why">관심 기관으로</button><span id="hb-seltow-why" class="sr-only"></span><button type="button" id="hb-seldel" aria-haspopup="dialog" aria-disabled="true" aria-describedby="hb-seldel-why">목표 기관에서 제외</button><span id="hb-seldel-why" class="sr-only"></span></div>') > 0);
   assert.ok(b.indexOf('hb-selwho') < 0 && b.indexOf('hb-selgo') < 0);   // 결재자 안내·결재 주 단추 없음(사용자 11-25)
   assert.ok(b.indexOf('고르기 해제') < 0);
   assert.strictEqual(tc.selStatusHtml(5, '', { goal: 5, watch: 0 }, 0), '<span class="sr-only">목표 기관 5곳 고름</span><span aria-hidden="true">고른 목표 기관 <b>5</b>곳</span>');
@@ -721,7 +753,7 @@ test('NEXT 114 일괄 창 두 갈래: 수정 창(사유·동작·연도 칸 없�
   // 결재 창: 다음 회차 목표로 = NEXT(서버 본문은 EDIT + 연도 +1 + 구분·메모·주 담당 그대로)
   const C = tc.newItem(3, tc.entryOfRow(mk({ id: 'C', targetNo: 4, revNo: 2, targetYear: 2026, tagCd: 'RETAIN', tagName: '재유치 도전', memo: 'm', ownerEmpNo: 'E1', closed: { cd: 'NOTICE_CLOSED' } })));
   const ch = tc.itemHtml(C, 1, OPT);
-  assert.ok(ch.indexOf('<option value="CANCEL">목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option><option value="NEXT">다음 회차 목표로</option>') > 0);   // 입찰 종료 줄만
+  assert.ok(ch.indexOf('<option value="CANCEL">목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option></select>') > 0 && ch.indexOf('value="NEXT"') < 0);   // 입찰 종료 줄도 '다음 회차 목표로' 선택지 없음(사용자 11-26)
   tc.setOp(C, 'NEXT');
   assert.strictEqual(C.year, 2027); assert.strictEqual(C.tag, 'RETAIN'); assert.strictEqual(C.memo, 'm');
   assert.ok(tc.afterBlockHtml(C, OPT).indexOf('<dd><span class="mono">2027</span> 목표 · 구분·메모 그대로</dd>') > 0);
@@ -729,7 +761,7 @@ test('NEXT 114 일괄 창 두 갈래: 수정 창(사유·동작·연도 칸 없�
   assert.deepStrictEqual(tc.buildBody([C], { mode: 'DIRECT' }).items[0], { institution_id: 'C', op_cd: 'EDIT', target_no: 4, base_rev_no: 2, target_year: 2027, tag_cd: 'RETAIN', owner_emp_no: 'E1' });   // memo 키 없음(서버가 유지)
   assert.strictEqual(tc.opLong('NEXT'), '다음 회차 목표로');
   const k = src('js/kbboard.js');
-  assert.ok(k.indexOf("return { rows: [r], op: 'NEXT', opener: opener };") > 0);
+  assert.ok(k.indexOf("op: 'NEXT'") < 0);   // 다음 회차 목표로 입구 제거(사용자 11-26) — tc의 NEXT 처리(결재함 카드 이름 등)는 planner 범위
   assert.ok(k.indexOf("d.kind === 'edit' ? tc.BTN.values : undefined") > 0 && k.indexOf("save_target_values") < 0);   // 버튼 ID는 tchange.js BTN 한 곳
   assert.strictEqual(tc.BTN.values, 'save_target_values');
 });

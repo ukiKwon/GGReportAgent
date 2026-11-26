@@ -73,22 +73,24 @@ test('제안 진행 줄: 버튼의 수 = 그 단계로 거르면 표에 남는 �
   assert.ok(none.indexOf('<span class="ct">—</span>') > 0 && none.indexOf('이 계정은 제안 진행을 볼 수 없어 판정하지 않습니다') > 0 && none.indexOf('aria-pressed') < 0);
 });
 
-test('입찰 종료 줄: 마감까지 칸 \'입찰 종료\'+근거(title·sr), 12개월 칸 버튼 둘(그림 밖), 서버 근거만 판정을 바꾼다, 보기 전용은 버튼 없음', function () {
+test('입찰 종료 줄: 마감까지 칸 \'입찰 종료\'+근거(title·sr), 줄 끝 단추·동작 칸 없음, 서버 근거만 판정을 바꾼다', function () {
   const ctx = mkCtx();
   const r = kbb.goalRow(tgt('IA', 'RETAIN', { institution_name: '동작구청', bid_closed: { basis_cd: 'NOTICE_CLOSED', basis_date: '2026-09-30', round_seq: 1 } }), ctx);
   assert.deepStrictEqual(r.closed, { cd: 'NOTICE_CLOSED', date: '2026-09-30' });
-  const h = kbb.goalRowHtml(r, { win: kbb.laneWindow(TODAY, 2026), canEdit: true });
+  const h = kbb.goalRowHtml(r, { canEdit: true });
   assert.ok(h.indexOf('<td title="근거: 입찰 공고 현황 2026-09-30 공고 종료"><b class="hb-dd tx end">입찰 종료</b><span class="sr-only">근거: 입찰 공고 현황 2026-09-30 공고 종료</span></td>') > 0);
-  assert.ok(h.indexOf('<td class="ln"><div class="hb-acts">') > 0 && h.indexOf('hb-lane') < 0 && h.indexOf('hb-late') < 0 && h.indexOf('class="late"') < 0);
-  assert.ok(h.indexOf('data-act="towatch"') > 0 && h.indexOf('data-act="tonext"') > 0 && h.indexOf('>관심 기관으로…</button>') > 0 && h.indexOf('>내 관심으로…</button>') < 0 && h.indexOf('aria-label="가 관심 기관으로 옮기기"') > 0 && h.indexOf('>다음 회차 목표로…</button>') > 0);   // 입찰 종료 줄 일정 칸 단추 이름도 '관심 기관으로…'(design 11-25 NEXT 114 ③)
-  const nw = kbb.goalRowHtml(r, { win: kbb.laneWindow(TODAY, 2026), canEdit: true, noWatch: true });                  // 옛 서버: 관심 기관이 없으니 옮기기 버튼도 없다
-  assert.ok(nw.indexOf('data-act="towatch"') < 0 && nw.indexOf('data-act="tonext"') > 0);
-  const ro = kbb.goalRowHtml(r, { win: kbb.laneWindow(TODAY, 2026), canEdit: false });
-  assert.ok(ro.indexOf('<button type="button" class="hb-tag" data-act') < 0 && ro.indexOf('hb-acts') < 0);
-  assert.ok(h.indexOf('<tr class="has-acts">') === 0 && ro.indexOf('has-acts') < 0);   // 단추가 있는 줄만 has-acts(일정 칸 잘림 푸는 CSS 훅, 11-23)
+  assert.ok(h.indexOf('class="act"') < 0 && h.indexOf('hb-wacts') < 0 && h.indexOf('data-act="towatch"') < 0 && h.indexOf('data-act="tonext"') < 0 && h.indexOf('다음 회차 목표로') < 0);   // 사용자 11-26: 줄 단추·동작 칸 없음(띠 단추로)
+  assert.ok(h.endsWith('설명회 기록 없음</span></td></tr>') && h.indexOf('hb-lane') < 0 && h.indexOf('class="ln"') < 0 && h.indexOf('hb-late') < 0 && h.indexOf('class="late"') < 0);
+  [{ canEdit: true, noWatch: true }, { canEdit: false }].forEach(function (o) {
+    const x = kbb.goalRowHtml(r, o);
+    assert.ok(x.indexOf('class="act"') < 0 && x.indexOf('<button type="button" class="hb-tag" data-act="tonext"') < 0 && x.indexOf('<button type="button" class="hb-tag" data-act="towatch"') < 0);
+  });
+  assert.ok(h.indexOf('<tr>') === 0 && h.indexOf('has-acts') < 0);
+  const past = kbb.goalRowHtml(Object.assign({}, r, { targetYear: 2025 }), { canEdit: true, y0: 2026 });   // 지난해 목표 줄도 단추 없음
+  assert.ok(past.indexOf('data-act="towatch"') < 0 && past.indexOf('data-act="tonext"') < 0);
   const css = src('index.html');
-  assert.ok(/\.hb-tt td\.ln \.hb-acts \{[^}]*right:0/.test(css) && !/\.hb-tt td\.ln \.hb-acts \{[^}]*inset:0/.test(css));
-  assert.ok(css.indexOf('.hb-tt tr.has-acts td.ln { overflow:visible; }') > 0 && css.indexOf('.hb-tt tr.has-acts > td.mut > [aria-hidden="true"] { visibility:hidden; }') > 0);
+  assert.ok(css.indexOf('.hb-tt:not(.wt) col.c-act') < 0 && css.indexOf('.hb-tt:not(.wt) td.act') < 0);   // 목표 표 동작 칸 규칙 없음(관심 표 동작 칸 규칙은 그대로)
+  assert.ok(css.indexOf('.hb-acts') < 0 && css.indexOf('has-acts') < 0 && css.indexOf('td.ln') < 0);
   assert.strictEqual(kbb.closedOf({ basis_cd: 'HACK', basis_date: '2026-09-30' }), null);                   // 모르는 근거 코드는 버린다
   assert.deepStrictEqual(kbb.closedOf({ basis_cd: 'CONTRACT_DECIDED', basis_date: '<img>' }), { cd: 'CONTRACT_DECIDED', date: '' });
   assert.strictEqual(kbb.basisText({ cd: 'NOTICE_NO_BID', date: '2026-09-30' }), '입찰 공고 현황 2026-09-30 입찰 없음');
@@ -164,24 +166,24 @@ test('관심 기관 줄: 다음 협약 종료 출처 순서(약정 → 행안부
   assert.deepStrictEqual(kbb.filterRows([unk, w, far], { status: 'movable' }).map(function (r) { return r.nextDate; }), ['2028-12-31']);
   assert.deepStrictEqual(kbb.filterRows([unk, w, far], { status: 'unk' }).length, 1);
   // 표: 관심 탭 열(기관·구분·다음 협약 종료·현 금고 은행·메모·동작), 정렬 머리 aria-sort, 비면 안내
-  const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: kbb.laneWindow(TODAY, 2026), rows: [w], out: [], canEdit: true, sort: { key: 'next', dir: 'asc' }, total: 1 });
+  const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', rows: [w], out: [], canEdit: true, sort: { key: 'next', dir: 'asc' }, total: 1 });
   assert.ok(t.indexOf('<col class="c-wnm"><col class="c-tag"><col class="c-next"><col class="c-bank"><col class="c-memo"><col class="c-act">') > 0);
   assert.ok(t.indexOf('<th scope="col" aria-sort="ascending"><button type="button" class="hb-sort" data-sort="next">공고·다음 협약 종료') > 0 && (t.match(/aria-sort=/g) || []).length === 1);
   assert.ok(t.indexOf('<caption class="sr-only">내 관심 기관 1곳 중 1곳 보임, 공고·다음 협약 종료 오름차순</caption>') > 0);
-  const em = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: kbb.laneWindow(TODAY, 2026), rows: [], out: [], canEdit: true, total: 0 });
+  const em = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', rows: [], out: [], canEdit: true, total: 0 });
   assert.ok(em.indexOf('관심 기관이 없습니다') > 0 && em.indexOf('id="hb-watch-add2"') > 0);
   assert.ok(em.indexOf('(') < 0 && em.indexOf('넣어 두면, 다음 협약 종료가 2년 안으로 들어올 때 [목표로 옮기기…]가 뜹니다. 내 관심은 나만 넣고 뺄 수 있습니다.</p>') > 0);   // 괄호 없이 두 문장(P3-1)
-  assert.ok(kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: kbb.laneWindow(TODAY, 2026), rows: [], out: [], canEdit: false, total: 0 }).indexOf('<button') < 0);
+  assert.ok(kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', rows: [], out: [], canEdit: false, total: 0 }).indexOf('<button') < 0);
 });
 
-test('표 머리·도구 줄·거른 결과 0: 정렬 머리는 aria-sort 하나, 설명회·12개월은 정렬하지 않음, 도구 줄 구성, 조건에 맞는 기관이 없습니다 + [필터 지우기]', function () {
+test('표 머리·도구 줄·거른 결과 0: 정렬 머리는 aria-sort 하나, 설명회는 정렬하지 않음, 도구 줄 구성, 조건에 맞는 기관이 없습니다 + [필터 지우기]', function () {
   const ctx = mkCtx();
   const rows = kbb.sortBy(kbb.goalRows([tgt('IA', 'RETAIN'), tgt('IB', 'NEW')], ctx), 'due', 'asc');
-  const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', win: kbb.laneWindow(TODAY, 2026), rows: rows, out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 5 });
+  const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', rows: rows, out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 5 });
   assert.ok(t.indexOf('<th scope="col" aria-sort="ascending"><button type="button" class="hb-sort" data-sort="due">마감까지<svg') > 0 && (t.match(/aria-sort=/g) || []).length === 1);
   assert.ok(t.indexOf('<th scope="col">설명회</th>') > 0 && t.indexOf('data-sort="nm"') > 0 && t.indexOf('data-sort="stage"') > 0);
   assert.ok(t.indexOf('<caption class="sr-only">2026 목표 기관 5곳 중 2곳 보임, 마감까지 오름차순</caption>') > 0);
-  const none = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', win: kbb.laneWindow(TODAY, 2026), rows: [], out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 5, filtered: true });
+  const none = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', rows: [], out: [], canEdit: true, sort: { key: 'due', dir: 'asc' }, total: 5, filtered: true });
   assert.ok(none.indexOf('조건에 맞는 기관이 없습니다. <button type="button" id="hb-fclear2">필터 지우기</button>') > 0 && none.indexOf('아직 없습니다') < 0);
   const tb = kbb.toolbarHtml({ tab: 'goal', nGoal: 3, nWatch: 2, f: { q: '동<작', tag: 'NEW', status: 'late', kind: '', stage: 2 }, stageName: '사전준비', shown: 3, total: 5, canEdit: true });
   assert.ok(tb.indexOf('role="tab" id="hb-tab-goal" data-tab="goal" class="on" aria-selected="true" aria-controls="hb-ts" tabindex="0">목표 <b>3</b>') > 0);
@@ -303,7 +305,7 @@ test('기관 자료에 없는 관심 기관(공공기관·조달, 11-25 지도 �
     { institution_id: 'org-9740648', institution_name: '창원지방법원 진주지원', kind_cd: 'WATCH', tag_cd: 'NEW', tag_name: '신규유치 도전', target_no: 7, rev_no: 1 },
     { institution_id: 'g2b-B553664', kind_cd: 'WATCH', tag_cd: 'NEW', target_no: 8, rev_no: 1 }], ctx);
   assert.deepStrictEqual(wrows.map(function (r) { return [r.id, r.name, r.kind, !!r.rec]; }), [['org-9740648', '창원지방법원 진주지원', 'WATCH', false], ['g2b-B553664', 'g2b-B553664', 'WATCH', false]]);
-  const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', win: kbb.laneWindow(TODAY, 2026), rows: wrows, out: [], canEdit: true, sort: { key: 'nm', dir: 'asc' }, total: 2, nWatch: 2 });
+  const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'watch', rows: wrows, out: [], canEdit: true, sort: { key: 'nm', dir: 'asc' }, total: 2, nWatch: 2 });
   assert.ok(t.indexOf('<span class="hb-nm"><span class="rg"></span>창원지방법원 진주지원</span>') > 0 && t.indexOf('<span class="hb-nm"><span class="rg"></span>g2b-B553664</span>') > 0);
   assert.strictEqual((t.match(/<tbody>/g) || []).length, 1);                       // 빈 안내가 아니라 줄 2개
   assert.ok((t.match(/<tr/g) || []).length >= 3 && t.indexOf('내 관심 기관이 없습니다') < 0);
@@ -325,15 +327,12 @@ test('옮기기: /move 주소·머리글(move_to_goal·move_to_watch), 확인 �
   const w = kbb.moveDialogHtml('towatch', r, {});
   assert.ok(w.indexOf('<h3 id="hb-d-t">내 관심으로 옮기기 — 서울 동작구청&lt;b&gt;</h3>') > 0 && w.indexOf('올해 목표에서 빠지고 내 관심 기관에 들어갑니다. 구분(재유치 도전)과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.') > 0);
   assert.ok(w.indexOf('hb-m-year') < 0 && w.indexOf('>내 관심으로 옮기기</button>') > 0 && w.indexOf('class="pp-next-btn"') > 0);
-  const n = kbb.moveDialogHtml('tonext', r, { years: [2027, 2028], year: 2027 });
-  assert.ok(n.indexOf('<option value="2027" selected>2027년</option>') > 0 && n.indexOf('<option value="2028">2028년</option>') > 0 && n.indexOf('>2027 목표로 옮기기</button>') > 0);
   const g = kbb.moveDialogHtml('togoal', r, { years: [2026, 2027, 2028], year: 0 });
   assert.ok(g.indexOf('<option value="" selected>고르세요</option>') > 0 && g.indexOf('>목표로 옮기기</button>') > 0);
   assert.deepStrictEqual(kbb.moveState('togoal', { year: 0 }), { canGo: false, why: '목표 연도를 고르세요.' });
-  assert.deepStrictEqual(kbb.moveState('tonext', { year: 2027 }), { canGo: true, why: '' });
   assert.deepStrictEqual(kbb.moveState('towatch', { year: 0 }), { canGo: true, why: '' });
   assert.deepStrictEqual(kbb.moveState('towatch', { busy: true }), { canGo: false, why: '' });
-  assert.strictEqual(kbb.moveGoText('tonext', 2028), '2028 목표로 옮기기');
+  assert.strictEqual(kbb.moveGoText('togoal'), '목표로 옮기기');
 });
 
 test('추가 창: 넣을 곳(목표·관심) 라디오, 관심이면 연도 줄 숨김·제목 바뀜, 이미 걸린 기관·올해 입찰 종료 표시, 중복 알림 문장, 막힘 이유', function () {
@@ -415,7 +414,7 @@ test('소스 구조: 새 버튼 id·역할, 보안(서버 글 textContent·esc, 
   assert.ok(/\.hb-tt col\.c-next \{ width:170px; \}/.test(css) && /\.hb-tt col\.c-wnm \{ width:200px; \}/.test(css) && /@media \(max-width:880px\) \{ \.hb-stgs \{[^}]*overflow-x:auto/.test(css));
   assert.ok(/\.hb-tp \{[^}]*calc\(100vh - 296px\)/.test(css) && css.indexOf('#hb-ours > summary') < 0);
   assert.deepStrictEqual(css.match(/#[0-9a-fA-F]{3,8}\b/g) || [], []);                                                                     // hex 없음
-  assert.deepStrictEqual((css.match(/(^|[\s;{])--[\w-]+\s*:/g) || []).map(function (s) { return s.trim().replace(/:$/, '').replace(/^[;{]/, ''); }), ['--rowbg', '--rowbg', '--rowbg']);   // :root 변수는 안 늘고 표 칸 지역 변수 --rowbg만(11-19 E)                                                                // 새 :root 변수 없음(표 칸 지역 변수 --rowbg만)
+  assert.deepStrictEqual((css.match(/(^|[\s;{])--[\w-]+\s*:/g) || []).map(function (s) { return s.trim().replace(/:$/, '').replace(/^[;{]/, ''); }), []);   // :root 변수도, 표 칸 지역 변수(--rowbg)도 없다(12개월 칸과 함께 없앴다)                                                                // 새 :root 변수 없음(표 칸 지역 변수 --rowbg만)
   assert.ok(css.indexOf('72%, #fff') < 0 && css.slice(css.indexOf('.hb-warn {')).replace(/\.hb-selbar \{[^}]*\}/, '').indexOf('box-shadow') < 0);   // 새 그림자 없음(고른 기관 띠 하나만 예외 — 사용자 11-24, 아래 selbar 단언)
   // 단계 버튼 테두리는 --line-strong, 꺼진 버튼은 --line(design P2-2)
   assert.ok(/\.hb-sb \{[^}]*border:1px solid var\(--line-strong\)/.test(css) && /\.hb-sb:disabled \{[^}]*border-color:var\(--line\)/.test(css));
@@ -453,7 +452,7 @@ test('옛 서버(watch_items 없음): 관심 줄 0·예외 없음, 관심 탭·[
   assert.ok(old.indexOf('id="hb-tab-goal"') > 0 && old.indexOf('hb-tab-watch') < 0 && old.indexOf('hb-watch-add') < 0);
   assert.ok(kbb.toolbarHtml(Object.assign({ tab: 'goal' }, base)).indexOf('id="hb-tab-watch"') > 0);                      // 새 서버는 그대로
   assert.ok(kbb.toolbarHtml(Object.assign({ tab: 'watch', noWatch: true }, base)).indexOf('hb-watch-add') < 0);
-  const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', win: kbb.laneWindow(TODAY, 2026), rows: [], out: [], canEdit: true, groups: [], total: 0, noWatch: true });
+  const t = kbb.goalTableHtml({ st: 'ok', year: 2026, tab: 'goal', rows: [], out: [], canEdit: true, groups: [], total: 0, noWatch: true });
   assert.ok(t.indexOf('<table') === 0);
   assert.strictEqual(kbb.addDialogHtml({ q: '', year: 2026, tag: '' }, { years: [2026], tags: [], noWatch: true }).indexOf('hb-a-kind'), -1);
   const wb = kbb.warnHtml({ mode: 'block', basis: { cd: 'NOTICE_CLOSED', date: '2026-09-30' }, years: [2027], noWatch: true });
