@@ -1637,7 +1637,7 @@ test('[6-16] 이름·직위 줄: 이름 → 직위 → 만 n세 → 권한대행
 test('학력·경력 시작 연도 또는 연-월(사용자 11-24): 입력 칸 안내와 화면 검사', function () {
   const career = hc.valueRowHtml('CAREER', TODAY);
   assert.ok(career.indexOf('시작(연도 또는 연-월, 필수)') >= 0 && /name="from"[^>]*required/.test(career) && career.indexOf('placeholder="2018 또는 2018-07"') >= 0);
-  assert.ok(career.indexOf('끝(연도 또는 연-월, 모르면 비워 두세요)') >= 0 && career.indexOf('비우면 현재') < 0);
+  assert.ok(career.indexOf('끝(연도 또는 연-월)') >= 0 && career.indexOf('id="hc-to-h"') >= 0 && career.indexOf('모르면 비워 두세요') >= 0 && career.indexOf('비우면 현재') < 0);
   assert.ok(career.indexOf('YYYY-MM') < 0);
   ['2018', ' 2018 ', '2018-07', ' 2018-07 ', '1900', '2100', '1900-01', '2100-12'].forEach(function (v) { assert.strictEqual(hc.startMonthOk(v), true, v); });
   ['', null, '2018-7', '2018-13', '2018-00', '1899', '2101', '1899-12', '18', '18-07', '2018-07-01', '2018.07'].forEach(function (v) { assert.strictEqual(hc.startMonthOk(v), false, String(v)); });
@@ -1646,7 +1646,7 @@ test('학력·경력 시작 연도 또는 연-월(사용자 11-24): 입력 칸 �
 test('학력 연도 비움(사용자 11-25): 폼 문구·검사·표시·정렬', function () {
   const edu = hc.valueRowHtml('EDU', TODAY), car = hc.valueRowHtml('CAREER', TODAY);
   assert.ok(edu.indexOf('>시작(연도 또는 연-월)<input') >= 0 && edu.indexOf('모르면 비워 두세요)<input type="text" name="from"') < 0 && !/name="from"[^>]*required/.test(edu));
-  assert.ok(edu.indexOf('끝(연도 또는 연-월, 모르면 비워 두세요)') >= 0 && edu.indexOf('비우면 현재') < 0);
+  assert.ok(edu.indexOf('끝(연도 또는 연-월)') >= 0 && edu.indexOf('모르면 비워 두세요') < 0 && edu.indexOf('비우면 현재') < 0);
   assert.ok(car.indexOf('시작(연도 또는 연-월, 필수)') >= 0 && /name="from"[^>]*required/.test(car));
   // 검사: 학력은 둘 다 비면 통과, 끝만 있으면 막음, 시작이 있으면 형식 검사. 경력은 시작 필수.
   assert.strictEqual(hc.periodCheck('EDU', '', ''), '');
@@ -1721,24 +1721,43 @@ test('경력·학력 정렬(사용자 11-25): 현직 맨 위, 끝 없는 줄은 
 
 test('편집 폼 문구(사용자 11-25): 경력 현직 확인란·학력 도움말', function () {
   const car = hc.valueRowHtml('CAREER', TODAY), edu = hc.valueRowHtml('EDU', TODAY);
-  assert.ok(car.indexOf('끝(연도 또는 연-월, 모르면 비워 두세요)<input type="text" name="to" id="hc-to"') >= 0);
-  assert.ok(car.indexOf('<input type="checkbox" name="current" id="hc-cur" value="1"> 지금도 이 자리에 있음') >= 0);
+  assert.ok(car.indexOf('끝(연도 또는 연-월)<input type="text" name="to" id="hc-to"') >= 0);
+  assert.ok(car.indexOf('<label class="hc-chk"><input type="checkbox" name="current" id="hc-cur" value="1"> 지금도 이 자리에 있음</label>') >= 0);
   assert.ok(/id="hc-cur-h" hidden>/.test(car) && !/readonly/.test(car) && car.indexOf('hc-per-h') < 0);
+  assert.ok(car.indexOf('<p class="hc-fhint" id="hc-to-h">모르면 비워 두세요. 카드에 \'~미상\'으로 나옵니다.</p>') >= 0);
+  assert.ok(car.indexOf('id="hc-cur-h" hidden>지금도 이 자리에 있어 끝은 비워 둡니다. 카드에 \'~현재\'로 나옵니다.</p>') >= 0);
+  assert.ok(/name="to" id="hc-to"[^>]*aria-describedby="hc-to-h"/.test(car));
+  assert.ok(car.indexOf('id="hc-to"') < car.indexOf('id="hc-to-h"') && car.indexOf('id="hc-to-h"') < car.indexOf('id="hc-cur"') && car.indexOf('id="hc-cur"') < car.indexOf('id="hc-cur-h"'));
   assert.ok(car.indexOf('시작(연도 또는 연-월, 필수)') >= 0 && /name="from"[^>]*required/.test(car));
   assert.ok(edu.indexOf('type="checkbox"') < 0 && edu.indexOf('지금도 이 자리에 있음') < 0);
   assert.ok(edu.indexOf('<p class="hc-fhint wide" id="hc-per-h">연도를 확인하지 못했으면 시작과 끝을 모두 비워 두세요. 끝만 입력할 수는 없습니다.</p>') >= 0);
   assert.strictEqual((edu.match(/aria-describedby="hc-per-h"/g) || []).length, 2);   // 시작·끝 입력
-  assert.ok(edu.indexOf('끝(연도 또는 연-월, 모르면 비워 두세요)') >= 0 && edu.indexOf('비우면 현재') < 0);
+  assert.ok(edu.indexOf('끝(연도 또는 연-월)<input') >= 0 && edu.indexOf('비우면 현재') < 0 && edu.indexOf('hc-to-h') < 0);
 });
 
-test('현직 확인란 동기화: 켜면 끝 비움·readonly·설명 연결, 끄면 풀림', function () {
-  const to = { value: '2020', readOnly: false, a: {}, setAttribute: function (k, v) { this.a[k] = v; }, removeAttribute: function (k) { delete this.a[k]; } };
+test('현직 확인란 동기화: 켜면 끝 비움·readonly·자리표시자·설명 연결, 끄면 풀리고 끝 값 복원', function () {
+  const to = { value: '2020', readOnly: false, a: {}, dataset: {}, setAttribute: function (k, v) { this.a[k] = v; }, removeAttribute: function (k) { delete this.a[k]; } };
   const hint = { hidden: true };
   hc.applyCurrent(to, { checked: true }, hint);
   assert.strictEqual(to.value, ''); assert.strictEqual(to.readOnly, true); assert.strictEqual(to.a['aria-describedby'], 'hc-cur-h'); assert.strictEqual(hint.hidden, false);
+  assert.strictEqual(to.a.placeholder, '지금도 이 자리(비워 둠)'); assert.strictEqual(to.dataset.prev, '2020');
   hc.applyCurrent(to, { checked: false }, hint);
-  assert.strictEqual(to.readOnly, false); assert.strictEqual('aria-describedby' in to.a, false); assert.strictEqual(hint.hidden, true);
+  assert.strictEqual(to.readOnly, false); assert.strictEqual(to.a['aria-describedby'], 'hc-to-h'); assert.strictEqual(hint.hidden, true);
+  assert.strictEqual(to.a.placeholder, '2022 또는 2022-06'); assert.strictEqual(to.value, '2020'); assert.strictEqual('prev' in to.dataset, false);
+  hc.applyCurrent(to, { checked: true }, hint); hc.applyCurrent(to, { checked: false }, hint);   // 또 켰다 꺼도 유지
+  assert.strictEqual(to.value, '2020');
+  const e = { value: '', readOnly: false, a: {}, dataset: {}, setAttribute: function (k, v) { this.a[k] = v; }, removeAttribute: function (k) { delete this.a[k]; } };
+  hc.applyCurrent(e, { checked: true }, hint); hc.applyCurrent(e, { checked: false }, hint);   // 빈 칸이면 빈 채로
+  assert.strictEqual(e.value, '');
   hc.applyCurrent(null, { checked: true }, hint);   // 칸이 없어도 예외 없음
+});
+
+test('CSS 블록: 잠긴 끝 칸·.hc-chk·.yr nowrap은 토큰만', function () {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert.ok(html.indexOf('.hc-lab input[readonly] { background:var(--panel2); border-color:var(--line); color:var(--muted); cursor:default; }') >= 0);
+  assert.ok(/\.hc-chk \{[^}]*min-height:24px[^}]*font-size:12px[^}]*color:var\(--muted\)/.test(html));
+  assert.ok(/\.hc-chk input \{[^}]*width:16px; height:16px[^}]*accent-color:var\(--accent-color\)/.test(html));
+  assert.ok(/\.hc-items \.yr \{[^}]*white-space:nowrap/.test(html));
 });
 
 test('현직 저장 몸통·검사(사용자 11-25): current:true는 경력에만, 현직+끝은 막음', function () {

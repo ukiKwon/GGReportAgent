@@ -4,6 +4,9 @@
 -- ⚠️ 정본이 아니다. 정본은 db/oracle/026_inst_head.sql (규칙·참조·DB 권한 메모는 정본 헤더).
 -- 외래키 없음. ⚠️ 멱등하지 않다 — 025 적용 후 한 번만. (이미 025 까지 적용한 DB 는 이 파일만 이어서 실행한다)
 -- 사진 본체는 서버 디스크(ggreport.inst-head.photo-dir) — 그 폴더도 백업 대상이다.
+-- 열 설명(INST_HEAD_ITEM): VAL_TO = CAREER 끝 / EDU 졸업연도, NULL = 현재·미상 — 경력은 VAL_FLAG와 함께 읽는다(VAL_FLAG=1이면 현재, 아니면 미상).
+--   VAL_FLAG = ACTING 항목: 1 권한대행 / 0 아님. CAREER 항목(경력): 1 지금도 그 자리(현직, 끝(VAL_TO)은 비움) / 0 아님 / NULL 현직 표시 도입 전 행(=현직 아님).
+-- 변경 이력: 2026-11-26 위 열 설명 주석만 추가(경력 현직 표시) — 스키마 변경 없음, 이미 적용된 DB 에는 영향 없다.
 -- 되돌리기(데이터 소멸, 운영 금지): DROP TABLE INST_HEAD_ACT; DROP TABLE INST_HEAD_LOG; DROP TABLE INST_HEAD_PHOTO;
 --   DROP TABLE INST_HEAD_ITEM; DROP TABLE INST_HEAD;
 --   DELETE FROM COMMON_CODE WHERE CODE_GROUP IN ('HEAD_STATUS','HEAD_ORIGIN','HEAD_FIELD','HEAD_ITEM_STATE','HEAD_SRC','HEAD_PHOTO_STATE','PHOTO_LICENSE','HEAD_EVENT');

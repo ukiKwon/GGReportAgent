@@ -744,10 +744,15 @@
   hc.applyCurrent = function (to, chk, hint) {
     if (!to || !chk) return;
     if (chk.checked) {
+      if (to.dataset && to.value) to.dataset.prev = to.value;   // 켰다 끄면 적어 둔 끝 값을 되살린다
       to.value = ''; to.readOnly = true; to.setAttribute('aria-describedby', 'hc-cur-h');
+      to.setAttribute('placeholder', '지금도 이 자리(비워 둠)');
       if (hint) hint.hidden = false;
     } else {
-      to.readOnly = false; to.removeAttribute('aria-describedby');
+      to.readOnly = false; to.setAttribute('aria-describedby', 'hc-to-h');
+      to.setAttribute('placeholder', '2022 또는 2022-06');
+      if (to.dataset && to.dataset.prev && !to.value) to.value = to.dataset.prev;
+      if (to.dataset) delete to.dataset.prev;
       if (hint) hint.hidden = true;
     }
   };
@@ -761,11 +766,12 @@
       const dsc = edu ? ' aria-describedby="hc-per-h"' : '';
       const valLab = '<label class="hc-lab wide">' + esc(f.label) + ' 내용(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"></label>';
       const fromLab = '<label class="hc-lab">' + (edu ? '시작(연도 또는 연-월)' : '시작(연도 또는 연-월, 필수)') + '<input type="text" name="from" maxlength="7"' + (edu ? dsc : ' required') + ' inputmode="numeric" autocomplete="off" placeholder="2018 또는 2018-07"></label>';
-      const toLab = '<label class="hc-lab">끝(연도 또는 연-월, 모르면 비워 두세요)<input type="text" name="to" id="hc-to" maxlength="7"' + dsc + ' inputmode="numeric" autocomplete="off" placeholder="2022 또는 2022-06"></label>';
+      const toLab = '<label class="hc-lab">끝(연도 또는 연-월)<input type="text" name="to" id="hc-to" maxlength="7"' + (edu ? dsc : ' aria-describedby="hc-to-h"') + ' inputmode="numeric" autocomplete="off" placeholder="2022 또는 2022-06"></label>';
       if (edu) return valLab + fromLab + toLab + '<p class="hc-fhint wide" id="hc-per-h">연도를 확인하지 못했으면 시작과 끝을 모두 비워 두세요. 끝만 입력할 수는 없습니다.</p>';
       return valLab + fromLab + '<div class="hc-fld">' + toLab +
-        '<label class="hc-fhint"><input type="checkbox" name="current" id="hc-cur" value="1"> 지금도 이 자리에 있음</label>' +
-        '<p class="hc-fhint" id="hc-cur-h" hidden>지금도 이 자리에 있어 끝은 비워 두고 저장합니다.</p></div>';
+        '<p class="hc-fhint" id="hc-to-h">모르면 비워 두세요. 카드에 \'~미상\'으로 나옵니다.</p>' +
+        '<label class="hc-chk"><input type="checkbox" name="current" id="hc-cur" value="1"> 지금도 이 자리에 있음</label>' +
+        '<p class="hc-fhint" id="hc-cur-h" hidden>지금도 이 자리에 있어 끝은 비워 둡니다. 카드에 \'~현재\'로 나옵니다.</p></div>';
     }
     return '<label class="hc-lab wide">' + esc(f.label) + '(' + f.max + '자 이내)<input type="text" name="value" maxlength="' + f.max + '" required autocomplete="off"' +
       (f.cd === 'NAME' ? ' placeholder="숫자는 쓸 수 없습니다"' : '') + '></label>';

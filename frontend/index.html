@@ -2687,7 +2687,10 @@
   .hc-items dd { margin:0; font-size:13px; min-width:0; word-break:keep-all; overflow-wrap:break-word; }
   .hc-items ul { list-style:none; margin:0; padding:0; }
   .hc-items li { margin:0 0 4px; line-height:1.5; }
-  .hc-items .yr { margin-right:6px; font:12px var(--mono); color:var(--muted); }
+  .hc-items .yr { margin-right:6px; font:12px var(--mono); color:var(--muted); white-space:nowrap; }
+  .hc-lab input[readonly] { background:var(--panel2); border-color:var(--line); color:var(--muted); cursor:default; }
+  .hc-chk { display:inline-flex; align-items:center; gap:6px; min-height:24px; margin:0; font-size:12px; color:var(--muted); cursor:pointer; align-self:flex-start; }
+  .hc-chk input { width:16px; height:16px; margin:0; accent-color:var(--accent-color); }
   .hc-more summary { font-size:12px; color:var(--muted); cursor:pointer; }
   .hc-foot { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:8px 12px; padding:10px 16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
   .hc-foot .v { font-family:var(--mono); color:var(--fg); }
