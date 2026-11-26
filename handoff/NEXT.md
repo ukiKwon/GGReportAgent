@@ -620,3 +620,8 @@
 - **현재**: 규격 확정(design-reviewer) — thead 그대로 + `tr.tb-empty`(열 수만큼 빈 td, 첫 칸 sr-only '비어 있음', 가운데, hover 없음) + 기존 안내 문장은 문구 그대로 표 아래 `.tb-empty-note`. 로딩·오류·권한 없음·선택 전은 제외, .hb-tt·.pt-tt·.rs-tt 표 안 안내 줄은 유지. 0d 공통 도우미 `frontend/js/tblempty.js`·CSS·DESIGN '빈 표'·team/admin/deputy/myinfo 적용 끝(커밋은 세션 기록, design_history 134). 배정 이력 빈 사유 '-' → '—' 가운데(사용자 승인) 함께.
 - **다음 한 걸음**: 0d 커밋 뒤 각 담당 세션이 자기 파일 행에 `tblEmpty.rowHtml/noteHtml`(DOM은 rowEl/noteEl) 적용 → design_history 전/후 장. 표 아래 안내 문장은 유지(사용자 11-26 "권장대로").
 - **자세히**: handoff/agents/design-reviewer/2026-11-26_1548_a0ae96f9.md(규격 3절·도우미 4절·세션별 대상표 5절·시험 영향 6절·DESIGN 문안), handoff/sessions/2026-11-19_1930_0d.md '11-26'.
+
+### 129. 앞으로 만들 AI 기능 7가지 — 랜딩에 '예시 화면'으로 소개한 것 (사용자 11-26 "할일들로 남겨줘") [담당: 미정 — planner → backend-dev(Opus) → security]
+- **현재**: 모두 미착수. AI-1 오늘 할 일(남은 일정 우선순위) · AI-2 공고문 평가표 읽기 · AI-3 제안서의 다른 기관 언급 점검 · AI-4 지자체 계획 확인하기 · AI-5 이사회 발표 대본 · AI-6 요약서·협력 과제 초안 · AI-7 회의록 정리·지식 검색. **AI가 제안서를 대신 쓰지 않음**(사용자).
+- **다음 한 걸음**: 착수 순서 정하기(c3 의견: AI 없이 되는 AI-1 정렬·AI-3 이름 대조 먼저 → LLM 연결 뒤 AI-2 → AI-4·6 → AI-5·7). 만들어지면 랜딩의 해당 장면만 교체(NEXT 127).
+- **자세히**: handoff/agents/history/2026-11-26_AI기능_할일.md(항목별 AI 몫·규칙 몫·지금 있는 것·선행 조건), 문구 handoff/agents/planner/2026-11-26_1116_ace7e0e6.md. 관련 11·13·101·105.
