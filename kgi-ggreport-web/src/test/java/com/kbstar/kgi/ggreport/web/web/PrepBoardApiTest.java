@@ -421,6 +421,18 @@ public class PrepBoardApiTest {
     }
 
     @Test
+    public void D15e_상세_안_칸_직접_체크는_prep_detail_dash_check로_체크와_감사에_남는다() throws Exception {
+        String bid = opened(INST);
+        setState(bid, "WRITABLE");   // D15d 와 같은 바탕
+        MvcResult r = checkAs(MEMBER2, bid, COL, mark("DONE", 0), "prep_detail", "dash_check");
+        assertEquals(r.getResponse().getContentAsString(), 200, r.getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_CHECK WHERE BID_CASE_ID=? AND COL_CD=? AND SCREEN_ID='prep_detail'"
+                + " AND BUTTON_ID='dash_check' AND UI_VALID=1 AND ACTOR_EMP_NO=?", bid, COL, MEMBER2));
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_CHECK' AND OUTCOME='OK'"
+                + " AND TASK_CD=? AND SCREEN_ID='prep_detail' AND BUTTON_ID='dash_check' AND UI_VALID=1", bid, "CK_" + COL));
+    }
+
+    @Test
     public void D16_표시와_개정_번호가_틀리면_400이고_저장되지_않는다() throws Exception {
         String bid = opened(INST);
         assertEquals("BAD_MARK", json(check(MEMBER2, bid, COL, "{\"mark_cd\":\"FOO\",\"base_rev\":0}")).path("detail").path("code").asText());

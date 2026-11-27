@@ -15,18 +15,24 @@ public final class PrepBoardUiIds {
     public static final String NOTICE_SCREEN = "prep_detail";
     public static final String NOTICE_BUTTON = "notice_confirm";
     public static final String NOTICE_COL = "NOTICE_CHECK";
+    /** 사전준비 상세 안에서 칸을 직접 체크(NEXT 121 ②) — prep_detail/dash_check, 칸 제한 없음(칸 형식·권한은 서비스가 본다). 목록 GET(of)은 받지 않는다. */
+    public static final String DETAIL_CHECK_BUTTON = "dash_check";
 
     private PrepBoardUiIds() {
     }
 
     /**
-     * 칸 체크(PUT …/board-checks/{col}) 전용. prep_detail/notice_confirm 은 칸이 NOTICE_CHECK 일 때만 유효하고, 그 밖은 {@link #of} 와 같다
+     * 칸 체크(PUT …/board-checks/{col}) 전용. 현황판 dash_check + 상세 [다음] 확인 notice_confirm + 상세 칸 체크 prep_detail/dash_check.
+     * prep_detail/notice_confirm 은 칸이 NOTICE_CHECK 일 때만 유효하고, 그 밖은 {@link #of} 와 같다
      * (현황판 prep_dashboard/dash_check 는 그대로 — 열려 있는 옛 화면도 같은 값). 거절(400)하지 않는다. ⚠️ 자기신고 값.
      */
     public static BoardUiIds.Ui forCheck(HttpServletRequest req, String colCd) {
         String s = clean(req.getHeader(BoardUiIds.H_SCREEN));
         String b = clean(req.getHeader(BoardUiIds.H_BUTTON));
         if (NOTICE_SCREEN.equals(s) && NOTICE_BUTTON.equals(b) && NOTICE_COL.equals(colCd)) {
+            return new BoardUiIds.Ui(s, b, true);
+        }
+        if (NOTICE_SCREEN.equals(s) && DETAIL_CHECK_BUTTON.equals(b)) {   // 상세 안 칸 직접 체크(NEXT 121 ②)
             return new BoardUiIds.Ui(s, b, true);
         }
         return of(req);

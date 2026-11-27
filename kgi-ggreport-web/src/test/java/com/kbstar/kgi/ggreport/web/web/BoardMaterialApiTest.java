@@ -1114,6 +1114,29 @@ public class BoardMaterialApiTest {
                 + " AND BUTTON_ID='profit_upload' AND UI_VALID=1", id));
     }
 
+    @Test
+    public void 사전준비_7단계_이사회_자료_보기는_prep_detail_board_view로_목록과_열기에만_유효하다() throws Exception {
+        String bc = newCase();
+        assign(bc, MEMBER);
+        long id = create(MEMBER, bc, 2026);
+        String[] cell = cell(true);
+        assertNotNull(cell);
+        save(id, MEMBER, body(0, cell[0], cell[1], "5"), 201);
+        jdbc.update("UPDATE BOARD_MATERIAL SET STATUS_CD='CONFIRMED', CONFIRMED_SNAP=1, CONFIRMED_BY=?, CONFIRMED_AT=? WHERE MATERIAL_ID=?",
+                LEAD, "2026-11-10T09:00:00+09:00", id);
+        flushCache();
+        assertEquals(200, actGet("/board-materials", MEMBER, "prep_detail", "board_view").getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='LIST' AND OUTCOME='OK'"
+                + " AND SCREEN_ID='prep_detail' AND BUTTON_ID='board_view' AND UI_VALID=1", id));
+        assertEquals(200, actGet("/board-materials/" + id, MEMBER, "prep_detail", "board_view").getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='VIEW' AND OUTCOME='OK'"
+                + " AND SCREEN_ID='prep_detail' AND BUTTON_ID='board_view' AND UI_VALID=1", id));
+        assertEquals(400, actGet("/board-materials/" + id + "/confirmed-docx", MEMBER, "prep_detail", "board_view").getResponse().getStatus());
+        assertEquals(200, actGet("/board-materials/" + id, MEMBER, "board_list", "board_view").getResponse().getStatus());
+        assertEquals(1, count("SELECT COUNT(*) FROM BOARD_MATERIAL_ACT WHERE MATERIAL_ID=? AND ACTION_CD='VIEW' AND OUTCOME='OK'"
+                + " AND SCREEN_ID='board_list' AND BUTTON_ID='UNKNOWN' AND UI_VALID=0", id));
+    }
+
     private MvcResult review(long id, String emp) throws Exception {
         return actGet("/board-materials/" + id + "/review", emp, "board_review", "review_open");
     }

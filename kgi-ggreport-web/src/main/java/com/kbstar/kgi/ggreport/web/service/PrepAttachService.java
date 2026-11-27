@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import com.kbstar.kgi.ggreport.web.support.ScoringCache;
 import com.kbstar.kgi.ggreport.web.support.ScoringTable;
 
 /**
@@ -65,18 +66,15 @@ public class PrepAttachService {
     private static final String TASK_T3 = "T3";
     private static final String TASK_T4 = "T4";
     /** 과제가 아닌 단계 자료(사용자 2026-11-25): 입찰공고 원본 · 이사회 추가 자료 · 이사회 결과 문서. 보관·검사·권한은 과제 첨부와 같다. */
-    /** 선정 평가표 읽기 상한(security 11-25 F3) — 최근 5개, 파일당 30MB, 결과 기억 200건(가장 오래 안 쓴 것부터 버린다). */
+    /**
+     * 선정 평가표 읽기 상한(security 11-25 F3·NEXT 121 하-2) — 최근 5개, 파일당 30MB,
+     * 결과 기억 200건·무게 800만(글자 수 + 문자열마다 24, Java 8 문자열 기준 약 16MB + 객체 부담, 가장 오래 안 쓴 것부터 버린다 — 한 건 무게가 100만을 넘으면 기억하지 않는다).
+     */
     static final int SCORING_MAX_FILES = 5;
     static final long SCORING_MAX_BYTES = 30L * 1024 * 1024;
-    private static final Map<String, ScoringTable.Result> SCORING_CACHE =
-            new LinkedHashMap<String, ScoringTable.Result>(64, 0.75f, true) {
-                private static final long serialVersionUID = 1L;
-
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, ScoringTable.Result> eldest) {
-                    return size() > 200;
-                }
-            };
+    static final int SCORING_CACHE_ENTRIES = 200;
+    static final long SCORING_CACHE_CHARS = 8_000_000L;
+    private static final ScoringCache SCORING_CACHE = new ScoringCache(SCORING_CACHE_ENTRIES, SCORING_CACHE_CHARS);
     static final String KIND_NOTICE = "NOTICE";
     static final String KIND_BOARD_ADD = "BOARD_ADD";
     static final String KIND_BOARD_RES = "BOARD_RES";
@@ -296,15 +294,10 @@ public class PrepAttachService {
                 continue;
             }
             String cacheKey = a.getAttachId() + ":" + a.getSha256() + ":" + table;
-            ScoringTable.Result hit;
-            boolean known;
-            synchronized (SCORING_CACHE) {
-                known = SCORING_CACHE.containsKey(cacheKey);
-                hit = SCORING_CACHE.get(cacheKey);
-            }
-            if (known) {
-                if (hit != null) {
-                    return scoringFound(out, a, hit);
+            ScoringCache.Hit known = SCORING_CACHE.get(cacheKey);
+            if (known != null) {
+                if (known.getResult() != null) {
+                    return scoringFound(out, a, known.getResult());
                 }
                 continue;
             }
@@ -328,9 +321,7 @@ public class PrepAttachService {
                 continue;   // 시간 안에 못 읽은 파일은 기억하지 않는다(다음에 다시 시도)
             }
             ScoringTable.Result t = timed.getResult();
-            synchronized (SCORING_CACHE) {
-                SCORING_CACHE.put(cacheKey, t);
-            }
+            SCORING_CACHE.put(cacheKey, t);   // 너무 큰 결과는 기억하지 않는다(ScoringCache — NEXT 121 하-2)
             if (t != null) {
                 return scoringFound(out, a, t);
             }

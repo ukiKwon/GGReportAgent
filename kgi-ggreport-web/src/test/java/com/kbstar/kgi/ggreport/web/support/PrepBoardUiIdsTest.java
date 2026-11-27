@@ -52,6 +52,18 @@ public class PrepBoardUiIdsTest {
     }
 
     @Test
+    public void 상세_칸_직접_체크는_prep_detail_dash_check로_어느_칸이든_유효하다() {
+        for (String col : new String[]{"NOTICE_CHECK", "FIN_COMMITTEE"}) {
+            BoardUiIds.Ui u = PrepBoardUiIds.forCheck(req("prep_detail", "dash_check"), col);
+            assertEquals("prep_detail", u.getScreen());
+            assertEquals("dash_check", u.getButton());
+            assertTrue(col, u.isValid());
+        }
+        assertFalse(PrepBoardUiIds.of(req("prep_detail", "dash_check")).isValid());          // 목록 GET 은 받지 않는다
+        assertFalse(PrepBoardUiIds.forCheck(req("prep_detail", "open"), "NOTICE_CHECK").isValid());
+    }
+
+    @Test
     public void 목록용_of는_상세_이름을_받지_않는다() {
         BoardUiIds.Ui u = PrepBoardUiIds.of(req("prep_detail", "notice_confirm"));
         assertEquals(BoardUiIds.UNKNOWN, u.getScreen());

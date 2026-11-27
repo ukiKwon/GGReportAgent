@@ -68,6 +68,19 @@ public class BoardUiIdsTest {
     }
 
     @Test
+    public void board_view는_LIST_VIEW_행위의_prep_detail_짝만_유효하다() {
+        assertTrue(of("prep_detail", "board_view", "LIST").isValid());
+        assertTrue(of("prep_detail", "board_view", "VIEW").isValid());
+        for (String a : new String[]{"CREATE", "SAVE", "SUBMIT", "SNAPSHOT_LIST", "SCRIPT_DOCX", "CONFIRM", null}) {
+            BoardUiIds.Ui u = of("prep_detail", "board_view", a);
+            assertEquals(a, BoardUiIds.UNKNOWN, u.getButton());
+            assertFalse(a, u.isValid());
+        }
+        assertFalse(of("board_list", "board_view", "LIST").isValid());
+        assertFalse(of("prep_detail", "board_view").isValid());
+    }
+
+    @Test
     public void 기존_짝은_그대로다() {
         assertTrue(of("board_list", "create").isValid());
         assertTrue(of("board_write", "save_version").isValid());

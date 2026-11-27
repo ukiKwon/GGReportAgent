@@ -106,7 +106,7 @@ public class ApiExceptionHandler {
             DataAccessException.class, UncheckedIOException.class,
             org.apache.ibatis.exceptions.PersistenceException.class, java.sql.SQLException.class})   // NEXT 123 B1 — 번역 안 된 DB 예외도 500 일반 문구로
     public ResponseEntity<Map<String, Object>> handleUnexpected(Exception e) {
-        // 로그는 한 줄(클래스·우리 코드 첫 프레임·뿌리 원인 클래스) + 상관 ID — 메시지(SQL 값 등)·스택은 싣지 않는다(84② 11-16). 스택은 DEBUG 때만.
+        // 로그는 한 줄(클래스·우리 코드 첫 프레임·뿌리 원인 클래스) + 상관 ID — ERROR 줄에는 메시지·스택을 싣지 않는다(84② 11-16). 스택은 DEBUG 때만 — DEBUG 줄은 예외 메시지(값 원문이 섞일 수 있음)를 포함한다 — dev 전용 진단.
         String ref = java.util.UUID.randomUUID().toString().substring(0, 8);
         log.error("처리되지 않은 예외 ref={} {}", ref, oneLine(e));
         log.debug("처리되지 않은 예외 상세 ref={}", ref, e);
