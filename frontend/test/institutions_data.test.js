@@ -349,9 +349,10 @@ test('약정 만료일(contractExpiry) — 형식·범위, 끝난 회차보다 �
 test('공고 진행 칸(receiveFrom·receiveTo·noticeNo)이 시도별 적용 블록을 거쳐 레코드까지 온다(11-12 회귀)', function () {
   const mapo = institutions.find(function (r) { return r.region === '11' && r.name === '마포구청'; });
   assert.ok(mapo, '마포구청 레코드');
-  assert.strictEqual(mapo.receiveFrom, '2026-11-16');
-  assert.strictEqual(mapo.receiveTo, '2026-11-19');
-  assert.strictEqual(mapo.noticeNo, '제2026-1729호');
+  // 마포구는 2026-11-20 재공고(제2026-1872호, 접수 11-26 하루)로 값이 바뀜 — 데이터가 갱신되면 이 기대값도 함께 고친다(2026-11-27)
+  assert.strictEqual(mapo.receiveFrom, '2026-11-26');
+  assert.strictEqual(mapo.receiveTo, '2026-11-26');
+  assert.strictEqual(mapo.noticeNo, '제2026-1872호');
   const samcheok = institutions.find(function (r) { return r.region === '42' && r.name === '삼척시청'; });
   assert.strictEqual(samcheok && samcheok.receiveTo, '2026-08-18');
 });
