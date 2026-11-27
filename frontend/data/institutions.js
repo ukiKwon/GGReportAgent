@@ -489,9 +489,11 @@ window.institutions = [
       ],
     },
     "11140": {   // 마포구 — 진행 중
-      contractEnd: "2026-10-29", confirmed: true, updatedAt: "2026-11-12",
-      receiveFrom: "2026-11-16", receiveTo: "2026-11-19", noticeNo: "제2026-1729호",   // 접수 기간(sources 원문)
+      contractEnd: "2026-10-29", confirmed: true, updatedAt: "2026-11-27",
+      receiveFrom: "2026-11-26", receiveTo: "2026-11-26", noticeNo: "제2026-1872호",   // 재공고 접수 기간(sources 원문)
       sources: [
+        "**재공고 진행 중** — 「서울특별시 마포구 금고지정 계획 재공고」(제2026-1872호, 2026-11-20) eminwon 본문 확인(주간 수집 2026-11-27): 접수 2026.11.26.(목) 1일간. 1차 공고(아래, 접수 11.16.~11.19.) 뒤 재공고 — 재공고 사유·약정기간은 붙임(hwpx)에 있어 본문만으로는 미확인. 결과 공고 아직 없음",
+        "https://eminwon.mapo.go.kr/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?context=NTIS&jndinm=OfrNotAncmtEJB&method=selectOfrNotAncmt&methodnm=selectOfrNotAncmtRegst&homepage_pbs_yn=Y&subCheck=Y&not_ancmt_se_code=01,02,03,04,05,06,07&initValue=Y&countYn=Y&pageIndex=1&not_ancmt_mgt_no=21515",
         "기준일=공고일(「마포구 금고지정 계획 공고」 제2026-1729호, 2026-10-29) — **진행 중**. 같은 날 제2026-1722호 계획 공고를 제2026-1728호로 취소하고 다시 냈다(eminwon 원문 상세 확인, 2026-11-11). 원문: 현 약정 2026.12.31. 만료 · 공고기간 2026.10.29.~11.18. · **접수 2026.11.16.~11.19.** · 약정기간은 붙임(hwpx)에 있어 본문만으로는 미확인",
         "https://eminwon.mapo.go.kr/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do",
       ],
@@ -1984,7 +1986,10 @@ window.institutions = [
     },
     "하동군청": {   // 협력사업비 총액 공개 원문 '3년' — 울진 방식
       lastBid: "2023-12-13", term: 3,
+      contractEnd: "2026-11-13", confirmed: true, noticeNo: "제2026-1714호", updatedAt: "2026-11-27",
       sources: [
+        "**진행 중** — 「하동군 금고 지정 신청 공고」(제2026-1714호, 2026-11-13, 재정관리과) eminwon 본문 확인(주간 수집 2026-11-27): 약정 3년(2028.1.1.~2030.12.31.) · 복수금고(제1·제2금고). 접수 기간은 붙임(hwpx)에 있어 본문만으로는 미확인",
+        "https://eminwon.hadong.go.kr/emwp/gov/mogaha/ntis/web/ofr/action/OfrAction.do?context=NTIS&jndinm=OfrNotAncmtEJB&method=selectOfrNotAncmt&methodnm=selectOfrNotAncmtRegst&homepage_pbs_yn=Y&subCheck=Y&not_ancmt_se_code=01,02,03,04,05,06,07&initValue=Y&countYn=Y&pageIndex=1&not_ancmt_mgt_no=45480",
         "기준일=약정(계약) 체결일(2023-12-13 — 본문 '13일', 연도는 기사 입력일 2023-12-18에서 추론, 근사): 11월 심의 제1금고 NH농협, 약정 2025-01~2027-12(3년)", "https://www.nongmin.com/article/20231215500456",
         "월/일 미확보(lastBid 의도적 비움) — 지정공고 미게시(2024 회차 추정). eminwon 직접조회 2026-08-13",
         "term 3 근거: 「하동군 금고 협력사업비 총액 공개」(제2025-54호, 재정관리과) 원문 '약정기간 2025-01-01~2027-12-31(**3년**), 1금고 NH농협은행 하동군지부 3.9억·2금고 BNK경남은행 하동지점 0.18억'. 금리 공고 2026-01(제2026-34호)도 확인",
