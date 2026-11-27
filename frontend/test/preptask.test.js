@@ -58,7 +58,7 @@ function noCond(h) {
 
 // ── 구간·단계 정본 ──
 test('PHASES·STEPS: 구간 3개, 24단계(담당자 지정 + 현업 단계 — 이사회 자료·발표 대본은 이사회 준비 한 단계), id 유일, 구간은 이어진 덩어리', function () {
-  assert.deepStrictEqual(pt.PHASES.map(function (p) { return p.label; }), ['입찰 자료확인', '제안 준비', '협약 이행 준비']);
+  assert.deepStrictEqual(pt.PHASES.map(function (p) { return p.label; }), ['제안 사전준비', '제안서 작성', '협약 및 사후관리']);
   assert.strictEqual(pt.STEPS.length, 24);
   assert.strictEqual(pt.STEPS[0].id, 'START');
   assert.strictEqual(pt.STEPS[0].label, '담당자 지정');
@@ -70,7 +70,7 @@ test('PHASES·STEPS: 구간 3개, 24단계(담당자 지정 + 현업 단계 — 
     assert.ok(k >= last, s.label + ' 구간이 앞으로 돌아가지 않는다');
     last = k;
   });
-  assert.deepStrictEqual(pt.phaseIdxs('bid').map(function (i) { return pt.STEPS[i].label; }), ['담당자 지정', '입찰공고확인', '기관 정보 분석', '수익성분석', '가결위(재무)', '출심위(사업부)', '이사회 준비', '이사회 개최 및 결과']);
+  assert.deepStrictEqual(pt.phaseIdxs('bid').map(function (i) { return pt.STEPS[i].label; }), ['담당자 지정', '입찰공고확인', '기관 정보 분석', '수익성분석', '가격결정위원회(재무)', '출연금심의위원회(사업부)', '이사회 준비', '이사회 개최 및 결과']);
   assert.deepStrictEqual(pt.phaseIdxs('agree').map(function (i) { return pt.STEPS[i].label; }), ['결과발표', '우선협상', '협약서(법률)', '협약체결품의', 'ATM', 'KB카드', '전산구축', 'VIP 지정', '금리승인', '협약식']);
   assert.strictEqual(pt.STEPS[pt.STEPS.length - 1].label, '협약식', '엑셀 칸 순서 그대로 협약식이 마지막');
   assert.strictEqual(pt.phaseIdxs('prep').length, 6);
@@ -102,7 +102,7 @@ test('STEPS ↔ 서버 PrepBoardColumns: 칸 코드 28개가 빠짐없이 한 �
   });
 });
 
-test('S3a 제안서 제출 단계(PROPOSAL_SUBMIT): 제안 준비 구간의 수동 체크 단계, 제안서제출품의 뒤·PT 앞', function () {
+test('S3a 제안서 제출 단계(PROPOSAL_SUBMIT): 제안서 작성 구간의 수동 체크 단계, 제안서제출품의 뒤·PT 앞', function () {
   const i = idxOf('PROPOSAL_SUBMIT');
   assert.ok(i > idxOf('SUBMIT_APPR') && i + 1 === idxOf('PT'));
   assert.deepStrictEqual([pt.STEPS[i].kind, pt.STEPS[i].ph, pt.STEPS[i].label, pt.STEPS[i].cd], ['manual', 'prep', '제안서 제출', 'PROPOSAL_SUBMIT']);
@@ -153,7 +153,7 @@ test('STEPS.tasks: 준비 과제 T1~T6가 단계에 한 번씩 걸린다', funct
 });
 
 test('colLabel: 칸 이름, 묶음 칸은 \'묶음 › 칸\'', function () {
-  assert.strictEqual(pt.colLabel('FIN_COMMITTEE'), '가결위(재무)');
+  assert.strictEqual(pt.colLabel('FIN_COMMITTEE'), '가격결정위원회(재무)');
   assert.strictEqual(pt.colLabel('CONTRACT_AUDIT'), '협약체결품의 › 감사·감시');
   assert.strictEqual(pt.colLabel('BOARD_AUDIT'), '이사회 개최 및 결과 › 감사·감시');
   assert.strictEqual(pt.colLabel('NOPE'), 'NOPE');
@@ -242,7 +242,7 @@ test('stepKey: 같은 구간 안에서만 움직인다', function () {
 });
 
 test('liveText: 기관, 구간 n단계 이름, 상태', function () {
-  assert.strictEqual(pt.liveText(view('IN_PROGRESS'), row(), MARKS, idxOf('FIN_COMMITTEE')), '청주시, 입찰 자료확인 5단계 가결위(재무), 진행');
+  assert.strictEqual(pt.liveText(view('IN_PROGRESS'), row(), MARKS, idxOf('FIN_COMMITTEE')), '청주시, 제안 사전준비 5단계 가격결정위원회(재무), 진행');
 });
 
 // ── 체크 권한 ──
@@ -260,13 +260,13 @@ test('markGate: 줄 없음·끝난 건·개설 전·담당 아님은 보기만',
 // ── 본문 ──
 test('bodyHtml 손 칸: 상태 단추 4개(눌린 값 하나)·마지막 체크·이전/다음', function () {
   const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('FIN_COMMITTEE')));
-  assert.ok(/입찰 자료확인 · 5 \/ 24/.test(h));
-  assert.ok(/<h3 class="ts-step-title" id="ts-step-title" tabindex="-1">가결위\(재무\)<\/h3>/.test(h));
+  assert.ok(/제안 사전준비 · 5 \/ 24/.test(h));
+  assert.ok(/<h3 class="ts-step-title" id="ts-step-title" tabindex="-1">가격결정위원회\(재무\)<\/h3>/.test(h));
   assert.strictEqual((h.match(/data-act="mark" data-col="FIN_COMMITTEE"/g) || []).length, 4);
   assert.strictEqual((h.match(/aria-pressed="true"/g) || []).length, 1);
   assert.ok(/data-mk="IN_PROGRESS" aria-pressed="true"/.test(h));
   assert.ok(/마지막 체크 2026-11-21 김영업/.test(h));
-  assert.ok(/data-act="ts-prev">이전: 수익성분석</.test(h) && /data-act="ts-next">다음: 출심위\(사업부\)</.test(h));
+  assert.ok(/data-act="ts-prev">이전: 수익성분석</.test(h) && /data-act="ts-next">다음: 출연금심의위원회\(사업부\)</.test(h));
 });
 
 test('bodyHtml 손 칸: 체크할 수 없으면 단추 없이 값과 이유만, 저장 중이면 단추가 잠긴다', function () {
@@ -285,7 +285,7 @@ test('bodyHtml 묶음: 하위 칸마다 한 줄씩 상태 단추', function () {
   assert.strictEqual((h.match(/<li data-col="CONTRACT_/g) || []).length, 4);
   assert.strictEqual((h.match(/data-act="mark"/g) || []).length, 16);
   assert.ok(/aria-label="협약체결품의 › 영업점안내 상태"/.test(h));
-  assert.ok(/협약 이행 준비 · 18 \/ 24/.test(h));
+  assert.ok(/협약 및 사후관리 · 18 \/ 24/.test(h));
 });
 
 test('bodyHtml 담당자 지정: 확정 단계면 [개설 신청], 승인 대기면 대기 안내, 뒤에는 담당 이름', function () {
@@ -341,7 +341,7 @@ test('caseHtml: 머리(제목·확정 취소)·알림 줄·구간 줄·단계 �
   assert.ok(/<h2 id="pp-case-title" class="tm-title" tabindex="-1">청주시<\/h2>/.test(h));
   assert.ok(/data-act="unconfirm-open"/.test(h));
   assert.ok(h.indexOf(prep.nextLine(view('CONFIRMED'))) >= 0);
-  assert.ok(/class="ts-phases"/.test(h) && /<nav class="ts-steps" id="ts-steps" aria-label="입찰 자료확인 단계">/.test(h));
+  assert.ok(/class="ts-phases"/.test(h) && /<nav class="ts-steps" id="ts-steps" aria-label="제안 사전준비 단계">/.test(h));
   assert.ok(/<section class="ts-body" id="ts-body" aria-labelledby="ts-step-title">/.test(h));
   assert.ok(/<div id="ts-live" class="sr-only" role="status"><\/div>/.test(h));
   assert.ok(!/wf-stepper/.test(h), '옛 단계 막대 없음');
@@ -412,11 +412,11 @@ test('CSS: 구간 줄·상태 단추 규칙이 있고, 없앤 경로 2 규칙은
   });
 });
 
-test('제안서 단계: 입찰 자료확인 구간에 안 끝난 단계가 있으면 알리기만 한다(막지 않음)', function () {
+test('제안서 단계: 제안 사전준비 구간에 안 끝난 단계가 있으면 알리기만 한다(막지 않음)', function () {
   const v = view('IN_PROGRESS', { viewer: { is_assignee: true, can_request_plan_approval: true } });
-  assert.deepStrictEqual(pt.openBefore(v, row(), MARKS), ['기관 정보 분석', '수익성분석', '가결위(재무)', '출심위(사업부)', '이사회 준비', '이사회 개최 및 결과']);   // 발표 대본(선택·준비중)은 이사회 준비를 막지 않는다
+  assert.deepStrictEqual(pt.openBefore(v, row(), MARKS), ['기관 정보 분석', '수익성분석', '가격결정위원회(재무)', '출연금심의위원회(사업부)', '이사회 준비', '이사회 개최 및 결과']);   // 발표 대본(선택·준비중)은 이사회 준비를 막지 않는다
   const h = pt.bodyHtml(model(v, idxOf('PROPOSAL')));
-  assert.ok(h.indexOf('입찰 자료확인 구간에 아직 안 끝난 단계가 있습니다: 기관 정보 분석, 수익성분석') >= 0);
+  assert.ok(h.indexOf('제안 사전준비 구간에 아직 안 끝난 단계가 있습니다: 기관 정보 분석, 수익성분석') >= 0);
   assert.ok(/data-act="plan-ask"/.test(h) && !/data-act="plan-ask"[^>]*disabled/.test(h), '단추는 그대로 켜져 있다');
   assert.deepStrictEqual(pt.openBefore(v, null, MARKS), [], '표의 줄이 없으면 알리지 않는다');
   assert.ok(pt.bodyHtml(model(v, idxOf('PROPOSAL'), { row: null })).indexOf('아직 안 끝난 단계') < 0);
@@ -430,11 +430,11 @@ test('제안서 단계: 입찰 자료확인 구간에 안 끝난 단계가 있�
 // ── 11-25 추가: [다음] 확인 팝업·입찰공고확인 본문·담당자 지정 ──
 test('[다음]: 채운 강조 단추, 확인 팝업 문구는 다음 단계 이름을 담는다', function () {
   const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('FIN_COMMITTEE')));
-  assert.ok(/<button type="button" class="ts-go" data-act="ts-next">다음: 출심위\(사업부\)</.test(h));
+  assert.ok(/<button type="button" class="ts-go" data-act="ts-next">다음: 출연금심의위원회\(사업부\)</.test(h));
   const a = pt.nextAskHtml(idxOf('FIN_COMMITTEE'));
   assert.ok(/role="dialog" aria-modal="true"/.test(a));
   // 사실대로: 넘어가는 것만으로는 지금 단계가 완료로 표시되지 않는다(F7). '저장'했다고 말하지 않는다.
-  assert.ok(a.indexOf('&#39;출심위(사업부)&#39; 단계로 넘어갑니다. 넘어가는 것만으로는 지금 단계가 완료로 표시되지 않습니다.') > 0 && a.indexOf('저장') < 0);
+  assert.ok(a.indexOf('&#39;출연금심의위원회(사업부)&#39; 단계로 넘어갑니다. 넘어가는 것만으로는 지금 단계가 완료로 표시되지 않습니다.') > 0 && a.indexOf('저장') < 0);
   assert.ok(/id="pp-nx-no">닫기</.test(a) && /id="pp-nx-ok" class="ts-go">넘어가기</.test(a));
   // 지금 단계가 이미 닫혔으면 첫 문장만
   const closedRow = row({ cells: { FIN_COMMITTEE: { mark_cd: 'DONE' } } });

@@ -13,7 +13,7 @@ const HTML = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 function col(cd, label, group, kind) { return { col_cd: cd, label: label, group: group || null, kind: kind || 'MANUAL', editable: (kind || 'MANUAL') === 'MANUAL' }; }
 const COLUMNS = [
   col('NOTICE_CHECK', '입찰공고확인', null, 'NOTICE'), col('INST_ANALYSIS', '기관 정보 분석', null, 'AUTO'), col('PROFIT', '수익성분석', null, 'AUTO'),
-  col('FIN_COMMITTEE', '가결위(재무)'), col('BIZ_COMMITTEE', '출심위(사업부)'),
+  col('FIN_COMMITTEE', '가격결정위원회(재무)'), col('BIZ_COMMITTEE', '출연금심의위원회(사업부)'),
   col('BOARD_SECRETARIAT', '사무국', 'BOARD'), col('BOARD_AUDIT', '감사·감시', 'BOARD'), col('BOARD_COMPLIANCE', '준법', 'BOARD'),
   col('PROPOSAL', '제안서', null, 'AUTO'), col('PRESENT_DOC', '발표자료'), col('SUBMIT_DOCS', '제출서류'),
   col('SUBMIT_MONITOR', '감시', 'SUBMIT_APPR'), col('SUBMIT_PROPERTY', '재산상이익', 'SUBMIT_APPR'),
@@ -150,13 +150,15 @@ test('glyphSvg: 체크·세모·가로줄 획 글리프, 시작 전은 빈 글�
 });
 
 // ── 열 머리 글자·표 정렬 규격(design 11-24 6-1~6-3) ──
-test('headLabel: esc 먼저, 괄호 앞에만 <wbr> — 머리 출력에 반영', function () {
-  assert.strictEqual(pb.headLabel('가결위(재무)'), '가결위<wbr>(재무)');
+test('headLabel: esc 먼저, 괄호 앞과 \'위원회\' 앞에 <wbr> — 머리 출력에 반영', function () {
+  assert.strictEqual(pb.headLabel('가격결정위원회(재무)'), '가격결정<wbr>위원회<wbr>(재무)');
+  assert.strictEqual(pb.headLabel('출연금심의위원회(사업부)'), '출연금심의<wbr>위원회<wbr>(사업부)');
+  assert.strictEqual(pb.headLabel('VIP(x)'), 'VIP<wbr>(x)');
   assert.strictEqual(pb.headLabel('A<b>(x)'), 'A&lt;b&gt;<wbr>(x)');
   assert.strictEqual(pb.headLabel('사무국'), '사무국');
   const head = pb.headHtml(COLUMNS, GROUPS);
-  assert.ok(head.indexOf('rowspan="2" scope="col">가결위<wbr>(재무)') > 0);
-  assert.ok(head.indexOf('출심위<wbr>(사업부)') > 0);
+  assert.ok(head.indexOf('rowspan="2" scope="col">가격결정<wbr>위원회<wbr>(재무)') > 0);
+  assert.ok(head.indexOf('출연금심의<wbr>위원회<wbr>(사업부)') > 0);
 });
 
 test('CSS: 칸 열 68px, 머리 세로 가운데, 칸 안 2줄 grid', function () {

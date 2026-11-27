@@ -381,8 +381,8 @@
       (hasPre ? '<span><i class="sw-pre"></i>' + esc(T.legendPre) + '</span>' : '');
   };
 
-  // 열 머리 글자: esc 먼저, 그다음 괄호 앞에 줄 바꿈 허용점(<wbr>)
-  function headLabel(s) { return esc(s).replace(/\(/g, '<wbr>('); }
+  // 열 머리 글자: esc 먼저, 그다음 '위원회' 앞(가격결정|위원회, 출연금심의|위원회)과 괄호 앞에 줄 바꿈 허용점(<wbr>) — 68px 칸에서 긴 이름이 글자 중간에서 끊기지 않게(사용자 11-27 새 이름)
+  function headLabel(s) { return esc(s).replace(/(.)위원회/g, '$1<wbr>위원회').replace(/\(/g, '<wbr>('); }
   pb.headLabel = headLabel;
 
   pb.headHtml = function (columns, groups) {

@@ -50,8 +50,8 @@ final class PrepBoardColumns {
                 new Col("NOTICE_CHECK", "입찰공고확인", null, NOTICE),
                 new Col("INST_ANALYSIS", "기관 정보 분석", null, AUTO),          // T1
                 new Col("PROFIT", "수익성분석", null, AUTO),                    // T3
-                new Col("FIN_COMMITTEE", "가결위(재무)", null, MANUAL),
-                new Col("BIZ_COMMITTEE", "출심위(사업부)", null, MANUAL),
+                new Col("FIN_COMMITTEE", "가격결정위원회(재무)", null, MANUAL),
+                new Col("BIZ_COMMITTEE", "출연금심의위원회(사업부)", null, MANUAL),
                 new Col("BOARD_SECRETARIAT", "사무국", "BOARD", MANUAL),
                 new Col("BOARD_AUDIT", "감사·감시", "BOARD", MANUAL),
                 new Col("BOARD_COMPLIANCE", "준법", "BOARD", MANUAL),

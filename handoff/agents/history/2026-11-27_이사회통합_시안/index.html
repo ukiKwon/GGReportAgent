@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>이사회 단계 통합과 위원회 단계 구성 (임시 시안)</title>
+<style>
+  :root { --bg:#e9ecf0; --panel:#ffffff; --panel2:#f6f7f9; --line:#c3c9d1; --line-strong:#6d7882; --fg:#1e2124; --muted:#464c53;
+          --red:#bd2c0f; --orange:#8a5c00; --blue:#0a65ab; --accent-color:#0b50d0; --r-lg:6px; --r:4px; --r-sm:2px; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:24px 32px 64px; background:var(--bg); color:var(--fg); font:14px/1.6 "KB Text","Malgun Gothic",sans-serif; word-break:keep-all; width:1280px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:36px 0 8px; padding-top:10px; border-top:2px solid var(--line-strong); }
+  h3 { font-size:14px; margin:0 0 6px; }
+  p { margin:4px 0; max-width:960px; }
+  .note { color:var(--muted); font-size:13px; }
+  .small { color:var(--muted); font-size:12px; }
+  .badge { display:inline-block; font-size:12px; font-weight:700; padding:0 8px; border:1px solid var(--line-strong); border-radius:var(--r-sm); color:var(--muted); background:var(--panel); margin-left:8px; vertical-align:middle; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:var(--r-lg); padding:16px; margin-top:8px; }
+  .row { display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+  .opt { flex:1 1 360px; border:1px solid var(--line); border-radius:var(--r); background:var(--panel); padding:12px 14px; }
+  .tag { display:inline-block; font-size:12px; font-weight:700; padding:0 6px; border:1px solid var(--line-strong); border-radius:var(--r-sm); color:var(--muted); margin-right:6px; }
+  .g { width:14px; height:14px; flex:none; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+  .c-done { color:var(--blue); } .c-prog { color:var(--orange); } .c-mut { color:var(--muted); }
+
+  /* 구간 줄 (.ts-phases) */
+  .phases { display:flex; gap:6px; margin:10px 0; }
+  .phase { flex:1 1 0; min-width:0; display:flex; align-items:center; gap:8px; min-height:40px; padding:6px 12px; font-size:13px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); }
+  .phase.cur { background:var(--panel); border-color:var(--accent-color); box-shadow:inset 0 -3px 0 var(--accent-color); font-weight:700; }
+  .pno { width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font:700 12px Consolas,monospace; color:var(--muted); border:1px solid var(--line); border-radius:var(--r); background:var(--panel); }
+  .phase.cur .pno { color:var(--accent-color); border-color:var(--accent-color); }
+  .phase .cnt { margin-left:auto; font:12px Consolas,monospace; color:var(--muted); font-weight:400; }
+
+  /* 단계 목록 + 본문 (.ts-detail) */
+  .detail { display:grid; grid-template-columns:232px minmax(0,1fr); gap:12px; align-items:start; }
+  .steps { padding:4px; background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); }
+  .steps ol { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px; }
+  .stp { display:grid; grid-template-columns:22px 14px minmax(0,1fr) auto; align-items:center; gap:6px; min-height:32px; padding:6px 8px; font-size:13px; border-radius:var(--r); }
+  .stp.cur { background:var(--panel); box-shadow:inset 3px 0 0 var(--accent-color); font-weight:700; }
+  .stp .no, .stp .ct { font:12px Consolas,monospace; color:var(--muted); font-weight:400; }
+  .stp .no { text-align:right; }
+  .stp .nm { line-height:1.3; }
+  .body { min-width:0; display:flex; flex-direction:column; gap:12px; padding:14px 16px; background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); }
+  .pos { font:12px Consolas,monospace; color:var(--muted); }
+  .ttl { margin:0; font-size:15px; font-weight:700; letter-spacing:-.01em; }
+  .cond { font-size:13px; margin:0; }
+  .sec { display:grid; gap:8px; padding-top:10px; border-top:1px solid var(--line); }
+  .sec-h { margin:0; font-size:13px; font-weight:600; }
+  .nav { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; color:var(--muted); }
+  .nav span.b { border:1px solid var(--line); border-radius:var(--r-sm); padding:2px 8px; color:var(--fg); background:var(--panel2); }
+  .form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:13px; }
+  .form label { color:var(--muted); font-size:12px; }
+  .inp { height:30px; min-width:120px; padding:4px 8px; border:1px solid var(--line-strong); border-radius:var(--r); background:#fff; font-size:13px; display:inline-flex; align-items:center; }
+  .btn { display:inline-flex; align-items:center; gap:4px; min-height:30px; padding:4px 12px; font-size:13px; border:1px solid var(--line-strong); border-radius:var(--r); background:#fff; }
+  .facts { display:flex; flex-wrap:wrap; gap:4px 16px; margin:0; font-size:13px; }
+  .facts dt { color:var(--muted); font-size:12px; display:inline; } .facts dd { display:inline; margin:0 0 0 4px; }
+  .pager { display:flex; justify-content:space-between; padding-top:12px; border-top:1px solid var(--line); }
+
+  /* 상태 줄 */
+  .stline { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:0; }
+  .stline .lab { font-size:12px; font-weight:700; color:var(--muted); }
+  .stline .after { font-size:12px; color:var(--muted); }
+  .marks { display:inline-flex; flex-wrap:wrap; gap:4px; align-items:center; }
+  .mk { display:inline-flex; align-items:center; gap:4px; min-height:30px; padding:4px 10px; font-size:13px; color:var(--fg); background:var(--panel); border:1px solid var(--line); border-radius:var(--r); }
+  .mk.on { border-color:var(--accent-color); box-shadow:inset 0 0 0 1px var(--accent-color); font-weight:700; }
+  .sc { list-style:none; margin:0; padding:0; display:inline-flex; gap:4px; }
+  .sc li { display:inline-flex; align-items:center; gap:4px; min-height:26px; padding:2px 10px; font-size:13px; color:var(--muted); border:1px dashed var(--line); border-radius:var(--r); background:transparent; }
+  .sc li.on { color:var(--fg); font-weight:700; border:1px solid var(--line-strong); background:var(--panel2); }
+  .sc li .e { width:14px; height:14px; flex:none; }
+  .chip { display:inline-flex; align-items:center; gap:4px; min-height:26px; padding:2px 10px; font-size:13px; font-weight:700; border:1px solid var(--line-strong); border-radius:var(--r); background:var(--panel2); }
+
+  /* 표 */
+  table.t { border-collapse:collapse; font-size:13px; background:var(--panel); }
+  .t th { padding:6px 10px; font-size:12px; font-weight:700; color:var(--muted); text-align:center; background:var(--panel2); border:1px solid var(--line); border-bottom:1px solid var(--line-strong); }
+  .t td { padding:6px 10px; text-align:center; border:1px solid var(--line); height:32px; }
+  .t td.fn { text-align:left; }
+  .t tr.empty td { color:var(--muted); }
+  table.dash th { vertical-align:middle; }
+  .dash td { height:36px; }
+  .opt .t { margin:8px 0; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .two > div { border:1px dashed var(--line-strong); border-radius:var(--r); padding:10px 12px; background:var(--panel2); }
+  .two .cap { font-size:12px; font-weight:700; color:var(--muted); margin:0 0 6px; }
+  ul.plain { margin:6px 0 0; padding-left:18px; font-size:13px; }
+  .warn { color:var(--orange); font-weight:700; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="gd" viewBox="0 0 14 14"><path d="M2.5 7.5l3 3 6-7"/></symbol>
+    <symbol id="gp" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5"/><path d="M7 2v10" /><path d="M7 2a5 5 0 0 1 0 10z" fill="currentColor"/></symbol>
+    <symbol id="gn" viewBox="0 0 14 14"><path d="M3 7h8"/></symbol>
+    <symbol id="gs" viewBox="0 0 14 14"><circle cx="7" cy="7" r="4.5"/></symbol>
+  </defs>
+</svg>
+
+<h1>이사회 단계 통합과 위원회 단계 구성 <span class="badge">임시 시안, 숫자·기관은 예시</span></h1>
+<p class="note">2026-11-27. 서버를 부르지 않는 그림입니다. 기관은 가상('가나시청'), 담당자는 '홍길동'입니다. 색과 모서리는 실제 화면 값을 옮겼습니다. 폭 1280px 기준.</p>
+
+<h2>0. 무엇이 바뀌는지</h2>
+<div class="card">
+  <p><b>① 7·8단계를 '이사회 자료 및 개최' 하나로</b> — 지금은 이사회 날짜를 7단계에서 적고 결과를 등록한 뒤에는 8단계에서 고쳐야 합니다. 합치면 날짜·결과를 한 구획에서 적고 고칩니다. 24단계가 <b>23단계</b>가 됩니다.</p>
+  <p><b>② 가격결정위원회·출연금심의위원회 단계도 이사회와 같은 구성</b> — 자료 등록, 일정·결과, 결과 문서 보관 구획이 생깁니다(어디까지 같게 할지는 5번에서 고릅니다).</p>
+  <p><b>③ 단계 제목 아래에 '상태' 줄</b> — 완료 / 진행 / 대상 아님 / 시작 전. 담당이 고르는 단계는 누르는 단추, 자동으로 정해지는 단계는 누를 수 없는 눈금입니다.</p>
+</div>
+
+<h2>1. 구간 줄과 왼쪽 단계 목록 (새 이름)</h2>
+<div class="card">
+  <div class="phases">
+    <div class="phase cur"><span class="pno">1</span>제안 사전준비<span class="cnt">3/7</span></div>
+    <div class="phase"><span class="pno">2</span>제안서 작성<span class="cnt">0/6</span></div>
+    <div class="phase"><span class="pno">3</span>협약 및 사후관리<span class="cnt">0/10</span></div>
+  </div>
+  <div class="detail">
+    <nav class="steps" aria-label="제안 사전준비 단계">
+      <ol>
+        <li class="stp"><span class="no">1</span><svg class="g c-done"><use href="#gd"/></svg><span class="nm">담당자 지정</span><span class="ct"></span></li>
+        <li class="stp"><span class="no">2</span><svg class="g c-done"><use href="#gd"/></svg><span class="nm">입찰공고확인</span><span class="ct"></span></li>
+        <li class="stp"><span class="no">3</span><svg class="g c-done"><use href="#gd"/></svg><span class="nm">기관 정보 분석</span><span class="ct"></span></li>
+        <li class="stp"><span class="no">4</span><svg class="g c-prog"><use href="#gp"/></svg><span class="nm">수익성분석</span><span class="ct"></span></li>
+        <li class="stp"><span class="no">5</span><svg class="g c-mut"><use href="#gs"/></svg><span class="nm">가격결정위원회</span><span class="ct"></span></li>
+        <li class="stp"><span class="no">6</span><svg class="g c-mut"><use href="#gs"/></svg><span class="nm">출연금심의위원회</span><span class="ct"></span></li>
+        <li class="stp cur" aria-current="step"><span class="no">7</span><svg class="g c-prog"><use href="#gp"/></svg><span class="nm">이사회 자료 및 개최</span><span class="ct">완료 1/4</span></li>
+      </ol>
+    </nav>
+    <div>
+      <p class="note">왼쪽 칸 폭은 이름 부분이 약 110px이라 '이사회 자료 및 개최'는 두 줄('이사회 자료 및' / '개최')로 꺾입니다. 단어 중간에서는 끊기지 않습니다. 오른쪽 숫자 '완료 1/4'는 자료 확정 1칸 + 부서별 확인 3칸을 센 값입니다.</p>
+      <p class="small">숫자는 예시입니다. 위치 줄은 '제안 사전준비 · 7 / 23'로 바뀝니다.</p>
+    </div>
+  </div>
+</div>
+
+<h2>2. 합친 7단계 '이사회 자료 및 개최' 전체 화면 (진행 상태 예)</h2>
+<div class="card">
+  <div class="detail">
+    <nav class="steps" aria-label="단계 목록(요약)">
+      <ol>
+        <li class="stp"><span class="no">5</span><svg class="g c-mut"><use href="#gs"/></svg><span class="nm">가격결정위원회</span><span class="ct"></span></li>
+        <li class="stp"><span class="no">6</span><svg class="g c-mut"><use href="#gs"/></svg><span class="nm">출연금심의위원회</span><span class="ct"></span></li>
+        <li class="stp cur"><span class="no">7</span><svg class="g c-prog"><use href="#gp"/></svg><span class="nm">이사회 자료 및 개최</span><span class="ct">완료 1/4</span></li>
+      </ol>
+    </nav>
+    <div class="body">
+      <div class="pos">제안 사전준비 · 7 / 23</div>
+      <h3 class="ttl">이사회 자료 및 개최</h3>
+      <div class="stline"><span class="lab">상태</span>
+        <ul class="sc" aria-hidden="true">
+          <li><svg class="g"><use href="#gd"/></svg>완료</li>
+          <li class="on c-prog"><svg class="g c-prog"><use href="#gp"/></svg><span style="color:var(--fg)">진행</span></li>
+          <li><svg class="g"><use href="#gn"/></svg>대상 아님</li>
+          <li><span class="e"></span>시작 전</li>
+        </ul>
+        <span class="after">자동으로 바뀝니다(여기서 고르지 않음)</span></div>
+      <p class="cond">이사회 자료가 확정되고, 아래 '부서별 확인' 3칸(사무국, 감사·감시, 준법)을 모두 '완료'나 '대상 아님'으로 고르면 완료로 표시됩니다. 일정·추가 자료·발표 대본·결과 등록·결과 문서는 완료 표시와 상관없습니다.</p>
+      <div class="nav"><span>이 단계에서 하는 일:</span><span class="b">이사회 자료 준비</span><span class="b">추가 자료</span><span class="b">발표 대본</span><span class="b">일정·결과</span><span class="b">결과 문서</span><span class="b">부서별 확인</span><span>(바로가기 줄 — 7번에서 넣을지 고릅니다)</span></div>
+
+      <section class="sec"><h4 class="sec-h">① 이사회 자료 준비</h4>
+        <p class="note">이사회 자료의 상태·버전·마지막 저장과 자료 표는 지금 화면 문구 그대로 들어갑니다(이 시안에서는 생략).</p>
+        <div class="acts"><span class="btn">이사회 자료 열기</span></div></section>
+
+      <section class="sec"><h4 class="sec-h">② 이사회 추가 자료 등록</h4>
+        <p class="note">이사회에 함께 올리는 설명 자료·별첨을 올려 둡니다. PDF·HWPX·DOCX·XLSX.</p>
+        <table class="t"><thead><tr><th>파일명</th><th>올린 사람</th><th>올린 날</th><th>개인정보 검사</th><th>동작</th></tr></thead>
+          <tbody><tr class="empty"><td class="fn"></td><td></td><td></td><td></td><td></td></tr></tbody></table>
+        <p class="small">아직 올린 추가 자료가 없습니다.</p></section>
+
+      <section class="sec"><h4 class="sec-h">③ 이사회 발표 대본</h4>
+        <p class="note">지금 화면 문구 그대로(Word 만들기, AI 초안). 이 시안에서는 생략.</p>
+        <div class="acts"><span class="btn">대본 Word 만들기…</span></div></section>
+
+      <section class="sec"><h4 class="sec-h">④ 이사회 일정·결과 <span class="small">(옛 7단계 일정 등록 + 옛 8단계 결과 등록을 한 구획으로)</span></h4>
+        <p class="note">자료 확정 전과 확정 후 두 모습입니다. 실제로는 한 시점에 하나만 보입니다.</p>
+        <div class="two">
+          <div><p class="cap">자료 확정 전</p>
+            <dl class="facts"><div><dt>이사회 날짜(예정)</dt><dd>2026-12-10</dd></div></dl>
+            <div class="form" style="margin-top:6px"><label>이사회 날짜</label><span class="inp">2026-12-10</span><span class="btn">일정 바꾸기</span></div>
+            <p class="small">의결 결과는 이사회 자료가 확정된 뒤에 등록합니다.</p>
+            <p class="small">(날짜가 없으면 '아직 등록한 이사회 일정이 없습니다.', 담당이 아니면 '일정·결과는 이 기관의 담당 영업이 등록합니다.')</p></div>
+          <div><p class="cap">자료 확정 후</p>
+            <dl class="facts"><div><dt>이사회 날짜</dt><dd>2026-12-10</dd></div><div><dt>의결 결과</dt><dd>의결 예정</dd></div></dl>
+            <div class="form" style="margin-top:6px"><label>의결 결과</label><span class="inp">의결 예정</span><label>개최일</label><span class="inp">2026-12-10</span><label>안건 번호</label><span class="inp">제2026-12호</span><span class="btn">결과 등록</span></div>
+            <p class="small">의결 결과 선택지: 의결 예정 / 가결 / 부결. 안건 번호는 가결·부결을 등록할 때만 적습니다. 비워 두면 지웁니다.</p></div>
+        </div>
+      </section>
+
+      <section class="sec"><h4 class="sec-h">⑤ 이사회 결과 문서 보관</h4>
+        <p class="note">이사회 의결서·결과 통보 같은 결과 문서를 올려 보관합니다. PDF·HWPX·DOCX·XLSX.</p>
+        <table class="t"><thead><tr><th>파일명</th><th>올린 사람</th><th>올린 날</th><th>개인정보 검사</th><th>동작</th></tr></thead>
+          <tbody><tr class="empty"><td class="fn"></td><td></td><td></td><td></td><td></td></tr></tbody></table>
+        <p class="small">아직 올린 결과 문서가 없습니다.</p>
+        <dl class="facts"><div><dt>개최일</dt><dd>2026-12-10</dd></div><div><dt>안건 번호</dt><dd>제2026-12호</dd></div></dl>
+        <p class="small">개최일이 없을 때: '개최일 등록 전' · '개최일은 위 '이사회 일정·결과'에서 의결 결과와 함께 적습니다.'</p></section>
+
+      <section class="sec"><h4 class="sec-h">⑥ 부서별 확인</h4>
+        <table class="t"><thead><tr><th>부서</th><th>상태</th><th>마지막 체크</th></tr></thead>
+          <tbody>
+            <tr><td>사무국</td><td><span class="stline"><span class="marks"><span class="mk on"><svg class="g c-done"><use href="#gd"/></svg>완료</span><span class="mk">진행</span><span class="mk">대상 아님</span><span class="mk">시작 전</span></span></span></td><td>2026-11-27 홍길동</td></tr>
+            <tr><td>감사·감시</td><td><span class="stline"><span class="marks"><span class="mk">완료</span><span class="mk on"><svg class="g c-prog"><use href="#gp"/></svg>진행</span><span class="mk">대상 아님</span><span class="mk">시작 전</span></span></span></td><td>2026-11-27 홍길동</td></tr>
+            <tr><td>준법</td><td><span class="stline"><span class="marks"><span class="mk">완료</span><span class="mk">진행</span><span class="mk">대상 아님</span><span class="mk on">시작 전</span></span></span></td><td>아직 체크하지 않았습니다.</td></tr>
+          </tbody></table></section>
+
+      <div class="pager"><span class="btn">이전</span><span class="btn" style="background:var(--accent-color);color:#fff;border-color:var(--accent-color);font-weight:700">다음</span></div>
+    </div>
+  </div>
+</div>
+
+<h2>3. 상태 줄 모양 고르기</h2>
+<div class="row">
+  <div class="opt">
+    <h3><span class="tag">가</span>4칸 눈금 (누를 수 없음)</h3>
+    <p class="small">네 값을 한눈에 보고 지금 값만 굵게 표시합니다. 점선 = 꺼짐, 실선+굵게+글리프 = 켜짐. 파랑 테두리를 쓰지 않고 마우스를 올려도 바뀌지 않습니다.</p>
+    <p class="small" style="margin-top:8px">상태 4가지</p>
+    <div style="display:grid;gap:6px;margin-top:4px">
+      <div class="stline"><span class="lab">상태</span><ul class="sc"><li class="on c-done"><svg class="g c-done"><use href="#gd"/></svg><span style="color:var(--fg)">완료</span></li><li><svg class="g"><use href="#gp"/></svg>진행</li><li><svg class="g"><use href="#gn"/></svg>대상 아님</li><li><span class="e"></span>시작 전</li></ul></div>
+      <div class="stline"><span class="lab">상태</span><ul class="sc"><li><svg class="g"><use href="#gd"/></svg>완료</li><li class="on"><svg class="g c-prog"><use href="#gp"/></svg>진행</li><li><svg class="g"><use href="#gn"/></svg>대상 아님</li><li><span class="e"></span>시작 전</li></ul></div>
+      <div class="stline"><span class="lab">상태</span><ul class="sc"><li><svg class="g"><use href="#gd"/></svg>완료</li><li><svg class="g"><use href="#gp"/></svg>진행</li><li class="on"><svg class="g c-mut"><use href="#gn"/></svg>대상 아님</li><li><span class="e"></span>시작 전</li></ul></div>
+      <div class="stline"><span class="lab">상태</span><ul class="sc"><li><svg class="g"><use href="#gd"/></svg>완료</li><li><svg class="g"><use href="#gp"/></svg>진행</li><li><svg class="g"><use href="#gn"/></svg>대상 아님</li><li class="on"><span class="e"></span>시작 전</li></ul></div>
+    </div>
+    <p class="small" style="margin-top:8px">권장: 가 (완료·진행·대상 아님·시작 전 넷을 함께 보고 싶다는 요청에 맞음)</p>
+  </div>
+  <div class="opt">
+    <h3><span class="tag">나</span>칩 하나</h3>
+    <p class="small">지금 값 하나만 보이고 나머지 세 값은 보이지 않습니다. 자리를 덜 차지합니다.</p>
+    <p class="small" style="margin-top:8px">상태 4가지</p>
+    <div style="display:grid;gap:6px;margin-top:4px">
+      <div class="stline"><span class="lab">상태</span><span class="chip c-done"><svg class="g c-done"><use href="#gd"/></svg><span style="color:var(--fg)">완료</span></span></div>
+      <div class="stline"><span class="lab">상태</span><span class="chip"><svg class="g c-prog"><use href="#gp"/></svg>진행</span></div>
+      <div class="stline"><span class="lab">상태</span><span class="chip"><svg class="g c-mut"><use href="#gn"/></svg>대상 아님</span></div>
+      <div class="stline"><span class="lab">상태</span><span class="chip"><span style="width:14px;height:14px;display:inline-block"></span>시작 전</span></div>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <h3>손 단계의 '누르는 단추'와 자동 단계의 '눈금' — 같은 자리, 다른 모양</h3>
+  <div style="display:grid;gap:10px">
+    <div class="stline"><span class="lab">상태</span><span class="marks"><span class="mk"><svg class="g"><use href="#gd"/></svg>완료</span><span class="mk on"><svg class="g c-prog"><use href="#gp"/></svg>진행</span><span class="mk">대상 아님</span><span class="mk">시작 전</span></span><span class="after">마지막 체크 2026-11-27 홍길동</span> <span class="tag">손 단계</span><span class="small">흰 바탕·실선, 눌린 칸은 파랑 테두리, 누를 수 있음(예 5·6단계)</span></div>
+    <div class="stline"><span class="lab">상태</span><ul class="sc"><li><svg class="g"><use href="#gd"/></svg>완료</li><li class="on"><svg class="g c-prog"><use href="#gp"/></svg>진행</li><li><svg class="g"><use href="#gn"/></svg>대상 아님</li><li><span class="e"></span>시작 전</li></ul><span class="after">자동으로 바뀝니다(여기서 고르지 않음)</span> <span class="tag">자동 단계</span><span class="small">점선·파랑 없음, 누를 수 없음(예 7단계)</span></div>
+  </div>
+</div>
+
+<h2>4. 5단계 '가격결정위원회' 화면 (가안)</h2>
+<div class="card">
+  <div class="body" style="max-width:960px">
+    <div class="pos">제안 사전준비 · 5 / 23</div>
+    <h3 class="ttl">가격결정위원회</h3>
+    <div class="stline"><span class="lab">상태</span><span class="marks"><span class="mk"><svg class="g"><use href="#gd"/></svg>완료</span><span class="mk on"><svg class="g c-prog"><use href="#gp"/></svg>진행</span><span class="mk">대상 아님</span><span class="mk">시작 전</span></span><span class="after">마지막 체크 2026-11-27 홍길동</span></div>
+    <p class="cond">담당 영업이 위 상태에서 '완료'를 고르면 완료로 표시됩니다(해당 없으면 '대상 아님'). 고르는 즉시 저장되고 제안 준비 현황 표에도 보입니다.</p>
+
+    <section class="sec"><h4 class="sec-h">가격결정위원회 자료 등록</h4>
+      <p class="note">가격결정위원회에 올린 자료를 올려 둡니다. PDF·HWPX·DOCX·XLSX.</p>
+      <table class="t"><thead><tr><th>파일명</th><th>올린 사람</th><th>올린 날</th><th>개인정보 검사</th><th>동작</th></tr></thead>
+        <tbody><tr class="empty"><td class="fn"></td><td></td><td></td><td></td><td></td></tr></tbody></table>
+      <p class="small">아직 올린 자료가 없습니다.</p></section>
+
+    <section class="sec"><h4 class="sec-h">가격결정위원회 일정·결과</h4>
+      <div class="form"><label>개최일</label><span class="inp">2026-12-03</span><label>결과</label><span class="inp">〔결과 이름 확인 필요〕</span><label>안건 번호</label><span class="inp">(번호가 없는 위원회면 칸 없음)</span><span class="btn">결과 등록</span></div>
+      <p class="small">결과를 등록해도 이 단계의 완료는 위 상태에서 고릅니다.</p></section>
+
+    <section class="sec"><h4 class="sec-h">가격결정위원회 결과 문서 보관</h4>
+      <p class="note">가격결정위원회 의결서·결과 통보 같은 결과 문서를 올려 보관합니다. PDF·HWPX·DOCX·XLSX.</p>
+      <table class="t"><thead><tr><th>파일명</th><th>올린 사람</th><th>올린 날</th><th>개인정보 검사</th><th>동작</th></tr></thead>
+        <tbody><tr class="empty"><td class="fn"></td><td></td><td></td><td></td><td></td></tr></tbody></table>
+      <p class="small">아직 올린 결과 문서가 없습니다.</p>
+      <dl class="facts"><div><dt>개최일</dt><dd>2026-12-03</dd></div><div><dt>안건 번호</dt><dd>〔있는 경우만〕</dd></div></dl></section>
+  </div>
+  <p class="note" style="margin-top:8px"><b>6단계 '출연금심의위원회'</b>는 위 화면과 이름만 다릅니다(구획 제목·안내 문구의 '가격결정위원회'가 '출연금심의위원회'로 바뀜).</p>
+</div>
+
+<h2>5. 위원회 단계를 어디까지 이사회처럼 할지</h2>
+<div class="row">
+  <div class="opt">
+    <h3><span class="tag">가</span>모양만 같게 (권장)</h3>
+    <p class="note">상태 줄과 3구획(자료 등록 → 일정·결과 → 결과 문서 보관)을 둡니다. 완료는 지금처럼 담당 영업이 위 상태 단추로 고릅니다.</p>
+    <ul class="plain"><li>서버: 첨부 종류 4개와 개최일·결과 저장 자리만 더함</li><li>결과를 등록해도 완료는 자동으로 되지 않음(안내 한 줄 표시)</li></ul>
+  </div>
+  <div class="opt">
+    <h3><span class="tag">나</span>가 + 결과 등록하면 자동 완료</h3>
+    <p class="note">결과(가결 등)를 등록하면 상태가 자동으로 '완료'가 됩니다.</p>
+    <ul class="plain"><li>결과 등록 뒤 단추를 또 누르는 이중 입력이 사라짐</li><li>손 칸이 자동 칸으로 바뀜 — 제안 준비 현황 표의 손 체크와 어긋나는 처리 규칙이 필요</li><li>'결과를 등록해도…' 안내 줄이 사라짐</li></ul>
+  </div>
+  <div class="opt">
+    <h3><span class="tag">다</span>이사회와 완전히 같게</h3>
+    <p class="note">위원회 자료를 시스템 양식에서 작성하고 팀장 결재로 확정하며 발표 대본까지 만듭니다.</p>
+    <ul class="plain"><li>위원회 자료 양식 견본이 있어야 함</li><li>견본이 없으면 근거 없는 화면이 됨</li></ul>
+  </div>
+</div>
+
+<h2>6. 대시보드 표 머리 — 긴 이름이 꺾이는 모습</h2>
+<div class="card">
+  <p class="note">표의 칸 이름은 바뀌지 않지만, '가격결정위원회'·'출연금심의위원회'는 머리 칸이 길어집니다(7~8자). 아래는 열 폭 약 80px 가정입니다.</p>
+  <table class="t dash"><thead><tr>
+    <th style="width:80px">수익성분석</th><th style="width:80px">가격결정위원회</th><th style="width:80px">출연금심의위원회</th>
+    <th colspan="3">이사회</th><th style="width:80px">제안서</th></tr>
+    <tr><th>&nbsp;</th><th>&nbsp;</th><th>&nbsp;</th><th style="width:70px">사무국</th><th style="width:70px">감사·감시</th><th style="width:70px">준법</th><th>&nbsp;</th></tr></thead>
+    <tbody><tr><td><svg class="g c-done"><use href="#gd"/></svg></td><td><svg class="g c-prog"><use href="#gp"/></svg></td><td><svg class="g c-mut"><use href="#gs"/></svg></td><td><svg class="g c-done"><use href="#gd"/></svg></td><td><svg class="g c-prog"><use href="#gp"/></svg></td><td><svg class="g c-mut"><use href="#gs"/></svg></td><td><svg class="g c-mut"><use href="#gs"/></svg></td></tr></tbody></table>
+  <p class="small" style="margin-top:6px">원래 표 머리 순서: … 수익성분석 | 가격결정위원회 | 출연금심의위원회 | 이사회(사무국 · 감사·감시 · 준법) | 제안서 … 이사회 쪽 칸 3개는 그대로입니다.</p>
+</div>
+
+<h2>7. 골라 주실 것</h2>
+<div class="card">
+  <table class="t" style="width:100%">
+    <thead><tr><th style="width:40px">번호</th><th style="width:300px">고를 것</th><th>선택지</th><th style="width:220px">디자인 권장</th></tr></thead>
+    <tbody>
+      <tr><td>①</td><td class="fn">상태 줄 모양</td><td class="fn">가: 4칸 눈금 / 나: 칩 하나 (3번)</td><td>가</td></tr>
+      <tr><td>②</td><td class="fn">상태 줄을 둘 단계</td><td class="fn">모든 단계 / 5·6·7단계에만 (다른 단계와 머리 모양이 달라짐)</td><td>모든 단계</td></tr>
+      <tr><td>③</td><td class="fn">구획 바로가기 줄</td><td class="fn">넣기 / 넣지 않기 (2번 화면 제목 아래 줄)</td><td>(선택)</td></tr>
+      <tr><td>④</td><td class="fn">위원회 단계 구성</td><td class="fn">가: 모양만 같게 / 나: 결과 등록 시 자동 완료 / 다: 이사회와 완전히 같게 (5번)</td><td>가</td></tr>
+      <tr><td>⑤</td><td class="fn">두 위원회의 결과</td><td class="fn">결과가 무엇으로 나오는지(가결·부결 등)와 안건 번호가 있는지</td><td>업무 확인 필요</td></tr>
+      <tr><td>⑥</td><td class="fn">이사회를 열지 않는 입찰 건</td><td class="fn">없음: '대상 아님'은 표시만 / 있음: 담당이 이사회 단계 머리에서 '대상 아님'을 한 번에 고름</td><td>업무 확인 필요</td></tr>
+    </tbody>
+  </table>
+</div>
+</body>
+</html>
