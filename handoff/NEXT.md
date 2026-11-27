@@ -616,6 +616,7 @@
 
 ### 127. 기능 소개 랜딩 페이지(로그인 전 첫 화면) — 시안 승인·앱 적용·실화면 통과, 남은 것: 캡처 4자리·흠 (사용자 11-26) [담당: c3 — frontend-dev → design-reviewer → security(캡처) / 사용자(AI 장면 교체)]
 - **현재**: `frontend/js/landing.js`·`frontend/test/landing.test.js`와 `index.html`의 #ld-style·#landing-view·ld-open. AI가 제안서를 대신 쓰는 장면은 넣지 않음(사용자). 상세 AI 기능이 생기면 해당 장면만 교체(사용자).
+- **11-27 사용자(f4 세션에서 받음)**: 규칙 방식으로 이미 동작하는 자동화도 AI 범주로 랜딩에 보여도 됨("AI의 범주는 넓으니깐") — ③ 다른 기관 언급 점검, 수익성 분석표 → 이사회 자료 칸 채움 등. planner 권장: 구역 이름 'AI·자동화', 장면별 상태 칩(지금 사용 중/일부 사용 중/준비 중), 수익성→이사회 작은 장면 추가, 업무 흐름 캡션의 'AI 기능이 아닙니다' 문장 삭제. 다음 한 걸음: HTML 시안(handoff/agents/history/2026-11-27_랜딩_상태칩_시안/) → 사용자 선택 → 랜딩 담당 세션 적용 → docs/화면규칙/랜딩 페이지.md 갱신. 근거 handoff/agents/planner/2026-11-27_1122_aa656326.md.
 - **11-27 적용(1d)**: 업무 흐름 5묶음의 캡처 자리표시를 움직이는 예시 화면(가상 자료, data-scene map·board·prop·prep·perf)으로 바꿈 + 흠 4건(작은 장면 높이·진행 줄 갱신·공고문 장면 빈 쪽·'카드' 문구)·히어로 타이머 처리, design_history 141. 시험 통과·security 통과(하 2건 유지)·main 실화면 캡처 확인까지. **qa-verifier·design-reviewer 실화면 검토는 아직 안 함**(사용자 '10분 안 커밋').
 - **다음 한 걸음**: ① qa-verifier(코드)·design-reviewer(실화면 1280×800·1440×900 — 커서 끝 ±4px, board 값 이동 출발점, 제안서 진행 현황 거른 뒤 빈 아래쪽) ② DESIGN.md '소개 표면' 절 붙이기(문안은 규격 `handoff/agents/design-reviewer/2026-11-27_0116_a128582f.md` 7절 끝 — 11-27엔 다른 세션이 DESIGN.md 수정 중이라 미룸) ③ qa P2(header·#shell inert를 랜딩이 직접 — 랜딩 덩어리 밖, frontend-dev 패치안 따로) ④ security 하 2건('국민은행'→'당행', '이관결재'·'(3팀)' 줄이기)은 외부 배포 전 다시 판단. 세션 기록 handoff/sessions/2026-11-27_1d_랜딩.md.
 - **자세히**: handoff/sessions/2026-11-26_1112_c3.md, 시안 handoff/agents/history/2026-11-26_랜딩페이지_시안/index.html, 규격 handoff/agents/design-reviewer/2026-11-26_1126_a0181b16.md, 적용안 handoff/agents/frontend-dev/2026-11-26_1313_a995dfc2.md, 보안 handoff/agents/security/2026-11-26_1310_a3d5b6e3.md, 문구 handoff/agents/planner/2026-11-26_1116_ace7e0e6.md.
@@ -657,3 +658,8 @@
 - **현재**: 미착수. 사용자 말: 다른 은행 협약이 1년 안에 끝나는 기관은 ⓐ '목표기관 추가'에 추천사항으로 두거나 ⓑ '입찰 공고현황'에서 1년 안 협약 만료 예상 기관을 **은행별로 통계** 내고 **숫자를 누르면 해당 기관들이 보이며 xlsx로** 볼 수 있으면 좋겠다. 화면 제약상 **팝업 형식**.
 - **다음 한 걸음**: planner가 범위 정리(ⓐⓑ 둘 다인지·'1년' 기준일·협약 종료일 자료 출처·xlsx 열) → 화면 모양이 바뀌므로 HTML 시안 먼저(사용자 규칙). 시작화면 '오늘 할 일'의 해당 줄 다음 할 일 문구는 이 기능 이름에 맞춘다.
 - **자세히**: handoff/agents/history/2026-11-26_AI기능_개발.md(11-27 사용자 답), handoff/agents/planner/2026-11-27_0907_a12bec5a.md(문구표·Q1).
+
+### 135. 화면별 진입 주소 구분 — 랜딩·로그인·메뉴 화면마다 주소(`#/…`) (사용자 11-27 09:40) [담당: ed — planner·security → frontend-dev → frontend-dev-write → qa]
+- **현재**: 조사 끝(주소 전환 코드 없음, 모든 화면이 `/`). 사용자 답 3건: 우선 `#` 방식·운영 배포 때 경로 방식 재결정 / 메뉴 화면마다(고른 기관·건은 범위 밖) / 도메인 설정은 범위 밖. planner(화면-주소 표·동작 규칙)·security(설계 검토) 진행 중. 작업 폴더 `c:/github/_gg_route`.
+- **다음 한 걸음**: 두 보고를 받아 frontend-dev 패치안(새 파일 frontend/js/router.js + app.js·landing.js·index.html 연결 몇 줄, render.js 제외) → _gg_route에서 적용·시험 → qa → 임시 인덱스 커밋 뒤 해시를 커밋 전담 세션에. 1d(127 landing.js)·b3(126 첫 화면 이름)에 고칠 줄 미리 알림.
+- **자세히**: handoff/sessions/2026-11-27_0940_ed.md(답·방식·근거 목록), handoff/agents/frontend-dev/2026-11-27_0947_a1f991e2.md(현황·선택지 비교), 관련 127·126·9(운영 때 경로 방식 재결정).
