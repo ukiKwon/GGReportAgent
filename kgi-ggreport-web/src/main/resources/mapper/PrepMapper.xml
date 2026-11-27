@@ -58,6 +58,14 @@
      ORDER BY UPDATED_AT DESC
   </select>
 
+  <!-- 11-27 — 진행 중 제안 준비 건이 있으면 목표 제외·관심 이동을 막는다(PREP_ACTIVE). 상태 목록은 countActiveByInstitution 과 같아야 한다(바꾸면 셋 다). -->
+  <select id="selectActiveCaseIdsByInstitution" resultType="string" flushCache="true">
+    SELECT BID_CASE_ID FROM BID_PREP
+     WHERE INSTITUTION_ID = #{institutionId}
+       AND STATE_CD IN ('CONFIRMED', 'OPEN_PENDING', 'IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING')
+     ORDER BY BID_CASE_ID
+  </select>
+
   <!-- NEXT 114(사용자 11-25 0시) 제안 확정 조건 — 셋 다 lockInstitution 뒤에 부른다. flushCache: 같은 세션의 앞 결과를 다시 쓰지 않는다. -->
   <!-- 현황판 목표 줄(BidTargetMapper.selectActiveByYear)과 같은 판정 — 자동 이월(CARRY)·옮기기(MOVE) 포함. -->
   <select id="countGoalForYear" resultType="int" flushCache="true">

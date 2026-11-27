@@ -74,7 +74,7 @@ test('[목표 기관에서 제외] 창: 라디오 둘(제외 기본·관심으�
   const off = tc.bulkDialogHtml(Object.assign({}, base, { won: false, wn: 0, wwhy: '결재를 올릴 수 없습니다.' }));
   assert.ok(off.indexOf('value="towatch" disabled>') > 0 && off.indexOf('<label class="tc-opt off">') > 0 && off.indexOf('<small>결재를 올릴 수 없습니다.</small>') > 0);
   const dd = tc.bulkDialogHtml(Object.assign({}, base, { mode: 'DIRECT', role: '영업부장' }));
-  assert.ok(dd.indexOf('어느 쪽이든 결재 없이 바로 반영됩니다.') > 0 && dd.indexOf('class="dlg-danger">빼기</button>') > 0);
+  assert.ok(dd.indexOf('어느 쪽이든 결재 없이 바로 반영됩니다.') > 0 && dd.indexOf('class="dlg-danger">제외</button>') > 0);
 });
 
 test('라디오 두 갈래가 각각 CANCEL / TO_WATCH 본문으로 나간다(결재 사유 포함), 배선', function () {
@@ -82,7 +82,7 @@ test('라디오 두 갈래가 각각 CANCEL / TO_WATCH 본문으로 나간다(�
   const c = tc.newItem(1, A); tc.setOp(c, 'CANCEL'); c.cancelCd = 'A';
   const rc = tc.deleteReason([{ code: 'A', name: '예산 없음' }], 'A', '');
   assert.strictEqual(tc.validate([c], { mode: 'APPROVAL', reason: rc }).ok, true);
-  assert.deepStrictEqual(tc.buildBody([c], { mode: 'APPROVAL', reason: rc }), { reason: '목표에서 빼기 — 예산 없음', items: [{ institution_id: 'A', op_cd: 'CANCEL', target_no: 1, base_rev_no: 2, cancel_reason_cd: 'A', cancel_reason_etc: null }] });
+  assert.deepStrictEqual(tc.buildBody([c], { mode: 'APPROVAL', reason: rc }), { reason: '목표 기관에서 제외 — 예산 없음', items: [{ institution_id: 'A', op_cd: 'CANCEL', target_no: 1, base_rev_no: 2, cancel_reason_cd: 'A', cancel_reason_etc: null }] });
   const t = tc.newItem(1, A); tc.setOp(t, 'TO_WATCH');
   assert.strictEqual(tc.validate([t], { mode: 'APPROVAL', reason: tc.TOWATCH_REASON }).ok, true);
   assert.deepStrictEqual(tc.buildBody([t], { mode: 'APPROVAL', reason: tc.TOWATCH_REASON }), { reason: tc.TOWATCH_REASON, items: [{ institution_id: 'A', op_cd: 'TO_WATCH', target_no: 1, base_rev_no: 2 }] });
@@ -114,7 +114,7 @@ test('표 정렬(DESIGN 표 정렬, 사용자 11-26): .hb-tt 머리·칸 가운�
   assert.ok(/text-align:\s*left/.test(rule('.hb-tt tr.emp td')));
   assert.ok(/text-align:\s*left/.test(rule('.hb-tt.wt tbody td:nth-last-child(2)')));
   assert.ok(/justify-content:\s*center/.test(rule('.hb-tt .hb-stg')) && /justify-content:\s*center/.test(rule('.hb-tt .hb-wacts')));
-  assert.ok(/min-width:816px/.test(rule('.hb-tt')) && /min-width:1028px/.test(rule('.hb-tt.wt')));   // 쓰기 모드는 늘 고르기 열(32)이 붙는다(qa P3-4)
+  assert.ok(/min-width:814px/.test(rule('.hb-tt')) && /min-width:1028px/.test(rule('.hb-tt.wt')));   // 쓰기 모드는 늘 고르기 열(32)이 붙는다(qa P3-4)
   assert.ok(/text-align:\s*left/.test(rule('.hb-tt tbody th[scope=row]')));   // 행 머리 기관 이름 칸만 왼쪽(사용자 11-26 승인), 머리값은 위 규칙대로 가운데
   assert.ok(/padding:\s*0 6px/.test(rule('.hb-tt td.aim')));   // 금고 방식 칩 좌우 같게(design S5)
   const own = CSS.split('\n').filter(function (l) { return l.indexOf('#tc-bd .tc-opt') >= 0 || l.indexOf('#hb-seltow') >= 0; }).join('\n');
@@ -187,7 +187,7 @@ test('저장 전 대기 버림 안내: 대기가 있는 보낼 줄 수·종류, 
     ctgt: { names: ['가', '나'], off: 0, dn: 2, dwhat: '구분·금고 방식' }, wtgt: { names: ['가', '나'], off: 0, dn: 2, dwhat: '구분·금고 방식' } });
   assert.ok(h.indexOf('<p class="tc-skipnote">저장하지 않은 구분·금고 방식 바뀜 2곳은 버립니다.</p>') > 0 && h.indexOf('버리고 지금 저장된 값으로 옮깁니다.') > 0);
   assert.ok(tc.bulkDialogHtml({ kind: 'towatchn', mode: 'DIRECT', n: 1, total: 1, wtgt: { names: ['가'], off: 0, dn: 0, dwhat: '' } }).indexOf('저장하지 않은') < 0);   // 대기 없으면 줄 없음
-  assert.ok(K.indexOf('const tgtOf = function (list)') > 0 && K.indexOf("tc.draftInfo(gs.draft, gs.sel, list)") > 0 && K.indexOf('tc.offCount(list, gs.rows)') > 0);   // 모델이 이 값을 싣는다
+  assert.ok(K.indexOf('const tgtOf = function (list') > 0 && K.indexOf("tc.draftInfo(gs.draft, gs.sel, list)") > 0 && K.indexOf('tc.offCount(list, gs.rows)') > 0);   // 모델이 이 값을 싣는다
 });
 
 // bulkChoice·bulkChoose·submitBulk를 가짜 의존물로 실제 실행한다(kbboard.js 소스에서 잘라 내므로 구현이 바뀌면 같이 검증된다).
@@ -196,7 +196,7 @@ function bulkHarness(ctx) {
   assert.ok(a > 0 && b > a);
   const src = 'let chd = null, host = {}; const gs = ctx.gs;\n' +
     'function goalMode() { return ctx.mode; } function chq(d, id) { return d.els[id] || null; } function bulkErr(d, m) { ctx.errs.push(m || \'\'); }\n' +
-    'function cancelReasons() { return ctx.reasons; } function bulkNow() { return ctx.now; } function bulkPaint() {} function bulkRepaint() {} function loadGoals() { return Promise.resolve(); } function say() {}\n' +
+    'function cancelReasons() { return ctx.reasons; } function bulkNow() { return ctx.now; } function bulkPaint() {} function bulkRepaint() {} function loadGoals() { return Promise.resolve(); } function say() {} function loadProgress() { return Promise.resolve(); } const PREP_CTX = {};\n' +
     'function finishBulk(d, body, sent, op) { ctx.fin = { op: op, sent: sent }; }\n' +
     K.slice(a, b) + '\nreturn { bulkChoose: bulkChoose, submitBulk: submitBulk, setChd: function (d) { chd = d; } };';
   return new Function('ctx', 'tc', 'kbb', 'root', src)(ctx, tc, { submitChanges: function (body, btn) { ctx.sent = { body: body, btn: btn }; return Promise.resolve({ status: 200, body: { mode: ctx.mode } }); } },
@@ -222,7 +222,7 @@ test('bulkChoose 실제 동작: 라디오 전환 시 사유 칸 숨김·단추 �
   H.bulkChoose(d, 'towatch');
   assert.strictEqual(d.els['tc-bd-go'].textContent, '옮기기'); assert.strictEqual(d.els['tc-bd-go'].className, 'dlg-go'); assert.strictEqual(d.busyText, '옮기는 중…');
   H.bulkChoose(d, 'cancel');
-  assert.strictEqual(d.els['tc-bd-go'].textContent, '빼기'); assert.strictEqual(d.els['tc-bd-go'].className, 'dlg-danger'); assert.strictEqual(d.busyText, '빼는 중…');
+  assert.strictEqual(d.els['tc-bd-go'].textContent, '제외'); assert.strictEqual(d.els['tc-bd-go'].className, 'dlg-danger'); assert.strictEqual(d.busyText, '제외하는 중…');
   assert.ok(K.indexOf("return !!r && bulkChoice(d) !== 'towatch' && !!r.value;") > 0);   // 닫기 확인은 제외 갈래일 때만 사유 값을 본다
 });
 
@@ -243,7 +243,7 @@ test('submitBulk: 관심 갈래는 사유 검사를 건너뛰고 TO_WATCH 본문
   assert.deepStrictEqual(ctx.invalid, ['제외 사유를 고르세요.']); assert.strictEqual(ctx.sent, null);
   // 제외 갈래: 사유를 고르면 CANCEL 본문
   d.els['tc-bd-rs'].value = 'A'; ctx.invalid = []; H.submitBulk(d); await tick();
-  assert.strictEqual(ctx.sent.body.items[0].op_cd, 'CANCEL'); assert.strictEqual(ctx.sent.body.reason, '목표에서 빼기 — 예산 없음'); assert.strictEqual(ctx.fin.op, 'delete');
+  assert.strictEqual(ctx.sent.body.items[0].op_cd, 'CANCEL'); assert.strictEqual(ctx.sent.body.reason, '목표 기관에서 제외 — 예산 없음'); assert.strictEqual(ctx.fin.op, 'delete');
 });
 
 test('carryText·seeCarried: 이월 폐지(서버 e01af679) 뒤 문구와 탭 선택(qa P2-3)', function () {

@@ -42,6 +42,112 @@ test('deleteState: 관심 줄은 제외, 관심만이면 이유, 사유 목록 �
   assert.strictEqual(tc.deleteState(s, { hasMode: false, nReasons: 3 }).on, false);
 });
 
+test('제안 준비 중 차단(사용자 11-27): 막는 상태 집합은 서버 PREP_ACTIVE와 같고 CANCELLED는 막지 않는다', function () {
+  assert.deepStrictEqual(tc.PREP_BLOCK_STATES, ['CONFIRMED', 'OPEN_PENDING', 'IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING']);
+  assert.strictEqual(tc.isPrepBlock('WRITING'), true); assert.strictEqual(tc.isPrepBlock('CANCELLED'), false); assert.strictEqual(tc.isPrepBlock(''), false);
+});
+
+test('deleteState block 갈래: 일부만 막힘 / 전부 막힘 / prepOf 없음 / 관심 줄은 막히지 않고 skip', function () {
+  const A = E('A'), B = E('B'), W = E('W', { kind: 'WATCH', targetNo: 5 });
+  const prepOf = function (e) { return e.id === 'B' || e.id === 'W' ? { state_cd: 'IN_PROGRESS', bid_case_id: 'C1' } : null; };
+  const c = { hasMode: true, nReasons: 3, year: 2026, prepOf: prepOf };
+  let r = tc.deleteState(sel([A, B, W]), c);
+  assert.deepStrictEqual([r.on, r.send.map(function (x) { return x.id; }), r.block.map(function (x) { return x.id; }), r.skip.map(function (x) { return x.id; })], [true, ['A'], ['B'], ['W']]);
+  assert.strictEqual(r.prep.B.bid_case_id, 'C1');
+  assert.strictEqual(r.watch.block.length, 1); assert.deepStrictEqual(r.watch.send.map(function (x) { return x.id; }), ['A']);   // 관심으로 옮기기 갈래도 같은 기준
+  r = tc.deleteState(sel([B]), c);
+  assert.deepStrictEqual([r.on, r.why, r.send.length, r.block.length], [false, tc.DEL_PREP, 0, 1]);
+  assert.strictEqual(tc.toWatchBulkState(sel([B]), c).why, tc.TOWATCH_PREP);
+  r = tc.deleteState(sel([A, B]), { hasMode: true, nReasons: 3, year: 2026 });   // prepOf 콜백이 없으면(자료 못 받음) 막지 않는다
+  assert.deepStrictEqual([r.on, r.send.length, r.block.length], [true, 2, 0]);
+  assert.strictEqual(tc.toWatchBulkState(sel([A, B]), { hasMode: true, year: 2026 }).send.length, 2);
+});
+
+test('제안 준비 중 안내 문장: 1곳(상태별)·여러 곳 일부·전부, 단추 마크업', function () {
+  const nm = '하남시';
+  assert.strictEqual(tc.prepOneNote(nm, { state_cd: 'IN_PROGRESS' }, 'delete'), '하남시는 지금 제안을 준비 중입니다(사전준비 중). 제안 준비를 중단해야 목표 기관에서 제외할 수 있습니다. 제안 준비 화면에서 [중단…]을 누르고 사유를 적으면 \'중단(미참여)\'으로 닫히고, 그 뒤 여기서 제외할 수 있습니다.');
+  assert.ok(tc.prepOneNote(nm, { state_cd: 'APPROVAL_PENDING' }, 'delete').indexOf('승인 요청을 회수하거나 반려받은 뒤 중단할 수 있습니다.') > 0);
+  assert.ok(tc.prepOneNote(nm, { state_cd: 'CONFIRMED' }, 'delete').indexOf('[확정 취소…]') > 0);
+  assert.ok(tc.prepOneNote(nm, { state_cd: 'WRITING' }, 'towatch').indexOf('관심 기관으로 옮길 수 있습니다') > 0);
+  assert.strictEqual(tc.prepPartNote(['가구청', '나구청'], 3, 'delete'), '가구청, 나구청은 제안을 준비 중이라 이번에 제외하지 않습니다. 제안 준비를 중단한 뒤 다시 제외하세요. 나머지 3곳만 제외합니다.');
+  assert.strictEqual(tc.prepPartNote(['가구청'], 2, 'towatch'), '가구청은 제안을 준비 중이라 이번에 옮기지 않습니다. 제안 준비를 중단한 뒤 다시 옮기세요. 나머지 2곳만 옮깁니다.');
+  assert.ok(tc.prepPartNote(['가', '나', '다', '라', '마'], 1, 'delete').indexOf('가, 나, 다 외 2곳은') === 0);
+  assert.ok(tc.prepAllNote(['가구청', '나구청'], [{}, {}], 'delete').indexOf('가구청, 나구청은 모두 지금 제안을 준비 중입니다.') === 0);
+  const m = { kind: 'delete', mode: 'APPROVAL', role: '영업팀', n: 0, total: 1, pall: true, pgo: true, pname: nm, pq: tc.prepOneNote(nm, { state_cd: 'IN_PROGRESS' }, 'delete'), rows: [], reasons: [] };
+  const h = tc.bulkDialogHtml(m);
+  assert.ok(h.indexOf('<button type="button" id="tc-bd-prep">제안 준비 화면으로 →</button><button type="button" id="tc-bd-cancel">') > 0);
+  assert.ok(h.indexOf('id="tc-bd-go" class="dlg-go" disabled') > 0 && h.indexOf('name="tc-bd-do"') < 0 && h.indexOf('>목표 기관에서 제외 — 하남시</h2>') > 0);
+  const p = tc.bulkDialogHtml(Object.assign({}, m, { pall: false, n: 2, total: 3, ctgt: { names: ['가'], off: 0, pnote: '안내 문장' }, wtgt: null }));
+  assert.ok(p.indexOf('id="tc-bd-prep"') > 0 && p.indexOf('class="tc-skipnote tc-prepnote">안내 문장</p>') > 0 && p.indexOf('id="tc-bd-go" class="dlg-go">') > 0);
+  assert.ok(tc.bulkDialogHtml(Object.assign({}, m, { pall: false, pgo: false })).indexOf('tc-bd-prep') < 0);   // 막힌 기관이 없으면 단추도 없다(예전 모양)
+  assert.strictEqual(tc.bulkTitle({ kind: 'towatchn', pall: true, total: 3, n: 0 }), '관심 기관으로 옮기기 — 3곳');
+});
+
+test('제안 준비 중 차단: 화면 연결(kbboard 소스) — delNow·towNow의 prepOf, 모두 막히면 창을 열어 이동 단추, 서버 PREP_ACTIVE는 서버 문장', function () {
+  assert.ok(K.indexOf('prepOf: prepBlockOf }); }') > 0 && K.indexOf('function prepBlockOf(e)') > 0 && K.indexOf('tc.isPrepBlock(p.state_cd || p.stateCd)') > 0 && K.indexOf("panelState().state !== 'ok'") > 0);
+  assert.ok(K.indexOf("tc.isPrepWhy(s.why)") > 0 && K.indexOf("b.id === 'tc-bd-prep'") > 0 && K.indexOf('function openPrepFromBulk(d)') > 0);
+  const e = tc.bulkError({ status: 409, body: { detail: { code: 'PREP_ACTIVE', message: '제안 준비 중인 기관은 제외할 수 없습니다.', item_no: 1 } } }, [{ uid: 1, name: '노원구청' }], 'delete');
+  assert.strictEqual(e.msg, '노원구청은 제안을 준비 중이라 제외할 수 없습니다. 제안 준비 화면에서 [중단…]을 누른 뒤 다시 하세요.');   // 이름이 들어간다(qa 11-27 P2-1)
+  assert.ok(e.refresh === false && e.prep === true);
+  assert.ok(tc.bulkError({ status: 409, body: { detail: { code: 'PREP_ACTIVE', message: '제안 준비 중인 기관은 제외할 수 없습니다.' } } }, [], 'delete').msg === '제안 준비 중인 기관은 제외할 수 없습니다.');   // 줄을 못 찾으면 서버 문장
+});
+
+test('PREP_ACTIVE 이름 문장: item_no 없이 institution_ids로도 찾고, 관심 갈래·can_view 거짓 문구', function () {
+  const items = [{ uid: 1, id: 'A', name: '하남시' }, { uid: 2, id: 'B', name: '노원구청' }];
+  const x = { status: 409, body: { detail: { code: 'PREP_ACTIVE', message: '서버 문장', institution_ids: ['B'] } } };
+  assert.strictEqual(tc.bulkError(x, items, 'delete').msg, '노원구청은 제안을 준비 중이라 제외할 수 없습니다. 제안 준비 화면에서 [중단…]을 누른 뒤 다시 하세요.');
+  assert.strictEqual(tc.bulkError(x, items, 'towatch').msg, '노원구청은 제안을 준비 중이라 관심 기관으로 옮길 수 없습니다. 제안 준비 화면에서 [중단…]을 누른 뒤 다시 하세요.');
+  const nv = tc.bulkError(x, items, 'delete', { noView: function (id) { return id === 'B'; } }).msg;   // can_view 거짓: '[중단…]을 누르고' 대신 담당에게 요청
+  assert.strictEqual(nv, '노원구청은 제안을 준비 중이라 제외할 수 없습니다. 제안 준비 담당에게 중단을 요청하세요.');
+  const t = tc.toWatchError({ status: 409, body: { detail: { code: 'PREP_ACTIVE', message: '서버 문장', item_no: 1 } } }, [items[0]], { noView: function () { return false; } });
+  assert.deepStrictEqual([t.msg, t.prep, t.refresh, t.field], ['하남시는 제안을 준비 중이라 관심 기관으로 옮길 수 없습니다. 제안 준비 화면에서 [중단…]을 누른 뒤 다시 하세요.', true, false, false]);
+  assert.ok(tc.prepOneNote('하남시', { state_cd: 'IN_PROGRESS', can_view: false }, 'delete').endsWith('제안 준비 담당에게 중단을 요청하세요.') && tc.prepOneNote('하남시', { state_cd: 'IN_PROGRESS', can_view: false }, 'delete').indexOf('[중단…]') < 0);
+  assert.ok(tc.prepAllNote(['가', '나'], [{ can_view: false }, { can_view: false }], 'delete').endsWith(tc.PREP_ASK));
+  assert.ok(tc.prepAllNote(['가', '나'], [{ can_view: false }, {}], 'delete').indexOf('중단한 뒤 다시 제외하세요.') > 0);
+  const h = tc.bulkDialogHtml({ kind: 'towatch', mode: 'DIRECT', role: '영업팀', name: '하남시', n: 0, total: 1, pall: true, pn: 1, pname: '하남시', pq: 'q', pgo: false });
+  assert.ok(h.indexOf('tc-bd-prep') < 0 && h.indexOf('>관심 기관으로 옮기기 — 하남시</h2>') > 0 && h.indexOf('id="tc-bd-go" class="dlg-go" disabled') > 0);   // 볼 수 없으면 이동 단추 없음
+});
+
+test('P3-1 막힘+관심 섞임: 모두 제안 준비 중이라고 하지 않고, 제목 숫자는 막힌 곳 수', function () {
+  const B = E('B'), W = E('W', { kind: 'WATCH', targetNo: 5 }), prepOf = function (e) { return e.id === 'B' ? { state_cd: 'IN_PROGRESS' } : null; };
+  const c = { hasMode: true, nReasons: 3, year: 2026, prepOf: prepOf };
+  const r = tc.deleteState(sel([B, W]), c);
+  assert.strictEqual(r.why, tc.DEL_PREP_MIX); assert.ok(r.why !== tc.DEL_PREP && tc.isPrepWhy(r.why));
+  assert.strictEqual(tc.deleteState(sel([B]), c).why, tc.DEL_PREP);   // 막힘만이면 예전 그대로
+  assert.strictEqual(tc.toWatchBulkState(sel([B, W]), c).why, tc.TOWATCH_PREP_MIX);   // 제외 창 관심 갈래 사유도
+  assert.strictEqual(tc.toWatchBulkState(sel([B]), c).why, tc.TOWATCH_PREP);
+  assert.strictEqual(tc.bulkTitle({ kind: 'delete', pall: true, pn: 1, pname: '노원구청', total: 2 }), '목표 기관에서 제외 — 노원구청');
+  assert.strictEqual(tc.bulkTitle({ kind: 'delete', pall: true, pn: 2, total: 3 }), '목표 기관에서 제외 — 2곳');
+});
+
+test('prepBlockOf 실제 실행: 제안 준비 자료가 loading·error·denied면 null, ok일 때만 막는 상태 건을 돌려준다', function () {
+  const a = K.indexOf('function prepBlockOf(e) {'), b = K.indexOf('function prepNoView(id)');
+  assert.ok(a > 0 && b > a);
+  const mk = function (state, preps) {
+    return new Function('tc', 'st', 'idOf', 'panelState', K.slice(a, b) + '\nreturn prepBlockOf;')(tc, { preps: preps },
+      function (p) { return String(p.institution_id); }, function () { return { state: state }; });
+  };
+  const preps = [{ institution_id: 'B', state_cd: 'IN_PROGRESS' }, { institution_id: 'C', state_cd: 'CANCELLED' }];
+  assert.strictEqual(mk('ok', preps)({ id: 'B' }), preps[0]);
+  assert.strictEqual(mk('ok', preps)({ id: 'C' }), null);   // 끝난 건은 막지 않는다
+  ['loading', 'error', 'denied', 'offline'].forEach(function (s) { assert.strictEqual(mk(s, preps)({ id: 'B' }), null, s); });
+  assert.strictEqual(mk('ok', null)({ id: 'B' }), null);
+  assert.strictEqual(mk('ok', preps)(null), null);
+});
+
+test('단건 팝업 [관심 기관으로…]도 제안 준비 중이면 미리 막는다(연결) + 바로 반영 보내기 단추는 \'제외\'', function () {
+  const o = K.indexOf('function openToWatch('), e = K.indexOf('// ── 결재 진행 중 창(보는 창)');
+  const tw = K.slice(o, e);
+  assert.ok(tw.indexOf('const pb = prepBlockOf({ id: r.id });') > 0 && tw.indexOf('openToWatchBlocked(r, pb, opener, pm, mode)') > 0);
+  assert.ok(K.indexOf('function openToWatchBlocked(') > 0 && K.indexOf("else if (b.id === 'tc-bd-prep') openPrepFromBulk(d);") > 0);
+  assert.ok(K.indexOf('tc.toWatchError(x, [it], PREP_CTX)') > 0 && K.indexOf('tc.bulkError(x, items, op, PREP_CTX)') > 0 && K.indexOf('loadProgress().then(') > 0);
+  assert.ok(tc.bulkDialogHtml({ kind: 'delete', mode: 'DIRECT', role: '영업부장', rows: [], n: 0, total: 0, reasons: [] }).indexOf('class="dlg-danger">제외</button>') > 0);
+  assert.ok(K.indexOf("(cancel ? '제외' : '옮기기')") > 0 && K.indexOf("(cancel ? '빼기'") < 0);
+  // P3-2: 이동이 안 되면 창을 닫지 않고 창 안 상태 줄에
+  const p = K.slice(K.indexOf('function openPrepFromBulk(d) {'), K.indexOf('function bulkRepaint('));
+  assert.ok(p.indexOf("chq(d, 'tc-bd-err')") > 0 && p.indexOf('if (!can) {') > 0 && p.indexOf('if (!can) {') < p.indexOf('root.dlg.close('));
+});
+
 test('질문·줄 문장', function () {
   assert.strictEqual(tc.editQuestion(2, 2), '선택한 2곳에 대하여 수정하시겠습니까?');
   assert.strictEqual(tc.editQuestion(2, 3), '선택한 3곳 중 바뀐 2곳을 수정하시겠습니까?');
@@ -66,7 +172,7 @@ test('bulkDialogHtml: 수정은 사유 칸 없음, 삭제는 사유 칸 하나·
   assert.ok(hd.indexOf('어느 쪽이든 팀장 결재 요청으로 올라갑니다.') > 0 && hd.indexOf('class="dlg-go">결재 요청</button>') > 0 && hd.indexOf('tc-bd-items') < 0);   // 제외 창은 라디오 + 공통 문장(줄 목록 없음, 사용자 11-26)
   assert.strictEqual((hd.match(/<select/g) || []).length, 1);
   assert.ok(hd.indexOf('<option value="ETC">기타</option>') > 0 && hd.indexOf('id="tc-bd-etcrow" hidden') > 0);
-  assert.ok(tc.bulkDialogHtml({ kind: 'delete', mode: 'DIRECT', role: '영업부장', rows: [], n: 0, total: 0, reasons: [] }).indexOf('class="dlg-danger">빼기</button>') > 0);
+  assert.ok(tc.bulkDialogHtml({ kind: 'delete', mode: 'DIRECT', role: '영업부장', rows: [], n: 0, total: 0, reasons: [] }).indexOf('class="dlg-danger">제외</button>') > 0);
 });
 
 test('towatch 상자: 기관 하나·결재면 사유 칸(textarea)·바로 반영이면 [옮기기]·목록 없음, 구분·메모 사실 줄', function () {
@@ -122,9 +228,9 @@ test('toWatchError: 일괄 창 문장을 쓰지 않는다', function () {
 });
 
 test('resultOf(delete)·deleteReason', function () {
-  assert.strictEqual(tc.deleteReason([{ code: 'A', name: '예산 없음' }], 'A', ''), '목표에서 빼기 — 예산 없음');
-  assert.strictEqual(tc.deleteReason([{ code: 'ETC', name: '기타' }], 'ETC', ' 내부 사정 '), '목표에서 빼기 — 기타: 내부 사정');
-  assert.ok(tc.resultOf({ mode: 'DIRECT', applied: 2 }, 2, 'delete').text.indexOf('목표에서 뺐습니다') > 0);
+  assert.strictEqual(tc.deleteReason([{ code: 'A', name: '예산 없음' }], 'A', ''), '목표 기관에서 제외 — 예산 없음');
+  assert.strictEqual(tc.deleteReason([{ code: 'ETC', name: '기타' }], 'ETC', ' 내부 사정 '), '목표 기관에서 제외 — 기타: 내부 사정');
+  assert.ok(tc.resultOf({ mode: 'DIRECT', applied: 2 }, 2, 'delete').text.indexOf('목표 기관에서 제외했습니다') > 0);
   assert.ok(tc.resultOf({ mode: 'APPROVAL' }, 2, 'delete').text.indexOf('결재 요청을 올렸습니다') === 0);
   assert.ok(tc.resultOf({ mode: 'APPROVAL' }, 1, 'towatch').text.indexOf('결재 요청을 올렸습니다') === 0);
 });
@@ -163,7 +269,7 @@ test('bulkError: 잠김·이미 빠짐은 다시 읽고(refresh) 기관 이름�
   const x = function (s, code, n) { return { status: s, body: { detail: { code: code, item_no: n } } }; };
   const c = tc.bulkError(x(409, 'ALREADY_CANCELLED', 1), items, 'delete');
   assert.strictEqual(c.refresh, true);
-  assert.ok(c.msg.indexOf('노원구청은 이미 목표에서 빠진 기관입니다.') === 0 && c.msg.indexOf('번째') < 0 && c.msg.indexOf('이번 수정') < 0);
+  assert.ok(c.msg.indexOf('노원구청은 이미 목표 기관에서 제외된 기관입니다.') === 0 && c.msg.indexOf('번째') < 0 && c.msg.indexOf('이번 수정') < 0);
   const p = tc.bulkError(x(409, 'CHANGE_PENDING', 2), items, 'delete');
   assert.strictEqual(p.refresh, true);
   assert.ok(p.msg.indexOf('강남구청은 방금 결재 요청에 들어가 잠겨 빼지 못했습니다.') === 0 && p.msg.indexOf('이번 수정') < 0);
@@ -180,7 +286,7 @@ test('P3 배선·마크업: 줄 이름 title, 지난해 입찰 종료 줄은 [�
   assert.ok(K.indexOf("else if (e.field && chq(d, 'tc-reason')) toWatchFieldErr(d, e.msg);") > 0);
   const f = K.slice(K.indexOf('function finishToWatch('), K.indexOf('// ── 결재 진행 중 창(보는 창)'));
   assert.ok(f.indexOf("document.getElementById('dm-name')") > 0 && f.indexOf("$('hb-goals')") > 0 && f.indexOf("$('hb-goals')") < f.indexOf('loadGoals()'));
-  assert.ok(K.indexOf("const e = tc.bulkError(x, items, op), msg = e.msg;") > 0);
+  assert.ok(K.indexOf("const e = tc.bulkError(x, items, op, PREP_CTX), msg = e.msg;") > 0);
 });
 
 test('popupHtml: extraHtml은 주 동작 뒤·구분선 앞, 주 동작이 없어도 구분선이 생기고, 약정 편집 중에는 숨는다', function () {
@@ -226,7 +332,7 @@ test('배선(kbboard.js): [관심 기관으로…] — 팝업 headExtra·일정 
   assert.ok(K.indexOf("a('towatch', '관심 기관으로…'") < 0 && K.indexOf("'내 관심으로…'") < 0);   // 줄 끝 단추 없음
   const o = K.indexOf('function openToWatch('), e = K.indexOf('// ── 결재 진행 중 창(보는 창)');
   const tw = K.slice(o, e);
-  assert.ok(tw.indexOf("tc.setOp(it, 'TO_WATCH')") > 0 && tw.indexOf('kbb.submitChanges(tc.buildBody([it]') > 0 && tw.indexOf('tc.toWatchError(x, [it])') > 0);
+  assert.ok(tw.indexOf("tc.setOp(it, 'TO_WATCH')") > 0 && tw.indexOf('kbb.submitChanges(tc.buildBody([it]') > 0 && tw.indexOf('tc.toWatchError(x, [it], PREP_CTX)') > 0);
   assert.ok(tw.indexOf("restoreFallback: function () { return (pm && document.getElementById('dm-name')) || dlgFallback(); }") > 0);
   assert.ok(tw.indexOf('clearSel') < 0 && tw.indexOf('unpick') < 0);   // 고른 줄·대기는 건드리지 않는다
   assert.ok(K.indexOf('openMove(act, r, btn)') > 0);   // tonext·togoal은 예전 길

@@ -310,6 +310,101 @@ public class TargetChangeApiTest {
         assertFalse(designer.has("change_pending_info"));
     }
 
+    private void prep(String caseId, String inst, String state) {
+        jdbc.update("INSERT INTO BID_PREP (BID_CASE_ID, INSTITUTION_ID, STATE_CD, CONFIRMED_BY, CONFIRMED_AT, UPDATED_BY, UPDATED_AT)"
+                + " VALUES (?, ?, ?, '3918264', '2026-11-16T00:00:00+09:00', '3918264', '2026-11-16T00:00:00+09:00')", caseId, inst, state);
+    }
+
+    @Test public void 진행_중_제안_준비가_있으면_CANCEL_TO_WATCH_상신은_409_PREP_ACTIVE_중단된_건만_있으면_통과() throws Exception {
+        baseSeed();
+        prep("tc-prep-1", "jungnang", "IN_PROGRESS");
+        prep("tc-prep-2", "mapo", "WRITING");
+        MvcResult c = change(SALES, req("뺌", item("jungnang", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")));
+        assertEquals(raw(c), 409, status(c));
+        assertEquals("PREP_ACTIVE", json(c).path("detail").path("code").asText());
+        assertEquals("jungnang", json(c).path("detail").path("institution_ids").get(0).asText());
+        assertEquals("tc-prep-1", json(c).path("detail").path("bid_case_ids").get(0).asText());
+        MvcResult w = change(SALES, req("관심", item("mapo", "TO_WATCH", "target_no", 1, "base_rev_no", 1)));
+        assertEquals(raw(w), 409, status(w));
+        assertEquals("PREP_ACTIVE", json(w).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM"));
+        // 일괄 — 한 곳만 막혀도 전체 거부(기존 관례, 항목 번호가 따라온다)
+        MvcResult mixed = change(SALES, req("섞음", item("jung", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED"),
+                item("jungnang", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")));
+        assertEquals(409, status(mixed));
+        assertEquals(2, json(mixed).path("detail").path("item_no").asInt());
+        // 중단(CANCELLED)·종결 건만 있으면 통과
+        jdbc.update("UPDATE BID_PREP SET STATE_CD='CANCELLED' WHERE BID_CASE_ID='tc-prep-1'");
+        assertEquals(200, status(change(SALES, req("뺌", item("jungnang", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")))));
+    }
+
+    @Test public void 결재_승인_시점에도_진행_중_제안_준비가_있으면_409_PREP_ACTIVE_하나도_반영_안_됨() throws Exception {
+        baseSeed();
+        MvcResult r = change(SALES, req("뺌", item("jungnang", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")));
+        assertEquals(raw(r), 200, status(r));
+        long id = json(r).path("request").path("req_id").asLong();
+        prep("tc-prep-3", "jungnang", "CONFIRMED");   // 요청 뒤 준비가 시작됨
+        MvcResult d = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(d), 409, status(d));
+        assertEquals("PREP_ACTIVE", json(d).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE APPROVAL_REQ_ID IS NOT NULL"));
+        assertEquals("PENDING", jdbc.queryForObject("SELECT STATUS FROM APPROVAL_REQUEST WHERE REQ_ID=?", String.class, id));
+        assertEquals("요청 뒤 이 기관의 제안 준비가 시작되어 반영할 수 없습니다. 반려하고, 담당이 제안 준비를 정리한 뒤 다시 요청하게 해 주세요.",
+                json(d).path("detail").path("message").asText());   // 결재자용 문장
+    }
+
+    @Test public void 결재_승인_시점_TO_WATCH도_409_PREP_ACTIVE_결재자용_문장_요청은_PENDING_유지() throws Exception {
+        baseSeed();
+        MvcResult r = change(SALES, req("관심", item("mapo", "TO_WATCH", "target_no", 1, "base_rev_no", 1)));
+        assertEquals(raw(r), 200, status(r));
+        long id = json(r).path("request").path("req_id").asLong();
+        prep("tc-prep-5", "mapo", "WRITING");   // 요청 뒤 준비가 시작됨
+        MvcResult d = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(d), 409, status(d));
+        assertEquals("PREP_ACTIVE", json(d).path("detail").path("code").asText());
+        assertTrue(json(d).path("detail").path("message").asText().startsWith("요청 뒤 이 기관의 제안 준비가 시작되어"));
+        assertEquals("PENDING", jdbc.queryForObject("SELECT STATUS FROM APPROVAL_REQUEST WHERE REQ_ID=?", String.class, id));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE APPROVAL_REQ_ID IS NOT NULL"));
+    }
+
+    @Test public void 제안_준비_OPEN_PENDING_APPROVAL_PENDING_상태도_CANCEL_상신을_막는다() throws Exception {
+        baseSeed();
+        prep("tc-prep-6", "jungnang", "OPEN_PENDING");
+        prep("tc-prep-7", "mapo", "APPROVAL_PENDING");
+        MvcResult a = change(SALES, req("뺌", item("jungnang", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")));
+        assertEquals(raw(a), 409, status(a));
+        assertEquals("PREP_ACTIVE", json(a).path("detail").path("code").asText());
+        MvcResult b = change(SALES, req("뺌", item("mapo", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")));
+        assertEquals(raw(b), 409, status(b));
+        assertEquals("PREP_ACTIVE", json(b).path("detail").path("code").asText());
+    }
+
+    @Test public void 관심_기록_빼기는_제안_준비가_진행_중이어도_성공() throws Exception {
+        baseSeed();
+        prep("tc-prep-8", "nowon", "IN_PROGRESS");
+        MvcResult off = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/institutions/nowon/my-watch")
+                .header(Actor.HEADER, SALES).header("X-Screen-Id", "map_popover").header("X-Button-Id", "toggle_watch_heart")).andReturn();
+        assertEquals(raw(off), 200, status(off));
+        assertTrue(json(off).path("changed").asBoolean());
+    }
+
+    @Test public void 영업부장_바로_반영과_단건_빼기_옮기기도_진행_중_제안_준비가_있으면_409_PREP_ACTIVE() throws Exception {
+        baseSeed();
+        prep("tc-prep-4", "jung", "WRITABLE");
+        MvcResult bulk = change(HEAD, req("뺌", item("jung", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")));
+        assertEquals(raw(bulk), 409, status(bulk));
+        assertEquals("PREP_ACTIVE", json(bulk).path("detail").path("code").asText());
+        Map<String, Object> c = new LinkedHashMap<String, Object>(); c.put("base_rev_no", 1); c.put("cancel_reason_cd", "DROPPED");
+        MvcResult one = send(HEAD, "/institutions/jung/bid-targets/1/cancel", "bid_board", "cancel_bid_target", c);
+        assertEquals(409, status(one));
+        assertEquals("PREP_ACTIVE", json(one).path("detail").path("code").asText());
+        Map<String, Object> mv = new LinkedHashMap<String, Object>(); mv.put("base_rev_no", 1); mv.put("to_kind_cd", "WATCH");
+        MvcResult move = send(HEAD, "/institutions/jung/bid-targets/1/move", "bid_board", "move_to_watch", mv);
+        assertEquals(409, status(move));
+        assertEquals("PREP_ACTIVE", json(move).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO>1"));
+    }
+
     @Test public void 영업팀장_승인은_5건_반영_감사_잠금_풀림() throws Exception {
         baseSeed();
         long id = submitFive();
@@ -620,10 +715,12 @@ public class TargetChangeApiTest {
         assertTrue(first.has("aim_rank_cd")); assertTrue(first.path("aim_rank_cd").isNull());
         assertTrue(first.path("aim_rank_name").isNull());
         assertEquals("DIRECT", first.path("aim_mode").asText());
-        assertEquals(4, j.path("codes").path("aim_ranks").size());
+        assertEquals(5, j.path("codes").path("aim_ranks").size());
         assertEquals("FIRST", j.path("codes").path("aim_ranks").get(0).path("code").asText());
         assertEquals("1금고", j.path("codes").path("aim_ranks").get(0).path("name").asText());
         assertEquals("주거래", j.path("codes").path("aim_ranks").get(3).path("name").asText());
+        assertEquals("기타", j.path("codes").path("aim_ranks").get(4).path("name").asText());
+        assertEquals("OTHER", j.path("codes").path("aim_ranks").get(4).path("code").asText());
         jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='SINGLE' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");
         for (JsonNode n : json(getAs(SALES, "/bid-targets")).path("items")) {
             if ("jung".equals(n.path("institution_id").asText())) assertEquals("단수금고", n.path("aim_rank_name").asText());
@@ -697,7 +794,7 @@ public class TargetChangeApiTest {
     @Test public void 코드표_금고_방식_이름은_4자_이하_92px_칸_가정() throws Exception {
         baseSeed();
         JsonNode names = json(getAs(SALES, "/bid-targets")).path("codes").path("aim_ranks");
-        assertEquals(4, names.size());
+        assertEquals(5, names.size());
         for (JsonNode n : names) {
             String nm = n.path("name").asText();
             assertTrue(nm, nm.codePointCount(0, nm.length()) <= 4);   // 서버는 길이를 제한하지 않는다 — 시드가 4자 이하임을 고정(화면 칸 폭 가정)

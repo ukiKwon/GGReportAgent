@@ -149,10 +149,12 @@ test('표 칸: 두 줄(이름 전체+막대 n/5), 공고 전은 지연이 없을
 
 test('열 폭 132·두 줄 칸 가운데·.hb-end(협약 종료 표시)와 겹치지 않는 .hb-fin', function () {
   const css = src('index.html');
-  assert.ok(/\.hb-tt col\.c-stg \{ width:132px; \}/.test(css) && /\.hb-tt \{ width:100%; min-width:816px;/.test(css) && /\.hb-tt\.wt \{ min-width:1028px; \}/.test(css) && css.indexOf('c-brf') < 0);
+  assert.ok(/\.hb-tt col\.c-stg \{ width:132px; \}/.test(css) && /\.hb-tt \{ width:100%; min-width:814px;/.test(css) && /\.hb-tt:not\(\.wt\) col\.c-tag, \.hb-tt:not\(\.wt\) col\.c-aim \{ width:128px; \}/.test(css) && /\.hb-tt\.wt \{ min-width:1028px; \}/.test(css) && css.indexOf('c-brf') < 0);
   let fixed = 0; const re = /\.hb-tt col\.c-(tag|aim|due|bank|stg) \{ width:(\d+)px; \}/g; let m;
   while ((m = re.exec(css))) fixed += Number(m[2]);
-  assert.strictEqual(150 + 32 + fixed, 816);                                                 // 기관 150 + 고르기 32 + 고정 열 634
+  const ov = /\.hb-tt:not\(\.wt\) col\.c-tag, \.hb-tt:not\(\.wt\) col\.c-aim \{ width:(\d+)px; \}/.exec(css);   // 목표 표만 구분·금고 방식 같은 폭(사용자 11-27)이 기본 166·92를 덮는다
+  fixed = fixed - 166 - 92 + 2 * Number(ov[1]);
+  assert.strictEqual(150 + 32 + fixed, 814);                                                 // 기관 150 + 고르기 32 + 고정 열 632(128+128+120+124+132)
   assert.ok(/\.hb-stg\.two \{[^}]*flex-direction:column[^}]*align-items:center/.test(css) && !/\.hb-stg\.two \{[^}]*flex-start/.test(css));   // DESIGN 표 정렬: 새 칸도 가운데
   assert.ok(/\.hb-stg \.ln2 \{[^}]*justify-content:center/.test(css) && /\.hb-tt \.hb-stg \{ justify-content:center;/.test(css));
   assert.ok(css.indexOf('.hb-end { grid-column:2; grid-row:1;') > 0 && !/\.hb-fin[^{]*\{[^}]*grid-column/.test(css));   // 옛 .hb-end 규칙은 그대로, 새 단추는 다른 이름
@@ -170,4 +172,11 @@ test('소스: 끝난 건 단추도 단계 거르기 단추, aria-disabled는 눌
   ['이미 제안 확정되어', '제안 확정하지 못했습니다', "'확정하고 이동'", '제안 확정했습니다', '지역별 공고현황'].forEach(function (w) { assert.strictEqual(D.indexOf(w), -1, w); });
   assert.ok(D.indexOf('예상 공고현황에서 보기') > 0 && D.indexOf('예상 공고현황과 같은 기관') > 0);
   assert.ok(dash.footHtml({ unknownN: 2 }).indexOf('id="db-tomap2">예상 공고현황</button>') > 0);
+});
+
+test('.hb-stgs .ft 에는 padding-bottom이 없다(단계 칸 아래 여백 8px로 맞춤, 사용자 11-27 a안)', function () {
+  const css = src('index.html');
+  const m = /\.hb-stgs \.ft \{[^}]*\}/.exec(css);
+  assert.ok(m, '.hb-stgs .ft 규칙');
+  assert.strictEqual(/padding-bottom/.test(m[0]), false);
 });

@@ -39,6 +39,9 @@ public interface PrepMapper {
     /** 그 기관의 활성(CONFIRMED~WRITING) 건 상태 코드 — 최근 갱신 순. 공고 상태 기록(037)의 '공고 종료' 확인용(상태 목록은 countActiveByInstitution 과 같다). */
     List<String> selectActiveStatesByInstitution(@Param("institutionId") String institutionId);
 
+    /** 11-27 — 그 기관의 활성(CONFIRMED~WRITING) 건 번호(BID_CASE_ID). 목표 제외·관심 이동 차단(PREP_ACTIVE)용, 상태 목록은 countActiveByInstitution 과 같다. */
+    List<String> selectActiveCaseIdsByInstitution(@Param("institutionId") String institutionId);
+
     /** NEXT 114 — 그 해 살아 있는 목표 기록 수(최신 REV 가 CANCEL 아님, KIND_CD='GOAL'). 제안 확정 조건 — 기관 잠금 뒤에 부른다. */
     int countGoalForYear(@Param("institutionId") String institutionId, @Param("year") int year);
 

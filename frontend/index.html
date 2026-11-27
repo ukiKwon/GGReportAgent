@@ -2245,16 +2245,17 @@
   .hb-bk b { display:block; font:400 12px var(--mono); color:var(--fg); text-align:right; }
   .hb-tp { display:flex; flex-direction:column; min-height:0; height:clamp(280px, calc(100vh - 296px), 960px); background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--r); overflow:hidden; }
   .hb-ts { flex:1; min-height:0; overflow:auto; }
-  .hb-tt { width:100%; min-width:816px; table-layout:fixed; border-collapse:separate; border-spacing:0; }   /* 816 = 기관 150 + 고르기 열 32(쓰기 모드는 늘 붙는다) + 고정 열 634(구분 166·금고 방식 92·마감까지 120·은행 124·준비 단계 132) — 설명회 열 삭제(사용자 11-26), 목표 표는 동작 칸이 없다(사용자 11-26). 스크롤 상자 .hb-ts가 overflow:auto라 모든 폭에서 가로 스크롤 — 기관 열이 150 아래로 무너지지 않게(qa P2-1) */
+  .hb-tt { width:100%; min-width:814px; table-layout:fixed; border-collapse:separate; border-spacing:0; }   /* 814 = 기관 150 + 고르기 열 32(쓰기 모드는 늘 붙는다) + 고정 열 632(구분·금고 방식 각 128·마감까지 120·은행 124·준비 단계 132, 사용자 11-27) — 설명회 열 삭제(사용자 11-26), 목표 표는 동작 칸이 없다(사용자 11-26). 스크롤 상자 .hb-ts가 overflow:auto라 모든 폭에서 가로 스크롤 — 기관 열이 150 아래로 무너지지 않게(qa P2-1) */
   .hb-tt.wt { min-width:1028px; }   /* 관심 표는 동작 칸(150)·기관 200 등이 있어 메모 칸이 쪼그라들지 않게 이전 폭 996 + 고르기 열 32 */
   .hb-tt col.c-nm { width:auto; } .hb-tt col.c-tag { width:166px; } .hb-tt col.c-due { width:120px; }   /* 열 폭(design 11-17 6-A): 구분 166('예전 KB')·마감까지 120('D+140 추정 지남')·현 금고 은행 124가 잘리지 않게, 기관 열은 나머지(12개월 띠를 없애 기관 열이 받는다, 사용자 11-26) */
   .hb-tt col.c-bank { width:124px; } .hb-tt col.c-stg { width:132px; }   /* 두 줄 칸(이름 / 막대·n/5·지연) 안쪽 112px — 2줄째 최대 102px(NEXT 120, design 11-26) */
   .hb-tt col.c-aim { width:92px; }   /* 금고 방식(NEXT 114): 칩 '단수금고 ▾' 약 76px + 칸 패딩 12px. 1280px 기준(좁은 폭 미지원) */
+  .hb-tt:not(.wt) col.c-tag, .hb-tt:not(.wt) col.c-aim { width:128px; }   /* 구분·금고 방식 같은 폭(사용자 11-27) — 목표 표만, 관심 표(.wt)는 구분 166 그대로 */
   .hb-tt thead th { position:sticky; top:0; z-index:1; height:40px; padding:0 10px; vertical-align:middle; text-align:center; font-size:12px; font-weight:700; white-space:nowrap; color:var(--muted);
     background:var(--panel); border-bottom:1px solid var(--line-strong); }
   /* 목표 표 머리는 설명회(7번째) 열이 없어져 좁은 여백 규칙이 없다(사용자 11-26). 관심 표(.wt)는 아래 6번째 머리 규칙 그대로 */
   .hb-tt.wt thead th:nth-child(6) { padding-left:6px; padding-right:4px; }
-  .hb-tt td.aim { padding:0 6px; }   /* 금고 방식 칸: 점선 칩이 '바뀜' 꼬리표 없이 92px 안에 든다(안쪽 80px, 가운데 정렬이라 좌우 같게 — design S5) */
+  .hb-tt td.aim { padding:0 6px; }   /* 금고 방식 칸: 점선 칩이 '바뀜' 꼬리표 없이 목표 표 128px 칸 안에 든다(안쪽 80px, 가운데 정렬이라 좌우 같게 — design S5) */
   .hb-tt td, .hb-tt tbody th { height:40px; padding:0 10px; vertical-align:middle; text-align:center; font-size:12px; font-weight:400; border-bottom:1px solid var(--line); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .hb-tt td.mut, .hb-tt .mut { color:var(--muted); }
   .hb-tt .hb-nm { all:unset; cursor:pointer; border-radius:var(--r); font-size:13px; font-weight:700; color:var(--fg); }
@@ -2283,7 +2284,7 @@
   .hb-dd.est { font-weight:400; color:var(--muted); }
   .hb-dd.tx { font-family:inherit; font-size:12px; }
   .hb-q { margin-left:4px; font-size:12px; color:var(--muted); }
-  .hb-tt .hb-prev { margin-left:2px; }   /* 구분 칸 '예전 …' 앞 여유(구분 열 166px 안에서) */
+  .hb-tt .hb-prev { margin-left:2px; }   /* 구분 칸 '예전 …' 앞 여유(구분 열 안에서 — 166px는 진행 표, 목표 표는 128px) */
   .hb-bank .r { margin-left:3px; font-size:12px; color:var(--muted); }
   .hb-stg { display:flex; align-items:center; gap:6px; min-width:0; }
   .hb-stg .lb { min-width:0; overflow:hidden; text-overflow:ellipsis; }
@@ -2532,18 +2533,18 @@
   .hb-pend svg { width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:1.3; }
   button.hb-pend { cursor:pointer; }
   button.hb-pend:hover { background:color-mix(in srgb, var(--blue) 18%, transparent); border-color:var(--blue); text-decoration:underline; }   /* 공통 button:hover(회색)에 지지 않게 */
-  /* 고른 기관 띠만 위쪽 그림자 1개·등장 200ms 예외(사용자 11-24, design-reviewer 11-24 1819 4번). 감소 설정이면 움직임 끔 */
-  .hb-selbar { position:relative; z-index:1; flex:none; display:flex; align-items:center; gap:8px; min-height:48px; padding:0 12px; font-size:12px; background:color-mix(in srgb, var(--accent-color) 12%, var(--panel)); border-top:2px solid var(--accent-color); box-shadow:0 -6px 16px -6px rgba(19,20,22,.28); }
+  /* 고른 기관 띠만 위쪽 그림자 1개·등장 띠 .36s(처음 200ms 예외 → 사용자 11-27 '부드럽게' 승인으로 늘림, design-reviewer 11-24 1819 4번). 감소 설정이면 움직임 끔 */
+  .hb-selbar { position:relative; z-index:1; flex:none; display:flex; align-items:center; gap:8px; min-height:72px; padding:0 16px; font-size:12px; background:color-mix(in srgb, var(--accent-color) 12%, var(--panel)); border-top:2px solid var(--accent-color); box-shadow:0 -6px 16px -6px rgba(19,20,22,.28); }
   .hb-selbar[hidden] { display:none; }
-  .hb-selbar:not([hidden]) { animation:hbSelIn .2s cubic-bezier(.2,.8,.2,1) both; }
-  @keyframes hbSelIn { from { transform:translateY(12px); } to { transform:none; } }   /* opacity 없이 올라오기만(현황판 CSS 블록 opacity 금지 규칙) */
+  .hb-selbar:not([hidden]) { animation:hbSelIn .36s cubic-bezier(.22,1,.36,1) backwards; }
+  @keyframes hbSelIn { from { min-height:0; max-height:0; overflow:hidden; transform:translateY(24px); } to { min-height:72px; max-height:72px; overflow:hidden; transform:none; } }   /* opacity 없이 올라오기만(현황판 CSS 블록 opacity 금지 규칙) */
   @media (prefers-reduced-motion:reduce) { .hb-selbar:not([hidden]) { animation:none; } }
   .hb-selbar .n { display:inline-flex; align-items:center; gap:10px; color:var(--fg); font-weight:700; }
   .hb-selbar .n b { font:700 12px var(--mono); }
   .hb-selbar .lim { color:var(--orange); }
   .hb-selbar .note { color:var(--muted); font-weight:400; }   /* 구분을 바꿔 자동으로 골라 둔 알림: 경고가 아니라 일반 글자색(대비 약 8.5:1) */
   .hb-selbar .sp { flex:1 1 auto; }
-  .hb-selbar button { height:32px; padding:0 14px; }
+  .hb-selbar button { height:36px; padding:0 16px; }
   .hb-selbar button[hidden] { display:none; }
   .hb-selbar #hb-seledit { background:var(--panel); border:1px solid var(--line-strong); }   /* 바로 반영 보조 단추: 흰 바탕 보통 단추(결재 주 단추 .go 와 구분) */
   .hb-selbar #hb-seltow { background:var(--panel); border:1px solid var(--line-strong); }   /* [관심 기관으로]: [수정하기]와 같은 보통 단추(사용자 11-26) */

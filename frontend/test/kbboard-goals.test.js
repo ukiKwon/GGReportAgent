@@ -272,8 +272,8 @@ test('goalRowHtml: 추정·미상·예전 국민은행 표시·목표 밖 줄', 
   const ctx = mkCtx();
   const est = rowHtml(kbb.goalRow(tgt('IB', 'NEW'), ctx));
   assert.ok(est.indexOf('<b class="hb-dd est">D-200</b><span class="hb-q">추정</span>') > 0 && est.indexOf('class="w est"') < 0);   // 12개월 막대 없음(사용자 11-26)
-  assert.ok(est.indexOf('<span class="hb-q hb-prev" title="되찾기 후보 — 예전에 국민은행 금고였던 기관(마지막 2022년)">되찾기</span>') > 0);   // 신규유치 칩 옆 작은 표시(사용자 11-17)
-  assert.ok(est.indexOf('예전 국민은행 금고, 마지막 2022년') > 0);
+  assert.ok(est.indexOf('hb-prev') < 0 && est.indexOf('>되찾기</span>') < 0);   // 구분 칸 128px — 칩 옆 꼬리표는 없앴다(사용자 11-27)
+  assert.ok(est.indexOf('되찾기 후보 — 예전에 국민은행 금고였던 기관(마지막 2022년)') > 0);   // 같은 말은 칸 title·sr 문장으로 남는다
   assert.ok(rowHtml(kbb.goalRow(tgt('IA', 'RETAIN'), ctx)).indexOf('hb-prev') < 0);                           // 재유치 도전은 표시 없음
   assert.ok(rowHtml(kbb.goalRow(tgt('IB', 'NEW', { bank: { kb_now: 'OTHER', lines_now: [] } }), ctx)).indexOf('hb-prev') < 0);   // 국민은행이었던 기록이 없으면 표시 없음
   assert.ok(rowHtml(kbb.goalRow(tgt('IB', 'NEW', { bank: { kb_now: 'KB', last_kb_year: 2026, lines_now: [] } }), ctx)).indexOf('hb-prev') < 0);   // 지금 국민은행이면 표시 없음
@@ -281,7 +281,8 @@ test('goalRowHtml: 추정·미상·예전 국민은행 표시·목표 밖 줄', 
   const prevOf = function (y) { return rowHtml(kbb.goalRow(tgt('IB', 'NEW', { bank: { kb_now: 'OTHER', last_kb_year: y, lines_now: [] } }), ctx)); };
   assert.ok(prevOf(yr + 1).indexOf('hb-prev') < 0);   // 미래에 시작하는 국민은행 약정은 '예전'이 아니다(qa 11-19 P3)
   assert.ok(prevOf(yr).indexOf('hb-prev') < 0);       // 올해는 '예전' 아님(올해보다 앞선 해만)
-  assert.ok(prevOf(yr - 1).indexOf('hb-prev') > 0);   // 지난해는 칩이 붙는다
+  assert.ok(prevOf(yr - 1).indexOf('되찾기 후보 — 예전에 국민은행 금고였던 기관') > 0);   // 지난해는 title·sr 문장이 붙는다(꼬리표 글자는 없음, 사용자 11-27)
+  assert.ok(prevOf(yr).indexOf('되찾기 후보 — 예전에') < 0);
   const unk = rowHtml(kbb.goalRow(tgt('IE', 'NEW'), ctx));
   assert.ok(unk.indexOf('<b class="hb-dd est tx">미상</b>') > 0 && unk.indexOf('<span class="unk">') < 0 && unk.indexOf('class="w') < 0);   // 12개월 칸 없음(사용자 11-26) — 미상은 마감까지 칸이 말한다
   // 목표 밖(제안을 준비 중인 기관): 구분 칸에 [목표에 넣기], 보기 전용은 '목표 아님'
@@ -429,11 +430,11 @@ test('대화창 마크업: 추가 = 기관 combobox·목표 연도·구분 라�
   assert.ok(add.indexOf('id="hb-a-err" class="ap-err" role="alert"') > 0);
   const rs = [{ code: 'WRONG', name: '잘못 넣음' }, { code: 'ETC', name: '기타' }];
   const c = kbb.cancelDialogHtml({ regionName: '서울', name: '광진구청' }, { reasons: rs });
-  assert.ok(c.indexOf('<h3 id="hb-d-t">목표에서 빼기 — 서울 광진구청</h3>') > 0);
-  assert.ok(c.indexOf('뺀 기록(누가·언제·사유)은 남고, 같은 해에 다시 넣을 수 있습니다.') > 0);
+  assert.ok(c.indexOf('<h3 id="hb-d-t">목표 기관에서 제외 — 서울 광진구청</h3>') > 0);
+  assert.ok(c.indexOf('제외한 기록(누가·언제·사유)은 남고, 같은 해에 다시 넣을 수 있습니다.') > 0);
   assert.ok(c.indexOf('<input type="radio" name="hb-c-rs" value="WRONG"> 잘못 넣음') > 0 && c.indexOf('value="ETC"> 기타') > 0);
   assert.ok(c.indexOf('id="hb-c-etcrow" hidden') > 0 && c.indexOf('maxlength="50"') > 0);
-  assert.ok(c.indexOf('<button type="button" id="hb-c-go" class="pp-danger" disabled') > 0 && c.indexOf('>목표에서 빼기</button>') > 0);
+  assert.ok(c.indexOf('<button type="button" id="hb-c-go" class="pp-danger" disabled') > 0 && c.indexOf('>목표 기관에서 제외</button>') > 0);
   assert.strictEqual(kbb.cancelDialogHtml({ regionName: '서울', name: 'x' }, {}).indexOf('type="radio"'), -1);     // 코드표 없으면 사유를 지어내지 않는다
 });
 
@@ -508,7 +509,7 @@ test('알림 문구(#hb-flash): 넣었습니다 / 바꿨습니다 / 뺐습니다
   assert.strictEqual(kbb.flashTag('광진구청', '신규유치 도전'), '광진구청의 구분을 \'신규유치 도전\'으로 바꿨습니다. 결재 없이 반영되고, 바꾼 사람·시각은 기록에 남습니다.');
   assert.ok(kbb.flashTag('하남시', '재유치 도전').indexOf('하남시의 구분을 \'재유치 도전\'으로 바꿨습니다.') === 0);   // '전' 받침 → 으로(조사는 구분 이름 기준)
   assert.ok(kbb.flashTag('하남시', '되찾기').indexOf('\'되찾기\'로 바꿨습니다.') > 0);
-  assert.strictEqual(kbb.flashCancelled('광진구청', 2026), '광진구청을 2026 목표에서 뺐습니다.');
+  assert.strictEqual(kbb.flashCancelled('광진구청', 2026), '광진구청을 2026 목표 기관에서 제외했습니다.');
 });
 
 // ── 소스 구조(보안·접근성·배선) ──────────────────────────────────────────
@@ -554,7 +555,7 @@ test('DOM 코드 구조: 서버 글은 textContent·esc로, 쓰기는 영업부�
   // P3-8: 저장 중에는 Esc·[취소]를 막고 버튼 글을 '저장 중…'으로, 포커스는 대화창 상자에 두었다가 실패하면 되돌린다
   assert.ok(/if \(mm && mm\.busy\) \{ ev\.preventDefault\(\); return; \}/.test(k));
   assert.ok(/if \(b\.id === 'hb-a-cancel'\) \{ if \(!m\.busy\) closeDlg\(\); \}/.test(k) && /if \(b\.id === 'hb-c-cancel'\) \{ if \(!m\.busy\) closeDlg\(\); \}/.test(k));
-  assert.ok(k.indexOf("go.textContent = m.busy ? '저장 중…' : (watch ? '내 관심에 넣기' : '목표에 넣기')") > 0 && k.indexOf("'내 관심에서 빼기' : '목표에서 빼기')") > 0);
+  assert.ok(k.indexOf("go.textContent = m.busy ? '저장 중…' : (watch ? '내 관심에 넣기' : '목표에 넣기')") > 0 && k.indexOf("'내 관심에서 빼기' : '목표 기관에서 제외')") > 0);
   assert.ok(k.indexOf("cb.disabled = !!m.busy") > 0 && k.indexOf('holdDlgFocus(d,') > 0 && k.indexOf('releaseDlgFocus(d);') > 0);
   // P2-1: 제안 진행 자료가 둘 다 403이면 기억해 두고 다시 부르지 않는다, 계정이 바뀌면 푼다
   assert.ok(/if \(prepDenied403\) \{[\s\S]*?return Promise\.resolve\(\);/.test(k) && /p\.code === 403 && o\.code === 403\) prepDenied403 = true;/.test(k) && /prepDenied403 = false;/.test(k));

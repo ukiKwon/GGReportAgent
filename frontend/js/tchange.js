@@ -21,12 +21,12 @@
   tc.BTN = { change: 'submit_target_change', carry: 'carry_targets', term: 'set_term_start', values: 'save_target_values' };   // 서버 TargetUiIds(values = 일괄 창 [수정하기], NEXT 114)
   tc.OPS = ['ADD', 'EDIT', 'CANCEL', 'TO_WATCH', 'TO_GOAL'];
   // NEXT 는 결재함 옛 카드 이름 짓기(cardOpName)용으로만 남긴다: 서버에는 op EDIT + 연도 +1 로 간 옛 요청을 '다음 회차 목표로'로 읽는다. 새 요청 입구는 없다(사용자 11-26).
-  const OP_LONG = { ADD: '목표에 넣기', EDIT: '목표 고치기', CANCEL: '목표에서 빼기', TO_WATCH: '관심으로 옮기기', TO_GOAL: '목표로 옮기기', NEXT: '다음 회차 목표로' };
+  const OP_LONG = { ADD: '목표에 넣기', EDIT: '목표 고치기', CANCEL: '목표 기관에서 제외', TO_WATCH: '관심으로 옮기기', TO_GOAL: '목표로 옮기기', NEXT: '다음 회차 목표로' };
   const OP_SHORT = { ADD: '넣기', EDIT: '고치기', CANCEL: '빼기', TO_WATCH: '관심으로', TO_GOAL: '목표로', NEXT: '다음 회차' };
   tc.opLong = function (op) { return has(OP_LONG, op) ? OP_LONG[op] : ''; };
   tc.opShort = function (op) { return has(OP_SHORT, op) ? OP_SHORT[op] : ''; };
   tc.GO_TEXT = { APPROVAL: '결재 요청', DIRECT: '바로 반영' };
-  tc.APPROVAL_NOW_MSG = '목표에서 빼기·옮기기는 결재가 필요합니다. 줄을 고른 뒤 아래 [목표 기관에서 제외]나 [관심 기관으로]로 올리세요. 구분·금고 방식은 결재 없이 바로 바뀝니다.';
+  tc.APPROVAL_NOW_MSG = '목표 기관에서 제외·옮기기는 결재가 필요합니다. 줄을 고른 뒤 아래 [목표 기관에서 제외]나 [관심 기관으로]로 올리세요. 구분·금고 방식은 결재 없이 바로 바뀝니다.';
   tc.PAST_EDIT_MSG = '지난해 목표는 구분을 고칠 수 없습니다.';
   tc.isPastYear = function (year, y0) { const y = Number(year); return y > 0 && y < Number(y0); };   // 지난해 목표(관심 줄은 연도가 없어 false)
   tc.pastCount = function (s, y0) { let n = 0; ((s && s.ids) || []).forEach(function (id) { const e = s.by[id]; if (e && e.kind !== 'WATCH' && tc.isPastYear(e.year, y0)) n += 1; }); return n; };
@@ -248,7 +248,7 @@
   const ITEM_MSG = {
     pending: '방금 다른 결재 요청에 들어가 잠겼습니다. 이 기관을 이번 수정에서 빼고 다시 올려 주세요.',
     stale: '다른 사람이 먼저 고쳤습니다. 최신 기록으로 다시 읽었으니 이전·이후를 확인하고 다시 올려 주세요.',
-    cancelled: '이미 목표에서 빠진 기관입니다. 이번 수정에서 빼 주세요.',
+    cancelled: '이미 목표 기관에서 제외된 기관입니다. 이번 수정에서 빼 주세요.',
     notOwner: '다른 사람의 관심 기관은 바꿀 수 없습니다. 내 관심 기관만 올릴 수 있으니 이번 수정에서 빼 주세요.',   // 403 NOT_WATCH_OWNER(관심은 사람별, NEXT 117)
     alreadyWatch: '이미 내 관심 기관에 들어 있습니다. 이번 수정에서 빼 주세요.' };   // 409 ALREADY_WATCH(목표→관심 결재를 올릴 때)
   function fallback(s) { return '올리지 못했습니다(오류 ' + s + '). 다시 시도하세요.'; }
@@ -289,7 +289,7 @@
     const direct = !!body && body.mode === 'DIRECT';
     const cnt = direct && Number(body.applied) > 0 ? Number(body.applied) : Number(n);
     return { mode: direct ? 'DIRECT' : 'APPROVAL', n: cnt,
-      text: direct ? (kind === 'edit' ? tc.editResultText(cnt, what) : kind === 'delete' ? '목표 기관 ' + cnt + '곳을 목표에서 뺐습니다. 뺀 기록(누가·언제·사유)은 남습니다.' : kind === 'towatch' ? '목표 기관 ' + cnt + '곳을 내 관심 기관으로 옮겼습니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.' : '목표 기관 ' + cnt + '곳을 바로 반영했습니다.') : '결재 요청을 올렸습니다 — 목표 기관 ' + cnt + '곳. 결재가 끝날 때까지 이 기관들은 잠깁니다.' };
+      text: direct ? (kind === 'edit' ? tc.editResultText(cnt, what) : kind === 'delete' ? '목표 기관 ' + cnt + '곳을 목표 기관에서 제외했습니다. 제외한 기록(누가·언제·사유)은 남습니다.' : kind === 'towatch' ? '목표 기관 ' + cnt + '곳을 내 관심 기관으로 옮겼습니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.' : '목표 기관 ' + cnt + '곳을 바로 반영했습니다.') : '결재 요청을 올렸습니다 — 목표 기관 ' + cnt + '곳. 결재가 끝날 때까지 이 기관들은 잠깁니다.' };
   };
 
   // ── 자동 이월 알림(규격 5-5) — 받은 숫자로만 만든다 ───────────────────────
@@ -320,7 +320,7 @@
     const y = Number(r.targetYear) - 1;
     return (y > 0 ? y : '지난') + ' 목표에서 자동으로 넘어옴' + (r.carryBasis === 'UNREGISTERED' ? '. 작년 결과: 협약 개시일이 지났는데 금고 약정 기록이 없음' : '');
   };
-  tc.rowTips = function (r) {   // 구분 칸 title·sr 뒤에 덧붙는 문장들. 예전 KB는 이월 줄에서 글자 대신 여기로만(구분 칸 폭 146px)
+  tc.rowTips = function (r) {   // 구분 칸 title·sr 뒤에 덧붙는 문장들. 예전 KB는 이월 줄에서 글자 대신 여기로만(구분 칸 폭 128px)
     const out = [];
     if (r && r.carried) {
       const t = tc.carriedTitle(r); if (t) out.push(t);
@@ -395,6 +395,52 @@
   tc.DEL_WATCH = '고른 줄이 모두 관심 기관입니다. 관심 기관은 각 줄의 [관심에서 빼기…]로 뺍니다.';
   tc.DEL_NOREASON = '제외 사유 목록을 받지 못했습니다. 목록을 다시 불러온 뒤 시도하세요.';
   tc.TOWATCH_GONE = '이 기관은 지금 옮길 수 없는 상태입니다. 목록을 다시 불러왔으니 확인하세요.';
+  // 제안 준비 중인 기관은 목표 기관에서 제외·관심 기관으로 옮기기를 막는다(사용자 11-27). 서버(PrepMapper.countActiveByInstitution·PrepNobidService.ACTIVE_STATES, 409 PREP_ACTIVE)와 같은 집합 —
+  // 끝난 상태(CANCELLED 등)는 막지 않는다. 제안 준비 자료를 못 받았으면(prepOf 콜백이 null) 막지 않고 서버 판정에 맡긴다.
+  tc.PREP_BLOCK_STATES = ['CONFIRMED', 'OPEN_PENDING', 'IN_PROGRESS', 'APPROVAL_PENDING', 'WRITABLE', 'WRITING'];
+  tc.isPrepBlock = function (cd) { return tc.PREP_BLOCK_STATES.indexOf(str(cd)) >= 0; };
+  tc.PREP_STATE_NAME = { CONFIRMED: '확정됨', OPEN_PENDING: '개설 대기', IN_PROGRESS: '사전준비 중', APPROVAL_PENDING: '사전준비 승인 중', WRITABLE: '작성 가능', WRITING: '작성 중' };   // prep.js DEFAULT_NAMES와 같은 글자
+  tc.DEL_PREP_LINE = '제안 준비 중 — 중단 뒤 제외';
+  tc.TOWATCH_PREP_LINE = '제안 준비 중 — 중단 뒤 옮기기';
+  tc.DEL_PREP = '고른 기관이 모두 제안 준비 중입니다. 제안 준비를 중단해야 제외할 수 있습니다.';
+  tc.TOWATCH_PREP = '고른 기관이 모두 제안 준비 중입니다. 제안 준비를 중단해야 관심 기관으로 옮길 수 있습니다.';
+  // 막힘과 관심 줄·지난해 목표·결재 중 줄이 섞여 보낼 줄이 없을 때(qa 11-27 P3-1): '모두 제안 준비 중'이라고 하면 사실과 다르다
+  tc.DEL_PREP_MIX = '제외할 수 있는 기관이 모두 제안 준비 중입니다(나머지는 관심 기관). 제안 준비를 중단해야 제외할 수 있습니다.';
+  tc.TOWATCH_PREP_MIX = '옮길 수 있는 기관이 모두 제안 준비 중입니다(나머지는 관심 기관·지난해 목표·결재 중). 제안 준비를 중단해야 관심 기관으로 옮길 수 있습니다.';
+  tc.isPrepWhy = function (w) { return w === tc.DEL_PREP || w === tc.TOWATCH_PREP || w === tc.DEL_PREP_MIX || w === tc.TOWATCH_PREP_MIX; };
+  tc.PREP_GO = '제안 준비 화면으로 →';
+  tc.PREP_ASK = '제안 준비 담당에게 중단을 요청하세요.';   // 제안 준비 화면을 볼 수 없는 계정(can_view 거짓)에게 — [중단…] 단추가 안 보인다(qa 11-27 열린 질문 2)
+  tc.prepNoView = function (p) { return !!p && p.can_view === false; };
+  tc.prepStateCd = function (p) { return str(p && (p.state_cd || p.stateCd)); };
+  tc.prepStateName = function (p) { return str(p && (p.state_name || p.stateName)) || tc.PREP_STATE_NAME[tc.prepStateCd(p)] || '제안 준비'; };
+  // op: 'delete'(제외) | 'towatch'(관심 기관으로 옮기기). 상태별로 중단 길이 다르다 — 승인 요청 중은 중단이 잠겨 있고(prep.js 중단 단추 꺼짐), 확정은 [확정 취소…]가 먼저
+  tc.prepTail = function (cd, op, noView) {
+    const w = op === 'towatch' ? '여기서 옮길' : '여기서 제외할';
+    if (noView) return tc.PREP_ASK;
+    if (cd === 'APPROVAL_PENDING') return '사전준비 승인 요청을 회수하거나 반려받은 뒤 중단할 수 있습니다.';
+    if (cd === 'CONFIRMED') return '제안 준비 화면에서 [확정 취소…]를 누르면, 그 뒤 ' + w + ' 수 있습니다.';
+    return '제안 준비 화면에서 [중단…]을 누르고 사유를 적으면 \'중단(미참여)\'으로 닫히고, 그 뒤 ' + w + ' 수 있습니다.';
+  };
+  tc.prepOneNote = function (name, p, op) {
+    const nm = str(name), verb = op === 'towatch' ? '관심 기관으로 옮길' : '목표 기관에서 제외할';
+    return nm + tc.eun(nm) + ' 지금 제안을 준비 중입니다(' + tc.prepStateName(p) + '). 제안 준비를 중단해야 ' + verb + ' 수 있습니다. ' + tc.prepTail(tc.prepStateCd(p), op, tc.prepNoView(p));
+  };
+  // 서버 409 PREP_ACTIVE(제안 준비 중이라 막음)를 이름 넣은 문장으로(qa 11-27 P2-1). noView = 그 기관의 제안 준비를 볼 수 없는 계정
+  tc.prepActiveMsg = function (name, op, noView) {
+    const nm = str(name), mv = op === 'towatch';
+    return nm + tc.eun(nm) + ' 제안을 준비 중이라 ' + (mv ? '관심 기관으로 옮길' : '제외할') + ' 수 없습니다. ' + (noView ? tc.PREP_ASK : '제안 준비 화면에서 [중단…]을 누른 뒤 다시 하세요.');
+  };
+  tc.prepNames = function (names) { const a = (names || []).map(str).filter(Boolean); return a.slice(0, 3).join(', ') + (a.length > 3 ? ' 외 ' + (a.length - 3) + '곳' : ''); };
+  tc.prepPartNote = function (names, rest, op) {   // 일부만 막힘: 막힌 기관은 이번에 빼고 나머지만 보낸다
+    const lb = tc.prepNames(names), mv = op === 'towatch';
+    return lb + tc.eun(lb) + ' 제안을 준비 중이라 이번에 ' + (mv ? '옮기지' : '제외하지') + ' 않습니다. 제안 준비를 중단한 뒤 다시 ' + (mv ? '옮기세요' : '제외하세요') + '. 나머지 ' + Number(rest) + '곳만 ' + (mv ? '옮깁니다.' : '제외합니다.');
+  };
+  tc.prepAllNote = function (names, blocks, op) {   // 전부 막힘: 1곳이면 상태별 문장, 여러 곳이면 한 문장
+    if (blocks && blocks.length === 1) return tc.prepOneNote((names || [])[0], blocks[0], op);
+    const lb = tc.prepNames(names), mv = op === 'towatch';
+    const noView = !!blocks && blocks.length > 0 && blocks.every(tc.prepNoView);
+    return lb + tc.eun(lb) + ' 모두 지금 제안을 준비 중입니다. 제안 준비를 중단해야 ' + (mv ? '관심 기관으로 옮길' : '목표 기관에서 제외할') + ' 수 있습니다. ' + (noView ? tc.PREP_ASK : '제안 준비 화면에서 중단한 뒤 다시 ' + (mv ? '옮기세요.' : '제외하세요.'));
+  };
   // [수정하기]: 보낼 줄 = 구분 바뀜 대기가 살아 있는 고른 줄. 나머지(대기 없음·관심)는 skip('제외'로 보임). c = { canBulk }
   tc.editState = function (s, d, c) {
     c = c || {};
@@ -411,12 +457,15 @@
   // r.watch = 같은 창 둘째 갈래 '관심 기관으로 옮기기'의 판정(tc.toWatchBulkState) — r.on은 첫째 갈래(CANCEL) 기준 그대로
   tc.deleteState = function (s, c) {
     c = c || {};
-    const send = [], skip = [];
-    ((s && s.ids) || []).forEach(function (id) { (s.by[id].kind === 'WATCH' ? skip : send).push(s.by[id]); });
-    const r = { on: false, why: '', send: send, skip: skip, watch: tc.toWatchBulkState(s, c) };
-    if (!send.length && !skip.length) r.why = '고른 기관이 없습니다.';
+    const send = [], skip = [], block = [], prep = {};   // block = 제안 준비 중이라 막힌 줄, prep[id] = 그 건(c.prepOf 콜백이 돌려준 /preps 항목, 없으면 막지 않는다)
+    ((s && s.ids) || []).forEach(function (id) {
+      const e = s.by[id], p = e.kind !== 'WATCH' && c.prepOf ? c.prepOf(e) : null;
+      if (e.kind === 'WATCH') skip.push(e); else if (p) { block.push(e); prep[e.id] = p; } else send.push(e);
+    });
+    const r = { on: false, why: '', send: send, skip: skip, block: block, prep: prep, watch: tc.toWatchBulkState(s, c) };
+    if (!send.length && !skip.length && !block.length) r.why = '고른 기관이 없습니다.';
     else if (!c.hasMode) r.why = '결재를 올릴 수 없습니다.';
-    else if (!send.length) r.why = tc.DEL_WATCH;
+    else if (!send.length) r.why = block.length ? (skip.length ? tc.DEL_PREP_MIX : tc.DEL_PREP) : tc.DEL_WATCH;
     else if (!(Number(c.nReasons) > 0)) r.why = tc.DEL_NOREASON;
     else r.on = true;
     return r;
@@ -428,13 +477,18 @@
   tc.TOWATCH_REASON = '목표 기관에서 관심 기관으로 옮기기';   // 결재 사유(서버 필수) — 고정 문구라 개인정보 검사에 걸리지 않는다(tc.deleteReason과 같은 방식)
   tc.toWatchBulkState = function (s, c) {
     c = c || {};
-    const send = [], skip = [];
-    ((s && s.ids) || []).forEach(function (id) { const e = s.by[id]; (e.kind === 'WATCH' || e.pend || tc.isPastYear(e.year, c.year) ? skip : send).push(e); });
-    const r = { on: false, why: '', send: send, skip: skip };
-    if (!send.length && !skip.length) r.why = '고른 기관이 없습니다.';
+    const send = [], skip = [], block = [], prep = {};
+    ((s && s.ids) || []).forEach(function (id) {
+      const e = s.by[id];
+      if (e.kind === 'WATCH' || e.pend || tc.isPastYear(e.year, c.year)) { skip.push(e); return; }
+      const p = c.prepOf ? c.prepOf(e) : null;
+      if (p) { block.push(e); prep[e.id] = p; } else send.push(e);
+    });
+    const r = { on: false, why: '', send: send, skip: skip, block: block, prep: prep };
+    if (!send.length && !skip.length && !block.length) r.why = '고른 기관이 없습니다.';
     else if (!c.hasMode) r.why = '결재를 올릴 수 없습니다.';
     else if (c.noWatch) r.why = tc.TOWATCH_NOWATCH;
-    else if (!send.length) r.why = tc.TOWATCH_NONE;
+    else if (!send.length) r.why = block.length ? (skip.length ? tc.TOWATCH_PREP_MIX : tc.TOWATCH_PREP) : tc.TOWATCH_NONE;
     else r.on = true;
     return r;
   };
@@ -482,8 +536,9 @@
   };
   // t = { names, off, dn, dwhat } → 이름 줄 + (대기가 있으면) 버림 줄. 보낼 기관이 없으면 ''
   tc.tgtHtml = function (t, branch) {
-    if (!t || !t.names || !t.names.length) return '';
-    return '<p class="tc-skipnote">' + esc(tc.targetLine(t.names, t.off)) + '</p>' + (Number(t.dn) > 0 ? '<p class="tc-skipnote">' + esc(tc.discardLine(t.dn, t.dwhat, branch)) + '</p>' : '');
+    const pn = t && t.pnote ? '<p class="tc-skipnote tc-prepnote">' + esc(t.pnote) + '</p>' : '';   // 제안 준비 중이라 이번에 빼는 기관 안내(사용자 11-27) — 보낼 기관이 없어도 안내는 남는다
+    if (!t || !t.names || !t.names.length) return pn;
+    return pn + '<p class="tc-skipnote">' + esc(tc.targetLine(t.names, t.off)) + '</p>' + (Number(t.dn) > 0 ? '<p class="tc-skipnote">' + esc(tc.discardLine(t.dn, t.dwhat, branch)) + '</p>' : '');
   };
   // 고른 항목 list 중 지금 화면 줄(rows) 안에 없는 수(탭·연도·거르기 밖)
   tc.offCount = function (list, rows) {
@@ -502,9 +557,12 @@
   tc.toWatchFact = function (tagName) { return (str(tagName) ? '구분(' + str(tagName) + ')' : '구분') + '과 메모는 그대로 옮겨집니다. 옮긴 기록(누가·언제)은 팀 이력에 남습니다.'; };
   tc.deleteReason = function (reasons, cd, etc) {   // 결재 사유(서버 필수): 고른 빼는 사유에서 만든다(고정 문구라 개인정보 검사에 걸리지 않는다)
     const r = (reasons || []).filter(function (x) { return x.code === cd; })[0], e = cd === tc.ETC_CD ? str(etc).trim() : '';
-    return '목표에서 빼기 — ' + (r ? r.name : str(cd)) + (e ? ': ' + e : '');
+    return '목표 기관에서 제외 — ' + (r ? r.name : str(cd)) + (e ? ': ' + e : '');
   };
   tc.bulkTitle = function (m) {
+    const pc = m.pn != null ? Number(m.pn) : Number(m.total), pv = m.kind === 'towatchn' || m.kind === 'towatch' ? '관심 기관으로 옮기기' : '목표 기관에서 제외';   // pn = 막힌 기관 수(관심 줄이 섞이면 total과 다르다, qa 11-27 P3-1)
+    if (m.pall && pc === 1 && str(m.pname)) return pv + ' — ' + str(m.pname);   // 제안 준비 중인 기관 하나(사용자 11-27)
+    if (m.pall) return pv + ' — ' + pc + '곳';
     if (m.kind === 'towatch') return '내 관심 기관으로 옮기기 — ' + str(m.regionName) + ' ' + str(m.name);
     if (m.kind === 'towatchn') return '관심 기관으로 옮기기 — ' + Number(m.n) + '곳';
     const what = m.kind === 'delete' ? '목표 기관에서 제외' : (m.what === '금고 방식' ? '금고 방식 수정' : (m.what === '구분·금고 방식' ? '구분·금고 방식 수정' : '구분 수정'));   // m.what = draftWhat 결과(팀 결정 11-26)
@@ -521,7 +579,7 @@
   // m = { kind:'edit'|'delete'|'towatch', mode, role, rows, n, total, thisYear, reasons:[{code,name}], name·regionName·tagName(towatch) }. 덮개는 body 직계로 붙이고 dlg.open으로 연다.
   tc.bulkDialogHtml = function (m) {
     const kind = m.kind === 'delete' || m.kind === 'towatch' || m.kind === 'towatchn' ? m.kind : 'edit', del = kind === 'delete', tw = kind === 'towatch', twn = kind === 'towatchn', appr = m.mode === 'APPROVAL', rs = m.reasons || [];
-    const go = del ? (appr ? tc.GO_TEXT.APPROVAL : '빼기') : (twn ? (appr ? tc.TOWATCH_GO : '옮기기') : (tw ? (appr ? tc.GO_TEXT.APPROVAL : '옮기기') : '수정'));   // 결재면 '결재 요청'('관심 기관으로'는 '옮기기 요청'), 바로 반영이면 동사. delete 창은 첫 라디오(제외) 기준 — 라디오를 바꾸면 kbboard.bulkChoose가 글자를 바꾼다
+    const go = del ? (appr ? tc.GO_TEXT.APPROVAL : '제외') : (twn ? (appr ? tc.TOWATCH_GO : '옮기기') : (tw ? (appr ? tc.GO_TEXT.APPROVAL : '옮기기') : '수정'));   // 결재면 '결재 요청'('관심 기관으로'는 '옮기기 요청'), 바로 반영이면 동사. delete 창은 첫 라디오(제외) 기준 — 라디오를 바꾸면 kbboard.bulkChoose가 글자를 바꾼다
     const total = Number(m.total) || 0, skipN = Math.max(0, total - (Number(m.n) || 0)), wSkip = Math.max(0, total - (Number(m.wn) || 0));
     const req = '<span class="dlg-req" aria-hidden="true">*</span><span class="sr-only"> (필수)</span>';
     const reasonBox = !del ? '' :
@@ -534,39 +592,57 @@
       '<label class="tc-opt"><input type="radio" name="tc-bd-do" value="cancel" checked><span><b>목표 기관에서 제외</b><small>목표에서 뺍니다. 관심 기관에도 남지 않습니다.</small>' + (skipN ? '<small>관심 기관 ' + skipN + '곳은 제외하지 않습니다.</small>' : '') + '</span></label>' +
       '<label class="tc-opt' + (m.won ? '' : ' off') + '"><input type="radio" name="tc-bd-do" value="towatch"' + (m.won ? '' : ' disabled') + '><span><b>관심 기관으로 옮기기</b><small>목표에서 빼고 내 관심 기관으로 계속 지켜봅니다.</small>' +
       (m.won ? (wSkip ? '<small>관심 기관·지난해 목표 ' + wSkip + '곳은 옮기지 않습니다.</small>' : '') : '<small>' + esc(m.wwhy) + '</small>') + '</span></label></fieldset>';
-    const hint = del ? tc.dropHint(m.mode) : (twn ? tc.toWatchNHint(m.mode) : (tw ? tc.toWatchHint(m.mode, m.role) : tc.EDIT_HINT));
+    const hint = m.pall ? '' : del ? tc.dropHint(m.mode) : (twn ? tc.toWatchNHint(m.mode) : (tw ? tc.toWatchHint(m.mode, m.role) : tc.EDIT_HINT));
     // 보낼 기관 이름 줄(+ 저장 전 대기 버림 줄): 제외 창은 라디오 갈래마다 하나씩(둘째는 hidden, kbboard.bulkChoose가 바꾼다), [관심 기관으로] 창은 하나
     const tgt = function (id, t, branch, hide) { return '<div class="tc-tgt" id="' + id + '"' + (hide ? ' hidden' : '') + '>' + tc.tgtHtml(t, branch) + '</div>'; };
-    const body = tw
+    const body = m.pall
+      ? '<p id="tc-bd-q">' + esc(m.pq) + '</p>'   // 고른 기관이 모두 제안 준비 중: 라디오·사유 칸 없이 이유만, 보내기 단추는 꺼진다
+      : tw
       ? '<p id="tc-bd-q">' + esc(tc.bulkQuestion(m)) + '</p><p class="tc-sub">' + esc(tc.toWatchFact(m.tagName)) + '</p>' + (appr ? reasonBoxHtml({ mode: 'APPROVAL', reason: '' }) : '')
       : (twn ? '<p id="tc-bd-q">' + esc(tc.bulkQuestion(m)) + '</p><p class="tc-sub">' + esc(tc.toWatchNSub(m)) + '</p>' + (skipN ? '<p class="tc-skipnote">관심 기관·지난해 목표 ' + skipN + '곳은 옮기지 않습니다.</p>' : '') + tgt('tc-bd-tgt-towatch', m.wtgt, 'towatch', false)
         : (del ? opts + tgt('tc-bd-tgt-cancel', m.ctgt, 'cancel', false) + tgt('tc-bd-tgt-towatch', m.wtgt, 'towatch', true) + reasonBox + '<p id="tc-bd-q">' + esc(tc.bulkQuestion(m)) + '</p>'
           : '<p id="tc-bd-q">' + esc(tc.bulkQuestion(m)) + '</p>' + reasonBox + '<ol class="tc-items" id="tc-bd-items">' + tc.bulkItemsHtml(m.rows) + '</ol>'));
     return '<div id="tc-bd" class="modal-overlay" style="display:none" data-kind="' + kind + '"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="tc-bd-t" aria-describedby="tc-bd-q">' +
-      '<header class="dlg-bar"><h2 class="dlg-t" id="tc-bd-t" tabindex="-1">' + esc(tc.bulkTitle(m)) + '</h2><div class="dlg-acts"><button type="button" id="tc-bd-cancel">취소</button>' +
-      '<button type="button" id="tc-bd-go" class="' + (del && !appr ? 'dlg-danger' : 'dlg-go') + '">' + esc(go) + '</button></div></header>' +
+      '<header class="dlg-bar"><h2 class="dlg-t" id="tc-bd-t" tabindex="-1">' + esc(tc.bulkTitle(m)) + '</h2><div class="dlg-acts">' + (m.pgo ? '<button type="button" id="tc-bd-prep">' + esc(tc.PREP_GO) + '</button>' : '') + '<button type="button" id="tc-bd-cancel">취소</button>' +
+      '<button type="button" id="tc-bd-go" class="' + (del && !appr ? 'dlg-danger' : 'dlg-go') + '"' + (m.pall ? ' disabled' : '') + '>' + esc(go) + '</button></div></header>' +
       '<div class="dlg-note"><p class="dlg-hint">' + esc(hint) + '</p><p class="dlg-err" id="tc-bd-err" role="alert"></p></div>' +
       '<div class="dlg-body">' + body + '</div></div></div>';
   };
+  // PREP_ACTIVE 응답에서 막힌 줄 찾기: item_no 우선, 없으면 detail.institution_ids의 첫 일치(없으면 null)
+  function prepItemOf(d, items) {
+    const o = d && typeof d === 'object' && !Array.isArray(d) ? d : {}, no = Number(o.item_no) > 0 ? Math.floor(Number(o.item_no)) : 0, list = items || [];
+    if (no && list[no - 1]) return list[no - 1];
+    const ids = Array.isArray(o.institution_ids) ? o.institution_ids.map(str) : [];
+    return list.filter(function (z) { return z && ids.indexOf(str(z.id)) >= 0; })[0] || null;
+  }
   // 목표→관심 서버 오류: 기관 하나짜리 상자라 '이번 수정에서 빼 주세요' 같은 일괄 창 문장을 쓰지 않는다. → { msg, field(사유 칸 아래), refresh(목록을 다시 읽고 상자를 닫는다) }
-  tc.toWatchError = function (x, items) {
+  tc.toWatchError = function (x, items, ctx) {
     const e = tc.errorOf(x, items), s = x ? Number(x.status) || 0 : 0, d = x && x.body ? x.body.detail : null, code = d && typeof d === 'object' && typeof d.code === 'string' ? d.code : '';
     let msg = e.item ? e.item.msg : (e.msg || e.top), refresh = !!e.refresh;
+    if (s === 409 && code === 'PREP_ACTIVE') {   // 제안 준비 중이라 서버가 막음: 이름 넣은 문장, 제안 준비 자료를 다시 읽는다(prep, qa 11-27 P2-1)
+      const it = prepItemOf(d, items);
+      return { msg: it ? tc.prepActiveMsg(it.name, 'towatch', !!(ctx && ctx.noView && ctx.noView(it.id))) : msg, field: false, refresh: false, prep: true };
+    }
     if (s === 409 && code === 'ALREADY_WATCH') msg = '이미 내 관심 기관에 들어 있어 옮길 수 없습니다. 옮기려면 내 관심 탭에서 먼저 빼고 다시 시도하세요.';
     else if (s === 409 && code === 'CHANGE_PENDING') msg = '방금 다른 결재 요청에 들어가 잠겼습니다. 결재가 끝난 뒤 다시 시도해 주세요.';
     else if (s === 409 && code === 'STALE') msg = '다른 사람이 먼저 고쳤습니다. 최신 기록으로 다시 읽었으니 확인하고 다시 시도하세요.';
-    else if (s === 409 && code === 'ALREADY_CANCELLED') { msg = '이미 목표에서 빠진 기관입니다. 목록을 다시 불러왔습니다.'; refresh = true; }
+    else if (s === 409 && code === 'ALREADY_CANCELLED') { msg = '이미 목표 기관에서 제외된 기관입니다. 목록을 다시 불러왔습니다.'; refresh = true; }
     return { msg: msg, field: e.kind === 'field' || !!(e.item && e.item.f === 'text'), refresh: refresh };
   };
   // 띠 [수정하기]·[삭제하기] 확인 상자 오류(qa 11-25 P2-3·P3-3): '이번 수정에서 빼 주세요'·'n번째'는 이 상자에 맞지 않는다 — 기관 이름으로 말하고, 잠김·이미 빠짐은 목록을 다시 읽는다(refresh).
   // 다시 읽으면 그 줄이 보낼 목록에서 빠지므로 '다시 누르세요'로 끝낸다. → { msg, refresh }
-  tc.bulkError = function (x, items, kind) {
+  // ctx = { noView(기관 id) → 그 기관의 제안 준비를 볼 수 없는 계정이면 true } — PREP_ACTIVE 문장의 안내가 달라진다
+  tc.bulkError = function (x, items, kind, ctx) {
     const e = tc.errorOf(x, items), s = x ? Number(x.status) || 0 : 0, d = x && x.body ? x.body.detail : null, code = d && typeof d === 'object' && typeof d.code === 'string' ? d.code : '';
+    if (s === 409 && code === 'PREP_ACTIVE') {   // 서버가 제안 준비 중이라 막음(사용자 11-27): 막힌 기관 이름을 넣고(qa P2-1), prep:true면 부른 쪽이 제안 준비 자료를 다시 읽는다. 줄을 못 찾으면 서버 문장 그대로
+      const pit = prepItemOf(d, items);
+      return { msg: pit ? tc.prepActiveMsg(pit.name, kind === 'towatch' ? 'towatch' : 'delete', !!(ctx && ctx.noView && ctx.noView(pit.id))) : (e.item ? e.item.msg : (e.msg || e.top)), refresh: false, prep: true };
+    }
     if (!e.item) return { msg: e.msg || e.top, refresh: !!e.refresh };
     const it = (items || []).filter(function (z) { return z && z.uid === e.item.uid; })[0], nm = it ? str(it.name) : '', verb = kind === 'delete' ? '빼지' : (kind === 'towatch' ? '옮기지' : '저장하지');
     if (s === 409 && code === 'ALREADY_WATCH') return { msg: nm + tc.eun(nm) + ' 이미 내 관심 기관에 들어 있어 옮기지 못했습니다. 선택을 풀고 나머지만 다시 누르세요.', refresh: false };
     if (s === 409 && code === 'CHANGE_PENDING') return { msg: nm + tc.eun(nm) + ' 방금 결재 요청에 들어가 잠겨 ' + verb + ' 못했습니다. 목록을 다시 읽었으니 확인하고 다시 누르세요.', refresh: true };
-    if (s === 409 && code === 'ALREADY_CANCELLED') return { msg: nm + tc.eun(nm) + ' 이미 목표에서 빠진 기관입니다. 목록을 다시 읽었으니 확인하고 다시 누르세요.', refresh: true };
+    if (s === 409 && code === 'ALREADY_CANCELLED') return { msg: nm + tc.eun(nm) + ' 이미 목표 기관에서 제외된 기관입니다. 목록을 다시 읽었으니 확인하고 다시 누르세요.', refresh: true };
     return { msg: nm + tc.eul(nm) + ' 확인하세요. ' + e.item.msg, refresh: !!e.refresh };
   };
   // ── 기관 상세 팝업 머리 [관심 기관으로…](현황판에서 연 팝업만). r = 현황판의 그 기관 목표 줄(없으면 null), c = { mode, readOnly, noWatch, year(올해) }. 위에서부터 처음 맞는 것
@@ -635,7 +711,7 @@
         '<label for="' + id('m') + '">메모</label><input id="' + id('m') + '"' + u + ' data-f="memo" maxlength="' + tc.MEMO_MAX + '" size="20" value="' + esc(it.memo) + '">';
     } else if (it.op === 'CANCEL') {
       const rs = o.reasons || [];
-      dd = '목표에서 빠짐' + (rs.length
+      dd = '목표 기관에서 제외됨' + (rs.length
         ? '<label for="' + id('rs') + '">빼는 사유</label><select id="' + id('rs') + '"' + u + ' data-f="cancelCd"><option value=""' + (it.cancelCd ? '' : ' selected') + '>고르세요</option>' + rs.map(function (x) {
           return '<option value="' + esc(x.code) + '"' + (x.code === it.cancelCd ? ' selected' : '') + '>' + esc(x.name) + '</option>';
         }).join('') + '</select>' + (it.cancelCd === tc.ETC_CD ? '<label for="' + id('etc') + '">기타 사유</label><input id="' + id('etc') + '"' + u + ' data-f="cancelEtc" maxlength="' + tc.ETC_MAX + '" value="' + esc(it.cancelEtc) + '">' : '')
@@ -668,7 +744,7 @@
   }
   function allopHtml(items) {   // 동작 한꺼번에 정하기
     const free = (items || []).filter(function (x) { return !tc.isFixed(x); });
-    return free.length >= 2 && free.some(function (x) { return !x.op; }) ? '<div class="tc-all"><label for="tc-allop">고른 목표 줄 모두</label><select id="tc-allop"><option value="">동작 한꺼번에 정하기</option><option value="CANCEL">목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option></select></div>' : '';
+    return free.length >= 2 && free.some(function (x) { return !x.op; }) ? '<div class="tc-all"><label for="tc-allop">고른 목표 줄 모두</label><select id="tc-allop"><option value="">동작 한꺼번에 정하기</option><option value="CANCEL">목표 기관에서 제외</option><option value="TO_WATCH">관심으로 옮기기</option></select></div>' : '';
   }
   tc.dialogHtml = function (m, o) {
     const approval = m.mode === 'APPROVAL', items = m.items || [];
@@ -822,7 +898,7 @@
         }
         break;
       }
-      case 'CANCEL': h = '목표에서 빠짐' + (x.cancel_reason_name ? ' · 사유 ' + esc(x.cancel_reason_name) : ''); break;
+      case 'CANCEL': h = '목표 기관에서 제외됨' + (x.cancel_reason_name ? ' · 사유 ' + esc(x.cancel_reason_name) : ''); break;
       case 'TO_WATCH': h = '관심 기관(연도 없음)'; break;
       case 'TO_GOAL': h = '<span class="mono">' + esc(x.to_year) + '</span> 목표'; break;
       default: h = '';

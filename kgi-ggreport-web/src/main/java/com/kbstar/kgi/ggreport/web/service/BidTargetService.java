@@ -89,6 +89,29 @@ public class BidTargetService {
 
     static ApiException pendingConflict(BidTarget cur) { return conflict("CHANGE_PENDING", PENDING_MSG, cur); }
 
+    static final String PREP_ACTIVE_MSG = "제안을 준비 중인 기관은 목표 기관에서 제외하거나 관심 기관으로 옮길 수 없습니다. 제안 준비 화면에서 중단한 뒤 다시 하세요.";
+
+    /**
+     * 11-27 — 진행 중 제안 준비 건(활성 상태 = PrepNobidService.ACTIVE_STATES: CONFIRMED·OPEN_PENDING·IN_PROGRESS·APPROVAL_PENDING·WRITABLE·WRITING)이
+     * 있는 기관은 목표 제외(CANCEL)·관심 이동(TO_WATCH)을 할 수 없다 → 409 PREP_ACTIVE. 기관 잠금 안에서 부른다.
+     */
+    void requireNoActivePrep(String inst) { requireNoActivePrep(inst, PREP_ACTIVE_MSG); }
+
+    /** 결재 승인 시점용 문장(결재자에게 보이는 말). 코드는 같은 PREP_ACTIVE. */
+    static final String PREP_ACTIVE_APPROVE_MSG = "요청 뒤 이 기관의 제안 준비가 시작되어 반영할 수 없습니다. 반려하고, 담당이 제안 준비를 정리한 뒤 다시 요청하게 해 주세요.";
+
+    void requireNoActivePrep(String inst, String message) {
+        List<String> caseIds = preps.selectActiveCaseIdsByInstitution(inst);
+        if (caseIds.isEmpty()) return;
+        Map<String, Object> d = new LinkedHashMap<String, Object>();
+        d.put("code", "PREP_ACTIVE");
+        d.put("message", message);
+        d.put("latest", null);
+        d.put("institution_ids", Collections.singletonList(inst));
+        d.put("bid_case_ids", new ArrayList<String>(caseIds));
+        throw ApiException.withDetail(409, d);
+    }
+
     private void requireNoPending(String inst, BidTarget cur) {
         if (mapper.countPendingByInst(inst) > 0) throw pendingConflict(cur);
     }
@@ -400,6 +423,7 @@ public class BidTargetService {
         if (toWatch) checkWatchOverlap(inst, no, actor.getEmpNo()); else checkGoalOverlap(inst, no, year);
         Map<String, Object> warning = !toWatch && year.intValue() == thisYear ? closedCheck(inst, today) : null;
         requireDirect(actor, cur);   // 옮기기는 어느 방향이든 목표가 바뀐다
+        if (toWatch) requireNoActivePrep(inst);   // 11-27 — 제안 준비 중인 기관은 관심으로 옮길 수 없다
         if (cur.getRevNo() + 1 > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, cur);
         cur.setRevNo(cur.getRevNo() + 1);
         cur.setActionCd(ACTION_MOVE);
@@ -472,7 +496,10 @@ public class BidTargetService {
         if (in.getBaseRevNo() != cur.getRevNo()) throw conflict("STALE", "다른 사람이 먼저 고쳤습니다. 최신 기록을 확인하고 다시 빼 주세요.", cur);
         requireNoPending(inst, cur);   // 결재 중이면 사유 검사보다 먼저 CHANGE_PENDING
         BidTargetRules.CancelParsed cp = BidTargetRules.parseCancel(in, codeCheck());
-        if (!BidTargetRules.KIND_WATCH.equals(BidTargetRules.kindOf(cur))) requireDirect(actor, cur);
+        if (!BidTargetRules.KIND_WATCH.equals(BidTargetRules.kindOf(cur))) {
+            requireDirect(actor, cur);
+            requireNoActivePrep(inst);   // 11-27 — 목표 제외는 제안 준비 중이 아닐 때만(관심 빼기는 해당 없음)
+        }
         if (cur.getRevNo() + 1 > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, cur);   // S4
         cur.setRevNo(cur.getRevNo() + 1);   // 값은 직전 행 그대로, 행동·사유·수정자만 새로
         cur.setActionCd(ACTION_CANCEL);

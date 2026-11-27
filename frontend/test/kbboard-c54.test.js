@@ -296,7 +296,7 @@ test('사람별 관심 후속(qa a79fb1e8): takenFor(넣을 곳 기준 한 곳)�
   assert.ok(k.indexOf("(r.kind === 'WATCH' ? ov.querySelector('#hb-c-cancel') : null)") > 0 && k.indexOf("ov.querySelector('#hb-c-go') : null") < 0);
   // P3-3: 닿지 않는 관심 분기를 지웠다 — 목표 빼기 창 마크업에는 '관심에서 빼기'가 없다
   const gdlg = kbb.cancelDialogHtml({ kind: 'GOAL', regionName: '서울', name: '가' }, { reasons: [{ code: 'ETC', name: '기타' }] });
-  assert.ok(gdlg.indexOf('>목표에서 빼기 — 서울 가</h3>') > 0 && gdlg.indexOf('관심에서') < 0 && gdlg.indexOf('disabled') > 0);
+  assert.ok(gdlg.indexOf('>목표 기관에서 제외 — 서울 가</h3>') > 0 && gdlg.indexOf('관심에서') < 0 && gdlg.indexOf('disabled') > 0);
   // P2-1: 팝업 줄 칩은 있는 쪽 모두(내 관심 · 팀 목표), 글자는 '내 관심'
   assert.ok(k.indexOf("watchIds[id] ? '내 관심' : ''") > 0 && k.indexOf("recheckTaken(m)") > 0 && k.indexOf('recInput(years, m)') > 0);
 });

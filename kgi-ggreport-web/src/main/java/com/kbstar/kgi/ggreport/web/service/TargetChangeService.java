@@ -195,10 +195,12 @@ public class TargetChangeService {
                 c.setBaseRevNo(it.getBaseRevNo()); c.setCancelReasonCd(it.getCancelReasonCd()); c.setCancelReasonEtc(it.getCancelReasonEtc());
                 BidTargetRules.CancelParsed cp = BidTargetRules.parseCancel(c, codes);
                 p.cancelCd = cp.reasonCd; p.cancelEtc = cp.reasonEtc;
+                targets.requireNoActivePrep(p.inst);   // 11-27 PREP_ACTIVE
                 return p;
             }
             case OP_TO_WATCH:
                 targets.checkWatchOverlap(p.inst, cur.getTargetNo(), requesterEmp);
+                targets.requireNoActivePrep(p.inst);   // 11-27 PREP_ACTIVE
                 return p;
             default: {   // TO_GOAL
                 p.toYear = BidTargetRules.moveYear(it.getTargetYear(), false, thisYear);
@@ -335,9 +337,11 @@ public class TargetChangeService {
             case OP_CANCEL:
                 if (x.getCancelReasonCd() == null || !codes.enabled(BidTargetRules.G_CANCEL, x.getCancelReasonCd())) throw invalid("빼는 사유가 더 이상 쓰이지 않습니다.", p.cur);
                 p.cancelCd = x.getCancelReasonCd(); p.cancelEtc = x.getCancelReasonEtc();
+                targets.requireNoActivePrep(p.inst, BidTargetService.PREP_ACTIVE_APPROVE_MSG);   // 11-27 — 요청 뒤 준비가 시작됐을 수 있어 승인 때 다시(결재자용 문장)
                 return p;
             case OP_TO_WATCH:
                 targets.checkWatchOverlap(p.inst, p.cur.getTargetNo(), requesterEmp);
+                targets.requireNoActivePrep(p.inst, BidTargetService.PREP_ACTIVE_APPROVE_MSG);   // 11-27 PREP_ACTIVE(결재자용 문장)
                 return p;
             default: {   // TO_GOAL
                 p.toYear = x.getToYear();

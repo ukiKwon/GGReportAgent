@@ -186,7 +186,7 @@ test('D 구분 고르기는 저장하지 않고 대기에 담는다 → 자동 �
   // 3. 칩: 새 구분 + 점선 클래스 + '바뀜' 꼬리표(색만으로 구분하지 않음) + 저장된 값 sr 안내
   const h = kbbD.tagCellHtml(row, { canEdit: true, canTag: function () { return true; }, drafts: gs.draft });
   assert.ok(h.indexOf('class="hb-tag draft"') > 0 && h.indexOf('<span class="sr-only">바뀔 구분: </span>신규유치 도전') > 0);
-  assert.ok(h.indexOf('<span class="hb-q hb-dft">바뀜</span>') > 0 && h.indexOf('지금 저장된 구분은 재유치 도전') > 0);
+  assert.ok(h.indexOf('hb-dft') < 0 && h.indexOf('>바뀜</span>') < 0 && h.indexOf('지금 저장된 구분은 재유치 도전') > 0);   // 목표 표는 '바뀜' 꼬리표 글자 없이 점선 + title·sr(사용자 11-27)
   assert.ok(kbbD.tagCellHtml(row, { canEdit: true, canTag: function () { return true; } }).indexOf('draft') < 0);   // 대기가 없으면 예전 마크업
   assert.ok(kbbD.tagCellHtml(Object.assign({}, row, { kind: 'WATCH' }), { canEdit: true, drafts: gs.draft }).indexOf('draft') < 0);   // 같은 기관 관심 줄에는 새지 않는다
   // 4. [수정하기…] 창: 대기 값으로 미리 채움, 이전은 원래 값

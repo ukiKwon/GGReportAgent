@@ -31,7 +31,7 @@ function snapA() { return tc.entryOfRow(mk({ id: 'A', name: '종로구청', targ
 test('동작 이름: 긴 이름(창·카드)·짧은 이름(결재 중 칩), 모르는 코드는 빈 글자', function () {
   assert.strictEqual(tc.opLong('ADD'), '목표에 넣기');
   assert.strictEqual(tc.opLong('EDIT'), '목표 고치기');
-  assert.strictEqual(tc.opLong('CANCEL'), '목표에서 빼기');
+  assert.strictEqual(tc.opLong('CANCEL'), '목표 기관에서 제외');
   assert.strictEqual(tc.opLong('TO_WATCH'), '관심으로 옮기기');
   assert.strictEqual(tc.opLong('TO_GOAL'), '목표로 옮기기');
   assert.deepStrictEqual(['ADD', 'EDIT', 'CANCEL', 'TO_WATCH', 'TO_GOAL'].map(tc.opShort), ['넣기', '고치기', '빼기', '관심으로', '목표로']);
@@ -219,7 +219,7 @@ test('오류 문장 표(5-2): 항목 오류는 항목 상자 문장 + 위 한 �
   assert.strictEqual(b.top, '1번째 종로구청을 확인하세요.'); assert.strictEqual(b.refresh, true);
   assert.strictEqual(b.item.msg, '다른 사람이 먼저 고쳤습니다. 최신 기록으로 다시 읽었으니 이전·이후를 확인하고 다시 올려 주세요.');
   const c = err(409, { code: 'ALREADY_CANCELLED', item_no: 1 });
-  assert.strictEqual(c.item.msg, '이미 목표에서 빠진 기관입니다. 이번 수정에서 빼 주세요.'); assert.strictEqual(c.refresh, false);
+  assert.strictEqual(c.item.msg, '이미 목표 기관에서 제외된 기관입니다. 이번 수정에서 빼 주세요.'); assert.strictEqual(c.refresh, false);
   assert.strictEqual(err(409, { code: 'DUP_TARGET', message: '이미 목표 기관으로 설정되어 있습니다.', item_no: 1 }).item.msg, '이미 목표 기관으로 설정되어 있습니다.');
   assert.strictEqual(err(400, { code: 'BAD_VALUE', message: '동작을 목록에서 골라 주세요.', item_no: 1 }).item.msg, '동작을 목록에서 골라 주세요.');
   assert.strictEqual(err(404, { code: 'NOT_FOUND', message: 'x', item_no: 1 }).item.msg, '기관을 찾지 못했습니다.');   // 영문 서버 문구는 내보이지 않는다
@@ -313,7 +313,7 @@ test('결재 진행 중 창: 요청 동작·요청한 사람·올린 시각(한�
   const r = { regionName: '서울', name: '광진구청', pendInfo: { reqId: 9, op: 'CANCEL', by: '김영업', at: '2026-11-20T05:06:07Z' } };
   const h = tc.pendingDialogHtml(r, { canTerm: true });
   assert.ok(h.indexOf('결재 진행 중 — 서울 광진구청</h2>') > 0);
-  assert.ok(h.indexOf('<dt>요청 동작</dt><dd>목표에서 빼기</dd><dt>요청한 사람</dt><dd>김영업</dd><dt>올린 시각</dt><dd class="mono">2026-11-20 14:06</dd>') > 0);
+  assert.ok(h.indexOf('<dt>요청 동작</dt><dd>목표 기관에서 제외</dd><dt>요청한 사람</dt><dd>김영업</dd><dt>올린 시각</dt><dd class="mono">2026-11-20 14:06</dd>') > 0);
   assert.ok(h.indexOf('id="pd-inbox">결재함에서 보기</button><span class="dlg-sep" aria-hidden="true"></span><button type="button" id="pd-close">닫기</button>') > 0);
   assert.ok(h.indexOf('id="pd-term">협약 개시일 적기…</button>') > 0);
   assert.ok(tc.pendingDialogHtml(r, { canTerm: false }).indexOf('pd-term') < 0);
@@ -322,8 +322,8 @@ test('결재 진행 중 창: 요청 동작·요청한 사람·올린 시각(한�
 test('결재 중 칩·고르기 칸: 쓰기 자격자는 버튼(요청 정보), 그 밖은 글자, 목표 밖·옮길 시기 아닌 관심 줄은 빈 칸', function () {
   const r = { id: 'I1', fkey: '11|종로', name: '종로구청', regionName: '서울', tagName: '재유치 도전', tagCd: 'RETAIN', pend: true, pendInfo: { reqId: 9, op: 'CANCEL', by: '김영업', at: '2026-11-20T05:06:07Z' } };
   const w = tc.pendCellHtml(r, { canEdit: true });
-  assert.ok(w.indexOf('<td title="구분: 재유치 도전 · 결재 중: 목표에서 빼기 요청 · 김영업 2026-11-20 14:06">') === 0);
-  assert.ok(w.indexOf('<button type="button" class="hb-pend" data-act="pend" data-inst="I1" data-key="11|종로" aria-haspopup="dialog" aria-label="결재 중: 목표에서 빼기 요청, 요청자 김영업, 2026-11-20 14:06. 자세히 보기">') > 0);
+  assert.ok(w.indexOf('<td title="구분: 재유치 도전 · 결재 중: 목표 기관에서 제외 요청 · 김영업 2026-11-20 14:06">') === 0);
+  assert.ok(w.indexOf('<button type="button" class="hb-pend" data-act="pend" data-inst="I1" data-key="11|종로" aria-haspopup="dialog" aria-label="결재 중: 목표 기관에서 제외 요청, 요청자 김영업, 2026-11-20 14:06. 자세히 보기">') > 0);
   assert.ok(w.indexOf('결재 중 · 빼기</button><span class="sr-only">. 구분 재유치 도전</span></td>') > 0);
   const ro = tc.pendCellHtml(r, { canEdit: false });
   assert.ok(ro.indexOf('<td title="결재가 진행 중인 기관입니다"><span class="hb-pend">') === 0 && ro.indexOf('결재 중</span>') > 0 && ro.indexOf('<button') < 0);
@@ -354,7 +354,7 @@ test('일괄 요청 창 마크업: 제목·단추·안내·사유 칸·항목(�
   assert.ok(h.indexOf('id="tc-cancel">취소</button><button type="button" id="tc-go" class="dlg-go">결재 요청</button>') > 0);
   assert.ok(h.indexOf('영업팀장이 결재합니다. 결재가 끝날 때까지') > 0);
   assert.ok(h.indexOf('<textarea id="tc-reason" rows="3" maxlength="200" aria-describedby="tc-rh tc-rc tc-re"></textarea>') > 0 && h.indexOf('id="tc-rc" class="mono">0/200') > 0);
-  assert.ok(h.indexOf('<select id="tc-i1-op" data-uid="1" data-f="op"><option value="">빼기·옮기기 고르기</option><option value="CANCEL" selected>목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option></select>') > 0);   // 목표 고치기는 목록에 없다(NEXT 114)
+  assert.ok(h.indexOf('<select id="tc-i1-op" data-uid="1" data-f="op"><option value="">빼기·옮기기 고르기</option><option value="CANCEL" selected>목표 기관에서 제외</option><option value="TO_WATCH">관심으로 옮기기</option></select>') > 0);   // 목표 고치기는 목록에 없다(NEXT 114)
   assert.ok(h.indexOf('목표 고치기') < 0 && h.indexOf('value="NEXT"') < 0);   // 입찰 종료 줄이 아니면 '다음 회차 목표로'도 없다
   assert.ok(h.indexOf('<span class="fix">목표로 옮기기</span>') > 0 && h.indexOf('<span class="fix">목표에 넣기</span>') > 0);   // 관심 줄·넣기는 동작 고정
   assert.ok(h.indexOf('tc-i2-op') < 0 && h.indexOf('tc-i3-op') < 0);
@@ -387,7 +387,7 @@ test('항목의 이전/이후: 동작별 칸(EDIT 연도·구분·메모, CANCEL
   assert.ok(h.indexOf('<input id="tc-i1-m" data-uid="1" data-f="memo" maxlength="100" size="20" value="">') > 0);
   const C = tc.newItem(2, tc.entryOfRow(mk({ id: 'C', targetNo: 2 }))); tc.setOp(C, 'CANCEL');
   const ch = tc.afterBlockHtml(C, OPT);
-  assert.ok(ch.indexOf('목표에서 빠짐<label for="tc-i2-rs">빼는 사유</label><select id="tc-i2-rs" data-uid="2" data-f="cancelCd"><option value="" selected>고르세요</option><option value="X">입찰 불참 결정</option>') > 0);
+  assert.ok(ch.indexOf('목표 기관에서 제외됨<label for="tc-i2-rs">빼는 사유</label><select id="tc-i2-rs" data-uid="2" data-f="cancelCd"><option value="" selected>고르세요</option><option value="X">입찰 불참 결정</option>') > 0);
   assert.ok(ch.indexOf('tc-i2-etc') < 0);
   C.cancelCd = 'ETC';
   assert.ok(tc.afterBlockHtml(C, OPT).indexOf('<input id="tc-i2-etc" data-uid="2" data-f="cancelEtc" maxlength="50" value="">') > 0);
@@ -414,7 +414,7 @@ test('결재함 카드 표(6-6): 이전/이후·강조·메모 줄·주의 줄·
   const h = tc.cardItemsHtml(items);
   assert.ok(h.indexOf('<table class="ad-table ap-tc"><caption class="sr-only">바꿀 목표 기관 5곳</caption><colgroup><col class="tc-c1"><col class="tc-c2"><col class="tc-c3"><col class="tc-c3"></colgroup>') === 0);
   assert.ok(h.indexOf('<th scope="col">기관</th><th scope="col">동작</th><th scope="col">이전</th><th scope="col">이후</th>') > 0);
-  assert.ok(h.indexOf('<th scope="row">종로구청</th><td>목표에서 빼기</td><td><span class="mono">2026</span> 목표 · 재유치 도전 · 주 담당 김영업</td><td>목표에서 빠짐 · 사유 입찰 불참 결정</td>') > 0);
+  assert.ok(h.indexOf('<th scope="row">종로구청</th><td>목표 기관에서 제외</td><td><span class="mono">2026</span> 목표 · 재유치 도전 · 주 담당 김영업</td><td>목표 기관에서 제외됨 · 사유 입찰 불참 결정</td>') > 0);
   assert.ok(h.indexOf('<th scope="row">수원시</th><td>다음 회차 목표로</td><td><span class="mono">2026</span> 목표 · 재유치 도전 · 주 담당 김영업</td><td><b class="mono">2027</b> 목표 · 재유치 도전 · 주 담당 김영업</td>') > 0);   // 연도만 +1이면 '다음 회차 목표로', 바뀐 값만 굵게
   const tagToo = tc.cardItemsHtml([{ institution_name: 'b', op_cd: 'EDIT', before: before, to_year: 2027, tag_name: '신규유치 도전', owner_name: '김영업', memo: '' }]);
   assert.ok(tagToo.indexOf('<td>목표 고치기</td>') > 0);   // 구분도 같이 바뀐 옛 요청은 그대로 '목표 고치기'
@@ -476,10 +476,10 @@ test('현황판 줄 모델·표 마크업: 잠금·이월·판정일·고르기 
   const ro = kbb.goalRowHtml(r, { canEdit: false, selCol: true });
   assert.ok(ro.indexOf('<span class="hb-pend">') > 0 && ro.indexOf('<button type="button" class="hb-pend"') < 0);
   const car = kbb.goalRowHtml(c, { canEdit: true });
-  assert.ok(car.indexOf('</button><span class="hb-q">이월</span>') > 0 && car.indexOf('hb-prev') < 0 && car.indexOf('예전 국민은행 금고, 마지막 2022년') < 0);   // 예전 KB는 글자 대신 title·sr
+  assert.ok(car.indexOf('hb-q">이월') < 0 && car.indexOf('hb-prev') < 0 && car.indexOf('예전 국민은행 금고, 마지막 2022년') < 0);   // 목표 표 구분 칸 꼬리표(이월·되찾기·바뀜)는 글자로 달지 않는다(사용자 11-27) — 예전 KB는 title·sr만
   assert.strictEqual(car.split('예전 국민은행 금고(마지막 2022년)').length - 1, 2);   // title 한 번 + sr 한 번(sr 문장이 두 번 읽히지 않는다, qa P3-2)
   const notCar = kbb.goalRowHtml(kbb.goalRow(tgt('IN', 'NEW'), ctx), { canEdit: true });
-  assert.ok(notCar.indexOf('예전 국민은행 금고, 마지막 2022년') > 0 && notCar.indexOf('hb-prev') > 0);   // 이월이 아닌 줄은 그대로
+  assert.ok(notCar.indexOf('되찾기 후보 — 예전에 국민은행 금고였던 기관(마지막 2022년)') > 0 && notCar.indexOf('hb-prev') < 0);   // 이월이 아닌 줄도 꼬리표 없이 title·sr 문장만(사용자 11-27)
   assert.ok(car.indexOf('2025 목표에서 자동으로 넘어옴. 작년 결과: 협약 개시일이 지났는데 금고 약정 기록이 없음 · 되찾기 후보: 예전 국민은행 금고(마지막 2022년) · 달성 판정일 2027-01-01(추정)') > 0);
   const closedPend = kbb.goalRow(tgt('IE', 'NEW', { change_pending: true, bid_closed: { basis_cd: 'NOTICE_CLOSED', basis_date: '2026-09-30', round_seq: 1 } }), ctx);
   assert.ok(kbb.goalRowHtml(closedPend, { canEdit: true }).indexOf('data-act="towatch"') < 0);   // 입찰 종료 줄 동작 단추도 잠기면 없음
@@ -753,7 +753,7 @@ test('NEXT 114 일괄 창 두 갈래: 수정 창(사유·동작·연도 칸 없�
   // 결재 창: 입찰 종료 줄도 다음 회차 선택지 없음
   const C = tc.newItem(3, tc.entryOfRow(mk({ id: 'C', targetNo: 4, revNo: 2, targetYear: 2026, tagCd: 'RETAIN', tagName: '재유치 도전', memo: 'm', ownerEmpNo: 'E1', closed: { cd: 'NOTICE_CLOSED' } })));
   const ch = tc.itemHtml(C, 1, OPT);
-  assert.ok(ch.indexOf('<option value="CANCEL">목표에서 빼기</option><option value="TO_WATCH">관심으로 옮기기</option></select>') > 0 && ch.indexOf('value="NEXT"') < 0);   // 입찰 종료 줄도 '다음 회차 목표로' 선택지 없음(사용자 11-26)
+  assert.ok(ch.indexOf('<option value="CANCEL">목표 기관에서 제외</option><option value="TO_WATCH">관심으로 옮기기</option></select>') > 0 && ch.indexOf('value="NEXT"') < 0);   // 입찰 종료 줄도 '다음 회차 목표로' 선택지 없음(사용자 11-26)
   tc.setOp(C, 'NEXT'); assert.strictEqual(C.op, '');   // 입구 없는 NEXT는 받지 않는다(사용자 11-26)
   assert.ok(src('js/tchange.js').indexOf("it.op === 'NEXT'") < 0);
   assert.strictEqual(tc.opLong('NEXT'), '다음 회차 목표로');

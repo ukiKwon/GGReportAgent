@@ -133,8 +133,9 @@ test('CSS(사용자 1차 수정 11-24): 사유·연도 칸 폭, [목표 기관 �
   assert.ok(/\.hb-dlg #hb-a-year, \.hb-dlg #hb-m-year \{[^}]*display:block[^}]*width:100%[^}]*box-sizing:border-box/.test(html));
   assert.ok(/#hb-add \{[^}]*height:32px[^}]*font-weight:700[^}]*background:var\(--accent-color\)[^}]*border:1px solid var\(--accent-color\)/.test(html));
   assert.ok(/#hb-add:hover \{[^}]*color-mix\(in srgb, var\(--accent-color\) 86%, black\)/.test(html) && /#hb-add:focus-visible \{[^}]*outline:2px solid var\(--accent-color\)[^}]*outline-offset:2px/.test(html));
-  assert.ok(/\.hb-selbar \{[^}]*min-height:48px[^}]*color-mix\(in srgb, var\(--accent-color\) 12%, var\(--panel\)\)[^}]*border-top:2px solid var\(--accent-color\)[^}]*box-shadow:0 -6px 16px -6px rgba\(19,20,22,\.28\)/.test(html));
-  assert.ok(/\.hb-selbar:not\(\[hidden\]\) \{ animation:hbSelIn \.2s cubic-bezier\(\.2,\.8,\.2,1\) both; \}/.test(html) && /@keyframes hbSelIn \{ from \{ transform:translateY\(12px\); \} to \{ transform:none; \} \}/.test(html));   // opacity 없음(현황판 블록 opacity 금지)
+  assert.ok(/\.hb-selbar \{[^}]*min-height:72px[^}]*padding:0 16px[^}]*color-mix\(in srgb, var\(--accent-color\) 12%, var\(--panel\)\)[^}]*border-top:2px solid var\(--accent-color\)[^}]*box-shadow:0 -6px 16px -6px rgba\(19,20,22,\.28\)/.test(html));
+  assert.ok(/\.hb-selbar:not\(\[hidden\]\) \{ animation:hbSelIn \.36s cubic-bezier\(\.22,1,\.36,1\) backwards; \}/.test(html) && /@keyframes hbSelIn \{ from \{ min-height:0; max-height:0; overflow:hidden; transform:translateY\(24px\); \} to \{ min-height:72px; max-height:72px; overflow:hidden; transform:none; \} \}/.test(html));   // opacity 없음(현황판 블록 opacity 금지), 높이를 0에서 72px로 펴며 올라온다(사용자 11-27)
+  assert.ok(/\.hb-selbar button \{ height:36px; padding:0 16px; \}/.test(html));
   assert.ok(/@media \(prefers-reduced-motion:reduce\) \{ \.hb-selbar:not\(\[hidden\]\) \{ animation:none; \} \}/.test(html));
   assert.ok(/\.hb-selbar \.n \{[^}]*color:var\(--fg\)[^}]*font-weight:700/.test(html) && !/\.hb-selbar \.go \{/.test(html) &&/\.hb-selbar\[hidden\] \{ display:none; \}/.test(html));
   assert.ok(/\.hb-rec-h \{[^}]*display:flex[^}]*width:100%[^}]*min-height:32px/.test(html) && /\.hb-rec-h:hover \{ background:var\(--panel2\); \}/.test(html));

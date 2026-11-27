@@ -355,6 +355,10 @@ public class BidTargetApiTest {
     }
     private static String thisYearAt() { return Times.todayKst() + "T09:00:00+09:00"; }
     private void closedRound() { round("CLOSED", thisYearAt(), null); }
+    private void activePrep2(String state) {   // 같은 기관에 두 번째 건(11-27 시험용, 첫 건은 중단된 뒤)
+        jdbc.update("INSERT INTO BID_PREP (BID_CASE_ID, INSTITUTION_ID, STATE_CD, CONFIRMED_BY, CONFIRMED_AT, UPDATED_BY, UPDATED_AT)"
+                + " VALUES ('bt-test-case-2', 'jongno', ?, '3918264', '2026-11-17T00:00:00+09:00', '3918264', '2026-11-17T00:00:00+09:00')", state);
+    }
     private void activePrep(String state) {
         jdbc.update("INSERT INTO BID_PREP (BID_CASE_ID, INSTITUTION_ID, STATE_CD, CONFIRMED_BY, CONFIRMED_AT, UPDATED_BY, UPDATED_AT)"
                 + " VALUES ('bt-test-case', 'jongno', ?, '3918264', '2026-11-16T00:00:00+09:00', '3918264', '2026-11-16T00:00:00+09:00')", state);
@@ -527,6 +531,34 @@ public class BidTargetApiTest {
         assertEquals("IN_PROGRESS", json(r).path("warning").path("prep_state_cd").asText());
         assertTrue(lastDetail().endsWith(" warn=INST_BID_CLOSED"));
         assertEquals(1, rows());
+    }
+
+    @Test public void 진행_중_제안_준비가_있으면_목표_빼기는_409_PREP_ACTIVE_중단된_건만_있으면_201() throws Exception {
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+        activePrep("IN_PROGRESS");
+        MvcResult r = send(SALES, PATH + "/1/cancel", CANCEL, cancelBody(1, "WRONG"));
+        assertEquals(409, status(r));
+        assertEquals("PREP_ACTIVE", code(r));
+        assertEquals("jongno", json(r).path("detail").path("institution_ids").get(0).asText());
+        assertEquals("bt-test-case", json(r).path("detail").path("bid_case_ids").get(0).asText());
+        assertEquals(1, rows());
+        jdbc.update("UPDATE BID_PREP SET STATE_CD='CANCELLED' WHERE BID_CASE_ID='bt-test-case'");   // 중단 = 진행 중 아님
+        assertEquals(201, status(send(SALES, PATH + "/1/cancel", CANCEL, cancelBody(1, "WRONG"))));
+    }
+
+    @Test public void 진행_중_제안_준비가_있으면_목표를_관심으로_옮기기는_409_PREP_ACTIVE_관심에서_목표는_통과() throws Exception {
+        final int Y = y();
+        assertEquals(201, status(send(SALES, PATH, ADD, body())));
+        activePrep("WRITING");
+        MvcResult r = send(SALES, PATH + "/1/move", TO_WATCH, moveBody(1, "WATCH", null));
+        assertEquals(409, status(r));
+        assertEquals("PREP_ACTIVE", code(r));
+        assertEquals(1, rows());
+        jdbc.update("UPDATE BID_PREP SET STATE_CD='CANCELLED' WHERE BID_CASE_ID='bt-test-case'");
+        assertEquals(201, status(send(SALES, PATH + "/1/move", TO_WATCH, moveBody(1, "WATCH", null))));
+        activePrep2("CONFIRMED");
+        // 관심 → 목표(TO_GOAL)는 제안 준비 중이어도 막지 않는다
+        assertEquals(201, status(send(SALES, PATH + "/1/move", TO_GOAL, moveBody(2, "GOAL", Y))));
     }
 
     @Test public void 시작_전_약정이_있으면_409_CONTRACT_DECIDED() throws Exception {
