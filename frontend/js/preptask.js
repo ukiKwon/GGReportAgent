@@ -353,7 +353,7 @@
     stWait: '승인 대기',
     stDone: '완료',
     stWriting: '작성 중',
-    resultRecheck: '선정·탈락을 다시 골라 주세요',
+    resultRecheck: '추가 확인 필요, 선정·탈락을 골라 주세요',
   };
   pt.T = T;
 

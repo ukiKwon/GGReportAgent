@@ -512,21 +512,21 @@ test('S3a result_recheck: 옛 완료·진행이 남은 결과발표 칸에만 \'
   assert.strictEqual(m.tint, '', '완료처럼 색칠하지 않는다');
   assert.strictEqual(m.glyph, 'prog');
   const h = pb.cellHtml({ info: info28('RESULT'), row: rc, cell: { mark_cd: 'IN_PROGRESS', marked_on: '2026-11-10', by_name: '김영업' }, marks: merged, today: '2026-11-23', r: 0, c: 15 });
-  assert.ok(h.indexOf('<span class="pb-rc">재선택</span>') > 0);
-  assert.ok(h.indexOf('title="선정·탈락을 다시 골라야 함"') > 0);
+  assert.ok(h.indexOf('<span class="pb-rc">추가확인</span>') > 0);
+  assert.ok(h.indexOf('title="추가 확인 필요 — 선정·탈락을 골라 주세요"') > 0);
   assert.ok(h.indexOf('data-mk=') < 0 || h.indexOf('data-mk="IN_PROGRESS"') < 0, '칸 색(data-mk) 없음');
-  assert.ok(/aria-label="청주시 결과발표: 진행, [^"]*선정·탈락을 다시 골라야 함"/.test(h));
+  assert.ok(/aria-label="청주시 결과발표: 진행, [^"]*추가 확인 필요 — 선정·탈락을 골라 주세요"/.test(h));
   const ro = pb.cellHtml({ info: info28('RESULT'), row: row({ result_recheck: true, can_check: false }), cell: { mark_cd: 'DONE' }, marks: merged, today: '', r: 0, c: 15 });
-  assert.ok(ro.indexOf('>재선택<') > 0 && ro.indexOf('title="선정·탈락을 다시 골라야 함"') > 0 && ro.indexOf('<button') < 0, '읽기 전용 칸에도 알림');
-  assert.ok(pb.infoParts(rc, info28('RESULT'), { mark_cd: 'DONE' }, merged).parts.some(function (p) { return p.l === '안내' && p.v === '선정·탈락을 다시 골라야 함'; }));
+  assert.ok(ro.indexOf('>추가확인<') > 0 && ro.indexOf('title="추가 확인 필요 — 선정·탈락을 골라 주세요"') > 0 && ro.indexOf('<button') < 0, '읽기 전용 칸에도 알림');
+  assert.ok(pb.infoParts(rc, info28('RESULT'), { mark_cd: 'DONE' }, merged).parts.some(function (p) { return p.l === '안내' && p.v === '추가 확인 필요 — 선정·탈락을 골라 주세요'; }));
   // 없어야 하는 경우
   assert.strictEqual(pb.cellModel(info28('RESULT'), row({ result_recheck: false }), { mark_cd: 'DONE' }, '').recheck, false);
   assert.strictEqual(pb.cellModel(info28('RESULT'), row(), { mark_cd: 'DONE' }, '').recheck, false, '키가 없는 옛 서버');
   assert.strictEqual(pb.cellModel(info28('RESULT'), rc, { mark_cd: 'WON' }, '').recheck, false, '이미 다시 골랐으면 없다');
   assert.strictEqual(pb.cellModel(info28('RESULT'), rc, { mark_cd: 'NONE' }, '').recheck, false);
   assert.strictEqual(pb.cellModel(info28('PT'), rc, { mark_cd: 'DONE' }, '').recheck, false, '다른 칸은 해당 없음');
-  assert.ok(pb.cellHtml({ info: info28('PT'), row: rc, cell: { mark_cd: 'DONE' }, marks: merged, today: '', r: 0, c: 1 }).indexOf('재선택') < 0);
-  assert.ok(pb.cellAria(row(), info28('RESULT'), { mark_cd: 'DONE' }, merged, '').indexOf('다시 골라야') < 0);
+  assert.ok(pb.cellHtml({ info: info28('PT'), row: rc, cell: { mark_cd: 'DONE' }, marks: merged, today: '', r: 0, c: 1 }).indexOf('추가확인') < 0);
+  assert.ok(pb.cellAria(row(), info28('RESULT'), { mark_cd: 'DONE' }, merged, '').indexOf('추가 확인 필요') < 0);
 });
 
 test('readOnlyAll·preOnly·roText: 개설 전·끝난 줄은 세지 않는다', function () {

@@ -133,7 +133,7 @@ test('S3a 결과발표(RESULT): 선정·탈락을 고른다(DONE·IN_PROGRESS를
   assert.strictEqual(st('NA').closed, true);
   assert.strictEqual(st('NONE').closed, false);
   assert.strictEqual(st('DONE').closed, false, '옛 완료는 끝난 것이 아니다');
-  assert.ok(st('DONE').text.indexOf('다시 골라') > 0 && st('IN_PROGRESS').text.indexOf('다시 골라') > 0);
+  assert.ok(st('DONE').text.indexOf('추가 확인 필요') > 0 && st('IN_PROGRESS').text.indexOf('추가 확인 필요') > 0);
   assert.strictEqual(pt.cellState(row({ cells: { RESULT: { mark_cd: 'WON' } } }), 'RESULT', RM).mark, 'WON');
   // 체크할 수 없는 사람에게는 상태 글자만
   const ro = pt.bodyHtml(model(v, idxOf('RESULT'), { marks: RM, row: row({ can_check: false, cells: { RESULT: { mark_cd: 'LOST' } } }) }));
