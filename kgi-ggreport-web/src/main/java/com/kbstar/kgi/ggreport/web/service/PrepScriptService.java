@@ -181,7 +181,8 @@ public class PrepScriptService {
         throw bad("meeting", "회의 종류가 올바르지 않습니다.");
     }
 
-    private static String amountMode(String raw) {
+    /** 대본 본문과 AI 초안(ScriptDraftService)이 같은 규칙을 쓰도록 패키지 공개. 비움 → TOTAL, 모르는 값 → 400 amount_mode. */
+    static String amountMode(String raw) {
         String v = raw == null ? "" : raw.trim();
         if (v.isEmpty() || BoardScriptDocBuilder.AMOUNT_TOTAL.equals(v)) {
             return BoardScriptDocBuilder.AMOUNT_TOTAL;   // 비우면 표 합계(사용자 결정 11-27)

@@ -82,6 +82,37 @@ public class ScriptDraftPromptTest {
         assertTrue(p, p.contains("＜/자료＞"));
     }
 
+    private static ScriptDraftBasisReader.Basis withAmounts() {
+        ScriptDraftBasisReader.Basis b = basis();
+        b.amountTotal = new java.math.BigDecimal("9.00");
+        b.amountExclIt = new java.math.BigDecimal("6.00");
+        return b;
+    }
+
+    @Test
+    public void 승인_금액은_amount_mode를_따른다() {
+        Set<String> ask = both();
+        String total = ScriptDraftPrompt.build(ScriptDraftPrompt.facts(withAmounts(), ask, "TOTAL"), ask);
+        assertTrue(total, total.contains("이사회 자료 승인 총 금액(표 합계, 억원)\" : \"9\""));
+        assertFalse(total, total.contains("\"6\""));
+        String none = ScriptDraftPrompt.build(ScriptDraftPrompt.facts(withAmounts(), ask), ask);
+        assertTrue(none, none.contains("\"9\""));
+        String excl = ScriptDraftPrompt.build(ScriptDraftPrompt.facts(withAmounts(), ask, "EXCL_IT"), ask);
+        assertTrue(excl, excl.contains("전산시스템 구축/운영비용 제외, 억원)\" : \"6\""));
+        assertFalse(excl, excl.contains("\"9\""));
+    }
+
+    @Test
+    public void 고른_기준의_금액이_없으면_boardSent는_false다() {
+        Set<String> ask = both();
+        ScriptDraftBasisReader.Basis b = basis();
+        b.amountExclIt = new java.math.BigDecimal("6.00");   // 합계는 없고 출연금+예비비만
+        assertFalse(ScriptDraftPrompt.facts(b, ask, "TOTAL").boardSent);
+        assertTrue(ScriptDraftPrompt.facts(b, ask, "EXCL_IT").boardSent);
+        b.profit = new java.math.BigDecimal("1.50");
+        assertTrue(ScriptDraftPrompt.facts(b, ask, "TOTAL").boardSent);
+    }
+
     @Test
     public void 공고자료가_없으면_공고_블록이_없다() {
         String p = prompt(basis(), both());

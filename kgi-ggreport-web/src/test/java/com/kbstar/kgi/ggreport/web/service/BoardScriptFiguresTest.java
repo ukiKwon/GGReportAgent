@@ -63,6 +63,16 @@ public class BoardScriptFiguresTest {
     }
 
     @Test
+    public void 합계_칸에_숫자_아닌_값이_있으면_세_항목을_더하지_않고_null() {
+        assertNull(BoardScriptFigures.of(doc(), values("5.00", "1.00", "9.000", null, "3.00")).total);
+        assertNull(BoardScriptFigures.of(doc(), values("5.00", "1.00", "9.00 (1.00)", null, "3.00")).total);
+        assertNull(BoardScriptFigures.of(doc(), values("5.00", "1.00", "-", null, "3.00")).total);
+        // 비어 있음(빈 글자·공백)은 더한다
+        assertEquals(new BigDecimal("9.00"), BoardScriptFigures.of(doc(), values("5.00", "1.00", "", null, "3.00")).total);
+        assertEquals(new BigDecimal("9.00"), BoardScriptFigures.of(doc(), values("5.00", "1.00", "  ", null, "3.00")).total);
+    }
+
+    @Test
     public void 숫자가_아닌_값은_null() {
         BoardScriptFigures f = BoardScriptFigures.of(doc(), values("가", "5.00 (1.00)", "1.234", "-"));
         assertNull(f.exclIt);

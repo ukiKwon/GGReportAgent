@@ -154,10 +154,16 @@ public class ScriptDraftService {
     }
 
     public Plan prepare(SysUser me, String bid) {
+        return prepare(me, bid, null);
+    }
+
+    /** amountMode — 대본 Word 와 같은 승인 금액 기준(비움=TOTAL, EXCL_IT, 그 밖은 400 amount_mode). 404 → 403 → 400(기준) → 409 → 503. */
+    public Plan prepare(SysUser me, String bid, String amountMode) {
         BidPrep p = prep.requireVisible(me, bid);                                  // 404 — 존재 은닉이 먼저
         if (!boardAccess.canViewCase(me.getEmpNo(), p.getBidCaseId())) {
             throw coded(403, "SCRIPT_DRAFT_NOT_ALLOWED", "AI 초안은 이 건의 담당 영업과 영업부장만 만들 수 있습니다.");
         }
+        String mode = PrepScriptService.amountMode(amountMode);                    // 400 BAD_VALUE(amount_mode) — 403 다음
         if (!PrepService.TASK_STATES.contains(p.getStateCd())) {
             throw coded(409, "SCRIPT_DRAFT_STATE", "지금 상태의 건에서는 AI 초안을 만들 수 없습니다.");
         }
@@ -170,7 +176,7 @@ public class ScriptDraftService {
         if (ask.isEmpty()) {
             return new Plan(b, ask, null, null);
         }
-        ScriptDraftPrompt.Facts f = ScriptDraftPrompt.facts(b, ask);
+        ScriptDraftPrompt.Facts f = ScriptDraftPrompt.facts(b, ask, mode);
         return new Plan(b, ask, f, ScriptDraftPrompt.build(f, ask));
     }
 

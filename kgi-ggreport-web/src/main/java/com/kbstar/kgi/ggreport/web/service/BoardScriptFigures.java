@@ -38,8 +38,10 @@ final class BoardScriptFigures {
             Map<String, String> cells = cells(values, "A");
             contrib = labeled(a, cells, "출연금");
             reserve = labeled(a, cells, "예비비");
-            total = labeled(a, cells, "합계");
-            if (total == null) {   // 합계 칸이 비었으면 표의 세 항목을 최소한으로 더한다
+            String totalRaw = labeledRaw(a, cells, "합계");
+            total = num(totalRaw);
+            // 합계 칸이 '비어 있을 때만' 세 항목을 더한다. 값이 있는데 숫자 모양이 아니면(예 '9.000') 더하지 않고 null — 〔확인 필요〕
+            if (total == null && (totalRaw == null || totalRaw.trim().isEmpty())) {
                 BigDecimal it = labeled(a, cells, "전산시스템 구축/운영비용");
                 if (contrib != null && reserve != null && it != null) {
                     total = contrib.add(reserve).add(it);
@@ -73,6 +75,11 @@ final class BoardScriptFigures {
 
     /** 라벨 칸(머리·값 칸이 아닌 글자 칸)을 찾고, 같은 행에서 그 뒤 첫 값 칸의 저장 값을 숫자로 읽는다. */
     private static BigDecimal labeled(BoardDocSpec.Table t, Map<String, String> cells, String label) {
+        return num(labeledRaw(t, cells, label));
+    }
+
+    /** labeled 의 글자 그대로 — 라벨·값 칸이 없거나 저장 값이 없으면 null. 비어 있음과 숫자 아님을 구분할 때 쓴다. */
+    private static String labeledRaw(BoardDocSpec.Table t, Map<String, String> cells, String label) {
         for (List<BoardDocSpec.Cell> row : t.getRows()) {
             for (int i = 0; i < row.size(); i++) {
                 BoardDocSpec.Cell c = row.get(i);
@@ -80,7 +87,7 @@ final class BoardScriptFigures {
                     for (int j = i + 1; j < row.size(); j++) {
                         BoardDocSpec.Cell v = row.get(j);
                         if ((v.isMapped() || v.isInput()) && v.getKey() != null) {
-                            return num(cells.get(v.getKey()));
+                            return cells.get(v.getKey());
                         }
                     }
                     return null;

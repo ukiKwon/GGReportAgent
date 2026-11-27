@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>결과발표 칸 '재선택' 표시 사례 (임시 시안)</title>
+<style>
+  :root { --bg:#e9ecf0; --panel:#fff; --panel2:#f6f7f9; --line:#c3c9d1; --line-strong:#6d7882; --fg:#1e2124; --muted:#464c53;
+          --red:#bd2c0f; --orange:#8a5c00; --blue:#0a65ab; --accent:#0b50d0; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:24px 32px 48px; background:var(--bg); color:var(--fg); font:14px/1.6 "KB Text","Malgun Gothic",sans-serif; word-break:keep-all; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:32px 0 8px; }
+  p { margin:4px 0; max-width:900px; }
+  .note { color:var(--muted); font-size:13px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:2px; padding:16px; margin-top:8px; max-width:1100px; }
+  table.pb { border-collapse:separate; border-spacing:0; border-top:1px solid var(--line); border-left:1px solid var(--line); }
+  .pb th { height:36px; padding:4px 6px; font-size:12px; font-weight:700; color:var(--muted); text-align:center; background:var(--panel2);
+           border-right:1px solid var(--line); border-bottom:1px solid var(--line-strong); }
+  .pb td { height:44px; padding:0 6px; text-align:center; vertical-align:middle; background:var(--panel); font-size:13px;
+           border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .pb td.nm { text-align:left; padding:0 10px; min-width:190px; font-weight:700; }
+  .pb td.st { min-width:92px; color:var(--muted); font-size:12px; }
+  .pb td.cell { width:68px; min-width:68px; }
+  .pb td.why { text-align:left; padding:6px 10px; font-size:12px; color:var(--muted); min-width:330px; line-height:1.5; }
+  .pb td.done { background:color-mix(in srgb, var(--blue) 10%, #fff); }
+  .pb tr.ended td { background:var(--panel2); }
+  .stack { display:flex; flex-direction:column; align-items:center; gap:1px; }
+  .g { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
+  .g.done { color:var(--blue); } .g.prog { color:var(--orange); } .g.mut { color:var(--muted); }
+  .d { font:400 12px/14px Consolas,"Malgun Gothic",monospace; color:var(--muted); }
+  .tx { font-weight:700; font-size:12px; line-height:14px; white-space:nowrap; }
+  .won { color:var(--blue); } .lost { color:var(--muted); }
+  .rc { font-weight:700; font-size:12px; line-height:14px; color:var(--orange); white-space:nowrap; }
+  .menu { display:inline-flex; flex-direction:column; border:1px solid var(--line-strong); background:#fff; font-size:13px; min-width:150px; text-align:left; }
+  .menu b { padding:6px 10px; font-size:12px; color:var(--muted); border-bottom:1px solid var(--line); font-weight:700; }
+  .menu span { padding:6px 10px; border-bottom:1px solid var(--line); }
+  .menu span:last-child { border-bottom:0; }
+  .menu kbd { float:right; color:var(--muted); font:12px Consolas,monospace; }
+  .row { display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; }
+  .opt { border:1px solid var(--line); background:#fff; padding:12px 14px; flex:1 1 300px; max-width:360px; }
+  .opt h3 { margin:0 0 6px; font-size:14px; }
+  .opt .mini { margin:8px 0; }
+  .step { border:1px solid var(--line); background:#fff; padding:12px 14px; max-width:640px; }
+  .step .ttl { font-weight:700; }
+  .btns { display:flex; gap:6px; margin-top:8px; }
+  .btns button { height:32px; padding:0 14px; border:1px solid var(--line-strong); background:#fff; font:inherit; font-size:13px; border-radius:2px; }
+  .warn { color:var(--orange); font-weight:700; font-size:13px; }
+  .tag { display:inline-block; font-size:12px; font-weight:700; padding:0 6px; border:1px solid var(--line-strong); color:var(--muted); margin-right:6px; }
+</style>
+</head>
+<body>
+<h1>결과발표 칸 '재선택' 표시 사례</h1>
+<p class="note">임시 시안입니다(2026-11-27). 가상 기관·날짜이고 서버를 부르지 않습니다. 모양은 실제 화면의 색·칸 크기(68px)를 옮긴 것입니다.</p>
+<p>결과발표 칸은 이제 <b>선정 / 탈락 / 대상 아님 / 비움</b> 중에서 고릅니다. 예전에 '완료'나 '진행'으로 체크해 둔 건은 선정인지 탈락인지 알 수 없어서, 담당자가 다시 고르기 전까지 <b>'재선택'</b>으로 표시합니다.</p>
+
+<h2>1. 제안 준비 현황 표에서 보이는 모습</h2>
+<div class="card">
+<table class="pb">
+  <thead><tr><th>기관 (입찰 건)</th><th>상태</th><th>제안서 제출</th><th>결과발표</th><th>어떤 경우인가</th></tr></thead>
+  <tbody>
+    <tr><td class="nm">가나시청</td><td class="st">작성 중</td>
+        <td class="cell done"><div class="stack"><svg class="g done" viewBox="0 0 14 14"><path d="M2.5 7.5l3 3 6-7"/></svg><span class="d">11-20</span></div></td>
+        <td class="cell"><div class="stack"><span class="tx won">선정</span><span class="d">11-25</span></div></td>
+        <td class="why">새 방식으로 <b>선정</b>을 고른 건. 파란 글자와 체크한 날짜.</td></tr>
+    <tr><td class="nm">다라군청</td><td class="st">작성 중</td>
+        <td class="cell done"><div class="stack"><svg class="g done" viewBox="0 0 14 14"><path d="M2.5 7.5l3 3 6-7"/></svg><span class="d">11-18</span></div></td>
+        <td class="cell"><div class="stack"><span class="tx lost">탈락</span><span class="d">11-24</span></div></td>
+        <td class="why">새 방식으로 <b>탈락</b>을 고른 건. 회색 글자. (원칙: 탈락이면 담당이 '중단' 처리)</td></tr>
+    <tr><td class="nm">마바공단</td><td class="st">작성 중</td>
+        <td class="cell"></td>
+        <td class="cell" title="선정·탈락을 다시 골라야 함"><div class="stack"><svg class="g prog" viewBox="0 0 14 14"><path d="M7 2.5l5 9H2z"/></svg><span class="rc">재선택</span></div></td>
+        <td class="why"><b>재선택 ①</b> 진행 중인 건에 예전 '완료'가 남은 경우. 주황 △와 '재선택'. 칸에 마우스를 올리면 "선정·탈락을 다시 골라야 함". <b>담당자는 칸을 눌러 바로 고칠 수 있습니다</b>(아래 2번).</td></tr>
+    <tr class="ended"><td class="nm">사아대학교</td><td class="st">중단됨</td>
+        <td class="cell"></td>
+        <td class="cell" title="선정·탈락을 다시 골라야 함"><div class="stack"><svg class="g prog" viewBox="0 0 14 14"><path d="M7 2.5l5 9H2z"/></svg><span class="rc">재선택</span></div></td>
+        <td class="why"><b>재선택 ②</b> 이미 <b>중단·취소된 건</b>에 예전 '완료'가 남은 경우. 지금 구현은 ①과 똑같이 보이는데, <span class="warn">끝난 건은 칸을 고칠 수 없어 '재선택'이 영영 남습니다.</span> → 아래 3번에서 골라 주세요.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>2. 재선택 ① — 담당자가 칸을 눌렀을 때</h2>
+<div class="card row">
+  <div>
+    <div class="menu"><b>결과발표</b><span>선정 <kbd>1</kbd></span><span>탈락 <kbd>2</kbd></span><span>대상 아님 <kbd>3</kbd></span><span>비움 <kbd>4</kbd></span></div>
+  </div>
+  <div style="flex:1 1 420px">
+    <p>메뉴에 예전의 '완료'·'진행'은 없습니다. 선정이나 탈락을 고르면 바로 저장되고 '재선택' 표시가 사라집니다.</p>
+    <p>기관 상세의 '결과발표' 단계에서도 같습니다:</p>
+    <div class="step">
+      <div class="ttl">결과발표 <span class="warn">— 선정·탈락을 다시 골라 주세요</span></div>
+      <div class="note">담당 영업이 아래에서 '선정'이나 '탈락'을 고르면 완료로 표시됩니다(해당 없으면 '대상 아님').</div>
+      <div class="btns"><button>선정</button><button>탈락</button><button>대상 아님</button><button>비움</button></div>
+    </div>
+  </div>
+</div>
+
+<h2>3. 재선택 ② — 끝난 건(중단·취소)은 어떻게 보일지 골라 주세요</h2>
+<div class="row">
+  <div class="opt">
+    <h3><span class="tag">가</span>표시를 지우고 예전 값을 회색으로만</h3>
+    <div class="mini"><table class="pb"><tbody><tr class="ended"><td class="nm" style="min-width:110px">사아대학교</td>
+      <td class="cell"><div class="stack"><svg class="g mut" viewBox="0 0 14 14"><path d="M2.5 7.5l3 3 6-7"/></svg><span class="d">10-30</span></div></td></tr></tbody></table></div>
+    <p class="note">끝난 건은 어차피 고칠 수 없으니 '재선택'을 띄우지 않습니다. 예전에 체크한 날짜만 남습니다. 실적 집계에서는 선정·탈락 어느 쪽에도 넣지 않습니다.</p>
+  </div>
+  <div class="opt">
+    <h3><span class="tag">나</span>'미정'이라고 글자로</h3>
+    <div class="mini"><table class="pb"><tbody><tr class="ended"><td class="nm" style="min-width:110px">사아대학교</td>
+      <td class="cell"><div class="stack"><span class="tx lost">미정</span><span class="d">10-30</span></div></td></tr></tbody></table></div>
+    <p class="note">선정·탈락이 기록되지 않은 채 끝난 건임을 글자로 밝힙니다. 고칠 수는 없습니다. 실적 집계는 (가)와 같습니다.</p>
+  </div>
+  <div class="opt">
+    <h3><span class="tag">다</span>끝난 건도 결과만은 고를 수 있게</h3>
+    <div class="mini"><table class="pb"><tbody><tr class="ended"><td class="nm" style="min-width:110px">사아대학교</td>
+      <td class="cell"><div class="stack"><svg class="g prog" viewBox="0 0 14 14"><path d="M7 2.5l5 9H2z"/></svg><span class="rc">재선택</span></div></td></tr></tbody></table></div>
+    <p class="note">끝난 건이라도 옛 담당자·팀장이 결과발표 칸 하나만 선정·탈락으로 고칠 수 있게 엽니다. 실적이 정확해지지만 '끝난 건은 고치지 않는다'는 규칙에 예외가 생깁니다.</p>
+  </div>
+</div>
+<p class="note" style="margin-top:12px">참고: 이 PC 데이터베이스에 해당 건이 몇 건인지는 아직 세지 않았습니다(비밀번호가 필요한 조회).</p>
+</body>
+</html>

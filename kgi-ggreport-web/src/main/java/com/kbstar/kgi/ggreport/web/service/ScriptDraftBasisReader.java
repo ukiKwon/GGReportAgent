@@ -72,7 +72,6 @@ public class ScriptDraftBasisReader {
         public Integer getBoardSnap() { return boardSnap; }
         public boolean isBoardConfirmed() { return boardConfirmed; }
         public Integer getFormVer() { return formVer; }
-        boolean hasBoardFigures() { return amountExclIt != null || amountTotal != null || profit != null; }
     }
 
     private final PrepFormService prepForms;

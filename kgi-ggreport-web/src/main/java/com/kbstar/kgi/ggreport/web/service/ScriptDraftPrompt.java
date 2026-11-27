@@ -2,6 +2,7 @@ package com.kbstar.kgi.ggreport.web.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kbstar.kgi.ggreport.web.docout.BoardScriptDocBuilder;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -44,6 +45,11 @@ final class ScriptDraftPrompt {
     }
 
     static Facts facts(ScriptDraftBasisReader.Basis b, Set<String> ask) {
+        return facts(b, ask, null);
+    }
+
+    /** amountMode — 대본 본문과 같은 규칙: "EXCL_IT" 를 명시했으면 출연금+예비비, 그 밖(null 포함)은 표 합계. */
+    static Facts facts(ScriptDraftBasisReader.Basis b, Set<String> ask, String amountMode) {
         Facts f = new Facts();
         boolean wantIn = ask.contains("intro");
         boolean wantEf = ask.contains("effect");
@@ -64,9 +70,13 @@ final class ScriptDraftPrompt {
         }
         if (wantEf) {
             putList(f, "우리 회사 기대효과(요약서)", b.effect, null, ef);
-            put(f, "이사회 자료 승인 총 금액(표 합계, 억원)", plain(b.amountTotal), null, ef);
-            put(f, "수익성 분석 순이익(명목가치, 억원)", plain(b.profit), null, ef);
-            f.boardSent = b.hasBoardFigures();
+            boolean exclIt = BoardScriptDocBuilder.AMOUNT_EXCL_IT.equals(amountMode);
+            String amount = plain(exclIt ? b.amountExclIt : b.amountTotal);
+            String profit = plain(b.profit);
+            put(f, exclIt ? "이사회 자료 승인 금액(출연금+예비비, 전산시스템 구축/운영비용 제외, 억원)"
+                    : "이사회 자료 승인 총 금액(표 합계, 억원)", amount, null, ef);
+            put(f, "수익성 분석 순이익(명목가치, 억원)", profit, null, ef);
+            f.boardSent = amount != null || profit != null;   // 실제로 프롬프트에 실린 숫자가 있을 때만
         }
         for (String s : b.notice) f.notice.add(safe(s));
         f.summarySent = b.formVer != null;

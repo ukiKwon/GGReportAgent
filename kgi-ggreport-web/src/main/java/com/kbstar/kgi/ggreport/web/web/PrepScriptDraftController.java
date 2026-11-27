@@ -83,7 +83,9 @@ public class PrepScriptDraftController {
     }
 
     @PostMapping("/bidcases/{bidCaseId}/prep/board-script-draft")
-    public Map<String, Object> draft(@PathVariable String bidCaseId, HttpServletRequest req) {
+    public Map<String, Object> draft(@PathVariable String bidCaseId,
+                                     @RequestParam(name = "amount_mode", required = false) String amountMode,
+                                     HttpServletRequest req) {
         Actor actor = Actor.of(req);
         BoardUiIds.Ui ui = ScriptDraftUiIds.of(req);   // BID_PREP_ACT 용 — 이사회 자료 줄은 boardUi(req, 행위)
         String auditBid = caseKey(bidCaseId);
@@ -105,7 +107,7 @@ public class PrepScriptDraftController {
         }
         ScriptDraftService.Plan plan;
         try {
-            plan = drafts.prepare(me, bidCaseId);       // 404 → 403 → 409 → 503
+            plan = drafts.prepare(me, bidCaseId, amountMode);       // 404 → 403 → 400(amount_mode) → 409 → 503
         } catch (ApiException e) {
             if (e.getStatus() != 401) {
                 auditFailure(auditBid, e.getStatus() == 503 ? "BLOCKED" : PrepAudit.outcomeOf(e.getStatus()), before, actor, ui);

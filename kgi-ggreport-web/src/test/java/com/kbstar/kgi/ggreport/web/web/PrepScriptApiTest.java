@@ -332,6 +332,23 @@ public class PrepScriptApiTest {
     }
 
     @Test
+    public void 합계가_출연금_예비비_합과_다르면_amount_mode가_문서_금액을_가른다() throws Exception {
+        String bid = opened();
+        long id = board(bid, true);
+        // 합계 9 ≠ 출연금 5 + 예비비 1 (전산비 3 가정)
+        jdbc.update("UPDATE BOARD_MATERIAL_SNAP SET VALUES_JSON=? WHERE MATERIAL_ID=? AND SNAP_NO=1",
+                "{'tables':{'A':{'r1_c2':'5.00','r2_c2':'1.00','r3_c2':'3.00','r4_c2':'9.00'},'B':{'r1_c8':'10.14'}}}".replace('\'', '"'), id);
+        flushCache();
+        String none = body(script(bid, ASSIGNEE, null));
+        assertTrue(none, none.contains("승인받고자 하는 총 금액은 9억원입니다."));
+        String excl = body(script(bid, ASSIGNEE, "{'amount_mode':'EXCL_IT'}"));
+        assertTrue(excl, excl.contains("승인받고자 하는 총 금액은 6억원입니다."));
+        MvcResult bad = script(bid, ASSIGNEE, "{'amount_mode':'X'}");
+        assertEquals(400, bad.getResponse().getStatus());
+        assertEquals("amount_mode", json(bad).path("detail").path("key").asText());
+    }
+
+    @Test
     public void 다른_화면_짝이면_두_감사_줄_모두_ui_valid_0이다() throws Exception {
         String bid = opened();
         long id = board(bid, true);
