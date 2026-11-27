@@ -144,11 +144,27 @@ public class BoardMaterialService {
             out.put("truncated", false);
             return out;
         }
-        List<BoardMaterial> rows = mapper.selectList(me.getEmpNo(), all, like1, st, y, from, to, like2,
+        java.util.Set<String> team = all ? null : access.listTeam(me.getEmpNo());   // 같은 팀 팀장(11-27) — null 이면 내 담당만
+        List<BoardMaterial> rows = mapper.selectList(me.getEmpNo(), all, team, like1, st, y, from, to, like2,
                 new RowBounds(0, LIST_CAP + 1));
         boolean truncated = rows.size() > LIST_CAP;
         if (truncated) {
             rows = new ArrayList<>(rows.subList(0, LIST_CAP));
+        }
+        java.util.Set<String> myCases = new java.util.HashSet<String>();
+        if (!all) {
+            for (Map<String, Object> a : assignments.mine(me.getEmpNo())) {
+                myCases.add(String.valueOf(a.get("bid_case_id")));
+            }
+        }
+        if (team != null) {   // 넓게 가져온 행을 같은 판정으로 거른다(R0) — 내 담당 건은 그대로 통과
+            List<BoardMaterial> kept = new ArrayList<>();
+            for (BoardMaterial m : rows) {
+                if (myCases.contains(m.getBidCaseId()) || access.canReadCase(me.getEmpNo(), m.getBidCaseId())) {
+                    kept.add(m);
+                }
+            }
+            rows = kept;
         }
         Map<String, List<Map<String, Object>>> byCase = assigneesByCase(rows);
         List<Map<String, Object>> items = new ArrayList<>();
@@ -156,7 +172,7 @@ public class BoardMaterialService {
             Map<String, Object> it = header(m);
             List<Map<String, Object>> as = byCase.get(m.getBidCaseId());
             it.put("assignees", as == null ? new ArrayList<Map<String, Object>>() : as);
-            it.put("can_write", !all);   // 영업부장은 읽기 전용, 그 외 목록은 SQL 이 내 담당 건만 고른다
+            it.put("can_write", !all && myCases.contains(m.getBidCaseId()));   // 영업부장·같은 팀 팀장(11-27)은 읽기 전용 — 내 담당 건만 true
             items.add(it);
         }
         out.put("items", items);
@@ -225,7 +241,7 @@ public class BoardMaterialService {
     public List<Map<String, Object>> acts(SysUser me, String id) {
         BoardMaterial m = canReviewQuiet(me, id);
         if (m == null) {
-            m = loadVisible(me, id);
+            m = loadOwnerVisible(me, id);   // 같은 팀 팀장은 감사 줄(사번)까지 보지 않는다(11-27 하-4)
         }
         List<Map<String, Object>> out = new ArrayList<>();
         for (BoardMaterialAct a : mapper.selectActs(m.getMaterialId(), new RowBounds(0, ACT_CAP))) {
@@ -486,7 +502,18 @@ public class BoardMaterialService {
         }
         boolean leadInvolved = BidAssignmentService.LEAD_ROLE.equals(BoardAccess.role(me))
                 || assignments.anyActiveLead(m.getBidCaseId());
-        return new SubmitPlan(m, assignments.resolveApprover(me, leadInvolved));
+        SysUser approver;
+        if (leadInvolved) {
+            approver = assignments.resolveApprover(me, true);
+        } else {
+            // 팀원 단독 담당의 결재자는 자기 팀 팀장만(사용자 11-27, security 중-5) — '유일한 활성 팀장' 대체로 다른 팀 팀장이 결재자가 되지 않게
+            approver = assignments.sameTeamLead(me);
+            if (approver == null) {
+                throw coded(400, "APPROVER_NOT_RESOLVED",
+                        "결재자를 정할 수 없습니다 — 시스템 관리자에게 상위 결재자 지정을 요청하세요.");
+            }
+        }
+        return new SubmitPlan(m, approver);
     }
 
     /** 결재 요청 행을 만든 뒤 호출 — 자료를 SUBMITTED 로 선점한다. 0행이면 409(호출 트랜잭션이 요청 행째 롤백). */
@@ -812,11 +839,22 @@ public class BoardMaterialService {
         return u == null ? null : u.getName();
     }
 
+    /** 읽기 열람 — 담당자·영업부장·그 건의 자기 팀 영업팀장(canReadCase, 사용자 11-27). 쓰기 경로는 이 뒤에 requireWriter 로 다시 막는다. */
     private BoardMaterial loadVisible(SysUser me, String id) {
         Long n = parseId(id);
         BoardMaterial m = n == null ? null : mapper.selectOne(n);
-        if (m == null || !access.canViewCase(me.getEmpNo(), m.getBidCaseId())) {
+        if (m == null || !access.canReadCase(me.getEmpNo(), m.getBidCaseId())) {
             throw ApiException.notFound(NOT_FOUND);   // 없는 번호와 같게 — 존재를 숨긴다
+        }
+        return m;
+    }
+
+    /** 감사 줄(acts) 열람용 — 같은 팀 읽기로 넓히지 않고 담당자·영업부장만(security 하-4). */
+    private BoardMaterial loadOwnerVisible(SysUser me, String id) {
+        Long n = parseId(id);
+        BoardMaterial m = n == null ? null : mapper.selectOne(n);
+        if (m == null || !access.canViewCase(me.getEmpNo(), m.getBidCaseId())) {
+            throw ApiException.notFound(NOT_FOUND);
         }
         return m;
     }

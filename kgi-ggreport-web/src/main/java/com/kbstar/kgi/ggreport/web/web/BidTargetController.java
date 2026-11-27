@@ -80,6 +80,7 @@ public class BidTargetController {
                 ? "bid-target save no=" + out.get("target_no") + " rev=" + out.get("rev_no") : "bid-target save no-change")
                 + (BidTargetService.DIRECT_VALUE_EDIT.equals(out.get("direct_basis")) ? " basis=value" : "")
                 + aimTag(out.get("aim_edit"))
+                + (out.get("tag_flip") instanceof String ? " tag=" + out.get("tag_flip") : "")   // 072 — 입찰↔수의계약 전>후 구분 코드
                 + (out.get("warning") != null ? " warn=INST_BID_CLOSED" : ""));
         return ResponseEntity.status(saved ? HttpStatus.CREATED : HttpStatus.OK).body(out);
     }
@@ -161,6 +162,7 @@ public class BidTargetController {
         req.setAttribute(AccessLogInterceptor.DETAIL, "bid-target change mode=" + ("DIRECT".equals(out.get("mode")) ? "direct" : "approval")
                 + " n=" + n + (BidTargetService.DIRECT_VALUE_EDIT.equals(out.get("direct_basis")) ? " basis=value" : "")
                 + (out.get("aim_edits") instanceof Integer && ((Integer) out.get("aim_edits")).intValue() > 0 ? " aim=" + out.get("aim_edits") : "")
+                + (out.get("tag_flips") instanceof String && !((String) out.get("tag_flips")).isEmpty() ? " tag=" + out.get("tag_flips") : "")   // 072 — 입찰↔수의계약 전>후 구분 코드(쉼표)
                 + (reqId == null ? "" : " req=" + reqId));
         return out;
     }

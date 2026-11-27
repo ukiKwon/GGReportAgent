@@ -181,10 +181,15 @@ public class BidTargetApiTest {
         assertEquals(200, status(r));
         assertEquals(Y, json(r).path("year").asInt());
         assertEquals(30, json(r).path("delay_days").asInt());
-        assertEquals(3, json(r).path("codes").path("tags").size());
+        assertEquals(4, json(r).path("codes").path("tags").size());   // 072 — 구분 4값(REGAIN 은 사용 안 함이라 빠진다)
         assertEquals("RETAIN", json(r).path("codes").path("tags").path(0).path("code").asText());
-        assertEquals("REGAIN", json(r).path("codes").path("tags").path(1).path("code").asText());
+        assertEquals("RETAIN_PRIVATE", json(r).path("codes").path("tags").path(1).path("code").asText());
         assertEquals("NEW", json(r).path("codes").path("tags").path(2).path("code").asText());
+        assertEquals("NEW_PRIVATE", json(r).path("codes").path("tags").path(3).path("code").asText());
+        assertEquals("RETAIN", json(r).path("codes").path("tags").path(1).path("audience_cd").asText());
+        assertTrue(json(r).path("codes").path("tags").path(1).path("private_contract").asBoolean());
+        assertFalse(json(r).path("codes").path("tags").path(2).path("private_contract").asBoolean());
+        assertEquals("재유치 입찰", json(r).path("codes").path("tags").path(0).path("name").asText());
         assertFalse(json(r).path("can_edit").asBoolean());
     }
 
@@ -509,6 +514,66 @@ public class BidTargetApiTest {
         assertEquals("INST_BID_CLOSED", code(r));
         assertEquals("NOTICE_NO_BID", json(r).path("detail").path("basis").path("basis_cd").asText());
         assertEquals(0, rows());
+    }
+
+    @Test public void H2_초기화에서_072가_돌았다_이관_기록_표는_비어_있고_REGAIN_은_사용_안_함() {   // 072
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM MIG072_TARGET_TAG", Integer.class).intValue());
+        assertEquals(0, jdbc.queryForObject("SELECT ENABLED FROM COMMON_CODE WHERE CODE_GROUP='TARGET_TAG' AND CODE='REGAIN'", Integer.class).intValue());
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='TARGET_TAG' AND CODE IN ('RETAIN_PRIVATE','NEW_PRIVATE') AND ENABLED=1", Integer.class).intValue());
+    }
+
+    private void noBidRound() {
+        round("NO_BID", thisYearAt(), null);
+        jdbc.update("UPDATE NOTICE_ROUND SET CLOSED_AT='2026-11-17T00:00:00+09:00', CLOSE_REASON_CD='NO_BID', CLOSED_BY='3918264'"
+                + " WHERE INSTITUTION_ID='jongno' AND ROUND_SEQ=1");
+    }
+
+    @Test public void 수의계약_구분이면_입찰_없음이어도_올해_목표_201() throws Exception {   // 072
+        noBidRound();
+        MvcResult r = send(SALES, PATH, ADD, body("tag_cd", "NEW_PRIVATE"));
+        assertEquals(201, status(r));
+        assertEquals(1, rows());
+        assertTrue(json(r).path("warning").isMissingNode());
+        // 같은 회차라도 입찰 구분은 그대로 409
+        MvcResult b = send(SALES, PATH, ADD, body("tag_cd", "NEW"));
+        assertEquals(409, status(b)); assertEquals("INST_BID_CLOSED", code(b));
+    }
+
+    @Test public void 수의계약도_공고_종료면_409() throws Exception {   // 072
+        closedRound();
+        MvcResult r = send(SALES, PATH, ADD, body("tag_cd", "RETAIN_PRIVATE"));
+        assertEquals(409, status(r));
+        assertEquals("INST_BID_CLOSED", code(r));
+        assertEquals("NOTICE_CLOSED", json(r).path("detail").path("basis").path("basis_cd").asText());
+        assertEquals(0, rows());
+    }
+
+    @Test public void 수의계약_목표는_입찰_없음이어도_목록_bid_closed_없음() throws Exception {   // 072
+        noBidRound();
+        assertEquals(201, status(send(SALES, PATH, ADD, body("tag_cd", "NEW_PRIVATE"))));
+        JsonNode it = json(getAs(SALES, "/bid-targets")).path("items").get(0);
+        assertTrue(it.path("bid_closed").isNull());
+        assertFalse(it.path("prep_cleanup_needed").asBoolean());
+    }
+
+    @Test public void 수의계약에서_입찰로_되돌리면_입찰_끝남_검사를_다시_받는다_409() throws Exception {   // 072 security 5
+        noBidRound();
+        assertEquals(201, status(send(SALES, PATH, ADD, body("tag_cd", "NEW_PRIVATE"))));
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        m.put("target_no", 1); m.put("base_rev_no", 1); m.put("tag_cd", "NEW"); m.put("target_year", y());
+        MvcResult r = send(SALES, PATH, TAG, m);
+        assertEquals(409, status(r));
+        assertEquals("INST_BID_CLOSED", code(r));
+        assertEquals(1, rows());
+    }
+
+    @Test public void 입찰에서_수의계약으로_바꾸면_바로_반영_접근_이력에_전_후_구분_코드() throws Exception {   // 072 security 5
+        assertEquals(201, status(send(SALES, PATH, ADD, body("tag_cd", "RETAIN"))));
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        m.put("target_no", 1); m.put("base_rev_no", 1); m.put("tag_cd", "RETAIN_PRIVATE"); m.put("target_year", y());
+        assertEquals(201, status(send(SALES, PATH, TAG, m)));
+        assertEquals(2, rows());
+        assertTrue(lastDetail(), lastDetail().contains(" tag=RETAIN>RETAIN_PRIVATE"));
     }
 
     @Test public void 기관_자료가_넘어갔으면_막지_않는다() throws Exception {

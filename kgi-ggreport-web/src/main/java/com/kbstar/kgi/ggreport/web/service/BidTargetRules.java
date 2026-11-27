@@ -14,6 +14,14 @@ import java.util.regex.Pattern;
 final class BidTargetRules {
 
     static final String G_TAG = "TARGET_TAG", G_CANCEL = "TARGET_CANCEL_REASON", CANCEL_ETC = "ETC";
+    // 072 — 구분 4값(사용자 11-27). 저장은 한 칸 TAG_CD. 대상 축(재유치/신규)·방식 축(입찰/수의계약)은 코드에서 읽는다.
+    static final String TAG_RETAIN_BID = "RETAIN", TAG_RETAIN_PRIVATE = "RETAIN_PRIVATE", TAG_NEW_BID = "NEW", TAG_NEW_PRIVATE = "NEW_PRIVATE";
+    static final String TAG_LEGACY_REGAIN = "REGAIN";   // 059 되찾기 도전 — 072 부터 사용 안 함, 신규 입찰로 이관
+    static boolean tagRetain(String tag) { return TAG_RETAIN_BID.equals(tag) || TAG_RETAIN_PRIVATE.equals(tag); }
+    static boolean tagPrivate(String tag) { return TAG_RETAIN_PRIVATE.equals(tag) || TAG_NEW_PRIVATE.equals(tag); }
+    /** 072 이전에 올린 결재 대기 항목의 옛 코드 → 지금 코드. 그 밖은 그대로. */
+    static String tagMigrated(String tag) { return TAG_LEGACY_REGAIN.equals(tag) ? TAG_NEW_BID : tag; }
+    static final String WARN_NO_BID_PRIVATE = "NO_BID_PRIVATE";   // 결재 항목 경고 — 수의계약이라 '입찰 없음' 근거로 막지 않고 통과(결재자가 본다)
     static final String KIND_GOAL = "GOAL", KIND_WATCH = "WATCH";
     static final String G_AIM = "TARGET_AIM_RANK";   // 063 금고 방식(1금고·2금고·단수금고·주거래)
     static final String AIM_FIRST = "FIRST", AIM_CHANGE = "CHANGE", AIM_CLEAR = "CLEAR";   // aimEdit 결과(접근 이력용 종류, 값 아님)
@@ -198,7 +206,10 @@ final class BidTargetRules {
      *    판정은 NoticeRoundRules.advanced·CLOSED·NO_BID, NoticeRoundService.CLOSE_NO_BID(같은 package 멤버)를 그대로 부른다.
      * ② 금고 약정(039): 시작 전(FUTURE)인 줄이 있음 = 다음 협약이 정해짐(BankContractRules.termState).
      */
-    static Map<String, Object> bidClosedBasis(NoticeRoundView n, List<BankContract> lines, LocalDate today) {
+    static Map<String, Object> bidClosedBasis(NoticeRoundView n, List<BankContract> lines, LocalDate today) { return bidClosedBasis(n, lines, today, null); }
+
+    /** 072 — tag 가 수의계약이면 '입찰 없음' 근거는 끝남이 아니다(사용자 11-27 — 공고 없이 진행). 공고 종료·약정 확정 근거는 그대로 본다. */
+    static Map<String, Object> bidClosedBasis(NoticeRoundView n, List<BankContract> lines, LocalDate today, String tag) {
         String y = String.valueOf(today.getYear());
         if (n != null && n.getHandledAt() != null && n.getHandledAt().startsWith(y)) {
             String code = null;
@@ -209,7 +220,7 @@ final class BidTargetRules {
                 if (NoticeRoundRules.CLOSED.equals(n.getStatusCd())) code = BASIS_CLOSED;
                 else if (NoticeRoundRules.NO_BID.equals(n.getStatusCd())) code = BASIS_NO_BID;
             }
-            if (code != null) {
+            if (code != null && !(BASIS_NO_BID.equals(code) && tagPrivate(tag))) {
                 Map<String, Object> m = new LinkedHashMap<String, Object>();
                 m.put("basis_cd", code);
                 m.put("basis_date", n.getHandledAt().length() >= 10 ? n.getHandledAt().substring(0, 10) : null);

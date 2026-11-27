@@ -126,7 +126,7 @@ public class BoardMinutesAccess {
             }
             return none();
         }
-        boolean viewMaterial = board.canViewCase(me.getEmpNo(), head.getBidCaseId());
+        boolean viewMaterial = board.canReadCase(me.getEmpNo(), head.getBidCaseId());   // 읽기 — 자기 팀 영업팀장 포함(11-27)
         if (isHeadGrade(me)) {
             return new Decision(Via.HEAD, true, true, true, true, true, true, true, true, viewMaterial);
         }

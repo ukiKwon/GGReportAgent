@@ -69,6 +69,13 @@ public class TargetResultRulesTest {
         assertEquals(TargetResultRules.RETAIN, v.winKind);
         assertEquals(TargetResultRules.BASIS_TAG, v.winKindBasis);
     }
+    @Test public void 구분이_수의계약이어도_재유치_신규는_대상_축으로_센다_072() {
+        TargetResultRules.Verdict r = TargetResultRules.judge(L(line(2, "FIRST", "B02", "2027-01", "2030-12")), "RETAIN_PRIVATE", Y, Y, null);
+        assertEquals(TargetResultRules.RETAIN, r.winKind);
+        assertEquals(TargetResultRules.BASIS_TAG, r.winKindBasis);
+        assertEquals(TargetResultRules.NEW, TargetResultRules.judge(L(line(2, "FIRST", "B02", "2027-01", "2030-12")), "NEW_PRIVATE", Y, Y, null).winKind);
+        assertEquals(TargetResultRules.NEW, TargetResultRules.judge(L(line(2, "FIRST", "B02", "2027-01", "2030-12")), "REGAIN", Y, Y, null).winKind);
+    }
     @Test public void 다른_순위의_이전_줄은_직전으로_치지_않는다() {
         TargetResultRules.Verdict v = TargetResultRules.judge(L(line(1, "SECOND", "B02", "2023-01", "2026-12"), line(2, "FIRST", "B02", "2027-01", "2030-12")), "NEW", Y, Y, null);
         assertEquals(TargetResultRules.NEW, v.winKind);

@@ -31,8 +31,12 @@ public interface BoardMaterialMapper {
     /** 이름 칸(기관명·상태명·결과명)까지 채운다. */
     BoardMaterial selectOne(@Param("id") Long id);
 
-    /** 내가 현재 담당인 입찰 건의 자료만(열람 예외 없음). q·assignee 는 서비스가 LIKE 특수문자를 '!' 로 이스케이프. 빈 값은 null. */
+    /**
+     * 내가 현재 담당인 입찰 건의 자료 + (teamEmpNos 가 있으면) 팀 사번이 배정됐던 건의 자료(넓게 — 서비스가 canReadCase 로 거른다, 11-27).
+     * q·assignee 는 서비스가 LIKE 특수문자를 '!' 로 이스케이프. 빈 값은 null.
+     */
     List<BoardMaterial> selectList(@Param("empNo") String empNo, @Param("viewAll") boolean viewAll,
+                                   @Param("teamEmpNos") java.util.Collection<String> teamEmpNos,
                                    @Param("q") String q, @Param("status") String status,
                                    @Param("year") Integer year, @Param("meetingFrom") String meetingFrom,
                                    @Param("meetingTo") String meetingTo, @Param("assignee") String assignee,

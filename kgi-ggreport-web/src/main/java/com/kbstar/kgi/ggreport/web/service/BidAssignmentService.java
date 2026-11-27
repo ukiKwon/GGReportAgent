@@ -870,6 +870,48 @@ public class BidAssignmentService {
         return false;
     }
 
+    /**
+     * 그 입찰 건의 자기 팀 영업팀장인가 — 이사회 자료 읽기·회의록 기본 열람·디자인 검토·영업 작업 1차 결재용(사용자 11-27).
+     * 활성 담당이 있으면 그 담당의 팀, 모두 풀렸으면(끝난 건) 배정 이력 전체의 팀. 사전준비 행 유무와 무관.
+     * 팀은 지금의 결재선 구조로 계산한다(당시 팀 기록 없음). 영업팀장 아님·팀 미정·건 없음은 false.
+     */
+    boolean leadsAssignedTeam(SysUser me, String bidCaseId) {
+        if (me == null || !LEAD_ROLE.equals(roleOf(me)) || bidCaseId == null || bidCaseId.isEmpty() || bidCaseId.length() > 64) {
+            return false;
+        }
+        Set<String> team = salesTeamEmpNos(me);
+        if (team == null) {
+            return false;
+        }
+        List<BidAssigneeView> act = mapper.selectActiveAssignees(bidCaseId);
+        if (!act.isEmpty()) {
+            for (BidAssigneeView v : act) {
+                if (team.contains(v.getEmpNo())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        for (String e : team) {
+            if (prepMapper.countEverAssigned(bidCaseId, e) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 담당자(영업팀원·영업팀장)의 자기 팀 영업팀장 사번 — 영업 작업 1차 결재용. 건 번호가 없는 작업은 '담당자의 sameTeamLead'. 못 정하면 null(fail-closed). */
+    SysUser teamLeadOfEmp(String empNo) {
+        SysUser u = empNo == null ? null : users.selectByEmpNo(empNo);
+        if (u == null) {
+            return null;
+        }
+        if (LEAD_ROLE.equals(roleOf(u))) {
+            return ApproverRules.active(u) ? u : null;
+        }
+        return sameTeamLead(u);
+    }
+
     /** 이사회 자료 같은 팀 열람(11-27) — 그 건의 활성 담당 중 한 명이라도 me 의 팀에 드는가. 팀을 못 정하면 false(넓히지 않음). */
     boolean activeInTeam(String bidCaseId, SysUser me) {
         Set<String> team = me == null ? null : salesTeamEmpNos(me);

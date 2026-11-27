@@ -17,7 +17,7 @@ import static org.junit.Assert.*;
 public class BidTargetRulesTest {
     private static final BankContractRules.CodeCheck CODES = new BankContractRules.CodeCheck() {
         @Override public boolean enabled(String group, String code) {
-            return ("TARGET_TAG".equals(group) && ("NEW".equals(code) || "RETAIN".equals(code) || "REGAIN".equals(code)))
+            return ("TARGET_TAG".equals(group) && ("NEW".equals(code) || "RETAIN".equals(code) || "RETAIN_PRIVATE".equals(code) || "NEW_PRIVATE".equals(code)))   // 072 — REGAIN 은 사용 안 함
                     || ("TARGET_CANCEL_REASON".equals(group) && ("WRONG".equals(code) || "ETC".equals(code)))
                     || ("TARGET_AIM_RANK".equals(group) && ("FIRST".equals(code) || "SECOND".equals(code) || "SINGLE".equals(code) || "MAIN_BANK".equals(code)));
         }
@@ -50,8 +50,20 @@ public class BidTargetRulesTest {
         assertNull(BidTargetRules.parse(blank, 2026, null, CODES).owner);
     }
 
-    @Test public void 태그_REGAIN_통과() {
-        assertEquals("REGAIN", BidTargetRules.parse(in(null, "REGAIN"), 2026, null, CODES).tag);
+    @Test public void 태그_REGAIN_은_400_수의계약_코드는_통과() {
+        assertEquals(400, statusOf(new Runnable() { public void run() { BidTargetRules.parse(in(null, "REGAIN"), 2026, null, CODES); } }));
+        assertEquals("NEW_PRIVATE", BidTargetRules.parse(in(null, "NEW_PRIVATE"), 2026, null, CODES).tag);
+        assertEquals("RETAIN_PRIVATE", BidTargetRules.parse(in(null, "RETAIN_PRIVATE"), 2026, null, CODES).tag);
+    }
+
+    @Test public void 구분_두_축_판정과_옛_REGAIN_이관() {   // 072
+        assertTrue(BidTargetRules.tagRetain("RETAIN")); assertTrue(BidTargetRules.tagRetain("RETAIN_PRIVATE"));
+        assertFalse(BidTargetRules.tagRetain("NEW")); assertFalse(BidTargetRules.tagRetain("NEW_PRIVATE")); assertFalse(BidTargetRules.tagRetain(null));
+        assertTrue(BidTargetRules.tagPrivate("RETAIN_PRIVATE")); assertTrue(BidTargetRules.tagPrivate("NEW_PRIVATE"));
+        assertFalse(BidTargetRules.tagPrivate("RETAIN")); assertFalse(BidTargetRules.tagPrivate("NEW")); assertFalse(BidTargetRules.tagPrivate(null));
+        assertEquals("NEW", BidTargetRules.tagMigrated("REGAIN"));
+        assertEquals("RETAIN", BidTargetRules.tagMigrated("RETAIN"));
+        assertNull(BidTargetRules.tagMigrated(null));
     }
 
     @Test public void 태그는_비워도_통과_NULL_모르는_코드는_400() {   // 11-25 — 구분 '-'
@@ -217,6 +229,20 @@ public class BidTargetRulesTest {
         Map<String, Object> f = BidTargetRules.bidClosedBasis(null, Arrays.asList(term(3, "FIRST", "2027-01-01", "2030-12-31")), TODAY);
         assertEquals("CONTRACT_DECIDED", f.get("basis_cd"));
         assertEquals("2027-01-01", f.get("basis_date"));
+    }
+
+    @Test public void bidClosedBasis_수의계약이면_입찰_없음은_끝남이_아니다_072() {
+        NoticeRoundView noBid = notice("2026-11-01T09:00:00+09:00", NoticeRoundRules.NO_BID, null, null);
+        assertNull(BidTargetRules.bidClosedBasis(noBid, null, TODAY, "NEW_PRIVATE"));
+        assertNull(BidTargetRules.bidClosedBasis(noBid, null, TODAY, "RETAIN_PRIVATE"));
+        assertEquals("NOTICE_NO_BID", BidTargetRules.bidClosedBasis(noBid, null, TODAY, "NEW").get("basis_cd"));
+        assertEquals("NOTICE_NO_BID", BidTargetRules.bidClosedBasis(noBid, null, TODAY, null).get("basis_cd"));   // 구분 미정은 예외 없음
+        // 수의계약이어도 다음 근거(약정 확정)는 그대로 본다
+        Map<String, Object> f = BidTargetRules.bidClosedBasis(noBid, Arrays.asList(term(3, "FIRST", "2027-01-01", "2030-12-31")), TODAY, "NEW_PRIVATE");
+        assertEquals("CONTRACT_DECIDED", f.get("basis_cd"));
+        // 공고 종료(CLOSED)는 수의계약이어도 끝남
+        NoticeRoundView closed = notice("2026-11-01T09:00:00+09:00", "CLOSED", null, null);
+        assertEquals("NOTICE_CLOSED", BidTargetRules.bidClosedBasis(closed, null, TODAY, "RETAIN_PRIVATE").get("basis_cd"));
     }
 
     @Test public void 취소_기타는_글이_필요하고_이름은_422() {

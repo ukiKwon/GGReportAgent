@@ -57,6 +57,7 @@ public class TargetChangeService {
     static final class Planned {
         int itemNo; String inst, op, warnCd, tag, memo, owner, ownerName, cancelCd, cancelEtc; BidTarget cur; Integer toYear;
         boolean valueOnly;   // EDIT 이고 연도·주 담당 그대로(NEXT 114)
+        String tagFlip;        // 072 — EDIT 에서 입찰↔수의계약이 바뀌면 "전>후" 구분 코드(접근 이력용)
         String aim, aimEdit;   // 063 — 금고 방식·바뀜 종류(FIRST|CHANGE|CLEAR|null, 접근 이력용)
         String aimEtc;         // 066 — 기타(OTHER) 금고 방식 이름
         String subject, subjectEtc;   // NEXT 125 — ADD·TO_GOAL 은 반영할 대상, 그 밖은 그 건의 대상(요청 때 스냅샷)
@@ -207,7 +208,7 @@ public class TargetChangeService {
             fill(p, v, targets.ownerName(v.owner, null));
             p.subject = s[0]; p.subjectEtc = s[1];
             BidTargetKeys.requireRankFits(p.subject, p.aim);
-            if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) p.warnCd = warn(targets.closedCheck(p.inst, today));
+            if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) p.warnCd = warnFor(p.inst, today, p.tag);
             return p;
         }
         BidTarget cur = mapper.selectLatestTarget(p.inst, it.getTargetNo().intValue());
@@ -233,8 +234,12 @@ public class TargetChangeService {
                 p.aimEdit = BidTargetRules.aimEdit(cur, v);
                 p.valueOnly = BidTargetRules.valueOnlyEdit(cur, v, thisYear);   // 단건 save 와 같은 판정 하나(NEXT 114·063, 지난해 목표는 결재 — security F1)
                 targets.checkRankLock(cur, p.aim);   // 409 RANK_LOCKED(상신 때도 막는다 — 승인 때 replan 이 다시 본다)
+                if (BidTargetRules.tagPrivate(cur.getTagCd()) != BidTargetRules.tagPrivate(p.tag)) p.tagFlip = BidTargetService.tagOrDash(cur.getTagCd()) + ">" + BidTargetService.tagOrDash(p.tag);
                 if (!p.toYear.equals(cur.getTargetYear())) {
-                    if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) p.warnCd = warn(targets.closedCheck(p.inst, today));
+                    if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) p.warnCd = warnFor(p.inst, today, p.tag);
+                } else if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear
+                        && BidTargetRules.tagPrivate(cur.getTagCd()) && !BidTargetRules.tagPrivate(p.tag)) {
+                    p.warnCd = warn(targets.closedCheck(p.inst, today, p.tag));   // 072 security 5 — 수의계약 → 입찰 되돌림은 입찰 끝남 검사를 다시 받는다(근거가 있으면 409)
                 }
                 return p;
             }
@@ -259,7 +264,8 @@ public class TargetChangeService {
                 BidTargetKeys.requireSubjectAllowed(p.subject, true, targets.multiSubject());
                 boolean mainTo = BidSubjects.MAIN_BANK.equals(p.subject);
                 p.aim = mainTo ? cur.getAimRankCd() : null; p.aimEtc = mainTo ? cur.getAimRankEtc() : null;
-                if (mainTo && p.toYear.intValue() == thisYear) p.warnCd = warn(targets.closedCheck(p.inst, today));
+                p.tag = cur.getTagCd();   // 072 security 3 — 관심 행의 지금 구분을 요청 항목에 스냅샷(반영은 행의 구분을 그대로 잇는다 — write 는 p.tag 를 쓰지 않는다)
+                if (mainTo && p.toYear.intValue() == thisYear) p.warnCd = warnFor(p.inst, today, cur.getTagCd());
                 return p;
             }
         }
@@ -318,8 +324,13 @@ public class TargetChangeService {
     public Map<String, Object> applyDirect(Plan plan, Actor actor, BoardUiIds.Ui ui, String basis) {
         List<Map<String, Object>> done = new ArrayList<Map<String, Object>>();
         int aims = 0;
-        for (Planned p : plan.items) { done.add(write(p, actor, ui, null, plan.requesterEmp)); if (p.aimEdit != null) aims++; }
+        StringBuilder flips = new StringBuilder();   // 072 — 입찰↔수의계약 전>후 구분 코드(접근 이력용, 개인정보 아님)
+        for (Planned p : plan.items) {
+            done.add(write(p, actor, ui, null, plan.requesterEmp)); if (p.aimEdit != null) aims++;
+            if (p.tagFlip != null) { if (flips.length() > 0) flips.append(','); flips.append(p.tagFlip); }
+        }
         Map<String, Object> out = new LinkedHashMap<String, Object>();
+        if (flips.length() > 0) out.put("tag_flips", flips.toString());
         out.put("mode", "DIRECT");
         out.put("direct_basis", basis);
         out.put("applied", done.size());
@@ -379,7 +390,8 @@ public class TargetChangeService {
         switch (p.op) {
             case OP_ADD:
             case OP_EDIT: {
-                if (x.getTagCd() != null && !codes.enabled(BidTargetRules.G_TAG, x.getTagCd())) throw invalid("태그가 더 이상 쓰이지 않습니다.", p.cur);   // 11-25 — 구분 비움(NULL) 허용
+                String tag = BidTargetRules.tagMigrated(x.getTagCd());   // 072 — 대기 중 옛 REGAIN 은 신규 입찰(NEW)로 반영, 요청 항목(문서)은 그대로
+                if (tag != null && !codes.enabled(BidTargetRules.G_TAG, tag)) throw invalid("태그가 더 이상 쓰이지 않습니다.", p.cur);   // 11-25 — 구분 비움(NULL) 허용
                 // 기존 건 고치기는 스위치가 꺼져도 승인된다(security ②ⓑ) — 새로 만들 때만 꺼짐을 막는다
                 if (!codes.enabled(BidSubjects.GROUP, p.subject) || (OP_ADD.equals(p.op) && !targets.multiSubject() && !BidSubjects.MAIN_BANK.equals(p.subject))) {
                     throw invalid("입찰 대상이 더 이상 쓰이지 않습니다.", p.cur);
@@ -389,14 +401,17 @@ public class TargetChangeService {
                 if (x.getAimRankCd() != null && !x.getAimRankCd().equals(curAim) && !codes.enabled(BidTargetRules.G_AIM, x.getAimRankCd())) {
                     throw invalid("금고 방식이 더 이상 쓰이지 않습니다.", p.cur);   // 새로 고른 값만 다시 검사(이어받기만 한 값 때문에 다른 결재가 막히지 않게)
                 }
-                p.toYear = x.getToYear(); p.tag = x.getTagCd(); p.memo = x.getMemo(); p.owner = x.getOwnerEmpNo(); p.aim = x.getAimRankCd(); p.aimEtc = x.getAimRankEtc();
+                p.toYear = x.getToYear(); p.tag = tag; p.memo = x.getMemo(); p.owner = x.getOwnerEmpNo(); p.aim = x.getAimRankCd(); p.aimEtc = x.getAimRankEtc();
                 try { p.ownerName = targets.ownerName(p.owner, p.cur); }   // 새로 고른 주 담당만 다시 검사(활성 영업)
                 catch (ApiException e) { throw invalid("주 담당이 더 이상 영업부서 활성 사용자가 아닙니다.", p.cur); }
                 if (OP_EDIT.equals(p.op)) BidTargetService.requireYearUnlinked(p.cur, p.toYear);   // 요청 뒤 입찰 건이 이어졌으면 승인 때도 막는다(YEAR_LINKED)
                 if (OP_EDIT.equals(p.op)) targets.checkRankLock(p.cur, p.aim);   // 요청 뒤 연결된 제안이 진행 중이 됐으면 승인 때도 막는다(409 RANK_LOCKED)
                 if (p.cur == null || !p.toYear.equals(p.cur.getTargetYear())) {
                     if (p.toYear.intValue() < thisYear) throw BidTargetService.conflict("YEAR_PASSED", YEAR_PASSED_MSG, p.cur);
-                    if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) targets.closedCheck(p.inst, today);
+                    if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) targets.closedCheck(p.inst, today, p.tag);
+                } else if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear
+                        && BidTargetRules.tagPrivate(p.cur.getTagCd()) && !BidTargetRules.tagPrivate(p.tag)) {
+                    targets.closedCheck(p.inst, today, p.tag);   // 072 security 5 — 승인 때도 수의계약 → 입찰 되돌림은 입찰 끝남 검사
                 }
                 return p;
             }
@@ -417,7 +432,7 @@ public class TargetChangeService {
                 }
                 boolean mainTo = BidSubjects.MAIN_BANK.equals(p.subject);
                 p.aim = mainTo ? p.cur.getAimRankCd() : null; p.aimEtc = mainTo ? p.cur.getAimRankEtc() : null;
-                if (mainTo && p.toYear.intValue() == thisYear) targets.closedCheck(p.inst, today);
+                if (mainTo && p.toYear.intValue() == thisYear) targets.closedCheck(p.inst, today, p.cur.getTagCd());   // 072 — 반영될 행의 구분
                 return p;
             }
         }
@@ -502,7 +517,14 @@ public class TargetChangeService {
             }
             m.put("before", before);
             m.put("to_year", x.getToYear());
-            m.put("tag_name", x.getTagName());
+            // 072 security 3 — 옛 REGAIN 은 신규 입찰(NEW)로 같게 보고 이전/요청 구분을 비교한다. 같으면 변경 없음(요청 이름을 이전 이름으로 맞춤). REQ_ITEM 값은 고치지 않는다.
+            boolean tagOp = OP_ADD.equals(x.getOpCd()) || OP_EDIT.equals(x.getOpCd());
+            boolean tagChanged = tagOp && !Objects.equals(BidTargetRules.tagMigrated(x.getBaseTagCd()), BidTargetRules.tagMigrated(x.getTagCd()));
+            String tagName = x.getTagName();
+            if (x.getTagCd() != null && x.getBaseRevNo() != null && !tagChanged && x.getBaseTagName() != null) tagName = x.getBaseTagName();
+            else if (BidTargetRules.TAG_LEGACY_REGAIN.equals(x.getTagCd()) && tagName != null) tagName = tagName + " (072 이관: 신규 입찰)";
+            m.put("tag_name", tagName);
+            m.put("tag_changed", tagChanged);
             boolean aimKept = !OP_ADD.equals(x.getOpCd()) && !OP_EDIT.equals(x.getOpCd());   // TO_GOAL·TO_WATCH·CANCEL 은 금고 방식을 건드리지 않는다 — '이후'도 이전 값(security 11-25 4번)
             m.put("aim_rank_cd", aimKept ? x.getBaseAimRankCd() : x.getAimRankCd());
             m.put("aim_rank_name", aimKept ? x.getBaseAimRankName() : x.getAimRankName());
@@ -535,6 +557,16 @@ public class TargetChangeService {
     }
 
     private static String warn(Map<String, Object> w) { return w == null ? null : "INST_BID_CLOSED"; }
+
+    /**
+     * 072 — 올해 목표가 될 때의 경고 코드. 근거가 있으면 closedCheck 가 409(진행 중 제안 있으면 INST_BID_CLOSED 경고).
+     * 통과했는데 그 이유가 '수의계약이라 입찰 없음 근거를 뺐기' 때문이면 NO_BID_PRIVATE 를 남겨 결재자가 보게 한다(security 4).
+     */
+    private String warnFor(String inst, LocalDate today, String tag) {
+        String w = warn(targets.closedCheck(inst, today, tag));
+        if (w == null && BidTargetRules.tagPrivate(tag) && targets.noBidBasis(inst, today)) return BidTargetRules.WARN_NO_BID_PRIVATE;
+        return w;
+    }
 
     private static ApiException invalid(String why, BidTarget cur) {
         return BidTargetService.conflict("ITEM_INVALID", why + " 반려하고 다시 요청해 주세요.", cur);

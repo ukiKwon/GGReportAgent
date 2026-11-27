@@ -51,7 +51,16 @@
       FROM BOARD_MATERIAL m <include refid="mjoins"/>
     <where>
       <if test="!viewAll">
-        m.BID_CASE_ID IN (SELECT a.BID_CASE_ID FROM BID_ASSIGNMENT a WHERE a.EMP_NO = #{empNo} AND a.ACTIVE_YN = 1)
+        <choose>
+          <when test="teamEmpNos != null and !teamEmpNos.isEmpty()">
+            <!-- 같은 팀 팀장(11-27 안 A, R0): 팀 사번이 한 번이라도 배정된 건을 넓게 가져온다 — 서비스가 행마다 canReadCase 로 거른다 -->
+            m.BID_CASE_ID IN (SELECT a.BID_CASE_ID FROM BID_ASSIGNMENT a WHERE (a.EMP_NO = #{empNo} AND a.ACTIVE_YN = 1) OR a.EMP_NO IN
+              <foreach collection="teamEmpNos" item="te" open="(" separator="," close=")">#{te}</foreach>)
+          </when>
+          <otherwise>
+            m.BID_CASE_ID IN (SELECT a.BID_CASE_ID FROM BID_ASSIGNMENT a WHERE a.EMP_NO = #{empNo} AND a.ACTIVE_YN = 1)
+          </otherwise>
+        </choose>
       </if>
       <if test="q != null">
         AND i.NAME_KO LIKE CONCAT(CONCAT('%', #{q}), '%') ESCAPE '!'

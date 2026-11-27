@@ -91,7 +91,7 @@ public class TargetResultService {
                 continue;
             }
             List<BankContract> l = lines.get(inst);
-            Map<String, Object> basis = year == thisYear ? BidTargetRules.bidClosedBasis(notices.get(inst), l, today) : null;
+            Map<String, Object> basis = year == thisYear ? BidTargetRules.bidClosedBasis(notices.get(inst), l, today, t.getTagCd()) : null;   // 072 수의계약 예외
             TargetResultRules.Verdict v = TargetResultRules.judge(l, t.getTagCd(), year, thisYear, basis, starts.get(inst), today);
             n[0]++;
             if (TargetResultRules.SUCCESS.equals(v.resultCd)) {

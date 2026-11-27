@@ -320,7 +320,7 @@ public class PrepScriptService {
         // 이사회 자료: 확정 판 우선, 없으면 현재 판. 숫자는 담당자·영업부장만(BoardAccess.canViewCase).
         BoardMaterial chosen = null;
         boolean boardConfirmed = false;
-        if (boardAccess.canViewCase(me.getEmpNo(), bid)) {
+        if (boardAccess.canReadCase(me.getEmpNo(), bid)) {   // 읽기 — 그 건의 자기 팀 영업팀장 포함(11-27)
             // 같은 건에 이사회 자료가 여러 개면 최신 하나만 쓴다(질의 정렬: BOARD_YEAR 큰 것, 같으면 MATERIAL_ID 큰 것 — 사용자 11-26).
             // 옛 연도의 확정본이 있어도 그쪽으로 넘어가지 않는다.
             int seen = 0;

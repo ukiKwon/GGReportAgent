@@ -51,7 +51,7 @@ final class TargetResultRules {
         v.evidence = v.kbLine;
         Boolean prior = priorWasKb(src, v.kbLine);
         if (prior != null) { v.winKind = prior ? RETAIN : NEW; v.winKindBasis = BASIS_PRIOR; }
-        else { v.winKind = "RETAIN".equals(tagCd) ? RETAIN : NEW; v.winKindBasis = BASIS_TAG; }
+        else { v.winKind = BidTargetRules.tagRetain(tagCd) ? RETAIN : NEW; v.winKindBasis = BASIS_TAG; }   // 072 — 대상 축(재유치 입찰·재유치 수의계약 = 재유치)
         return v;
     }
 

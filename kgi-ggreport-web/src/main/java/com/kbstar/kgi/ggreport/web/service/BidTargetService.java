@@ -194,7 +194,7 @@ public class BidTargetService {
             v.put("bank", main ? BankYears.summary(rl, today) : null);
             v.put("next_term_to", main ? BidTargetRules.nextTermTo(rl, today) : null);
             // 올해 목표에만 — 서버 근거(공고 상태·금고 약정). 진행 중 제안 여부는 화면이 줄의 제안 단계로 함께 본다.
-            Map<String, Object> closed = main && year == thisYear ? BidTargetRules.bidClosedBasis(notices.get(t.getInstitutionId()), l, today) : null;
+            Map<String, Object> closed = main && year == thisYear ? BidTargetRules.bidClosedBasis(notices.get(t.getInstitutionId()), l, today, t.getTagCd()) : null;   // 072 수의계약이면 입찰 없음 ≠ 끝남
             v.put("bid_closed", closed);
             BidTerm tm = main ? terms.get(t.getInstitutionId()) : null;   // INST_BID_TERM = 금고 건의 RFP 협약 개시일
             boolean has = tm != null && ACTION_SAVE.equals(tm.getActionCd());
@@ -456,7 +456,9 @@ public class BidTargetService {
         else checkGoalSlots(inst, Collections.singletonList(new BidTargetKeys.Slot(cur == null ? 0 : cur.getTargetNo(), year, subj[0], subj[1], p.aim)), null, null);   // 바로 반영이어도 키 판정은 거친다(사용자 11-26 ①)
         Map<String, Object> warning = null;
         boolean mainSubject = BidSubjects.MAIN_BANK.equals(subj[0]);   // 공고 종료(037)·약정(039)은 금고 주기 — 그 밖 대상은 보지 않는다
-        if (!watch && mainSubject && p.year == thisYear && (cur == null || !year.equals(cur.getTargetYear()))) warning = closedCheck(inst, today);
+        if (!watch && mainSubject && p.year == thisYear && (cur == null || !year.equals(cur.getTargetYear()))) warning = closedCheck(inst, today, p.tag);
+        // 072 security 5 — 올해 목표에서 구분을 '수의계약 → 입찰'로 바로 고치면 입찰 끝남 검사를 다시 받는다(근거가 있으면 409, 진행 중 제안이 있으면 경고)
+        else if (!watch && mainSubject && p.year == thisYear && cur != null && BidTargetRules.tagPrivate(cur.getTagCd()) && !BidTargetRules.tagPrivate(p.tag)) warning = closedCheck(inst, today, p.tag);
         boolean valueEdit = BidTargetRules.valueOnlyEdit(cur, p, thisYear);
         String aimEdit = BidTargetRules.aimEdit(cur, p);
         boolean roleDirect = !watch && directGoal(users.selectByEmpNo(actor.getEmpNo()));   // 영업부장 등 역할상 바로 가능(security F4)
@@ -485,6 +487,8 @@ public class BidTargetService {
         out.put("mode", "DIRECT");
         out.put("direct_basis", watch ? DIRECT_WATCH : roleDirect ? DIRECT_ROLE : DIRECT_VALUE_EDIT);
         if (aimEdit != null) out.put("aim_edit", aimEdit);   // FIRST|CHANGE|CLEAR — 접근 이력 종류(값 아님)
+        // 072 security 5 — 입찰 ↔ 수의계약이 바뀌면 접근 이력에 전·후 구분 코드(코드표 코드, 개인정보 아님)
+        if (cur != null && BidTargetRules.tagPrivate(cur.getTagCd()) != BidTargetRules.tagPrivate(p.tag)) out.put("tag_flip", tagOrDash(cur.getTagCd()) + ">" + tagOrDash(p.tag));
         if (warning != null) out.put("warning", warning);
         return out;
     }
@@ -519,7 +523,7 @@ public class BidTargetService {
             checkGoalSlots(inst, Collections.singletonList(new BidTargetKeys.Slot(no, year, cur.getBidSubjectCd(), cur.getBidSubjectEtc(), aim)), null, null);
         }
         Map<String, Object> warning = !toWatch && year.intValue() == thisYear
-                && BidSubjects.MAIN_BANK.equals(cur.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : cur.getBidSubjectCd()) ? closedCheck(inst, today) : null;
+                && BidSubjects.MAIN_BANK.equals(cur.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : cur.getBidSubjectCd()) ? closedCheck(inst, today, cur.getTagCd()) : null;
         requireDirect(actor, cur);   // 옮기기는 어느 방향이든 목표가 바뀐다
         if (toWatch) requireNoActivePrep(inst);   // 11-27 — 제안 준비 중인 기관은 관심으로 옮길 수 없다
         if (cur.getRevNo() + 1 > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, cur);
@@ -645,10 +649,23 @@ public class BidTargetService {
         }
     }
 
+    /** 접근 이력용 — 구분 코드(없으면 '-'). */
+    static String tagOrDash(String tag) { return tag == null ? "-" : tag; }
+
     /** 올해 목표가 될 때 — 서버 근거가 있으면 409 INST_BID_CLOSED. 그 기관에 진행 중 제안이 있으면 막지 않고 warning 을 돌려준다(planner 3-2). 잠금 안에서 부른다. */
-    Map<String, Object> closedCheck(String inst, LocalDate today) {
+    Map<String, Object> closedCheck(String inst, LocalDate today) { return closedCheck(inst, today, null); }
+
+    /** 072 — 그 기관의 마지막 공고 회차가 '입찰 없음' 근거인가(구분과 상관없이). 수의계약 구분이라 통과시켰는지 결재자에게 알리는 데 쓴다. */
+    boolean noBidBasis(String inst, LocalDate today) {
         List<NoticeRoundView> ns = mapper.selectNoticeLast(inst);
-        Map<String, Object> basis = BidTargetRules.bidClosedBasis(ns.isEmpty() ? null : ns.get(0), mapper.selectContractsOf(inst), today);
+        Map<String, Object> b = BidTargetRules.bidClosedBasis(ns.isEmpty() ? null : ns.get(0), null, today, null);
+        return b != null && BidTargetRules.BASIS_NO_BID.equals(b.get("basis_cd"));
+    }
+
+    /** 072 — tag = 그 목표가 가질 구분. 수의계약이면 '입찰 없음'으로는 막지 않는다. */
+    Map<String, Object> closedCheck(String inst, LocalDate today, String tag) {
+        List<NoticeRoundView> ns = mapper.selectNoticeLast(inst);
+        Map<String, Object> basis = BidTargetRules.bidClosedBasis(ns.isEmpty() ? null : ns.get(0), mapper.selectContractsOf(inst), today, tag);
         if (basis == null) return null;
         List<String> active = preps.selectActiveStatesByInstitution(inst);
         if (active.isEmpty()) {
@@ -1042,7 +1059,7 @@ public class BidTargetService {
 
     private Map<String, Object> codes() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
-        m.put("tags", codeList(BidTargetRules.G_TAG));
+        m.put("tags", tagCodeList());   // 072 — 구분 4값 + 두 축
         m.put("cancel_reasons", codeList(BidTargetRules.G_CANCEL));
         m.put("aim_ranks", codeList(BidTargetRules.G_AIM));   // 063 금고 방식(066 부터 '기타' 포함)
         m.put("subjects", codeList(BidSubjects.GROUP));        // NEXT 125 입찰 대상
@@ -1061,6 +1078,17 @@ public class BidTargetService {
         for (BankContractCode c : mapper.selectCodes(group)) {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
             m.put("code", c.getCode()); m.put("name", c.getCodeName()); out.add(m);
+        }
+        return out;
+    }
+
+    /** 072 — 구분 코드마다 대상 축(audience_cd RETAIN|NEW)과 수의계약 여부를 붙인다. 이름·순서는 코드표 그대로. */
+    private List<Map<String, Object>> tagCodeList() {
+        List<Map<String, Object>> out = codeList(BidTargetRules.G_TAG);
+        for (Map<String, Object> m : out) {
+            String c = (String) m.get("code");
+            m.put("audience_cd", BidTargetRules.tagRetain(c) ? "RETAIN" : "NEW");
+            m.put("private_contract", BidTargetRules.tagPrivate(c));
         }
         return out;
     }

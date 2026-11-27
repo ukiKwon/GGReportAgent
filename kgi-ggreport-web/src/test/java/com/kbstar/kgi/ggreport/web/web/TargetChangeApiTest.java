@@ -610,19 +610,91 @@ public class TargetChangeApiTest {
         assertEquals("REQUESTER_INACTIVE", json(d).path("detail").path("code").asText());
     }
 
-    @Test public void 태그_REGAIN_ADD_EDIT_승인은_반영_모르는_태그는_400() throws Exception {
+    @Test public void 태그_수의계약_ADD_EDIT_승인은_반영_모르는_태그와_REGAIN_은_400() throws Exception {   // 072
         baseSeed();
         final int Y = y();
         assertEquals(400, status(change(SALES, req("사유", item("jongno", "ADD", "tag_cd", "ZZ", "target_year", Y)))));
-        MvcResult r = change(SALES, req("되찾기 도전",
-                item("jongno", "ADD", "tag_cd", "REGAIN", "target_year", Y),
-                item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "REGAIN")));
+        assertEquals(400, status(change(SALES, req("사유", item("jongno", "ADD", "tag_cd", "REGAIN", "target_year", Y)))));   // 072 — 사용 안 함
+        MvcResult r = change(SALES, req("수의계약",
+                item("jongno", "ADD", "tag_cd", "NEW_PRIVATE", "target_year", Y),
+                item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "RETAIN_PRIVATE")));
         assertEquals(raw(r), 200, status(r));
         long id = json(r).path("request").path("req_id").asLong();
         MvcResult d = decide(LEAD, id, "APPROVE", null);
         assertEquals(raw(d), 200, status(d));
-        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TAG_CD='REGAIN'"));
-        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND TAG_CD='REGAIN'"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TAG_CD='NEW_PRIVATE'"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND TAG_CD='RETAIN_PRIVATE'"));
+    }
+
+    @Test public void 결재_대기_중_옛_REGAIN_은_승인_때_NEW_로_반영_문서는_그대로_변경_없음으로_보인다() throws Exception {   // 072 security 3
+        baseSeed();
+        final int Y = y();
+        jdbc.update("UPDATE COMMON_CODE SET ENABLED=1 WHERE CODE_GROUP='TARGET_TAG' AND CODE='REGAIN'");   // 072 전에 올린 요청을 흉내
+        long id;
+        try {
+            MvcResult r = change(SALES, req("072 전 요청", item("jongno", "ADD", "tag_cd", "REGAIN", "target_year", Y)));
+            assertEquals(raw(r), 200, status(r));
+            id = json(r).path("request").path("req_id").asLong();
+        } finally {
+            jdbc.update("UPDATE COMMON_CODE SET ENABLED=0 WHERE CODE_GROUP='TARGET_TAG' AND CODE='REGAIN'");   // 072 상태로 복구
+        }
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM WHERE TAG_CD='REGAIN'"));
+        MvcResult d = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(d), 200, status(d));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TAG_CD='NEW'"));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE TAG_CD='REGAIN'"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM WHERE TAG_CD='REGAIN'"));   // 요청 항목(문서)은 고치지 않는다
+    }
+
+    @Test public void 결재_문서_이전_요청_구분_비교는_옛_REGAIN_을_NEW_로_같게_본다() throws Exception {   // 072 security 3 — 서버 판정 tag_changed
+        baseSeed();
+        jdbc.update("UPDATE COMMON_CODE SET ENABLED=1 WHERE CODE_GROUP='TARGET_TAG' AND CODE='REGAIN'");
+        try {
+            jdbc.update("UPDATE INST_BID_TARGET SET TAG_CD='NEW' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");   // 072 가 기준 REV 를 NEW 로 바꾼 뒤 모습
+            MvcResult r = change(SALES, req("연도만", item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", y() + 1, "tag_cd", "REGAIN")));
+            assertEquals(raw(r), 200, status(r));
+            JsonNode it = json(r).path("request").path("target_items").get(0);
+            assertFalse(raw(r), it.path("tag_changed").asBoolean());
+            assertEquals(it.path("before").path("tag_name").asText(), it.path("tag_name").asText());
+        } finally {
+            jdbc.update("UPDATE COMMON_CODE SET ENABLED=0 WHERE CODE_GROUP='TARGET_TAG' AND CODE='REGAIN'");
+        }
+    }
+
+    private void noBidRoundJongno() {
+        jdbc.update("INSERT INTO NOTICE_ROUND (INSTITUTION_ID, ROUND_SEQ, SOURCE_CD, ANCHOR_LAST_BID, OPENED_AT, OPENED_BY)"
+                + " VALUES ('jongno', 1, 'INST_DATA', NULL, '2026-01-01T00:00:00+09:00', '3918264')");
+        jdbc.update("INSERT INTO NOTICE_ROUND_LOG (INSTITUTION_ID, ROUND_SEQ, REV_NO, STATUS_CD, HANDLER_EMP_NO, HANDLER_NAME, SCREEN_ID, BUTTON_ID, HANDLED_AT)"
+                + " VALUES ('jongno', 1, 1, 'NO_BID', '3918264', '김영업', 'bid_notice', 'save', ?)", Times.todayKst() + "T09:00:00+09:00");
+        jdbc.update("UPDATE NOTICE_ROUND SET CLOSED_AT='2026-11-17T00:00:00+09:00', CLOSE_REASON_CD='NO_BID', CLOSED_BY='3918264'"
+                + " WHERE INSTITUTION_ID='jongno' AND ROUND_SEQ=1");
+    }
+
+    @Test public void 수의계약_ADD는_입찰_없음이어도_통과_요청_항목에_경고_NO_BID_PRIVATE_입찰은_409() throws Exception {   // 072 security 4
+        noBidRoundJongno();
+        final int Y = y();
+        MvcResult bad = change(SALES, req("사유", item("jongno", "ADD", "tag_cd", "NEW", "target_year", Y)));
+        assertEquals(409, status(bad));
+        MvcResult r = change(SALES, req("수의계약", item("jongno", "ADD", "tag_cd", "NEW_PRIVATE", "target_year", Y)));
+        assertEquals(raw(r), 200, status(r));
+        long id = json(r).path("request").path("req_id").asLong();
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM WHERE REQ_ID=? AND WARN_CD='NO_BID_PRIVATE' AND TAG_CD='NEW_PRIVATE'", id));
+        assertEquals("NO_BID_PRIVATE", json(r).path("request").path("target_items").get(0).path("warn_cd").asText());
+        MvcResult d = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(d), 200, status(d));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TAG_CD='NEW_PRIVATE'"));
+    }
+
+    @Test public void TO_GOAL_요청_항목에_관심_행의_지금_구분이_스냅샷으로_남는다() throws Exception {   // 072 security 4
+        baseSeed();
+        jdbc.update("UPDATE INST_BID_TARGET SET TAG_CD='RETAIN_PRIVATE' WHERE INSTITUTION_ID='nowon' AND TARGET_NO=1");
+        MvcResult r = change(SALES, req("올해 목표로", item("nowon", "TO_GOAL", "target_no", 1, "base_rev_no", 1, "target_year", y() + 1)));
+        assertEquals(raw(r), 200, status(r));
+        long id = json(r).path("request").path("req_id").asLong();
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM WHERE REQ_ID=? AND TAG_CD='RETAIN_PRIVATE'", id));
+        MvcResult d = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(d), 200, status(d));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='nowon' AND REV_NO=2 AND KIND_CD='GOAL' AND TAG_CD='RETAIN_PRIVATE'"));   // 반영은 행의 구분을 그대로 잇는다
     }
 
     // ---- NEXT 114 — 구분·메모만 고치기는 결재 없이 ----
@@ -680,10 +752,10 @@ public class TargetChangeApiTest {
     @Test public void 결재_중이면_구분_고치기도_409_CHANGE_PENDING_단건_일괄_모두() throws Exception {
         baseSeed();
         submitFive();
-        MvcResult s = send(SALES, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_year", y(), "tag_cd", "REGAIN"));
+        MvcResult s = send(SALES, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_year", y(), "tag_cd", "RETAIN_PRIVATE"));   // 072 — REGAIN 은 사용 안 함이라 400 이 먼저 나간다
         assertEquals(409, status(s)); assertEquals("CHANGE_PENDING", json(s).path("detail").path("code").asText());
         MvcResult b = send(SALES, "/bid-targets/changes", "bid_board", "save_target_values",
-                req(null, item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", y(), "tag_cd", "REGAIN")));
+                req(null, item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", y(), "tag_cd", "RETAIN_PRIVATE")));
         assertEquals(409, status(b)); assertEquals("CHANGE_PENDING", json(b).path("detail").path("code").asText());
         assertEquals(1, json(b).path("detail").path("item_no").asInt());
     }
