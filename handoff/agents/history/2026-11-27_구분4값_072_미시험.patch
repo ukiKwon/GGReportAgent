@@ -1,0 +1,808 @@
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/dto/MyWatchIn.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/dto/MyWatchIn.java
+index 897ca858..dd4a6d0f 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/dto/MyWatchIn.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/dto/MyWatchIn.java
+@@ -6,6 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
+ /** 061 지도 ♥ 켬 본문(없어도 됨) — 구분 코드 선택. 안 보내면 서버 기본값. */
+ @JsonIgnoreProperties(ignoreUnknown = true)
+ public class MyWatchIn {
+-    @JsonProperty("tag_cd") private String tagCd;   // RETAIN | REGAIN | NEW (코드표 TARGET_TAG)
++    @JsonProperty("tag_cd") private String tagCd;   // RETAIN | RETAIN_PRIVATE | NEW | NEW_PRIVATE (코드표 TARGET_TAG, 072 — REGAIN 은 사용 안 함)
+     public String getTagCd() { return tagCd; } public void setTagCd(String v) { tagCd = v; }
+ }
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/BidTargetRules.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/BidTargetRules.java
+index ccf51167..caf51f30 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/BidTargetRules.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/BidTargetRules.java
+@@ -14,6 +14,14 @@ import java.util.regex.Pattern;
+ final class BidTargetRules {
+ 
+     static final String G_TAG = "TARGET_TAG", G_CANCEL = "TARGET_CANCEL_REASON", CANCEL_ETC = "ETC";
++    // 072 — 구분 4값(사용자 11-27). 저장은 한 칸 TAG_CD. 대상 축(재유치/신규)·방식 축(입찰/수의계약)은 코드에서 읽는다.
++    static final String TAG_RETAIN_BID = "RETAIN", TAG_RETAIN_PRIVATE = "RETAIN_PRIVATE", TAG_NEW_BID = "NEW", TAG_NEW_PRIVATE = "NEW_PRIVATE";
++    static final String TAG_LEGACY_REGAIN = "REGAIN";   // 059 되찾기 도전 — 072 부터 사용 안 함, 신규 입찰로 이관
++    static boolean tagRetain(String tag) { return TAG_RETAIN_BID.equals(tag) || TAG_RETAIN_PRIVATE.equals(tag); }
++    static boolean tagPrivate(String tag) { return TAG_RETAIN_PRIVATE.equals(tag) || TAG_NEW_PRIVATE.equals(tag); }
++    /** 072 이전에 올린 결재 대기 항목의 옛 코드 → 지금 코드. 그 밖은 그대로. */
++    static String tagMigrated(String tag) { return TAG_LEGACY_REGAIN.equals(tag) ? TAG_NEW_BID : tag; }
++    static final String WARN_NO_BID_PRIVATE = "NO_BID_PRIVATE";   // 결재 항목 경고 — 수의계약이라 '입찰 없음' 근거로 막지 않고 통과(결재자가 본다)
+     static final String KIND_GOAL = "GOAL", KIND_WATCH = "WATCH";
+     static final String G_AIM = "TARGET_AIM_RANK";   // 063 금고 방식(1금고·2금고·단수금고·주거래)
+     static final String AIM_FIRST = "FIRST", AIM_CHANGE = "CHANGE", AIM_CLEAR = "CLEAR";   // aimEdit 결과(접근 이력용 종류, 값 아님)
+@@ -198,7 +206,10 @@ final class BidTargetRules {
+      *    판정은 NoticeRoundRules.advanced·CLOSED·NO_BID, NoticeRoundService.CLOSE_NO_BID(같은 package 멤버)를 그대로 부른다.
+      * ② 금고 약정(039): 시작 전(FUTURE)인 줄이 있음 = 다음 협약이 정해짐(BankContractRules.termState).
+      */
+-    static Map<String, Object> bidClosedBasis(NoticeRoundView n, List<BankContract> lines, LocalDate today) {
++    static Map<String, Object> bidClosedBasis(NoticeRoundView n, List<BankContract> lines, LocalDate today) { return bidClosedBasis(n, lines, today, null); }
++
++    /** 072 — tag 가 수의계약이면 '입찰 없음' 근거는 끝남이 아니다(사용자 11-27 — 공고 없이 진행). 공고 종료·약정 확정 근거는 그대로 본다. */
++    static Map<String, Object> bidClosedBasis(NoticeRoundView n, List<BankContract> lines, LocalDate today, String tag) {
+         String y = String.valueOf(today.getYear());
+         if (n != null && n.getHandledAt() != null && n.getHandledAt().startsWith(y)) {
+             String code = null;
+@@ -209,7 +220,7 @@ final class BidTargetRules {
+                 if (NoticeRoundRules.CLOSED.equals(n.getStatusCd())) code = BASIS_CLOSED;
+                 else if (NoticeRoundRules.NO_BID.equals(n.getStatusCd())) code = BASIS_NO_BID;
+             }
+-            if (code != null) {
++            if (code != null && !(BASIS_NO_BID.equals(code) && tagPrivate(tag))) {
+                 Map<String, Object> m = new LinkedHashMap<String, Object>();
+                 m.put("basis_cd", code);
+                 m.put("basis_date", n.getHandledAt().length() >= 10 ? n.getHandledAt().substring(0, 10) : null);
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/BidTargetService.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/BidTargetService.java
+index c5690041..c27c0cb7 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/BidTargetService.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/BidTargetService.java
+@@ -194,7 +194,7 @@ public class BidTargetService {
+             v.put("bank", main ? BankYears.summary(rl, today) : null);
+             v.put("next_term_to", main ? BidTargetRules.nextTermTo(rl, today) : null);
+             // 올해 목표에만 — 서버 근거(공고 상태·금고 약정). 진행 중 제안 여부는 화면이 줄의 제안 단계로 함께 본다.
+-            Map<String, Object> closed = main && year == thisYear ? BidTargetRules.bidClosedBasis(notices.get(t.getInstitutionId()), l, today) : null;
++            Map<String, Object> closed = main && year == thisYear ? BidTargetRules.bidClosedBasis(notices.get(t.getInstitutionId()), l, today, t.getTagCd()) : null;   // 072 수의계약이면 입찰 없음 ≠ 끝남
+             v.put("bid_closed", closed);
+             BidTerm tm = main ? terms.get(t.getInstitutionId()) : null;   // INST_BID_TERM = 금고 건의 RFP 협약 개시일
+             boolean has = tm != null && ACTION_SAVE.equals(tm.getActionCd());
+@@ -456,7 +456,9 @@ public class BidTargetService {
+         else checkGoalSlots(inst, Collections.singletonList(new BidTargetKeys.Slot(cur == null ? 0 : cur.getTargetNo(), year, subj[0], subj[1], p.aim)), null, null);   // 바로 반영이어도 키 판정은 거친다(사용자 11-26 ①)
+         Map<String, Object> warning = null;
+         boolean mainSubject = BidSubjects.MAIN_BANK.equals(subj[0]);   // 공고 종료(037)·약정(039)은 금고 주기 — 그 밖 대상은 보지 않는다
+-        if (!watch && mainSubject && p.year == thisYear && (cur == null || !year.equals(cur.getTargetYear()))) warning = closedCheck(inst, today);
++        if (!watch && mainSubject && p.year == thisYear && (cur == null || !year.equals(cur.getTargetYear()))) warning = closedCheck(inst, today, p.tag);
++        // 072 security 5 — 올해 목표에서 구분을 '수의계약 → 입찰'로 바로 고치면 입찰 끝남 검사를 다시 받는다(근거가 있으면 409, 진행 중 제안이 있으면 경고)
++        else if (!watch && mainSubject && p.year == thisYear && cur != null && BidTargetRules.tagPrivate(cur.getTagCd()) && !BidTargetRules.tagPrivate(p.tag)) warning = closedCheck(inst, today, p.tag);
+         boolean valueEdit = BidTargetRules.valueOnlyEdit(cur, p, thisYear);
+         String aimEdit = BidTargetRules.aimEdit(cur, p);
+         boolean roleDirect = !watch && directGoal(users.selectByEmpNo(actor.getEmpNo()));   // 영업부장 등 역할상 바로 가능(security F4)
+@@ -485,6 +487,8 @@ public class BidTargetService {
+         out.put("mode", "DIRECT");
+         out.put("direct_basis", watch ? DIRECT_WATCH : roleDirect ? DIRECT_ROLE : DIRECT_VALUE_EDIT);
+         if (aimEdit != null) out.put("aim_edit", aimEdit);   // FIRST|CHANGE|CLEAR — 접근 이력 종류(값 아님)
++        // 072 security 5 — 입찰 ↔ 수의계약이 바뀌면 접근 이력에 전·후 구분 코드(코드표 코드, 개인정보 아님)
++        if (cur != null && BidTargetRules.tagPrivate(cur.getTagCd()) != BidTargetRules.tagPrivate(p.tag)) out.put("tag_flip", tagOrDash(cur.getTagCd()) + ">" + tagOrDash(p.tag));
+         if (warning != null) out.put("warning", warning);
+         return out;
+     }
+@@ -519,7 +523,7 @@ public class BidTargetService {
+             checkGoalSlots(inst, Collections.singletonList(new BidTargetKeys.Slot(no, year, cur.getBidSubjectCd(), cur.getBidSubjectEtc(), aim)), null, null);
+         }
+         Map<String, Object> warning = !toWatch && year.intValue() == thisYear
+-                && BidSubjects.MAIN_BANK.equals(cur.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : cur.getBidSubjectCd()) ? closedCheck(inst, today) : null;
++                && BidSubjects.MAIN_BANK.equals(cur.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : cur.getBidSubjectCd()) ? closedCheck(inst, today, cur.getTagCd()) : null;
+         requireDirect(actor, cur);   // 옮기기는 어느 방향이든 목표가 바뀐다
+         if (toWatch) requireNoActivePrep(inst);   // 11-27 — 제안 준비 중인 기관은 관심으로 옮길 수 없다
+         if (cur.getRevNo() + 1 > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, cur);
+@@ -645,10 +649,23 @@ public class BidTargetService {
+         }
+     }
+ 
++    /** 접근 이력용 — 구분 코드(없으면 '-'). */
++    static String tagOrDash(String tag) { return tag == null ? "-" : tag; }
++
+     /** 올해 목표가 될 때 — 서버 근거가 있으면 409 INST_BID_CLOSED. 그 기관에 진행 중 제안이 있으면 막지 않고 warning 을 돌려준다(planner 3-2). 잠금 안에서 부른다. */
+-    Map<String, Object> closedCheck(String inst, LocalDate today) {
++    Map<String, Object> closedCheck(String inst, LocalDate today) { return closedCheck(inst, today, null); }
++
++    /** 072 — 그 기관의 마지막 공고 회차가 '입찰 없음' 근거인가(구분과 상관없이). 수의계약 구분이라 통과시켰는지 결재자에게 알리는 데 쓴다. */
++    boolean noBidBasis(String inst, LocalDate today) {
++        List<NoticeRoundView> ns = mapper.selectNoticeLast(inst);
++        Map<String, Object> b = BidTargetRules.bidClosedBasis(ns.isEmpty() ? null : ns.get(0), null, today, null);
++        return b != null && BidTargetRules.BASIS_NO_BID.equals(b.get("basis_cd"));
++    }
++
++    /** 072 — tag = 그 목표가 가질 구분. 수의계약이면 '입찰 없음'으로는 막지 않는다. */
++    Map<String, Object> closedCheck(String inst, LocalDate today, String tag) {
+         List<NoticeRoundView> ns = mapper.selectNoticeLast(inst);
+-        Map<String, Object> basis = BidTargetRules.bidClosedBasis(ns.isEmpty() ? null : ns.get(0), mapper.selectContractsOf(inst), today);
++        Map<String, Object> basis = BidTargetRules.bidClosedBasis(ns.isEmpty() ? null : ns.get(0), mapper.selectContractsOf(inst), today, tag);
+         if (basis == null) return null;
+         List<String> active = preps.selectActiveStatesByInstitution(inst);
+         if (active.isEmpty()) {
+@@ -1042,7 +1059,7 @@ public class BidTargetService {
+ 
+     private Map<String, Object> codes() {
+         Map<String, Object> m = new LinkedHashMap<String, Object>();
+-        m.put("tags", codeList(BidTargetRules.G_TAG));
++        m.put("tags", tagCodeList());   // 072 — 구분 4값 + 두 축
+         m.put("cancel_reasons", codeList(BidTargetRules.G_CANCEL));
+         m.put("aim_ranks", codeList(BidTargetRules.G_AIM));   // 063 금고 방식(066 부터 '기타' 포함)
+         m.put("subjects", codeList(BidSubjects.GROUP));        // NEXT 125 입찰 대상
+@@ -1065,6 +1082,17 @@ public class BidTargetService {
+         return out;
+     }
+ 
++    /** 072 — 구분 코드마다 대상 축(audience_cd RETAIN|NEW)과 수의계약 여부를 붙인다. 이름·순서는 코드표 그대로. */
++    private List<Map<String, Object>> tagCodeList() {
++        List<Map<String, Object>> out = codeList(BidTargetRules.G_TAG);
++        for (Map<String, Object> m : out) {
++            String c = (String) m.get("code");
++            m.put("audience_cd", BidTargetRules.tagRetain(c) ? "RETAIN" : "NEW");
++            m.put("private_contract", BidTargetRules.tagPrivate(c));
++        }
++        return out;
++    }
++
+     /** 화면용. 수정자 사번·화면·버튼·UI_VALID 는 내보내지 않는다(감사 전용). 주 담당 사번은 쓰기 자격자에게만(담당 고르기 화면용). */
+     private static Map<String, Object> view(BidTarget t, boolean withAction, boolean showOwnerEmpNo) {
+         Map<String, Object> m = new LinkedHashMap<String, Object>();
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetChangeService.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetChangeService.java
+index 7edb87d4..a9f29f7f 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetChangeService.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetChangeService.java
+@@ -57,6 +57,7 @@ public class TargetChangeService {
+     static final class Planned {
+         int itemNo; String inst, op, warnCd, tag, memo, owner, ownerName, cancelCd, cancelEtc; BidTarget cur; Integer toYear;
+         boolean valueOnly;   // EDIT 이고 연도·주 담당 그대로(NEXT 114)
++        String tagFlip;        // 072 — EDIT 에서 입찰↔수의계약이 바뀌면 "전>후" 구분 코드(접근 이력용)
+         String aim, aimEdit;   // 063 — 금고 방식·바뀜 종류(FIRST|CHANGE|CLEAR|null, 접근 이력용)
+         String aimEtc;         // 066 — 기타(OTHER) 금고 방식 이름
+         String subject, subjectEtc;   // NEXT 125 — ADD·TO_GOAL 은 반영할 대상, 그 밖은 그 건의 대상(요청 때 스냅샷)
+@@ -207,7 +208,7 @@ public class TargetChangeService {
+             fill(p, v, targets.ownerName(v.owner, null));
+             p.subject = s[0]; p.subjectEtc = s[1];
+             BidTargetKeys.requireRankFits(p.subject, p.aim);
+-            if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) p.warnCd = warn(targets.closedCheck(p.inst, today));
++            if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) p.warnCd = warnFor(p.inst, today, p.tag);
+             return p;
+         }
+         BidTarget cur = mapper.selectLatestTarget(p.inst, it.getTargetNo().intValue());
+@@ -233,8 +234,12 @@ public class TargetChangeService {
+                 p.aimEdit = BidTargetRules.aimEdit(cur, v);
+                 p.valueOnly = BidTargetRules.valueOnlyEdit(cur, v, thisYear);   // 단건 save 와 같은 판정 하나(NEXT 114·063, 지난해 목표는 결재 — security F1)
+                 targets.checkRankLock(cur, p.aim);   // 409 RANK_LOCKED(상신 때도 막는다 — 승인 때 replan 이 다시 본다)
++                if (BidTargetRules.tagPrivate(cur.getTagCd()) != BidTargetRules.tagPrivate(p.tag)) p.tagFlip = BidTargetService.tagOrDash(cur.getTagCd()) + ">" + BidTargetService.tagOrDash(p.tag);
+                 if (!p.toYear.equals(cur.getTargetYear())) {
+-                    if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) p.warnCd = warn(targets.closedCheck(p.inst, today));
++                    if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) p.warnCd = warnFor(p.inst, today, p.tag);
++                } else if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear
++                        && BidTargetRules.tagPrivate(cur.getTagCd()) && !BidTargetRules.tagPrivate(p.tag)) {
++                    p.warnCd = warn(targets.closedCheck(p.inst, today, p.tag));   // 072 security 5 — 수의계약 → 입찰 되돌림은 입찰 끝남 검사를 다시 받는다(근거가 있으면 409)
+                 }
+                 return p;
+             }
+@@ -259,7 +264,8 @@ public class TargetChangeService {
+                 BidTargetKeys.requireSubjectAllowed(p.subject, true, targets.multiSubject());
+                 boolean mainTo = BidSubjects.MAIN_BANK.equals(p.subject);
+                 p.aim = mainTo ? cur.getAimRankCd() : null; p.aimEtc = mainTo ? cur.getAimRankEtc() : null;
+-                if (mainTo && p.toYear.intValue() == thisYear) p.warnCd = warn(targets.closedCheck(p.inst, today));
++                p.tag = cur.getTagCd();   // 072 security 3 — 관심 행의 지금 구분을 요청 항목에 스냅샷(반영은 행의 구분을 그대로 잇는다 — write 는 p.tag 를 쓰지 않는다)
++                if (mainTo && p.toYear.intValue() == thisYear) p.warnCd = warnFor(p.inst, today, cur.getTagCd());
+                 return p;
+             }
+         }
+@@ -318,8 +324,13 @@ public class TargetChangeService {
+     public Map<String, Object> applyDirect(Plan plan, Actor actor, BoardUiIds.Ui ui, String basis) {
+         List<Map<String, Object>> done = new ArrayList<Map<String, Object>>();
+         int aims = 0;
+-        for (Planned p : plan.items) { done.add(write(p, actor, ui, null, plan.requesterEmp)); if (p.aimEdit != null) aims++; }
++        StringBuilder flips = new StringBuilder();   // 072 — 입찰↔수의계약 전>후 구분 코드(접근 이력용, 개인정보 아님)
++        for (Planned p : plan.items) {
++            done.add(write(p, actor, ui, null, plan.requesterEmp)); if (p.aimEdit != null) aims++;
++            if (p.tagFlip != null) { if (flips.length() > 0) flips.append(','); flips.append(p.tagFlip); }
++        }
+         Map<String, Object> out = new LinkedHashMap<String, Object>();
++        if (flips.length() > 0) out.put("tag_flips", flips.toString());
+         out.put("mode", "DIRECT");
+         out.put("direct_basis", basis);
+         out.put("applied", done.size());
+@@ -379,7 +390,8 @@ public class TargetChangeService {
+         switch (p.op) {
+             case OP_ADD:
+             case OP_EDIT: {
+-                if (x.getTagCd() != null && !codes.enabled(BidTargetRules.G_TAG, x.getTagCd())) throw invalid("태그가 더 이상 쓰이지 않습니다.", p.cur);   // 11-25 — 구분 비움(NULL) 허용
++                String tag = BidTargetRules.tagMigrated(x.getTagCd());   // 072 — 대기 중 옛 REGAIN 은 신규 입찰(NEW)로 반영, 요청 항목(문서)은 그대로
++                if (tag != null && !codes.enabled(BidTargetRules.G_TAG, tag)) throw invalid("태그가 더 이상 쓰이지 않습니다.", p.cur);   // 11-25 — 구분 비움(NULL) 허용
+                 // 기존 건 고치기는 스위치가 꺼져도 승인된다(security ②ⓑ) — 새로 만들 때만 꺼짐을 막는다
+                 if (!codes.enabled(BidSubjects.GROUP, p.subject) || (OP_ADD.equals(p.op) && !targets.multiSubject() && !BidSubjects.MAIN_BANK.equals(p.subject))) {
+                     throw invalid("입찰 대상이 더 이상 쓰이지 않습니다.", p.cur);
+@@ -389,14 +401,17 @@ public class TargetChangeService {
+                 if (x.getAimRankCd() != null && !x.getAimRankCd().equals(curAim) && !codes.enabled(BidTargetRules.G_AIM, x.getAimRankCd())) {
+                     throw invalid("금고 방식이 더 이상 쓰이지 않습니다.", p.cur);   // 새로 고른 값만 다시 검사(이어받기만 한 값 때문에 다른 결재가 막히지 않게)
+                 }
+-                p.toYear = x.getToYear(); p.tag = x.getTagCd(); p.memo = x.getMemo(); p.owner = x.getOwnerEmpNo(); p.aim = x.getAimRankCd(); p.aimEtc = x.getAimRankEtc();
++                p.toYear = x.getToYear(); p.tag = tag; p.memo = x.getMemo(); p.owner = x.getOwnerEmpNo(); p.aim = x.getAimRankCd(); p.aimEtc = x.getAimRankEtc();
+                 try { p.ownerName = targets.ownerName(p.owner, p.cur); }   // 새로 고른 주 담당만 다시 검사(활성 영업)
+                 catch (ApiException e) { throw invalid("주 담당이 더 이상 영업부서 활성 사용자가 아닙니다.", p.cur); }
+                 if (OP_EDIT.equals(p.op)) BidTargetService.requireYearUnlinked(p.cur, p.toYear);   // 요청 뒤 입찰 건이 이어졌으면 승인 때도 막는다(YEAR_LINKED)
+                 if (OP_EDIT.equals(p.op)) targets.checkRankLock(p.cur, p.aim);   // 요청 뒤 연결된 제안이 진행 중이 됐으면 승인 때도 막는다(409 RANK_LOCKED)
+                 if (p.cur == null || !p.toYear.equals(p.cur.getTargetYear())) {
+                     if (p.toYear.intValue() < thisYear) throw BidTargetService.conflict("YEAR_PASSED", YEAR_PASSED_MSG, p.cur);
+-                    if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) targets.closedCheck(p.inst, today);
++                    if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear) targets.closedCheck(p.inst, today, p.tag);
++                } else if (BidSubjects.MAIN_BANK.equals(p.subject) && p.toYear.intValue() == thisYear
++                        && BidTargetRules.tagPrivate(p.cur.getTagCd()) && !BidTargetRules.tagPrivate(p.tag)) {
++                    targets.closedCheck(p.inst, today, p.tag);   // 072 security 5 — 승인 때도 수의계약 → 입찰 되돌림은 입찰 끝남 검사
+                 }
+                 return p;
+             }
+@@ -417,7 +432,7 @@ public class TargetChangeService {
+                 }
+                 boolean mainTo = BidSubjects.MAIN_BANK.equals(p.subject);
+                 p.aim = mainTo ? p.cur.getAimRankCd() : null; p.aimEtc = mainTo ? p.cur.getAimRankEtc() : null;
+-                if (mainTo && p.toYear.intValue() == thisYear) targets.closedCheck(p.inst, today);
++                if (mainTo && p.toYear.intValue() == thisYear) targets.closedCheck(p.inst, today, p.cur.getTagCd());   // 072 — 반영될 행의 구분
+                 return p;
+             }
+         }
+@@ -502,7 +517,14 @@ public class TargetChangeService {
+             }
+             m.put("before", before);
+             m.put("to_year", x.getToYear());
+-            m.put("tag_name", x.getTagName());
++            // 072 security 3 — 옛 REGAIN 은 신규 입찰(NEW)로 같게 보고 이전/요청 구분을 비교한다. 같으면 변경 없음(요청 이름을 이전 이름으로 맞춤). REQ_ITEM 값은 고치지 않는다.
++            boolean tagOp = OP_ADD.equals(x.getOpCd()) || OP_EDIT.equals(x.getOpCd());
++            boolean tagChanged = tagOp && !Objects.equals(BidTargetRules.tagMigrated(x.getBaseTagCd()), BidTargetRules.tagMigrated(x.getTagCd()));
++            String tagName = x.getTagName();
++            if (x.getTagCd() != null && x.getBaseRevNo() != null && !tagChanged && x.getBaseTagName() != null) tagName = x.getBaseTagName();
++            else if (BidTargetRules.TAG_LEGACY_REGAIN.equals(x.getTagCd()) && tagName != null) tagName = tagName + " (072 이관: 신규 입찰)";
++            m.put("tag_name", tagName);
++            m.put("tag_changed", tagChanged);
+             boolean aimKept = !OP_ADD.equals(x.getOpCd()) && !OP_EDIT.equals(x.getOpCd());   // TO_GOAL·TO_WATCH·CANCEL 은 금고 방식을 건드리지 않는다 — '이후'도 이전 값(security 11-25 4번)
+             m.put("aim_rank_cd", aimKept ? x.getBaseAimRankCd() : x.getAimRankCd());
+             m.put("aim_rank_name", aimKept ? x.getBaseAimRankName() : x.getAimRankName());
+@@ -536,6 +558,16 @@ public class TargetChangeService {
+ 
+     private static String warn(Map<String, Object> w) { return w == null ? null : "INST_BID_CLOSED"; }
+ 
++    /**
++     * 072 — 올해 목표가 될 때의 경고 코드. 근거가 있으면 closedCheck 가 409(진행 중 제안 있으면 INST_BID_CLOSED 경고).
++     * 통과했는데 그 이유가 '수의계약이라 입찰 없음 근거를 뺐기' 때문이면 NO_BID_PRIVATE 를 남겨 결재자가 보게 한다(security 4).
++     */
++    private String warnFor(String inst, LocalDate today, String tag) {
++        String w = warn(targets.closedCheck(inst, today, tag));
++        if (w == null && BidTargetRules.tagPrivate(tag) && targets.noBidBasis(inst, today)) return BidTargetRules.WARN_NO_BID_PRIVATE;
++        return w;
++    }
++
+     private static ApiException invalid(String why, BidTarget cur) {
+         return BidTargetService.conflict("ITEM_INVALID", why + " 반려하고 다시 요청해 주세요.", cur);
+     }
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetResultRules.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetResultRules.java
+index 215813e6..aebefee1 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetResultRules.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetResultRules.java
+@@ -51,7 +51,7 @@ final class TargetResultRules {
+         v.evidence = v.kbLine;
+         Boolean prior = priorWasKb(src, v.kbLine);
+         if (prior != null) { v.winKind = prior ? RETAIN : NEW; v.winKindBasis = BASIS_PRIOR; }
+-        else { v.winKind = "RETAIN".equals(tagCd) ? RETAIN : NEW; v.winKindBasis = BASIS_TAG; }
++        else { v.winKind = BidTargetRules.tagRetain(tagCd) ? RETAIN : NEW; v.winKindBasis = BASIS_TAG; }   // 072 — 대상 축(재유치 입찰·재유치 수의계약 = 재유치)
+         return v;
+     }
+ 
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetResultService.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetResultService.java
+index 727cc604..cf4276c6 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetResultService.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/TargetResultService.java
+@@ -91,7 +91,7 @@ public class TargetResultService {
+                 continue;
+             }
+             List<BankContract> l = lines.get(inst);
+-            Map<String, Object> basis = year == thisYear ? BidTargetRules.bidClosedBasis(notices.get(inst), l, today) : null;
++            Map<String, Object> basis = year == thisYear ? BidTargetRules.bidClosedBasis(notices.get(inst), l, today, t.getTagCd()) : null;   // 072 수의계약 예외
+             TargetResultRules.Verdict v = TargetResultRules.judge(l, t.getTagCd(), year, thisYear, basis, starts.get(inst), today);
+             n[0]++;
+             if (TargetResultRules.SUCCESS.equals(v.resultCd)) {
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/web/BidTargetController.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/web/BidTargetController.java
+index 42ad9f9c..bd508121 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/web/BidTargetController.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/web/BidTargetController.java
+@@ -80,6 +80,7 @@ public class BidTargetController {
+                 ? "bid-target save no=" + out.get("target_no") + " rev=" + out.get("rev_no") : "bid-target save no-change")
+                 + (BidTargetService.DIRECT_VALUE_EDIT.equals(out.get("direct_basis")) ? " basis=value" : "")
+                 + aimTag(out.get("aim_edit"))
++                + (out.get("tag_flip") instanceof String ? " tag=" + out.get("tag_flip") : "")   // 072 — 입찰↔수의계약 전>후 구분 코드
+                 + (out.get("warning") != null ? " warn=INST_BID_CLOSED" : ""));
+         return ResponseEntity.status(saved ? HttpStatus.CREATED : HttpStatus.OK).body(out);
+     }
+@@ -161,6 +162,7 @@ public class BidTargetController {
+         req.setAttribute(AccessLogInterceptor.DETAIL, "bid-target change mode=" + ("DIRECT".equals(out.get("mode")) ? "direct" : "approval")
+                 + " n=" + n + (BidTargetService.DIRECT_VALUE_EDIT.equals(out.get("direct_basis")) ? " basis=value" : "")
+                 + (out.get("aim_edits") instanceof Integer && ((Integer) out.get("aim_edits")).intValue() > 0 ? " aim=" + out.get("aim_edits") : "")
++                + (out.get("tag_flips") instanceof String && !((String) out.get("tag_flips")).isEmpty() ? " tag=" + out.get("tag_flips") : "")   // 072 — 입찰↔수의계약 전>후 구분 코드(쉼표)
+                 + (reqId == null ? "" : " req=" + reqId));
+         return out;
+     }
+diff --git a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/BidTargetRulesTest.java b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/BidTargetRulesTest.java
+index 5f739546..d9262bd9 100644
+--- a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/BidTargetRulesTest.java
++++ b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/BidTargetRulesTest.java
+@@ -17,7 +17,7 @@ import static org.junit.Assert.*;
+ public class BidTargetRulesTest {
+     private static final BankContractRules.CodeCheck CODES = new BankContractRules.CodeCheck() {
+         @Override public boolean enabled(String group, String code) {
+-            return ("TARGET_TAG".equals(group) && ("NEW".equals(code) || "RETAIN".equals(code) || "REGAIN".equals(code)))
++            return ("TARGET_TAG".equals(group) && ("NEW".equals(code) || "RETAIN".equals(code) || "RETAIN_PRIVATE".equals(code) || "NEW_PRIVATE".equals(code)))   // 072 — REGAIN 은 사용 안 함
+                     || ("TARGET_CANCEL_REASON".equals(group) && ("WRONG".equals(code) || "ETC".equals(code)))
+                     || ("TARGET_AIM_RANK".equals(group) && ("FIRST".equals(code) || "SECOND".equals(code) || "SINGLE".equals(code) || "MAIN_BANK".equals(code)));
+         }
+@@ -50,8 +50,20 @@ public class BidTargetRulesTest {
+         assertNull(BidTargetRules.parse(blank, 2026, null, CODES).owner);
+     }
+ 
+-    @Test public void 태그_REGAIN_통과() {
+-        assertEquals("REGAIN", BidTargetRules.parse(in(null, "REGAIN"), 2026, null, CODES).tag);
++    @Test public void 태그_REGAIN_은_400_수의계약_코드는_통과() {
++        assertEquals(400, statusOf(new Runnable() { public void run() { BidTargetRules.parse(in(null, "REGAIN"), 2026, null, CODES); } }));
++        assertEquals("NEW_PRIVATE", BidTargetRules.parse(in(null, "NEW_PRIVATE"), 2026, null, CODES).tag);
++        assertEquals("RETAIN_PRIVATE", BidTargetRules.parse(in(null, "RETAIN_PRIVATE"), 2026, null, CODES).tag);
++    }
++
++    @Test public void 구분_두_축_판정과_옛_REGAIN_이관() {   // 072
++        assertTrue(BidTargetRules.tagRetain("RETAIN")); assertTrue(BidTargetRules.tagRetain("RETAIN_PRIVATE"));
++        assertFalse(BidTargetRules.tagRetain("NEW")); assertFalse(BidTargetRules.tagRetain("NEW_PRIVATE")); assertFalse(BidTargetRules.tagRetain(null));
++        assertTrue(BidTargetRules.tagPrivate("RETAIN_PRIVATE")); assertTrue(BidTargetRules.tagPrivate("NEW_PRIVATE"));
++        assertFalse(BidTargetRules.tagPrivate("RETAIN")); assertFalse(BidTargetRules.tagPrivate("NEW")); assertFalse(BidTargetRules.tagPrivate(null));
++        assertEquals("NEW", BidTargetRules.tagMigrated("REGAIN"));
++        assertEquals("RETAIN", BidTargetRules.tagMigrated("RETAIN"));
++        assertNull(BidTargetRules.tagMigrated(null));
+     }
+ 
+     @Test public void 태그는_비워도_통과_NULL_모르는_코드는_400() {   // 11-25 — 구분 '-'
+@@ -219,6 +231,20 @@ public class BidTargetRulesTest {
+         assertEquals("2027-01-01", f.get("basis_date"));
+     }
+ 
++    @Test public void bidClosedBasis_수의계약이면_입찰_없음은_끝남이_아니다_072() {
++        NoticeRoundView noBid = notice("2026-11-01T09:00:00+09:00", NoticeRoundRules.NO_BID, null, null);
++        assertNull(BidTargetRules.bidClosedBasis(noBid, null, TODAY, "NEW_PRIVATE"));
++        assertNull(BidTargetRules.bidClosedBasis(noBid, null, TODAY, "RETAIN_PRIVATE"));
++        assertEquals("NOTICE_NO_BID", BidTargetRules.bidClosedBasis(noBid, null, TODAY, "NEW").get("basis_cd"));
++        assertEquals("NOTICE_NO_BID", BidTargetRules.bidClosedBasis(noBid, null, TODAY, null).get("basis_cd"));   // 구분 미정은 예외 없음
++        // 수의계약이어도 다음 근거(약정 확정)는 그대로 본다
++        Map<String, Object> f = BidTargetRules.bidClosedBasis(noBid, Arrays.asList(term(3, "FIRST", "2027-01-01", "2030-12-31")), TODAY, "NEW_PRIVATE");
++        assertEquals("CONTRACT_DECIDED", f.get("basis_cd"));
++        // 공고 종료(CLOSED)는 수의계약이어도 끝남
++        NoticeRoundView closed = notice("2026-11-01T09:00:00+09:00", "CLOSED", null, null);
++        assertEquals("NOTICE_CLOSED", BidTargetRules.bidClosedBasis(closed, null, TODAY, "RETAIN_PRIVATE").get("basis_cd"));
++    }
++
+     @Test public void 취소_기타는_글이_필요하고_이름은_422() {
+         final BidTargetCancelIn c = new BidTargetCancelIn(); c.setCancelReasonCd("ETC");
+         assertEquals(400, statusOf(new Runnable() { public void run() { BidTargetRules.parseCancel(c, CODES); } }));
+diff --git a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/TargetResultRulesTest.java b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/TargetResultRulesTest.java
+index 33e3f46d..930fc86b 100644
+--- a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/TargetResultRulesTest.java
++++ b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/TargetResultRulesTest.java
+@@ -69,6 +69,13 @@ public class TargetResultRulesTest {
+         assertEquals(TargetResultRules.RETAIN, v.winKind);
+         assertEquals(TargetResultRules.BASIS_TAG, v.winKindBasis);
+     }
++    @Test public void 구분이_수의계약이어도_재유치_신규는_대상_축으로_센다_072() {
++        TargetResultRules.Verdict r = TargetResultRules.judge(L(line(2, "FIRST", "B02", "2027-01", "2030-12")), "RETAIN_PRIVATE", Y, Y, null);
++        assertEquals(TargetResultRules.RETAIN, r.winKind);
++        assertEquals(TargetResultRules.BASIS_TAG, r.winKindBasis);
++        assertEquals(TargetResultRules.NEW, TargetResultRules.judge(L(line(2, "FIRST", "B02", "2027-01", "2030-12")), "NEW_PRIVATE", Y, Y, null).winKind);
++        assertEquals(TargetResultRules.NEW, TargetResultRules.judge(L(line(2, "FIRST", "B02", "2027-01", "2030-12")), "REGAIN", Y, Y, null).winKind);
++    }
+     @Test public void 다른_순위의_이전_줄은_직전으로_치지_않는다() {
+         TargetResultRules.Verdict v = TargetResultRules.judge(L(line(1, "SECOND", "B02", "2023-01", "2026-12"), line(2, "FIRST", "B02", "2027-01", "2030-12")), "NEW", Y, Y, null);
+         assertEquals(TargetResultRules.NEW, v.winKind);
+diff --git a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/BidTargetApiTest.java b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/BidTargetApiTest.java
+index d1d43400..4634cbb3 100644
+--- a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/BidTargetApiTest.java
++++ b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/BidTargetApiTest.java
+@@ -181,10 +181,15 @@ public class BidTargetApiTest {
+         assertEquals(200, status(r));
+         assertEquals(Y, json(r).path("year").asInt());
+         assertEquals(30, json(r).path("delay_days").asInt());
+-        assertEquals(3, json(r).path("codes").path("tags").size());
++        assertEquals(4, json(r).path("codes").path("tags").size());   // 072 — 구분 4값(REGAIN 은 사용 안 함이라 빠진다)
+         assertEquals("RETAIN", json(r).path("codes").path("tags").path(0).path("code").asText());
+-        assertEquals("REGAIN", json(r).path("codes").path("tags").path(1).path("code").asText());
++        assertEquals("RETAIN_PRIVATE", json(r).path("codes").path("tags").path(1).path("code").asText());
+         assertEquals("NEW", json(r).path("codes").path("tags").path(2).path("code").asText());
++        assertEquals("NEW_PRIVATE", json(r).path("codes").path("tags").path(3).path("code").asText());
++        assertEquals("RETAIN", json(r).path("codes").path("tags").path(1).path("audience_cd").asText());
++        assertTrue(json(r).path("codes").path("tags").path(1).path("private_contract").asBoolean());
++        assertFalse(json(r).path("codes").path("tags").path(2).path("private_contract").asBoolean());
++        assertEquals("재유치 입찰", json(r).path("codes").path("tags").path(0).path("name").asText());
+         assertFalse(json(r).path("can_edit").asBoolean());
+     }
+ 
+@@ -511,6 +516,66 @@ public class BidTargetApiTest {
+         assertEquals(0, rows());
+     }
+ 
++    @Test public void H2_초기화에서_072가_돌았다_이관_기록_표는_비어_있고_REGAIN_은_사용_안_함() {   // 072
++        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM MIG072_TARGET_TAG", Integer.class).intValue());
++        assertEquals(0, jdbc.queryForObject("SELECT ENABLED FROM COMMON_CODE WHERE CODE_GROUP='TARGET_TAG' AND CODE='REGAIN'", Integer.class).intValue());
++        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM COMMON_CODE WHERE CODE_GROUP='TARGET_TAG' AND CODE IN ('RETAIN_PRIVATE','NEW_PRIVATE') AND ENABLED=1", Integer.class).intValue());
++    }
++
++    private void noBidRound() {
++        round("NO_BID", thisYearAt(), null);
++        jdbc.update("UPDATE NOTICE_ROUND SET CLOSED_AT='2026-11-17T00:00:00+09:00', CLOSE_REASON_CD='NO_BID', CLOSED_BY='3918264'"
++                + " WHERE INSTITUTION_ID='jongno' AND ROUND_SEQ=1");
++    }
++
++    @Test public void 수의계약_구분이면_입찰_없음이어도_올해_목표_201() throws Exception {   // 072
++        noBidRound();
++        MvcResult r = send(SALES, PATH, ADD, body("tag_cd", "NEW_PRIVATE"));
++        assertEquals(201, status(r));
++        assertEquals(1, rows());
++        assertTrue(json(r).path("warning").isMissingNode());
++        // 같은 회차라도 입찰 구분은 그대로 409
++        MvcResult b = send(SALES, PATH, ADD, body("tag_cd", "NEW"));
++        assertEquals(409, status(b)); assertEquals("INST_BID_CLOSED", code(b));
++    }
++
++    @Test public void 수의계약도_공고_종료면_409() throws Exception {   // 072
++        closedRound();
++        MvcResult r = send(SALES, PATH, ADD, body("tag_cd", "RETAIN_PRIVATE"));
++        assertEquals(409, status(r));
++        assertEquals("INST_BID_CLOSED", code(r));
++        assertEquals("NOTICE_CLOSED", json(r).path("detail").path("basis").path("basis_cd").asText());
++        assertEquals(0, rows());
++    }
++
++    @Test public void 수의계약_목표는_입찰_없음이어도_목록_bid_closed_없음() throws Exception {   // 072
++        noBidRound();
++        assertEquals(201, status(send(SALES, PATH, ADD, body("tag_cd", "NEW_PRIVATE"))));
++        JsonNode it = json(getAs(SALES, "/bid-targets")).path("items").get(0);
++        assertTrue(it.path("bid_closed").isNull());
++        assertFalse(it.path("prep_cleanup_needed").asBoolean());
++    }
++
++    @Test public void 수의계약에서_입찰로_되돌리면_입찰_끝남_검사를_다시_받는다_409() throws Exception {   // 072 security 5
++        noBidRound();
++        assertEquals(201, status(send(SALES, PATH, ADD, body("tag_cd", "NEW_PRIVATE"))));
++        Map<String, Object> m = new LinkedHashMap<String, Object>();
++        m.put("target_no", 1); m.put("base_rev_no", 1); m.put("tag_cd", "NEW"); m.put("target_year", y());
++        MvcResult r = send(SALES, PATH, TAG, m);
++        assertEquals(409, status(r));
++        assertEquals("INST_BID_CLOSED", code(r));
++        assertEquals(1, rows());
++    }
++
++    @Test public void 입찰에서_수의계약으로_바꾸면_바로_반영_접근_이력에_전_후_구분_코드() throws Exception {   // 072 security 5
++        assertEquals(201, status(send(SALES, PATH, ADD, body("tag_cd", "RETAIN"))));
++        Map<String, Object> m = new LinkedHashMap<String, Object>();
++        m.put("target_no", 1); m.put("base_rev_no", 1); m.put("tag_cd", "RETAIN_PRIVATE"); m.put("target_year", y());
++        assertEquals(201, status(send(SALES, PATH, TAG, m)));
++        assertEquals(2, rows());
++        assertTrue(lastDetail(), lastDetail().contains(" tag=RETAIN>RETAIN_PRIVATE"));
++    }
++
+     @Test public void 기관_자료가_넘어갔으면_막지_않는다() throws Exception {
+         round("CLOSED", thisYearAt(), "1999-01-01");
+         jdbc.update("UPDATE INSTITUTIONS SET LAST_BID='2099-01-01' WHERE INSTITUTION_ID='jongno'");
+diff --git a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/TargetChangeApiTest.java b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/TargetChangeApiTest.java
+index 82c9785f..7d7bfd18 100644
+--- a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/TargetChangeApiTest.java
++++ b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/TargetChangeApiTest.java
+@@ -610,19 +610,91 @@ public class TargetChangeApiTest {
+         assertEquals("REQUESTER_INACTIVE", json(d).path("detail").path("code").asText());
+     }
+ 
+-    @Test public void 태그_REGAIN_ADD_EDIT_승인은_반영_모르는_태그는_400() throws Exception {
++    @Test public void 태그_수의계약_ADD_EDIT_승인은_반영_모르는_태그와_REGAIN_은_400() throws Exception {   // 072
+         baseSeed();
+         final int Y = y();
+         assertEquals(400, status(change(SALES, req("사유", item("jongno", "ADD", "tag_cd", "ZZ", "target_year", Y)))));
+-        MvcResult r = change(SALES, req("되찾기 도전",
+-                item("jongno", "ADD", "tag_cd", "REGAIN", "target_year", Y),
+-                item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "REGAIN")));
++        assertEquals(400, status(change(SALES, req("사유", item("jongno", "ADD", "tag_cd", "REGAIN", "target_year", Y)))));   // 072 — 사용 안 함
++        MvcResult r = change(SALES, req("수의계약",
++                item("jongno", "ADD", "tag_cd", "NEW_PRIVATE", "target_year", Y),
++                item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "RETAIN_PRIVATE")));
+         assertEquals(raw(r), 200, status(r));
+         long id = json(r).path("request").path("req_id").asLong();
+         MvcResult d = decide(LEAD, id, "APPROVE", null);
+         assertEquals(raw(d), 200, status(d));
+-        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TAG_CD='REGAIN'"));
+-        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND TAG_CD='REGAIN'"));
++        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TAG_CD='NEW_PRIVATE'"));
++        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND TAG_CD='RETAIN_PRIVATE'"));
++    }
++
++    @Test public void 결재_대기_중_옛_REGAIN_은_승인_때_NEW_로_반영_문서는_그대로_변경_없음으로_보인다() throws Exception {   // 072 security 3
++        baseSeed();
++        final int Y = y();
++        jdbc.update("UPDATE COMMON_CODE SET ENABLED=1 WHERE CODE_GROUP='TARGET_TAG' AND CODE='REGAIN'");   // 072 전에 올린 요청을 흉내
++        long id;
++        try {
++            MvcResult r = change(SALES, req("072 전 요청", item("jongno", "ADD", "tag_cd", "REGAIN", "target_year", Y)));
++            assertEquals(raw(r), 200, status(r));
++            id = json(r).path("request").path("req_id").asLong();
++        } finally {
++            jdbc.update("UPDATE COMMON_CODE SET ENABLED=0 WHERE CODE_GROUP='TARGET_TAG' AND CODE='REGAIN'");   // 072 상태로 복구
++        }
++        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM WHERE TAG_CD='REGAIN'"));
++        MvcResult d = decide(LEAD, id, "APPROVE", null);
++        assertEquals(raw(d), 200, status(d));
++        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TAG_CD='NEW'"));
++        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE TAG_CD='REGAIN'"));
++        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM WHERE TAG_CD='REGAIN'"));   // 요청 항목(문서)은 고치지 않는다
++    }
++
++    @Test public void 결재_문서_이전_요청_구분_비교는_옛_REGAIN_을_NEW_로_같게_본다() throws Exception {   // 072 security 3 — 서버 판정 tag_changed
++        baseSeed();
++        jdbc.update("UPDATE COMMON_CODE SET ENABLED=1 WHERE CODE_GROUP='TARGET_TAG' AND CODE='REGAIN'");
++        try {
++            jdbc.update("UPDATE INST_BID_TARGET SET TAG_CD='NEW' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");   // 072 가 기준 REV 를 NEW 로 바꾼 뒤 모습
++            MvcResult r = change(SALES, req("연도만", item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", y() + 1, "tag_cd", "REGAIN")));
++            assertEquals(raw(r), 200, status(r));
++            JsonNode it = json(r).path("request").path("target_items").get(0);
++            assertFalse(raw(r), it.path("tag_changed").asBoolean());
++            assertEquals(it.path("before").path("tag_name").asText(), it.path("tag_name").asText());
++        } finally {
++            jdbc.update("UPDATE COMMON_CODE SET ENABLED=0 WHERE CODE_GROUP='TARGET_TAG' AND CODE='REGAIN'");
++        }
++    }
++
++    private void noBidRoundJongno() {
++        jdbc.update("INSERT INTO NOTICE_ROUND (INSTITUTION_ID, ROUND_SEQ, SOURCE_CD, ANCHOR_LAST_BID, OPENED_AT, OPENED_BY)"
++                + " VALUES ('jongno', 1, 'INST_DATA', NULL, '2026-01-01T00:00:00+09:00', '3918264')");
++        jdbc.update("INSERT INTO NOTICE_ROUND_LOG (INSTITUTION_ID, ROUND_SEQ, REV_NO, STATUS_CD, HANDLER_EMP_NO, HANDLER_NAME, SCREEN_ID, BUTTON_ID, HANDLED_AT)"
++                + " VALUES ('jongno', 1, 1, 'NO_BID', '3918264', '김영업', 'bid_notice', 'save', ?)", Times.todayKst() + "T09:00:00+09:00");
++        jdbc.update("UPDATE NOTICE_ROUND SET CLOSED_AT='2026-11-17T00:00:00+09:00', CLOSE_REASON_CD='NO_BID', CLOSED_BY='3918264'"
++                + " WHERE INSTITUTION_ID='jongno' AND ROUND_SEQ=1");
++    }
++
++    @Test public void 수의계약_ADD는_입찰_없음이어도_통과_요청_항목에_경고_NO_BID_PRIVATE_입찰은_409() throws Exception {   // 072 security 4
++        noBidRoundJongno();
++        final int Y = y();
++        MvcResult bad = change(SALES, req("사유", item("jongno", "ADD", "tag_cd", "NEW", "target_year", Y)));
++        assertEquals(409, status(bad));
++        MvcResult r = change(SALES, req("수의계약", item("jongno", "ADD", "tag_cd", "NEW_PRIVATE", "target_year", Y)));
++        assertEquals(raw(r), 200, status(r));
++        long id = json(r).path("request").path("req_id").asLong();
++        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM WHERE REQ_ID=? AND WARN_CD='NO_BID_PRIVATE' AND TAG_CD='NEW_PRIVATE'", id));
++        assertEquals("NO_BID_PRIVATE", json(r).path("request").path("target_items").get(0).path("warn_cd").asText());
++        MvcResult d = decide(LEAD, id, "APPROVE", null);
++        assertEquals(raw(d), 200, status(d));
++        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND TAG_CD='NEW_PRIVATE'"));
++    }
++
++    @Test public void TO_GOAL_요청_항목에_관심_행의_지금_구분이_스냅샷으로_남는다() throws Exception {   // 072 security 4
++        baseSeed();
++        jdbc.update("UPDATE INST_BID_TARGET SET TAG_CD='RETAIN_PRIVATE' WHERE INSTITUTION_ID='nowon' AND TARGET_NO=1");
++        MvcResult r = change(SALES, req("올해 목표로", item("nowon", "TO_GOAL", "target_no", 1, "base_rev_no", 1, "target_year", y() + 1)));
++        assertEquals(raw(r), 200, status(r));
++        long id = json(r).path("request").path("req_id").asLong();
++        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM WHERE REQ_ID=? AND TAG_CD='RETAIN_PRIVATE'", id));
++        MvcResult d = decide(LEAD, id, "APPROVE", null);
++        assertEquals(raw(d), 200, status(d));
++        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='nowon' AND REV_NO=2 AND KIND_CD='GOAL' AND TAG_CD='RETAIN_PRIVATE'"));   // 반영은 행의 구분을 그대로 잇는다
+     }
+ 
+     // ---- NEXT 114 — 구분·메모만 고치기는 결재 없이 ----
+@@ -680,10 +752,10 @@ public class TargetChangeApiTest {
+     @Test public void 결재_중이면_구분_고치기도_409_CHANGE_PENDING_단건_일괄_모두() throws Exception {
+         baseSeed();
+         submitFive();
+-        MvcResult s = send(SALES, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_year", y(), "tag_cd", "REGAIN"));
++        MvcResult s = send(SALES, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_year", y(), "tag_cd", "RETAIN_PRIVATE"));   // 072 — REGAIN 은 사용 안 함이라 400 이 먼저 나간다
+         assertEquals(409, status(s)); assertEquals("CHANGE_PENDING", json(s).path("detail").path("code").asText());
+         MvcResult b = send(SALES, "/bid-targets/changes", "bid_board", "save_target_values",
+-                req(null, item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", y(), "tag_cd", "REGAIN")));
++                req(null, item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", y(), "tag_cd", "RETAIN_PRIVATE")));
+         assertEquals(409, status(b)); assertEquals("CHANGE_PENDING", json(b).path("detail").path("code").asText());
+         assertEquals(1, json(b).path("detail").path("item_no").asInt());
+     }
+diff --git a/kgi-ggreport-web/src/test/resources/application.properties b/kgi-ggreport-web/src/test/resources/application.properties
+index d04f4036..f43a0e5d 100644
+--- a/kgi-ggreport-web/src/test/resources/application.properties
++++ b/kgi-ggreport-web/src/test/resources/application.properties
+@@ -31,7 +31,7 @@ mybatis.configuration.map-underscore-to-camel-case=true
+ #    새 테스트가 다른 프로퍼티로 별도 컨텍스트를 띄우면 DDL 이 두 번 돌아 실패한다.
+ #    그때는 스크립트가 아니라 그 테스트의 프로퍼티를 다시 볼 것.
+ spring.sql.init.mode=always
+-spring.sql.init.schema-locations=classpath:db/oracle/001_schema.sql,classpath:db/oracle/002_seq_no.sql,classpath:db/oracle/004_widen_iso_timestamps.sql,classpath:db/oracle/005_seq_no_log_tables.sql,classpath:db/oracle/006_orch.sql,classpath:db/oracle/008_system_admin.sql,classpath:db/oracle/010_approval_line.sql,classpath:db/oracle/012_approval_workflow.sql,classpath:db/oracle/014_board_form.sql,classpath:db/oracle/016_common_code.sql,classpath:db/oracle/019_bid_assignment.sql,classpath:db/oracle/020_board_material.sql,classpath:db/oracle/024_bid_prep.sql,classpath:db/oracle/025_bid_prep_attach.sql,classpath:db/oracle/026_inst_head.sql,classpath:db/oracle/027_inst_head_voided.sql,classpath:db/oracle/028_prep_rename.sql,classpath:db/oracle/030_institution_columns.sql,classpath:db/oracle/034_inst_plan.sql,classpath:db/oracle/036_admin_audit.sql,classpath:db/oracle/037_notice_round.sql,classpath:db/oracle/039_bank_contract.sql,classpath:db/oracle/041_bank_rank_single.sql,classpath:db/oracle/042_ext_check.sql,classpath:db/oracle/043_bid_target.sql,classpath:db/oracle/044_bid_target_kind.sql,classpath:db/oracle/045_plan_collect.sql,classpath:db/oracle/047_board_minutes.sql,classpath:db/oracle/048_prep_nobid_ack.sql,classpath:db/oracle/049_prep_form.sql,classpath:db/oracle/051_design_review.sql,classpath:db/oracle/056_bid_target_change.sql,classpath:db/oracle/057_doc_check.sql,classpath:db/oracle/058_board_minutes_speaker.sql,classpath:db/oracle/059_target_tag_regain.sql,classpath:db/oracle/054_prep_board_check.sql,classpath:db/oracle/060_inst_news.sql,classpath:db/oracle/061_bid_target_watch_owner.sql,classpath:db/oracle/062_prep_open_start.sql,classpath:db/oracle/063_bid_target_aim_rank.sql,classpath:db/oracle/064_bid_subject.sql,classpath:db/oracle/065_bid_case_rank.sql,classpath:db/oracle/066_bid_target_case.sql,classpath:db/oracle/067_prep_result_marks.sql,classpath:db/oracle/068_board_agenda_no.sql
++spring.sql.init.schema-locations=classpath:db/oracle/001_schema.sql,classpath:db/oracle/002_seq_no.sql,classpath:db/oracle/004_widen_iso_timestamps.sql,classpath:db/oracle/005_seq_no_log_tables.sql,classpath:db/oracle/006_orch.sql,classpath:db/oracle/008_system_admin.sql,classpath:db/oracle/010_approval_line.sql,classpath:db/oracle/012_approval_workflow.sql,classpath:db/oracle/014_board_form.sql,classpath:db/oracle/016_common_code.sql,classpath:db/oracle/019_bid_assignment.sql,classpath:db/oracle/020_board_material.sql,classpath:db/oracle/024_bid_prep.sql,classpath:db/oracle/025_bid_prep_attach.sql,classpath:db/oracle/026_inst_head.sql,classpath:db/oracle/027_inst_head_voided.sql,classpath:db/oracle/028_prep_rename.sql,classpath:db/oracle/030_institution_columns.sql,classpath:db/oracle/034_inst_plan.sql,classpath:db/oracle/036_admin_audit.sql,classpath:db/oracle/037_notice_round.sql,classpath:db/oracle/039_bank_contract.sql,classpath:db/oracle/041_bank_rank_single.sql,classpath:db/oracle/042_ext_check.sql,classpath:db/oracle/043_bid_target.sql,classpath:db/oracle/044_bid_target_kind.sql,classpath:db/oracle/045_plan_collect.sql,classpath:db/oracle/047_board_minutes.sql,classpath:db/oracle/048_prep_nobid_ack.sql,classpath:db/oracle/049_prep_form.sql,classpath:db/oracle/051_design_review.sql,classpath:db/oracle/056_bid_target_change.sql,classpath:db/oracle/057_doc_check.sql,classpath:db/oracle/058_board_minutes_speaker.sql,classpath:db/oracle/059_target_tag_regain.sql,classpath:db/oracle/054_prep_board_check.sql,classpath:db/oracle/060_inst_news.sql,classpath:db/oracle/061_bid_target_watch_owner.sql,classpath:db/oracle/062_prep_open_start.sql,classpath:db/oracle/063_bid_target_aim_rank.sql,classpath:db/oracle/064_bid_subject.sql,classpath:db/oracle/065_bid_case_rank.sql,classpath:db/oracle/066_bid_target_case.sql,classpath:db/oracle/067_prep_result_marks.sql,classpath:db/oracle/068_board_agenda_no.sql,classpath:db/oracle/072_target_tag_four.sql
+ # ⚠️ 015(FK 제거)는 넣지 않는다 — PL/SQL 이라 H2 에서 못 돌고, 위 DDL 에는 FK 가 없어 필요도 없다.
+ # 시드(003)도 **정본 그대로** 돌린다. 이건 001·002 와 달리 멱등하다(MERGE).
+ # ⚠️ 017(공통 코드 시드)은 멱등하지 않다(PK 위반) — 컨텍스트가 하나로 캐시되는 전제에서 한 번만 돈다.
+diff --git a/kgi-ggreport-web/src/main/resources/db/mysql/072_target_tag_four.sql b/kgi-ggreport-web/src/main/resources/db/mysql/072_target_tag_four.sql
+new file mode 100644
+index 00000000..10aa875b
+--- /dev/null
++++ b/kgi-ggreport-web/src/main/resources/db/mysql/072_target_tag_four.sql
+@@ -0,0 +1,37 @@
++-- -----------------------------------------------------------------------------
++-- kgi-ggreport-web — MySQL 미러 (072) : 목표 구분 4값 (정본 db/oracle/072_target_tag_four.sql — 규칙·사전 조회·배포 순서·되돌리기·한계·이름 소급은 정본 헤더, 문장은 MySQL 에서 그대로 돈다)
++-- ⚠️ 정본이 아니다. ⚠️ 멱등하지 않다 — 068 다음 한 번만(이미 068 까지 적용한 로컬 DB 는 이 파일만 한 번). 적용한 뒤에는 고치지 않는다(체크섬).
++-- ⚠️ MIGRATED_AT 은 NOW() 에 +09:00 — DB 시간대 KST 전제. 적용 전에 SELECT @@time_zone; 로 확인한다(Oracle 정본은 SELECT SYSTIMESTAMP FROM DUAL).
++-- ⚠️ Workbench safe-updates 가 켜져 있으면 UPDATE 가 막힌다(끄고 실행). 문장 순서(REGAIN 중지 → 기록 → 기록에 있는 행만 UPDATE)는 정본과 같다.
++-- -----------------------------------------------------------------------------
++UPDATE COMMON_CODE SET ENABLED = 0, SORT_NO = 9, UPDATED_AT = '2026-11-27T00:00:00+09:00' WHERE CODE_GROUP = 'TARGET_TAG' AND CODE = 'REGAIN';
++
++CREATE TABLE MIG072_TARGET_TAG (
++    INSTITUTION_ID   VARCHAR(64)  NOT NULL,
++    TARGET_NO        INT          NOT NULL,
++    REV_NO           INT          NOT NULL,
++    OLD_TAG_CD       VARCHAR(20)  NOT NULL,
++    NEW_TAG_CD       VARCHAR(20)  NOT NULL,
++    KIND_CD          VARCHAR(10),
++    APPROVAL_REQ_ID  BIGINT,
++    APPLIED_BY       VARCHAR(20)  NOT NULL,
++    BASIS            VARCHAR(40)  NOT NULL,
++    MIGRATED_AT      VARCHAR(40)  NOT NULL,
++    PRIMARY KEY (INSTITUTION_ID, TARGET_NO, REV_NO)
++) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
++INSERT INTO MIG072_TARGET_TAG (INSTITUTION_ID, TARGET_NO, REV_NO, OLD_TAG_CD, NEW_TAG_CD, KIND_CD, APPROVAL_REQ_ID, APPLIED_BY, BASIS, MIGRATED_AT)
++  SELECT INSTITUTION_ID, TARGET_NO, REV_NO, TAG_CD, 'NEW', KIND_CD, APPROVAL_REQ_ID, 'DBA-072', 'Q-2026-11-27-23', DATE_FORMAT(NOW(), '%Y-%m-%dT%H:%i:%s+09:00') FROM INST_BID_TARGET WHERE TAG_CD = 'REGAIN';
++UPDATE INST_BID_TARGET b SET TAG_CD = 'NEW' WHERE b.TAG_CD = 'REGAIN' AND EXISTS (SELECT 1 FROM MIG072_TARGET_TAG m
++    WHERE m.INSTITUTION_ID = b.INSTITUTION_ID AND m.TARGET_NO = b.TARGET_NO AND m.REV_NO = b.REV_NO);
++UPDATE COMMON_CODE SET CODE_NAME = '재유치 입찰', SORT_NO = 1, UPDATED_AT = '2026-11-27T00:00:00+09:00' WHERE CODE_GROUP = 'TARGET_TAG' AND CODE = 'RETAIN';
++UPDATE COMMON_CODE SET CODE_NAME = '신규 입찰', SORT_NO = 3, UPDATED_AT = '2026-11-27T00:00:00+09:00' WHERE CODE_GROUP = 'TARGET_TAG' AND CODE = 'NEW';
++
++-- [INSERT 블록 시작 — Oracle 072 와 글자 그대로 같다]
++INSERT INTO COMMON_CODE (CODE_GROUP, CODE, CODE_NAME, SORT_NO, ENABLED, UPDATED_AT) VALUES ('TARGET_TAG', 'RETAIN_PRIVATE', '재유치 수의계약', 2, 1, '2026-11-27T00:00:00+09:00');
++INSERT INTO COMMON_CODE (CODE_GROUP, CODE, CODE_NAME, SORT_NO, ENABLED, UPDATED_AT) VALUES ('TARGET_TAG', 'NEW_PRIVATE', '신규 수의계약', 4, 1, '2026-11-27T00:00:00+09:00');
++-- [INSERT 블록 끝 — 2행]
++COMMIT;
++
++-- 사후 확인: REMAINING_REGAIN 은 0, MIG072_ROWS 는 사전 조회 B 와 같아야 한다.
++SELECT COUNT(*) AS REMAINING_REGAIN FROM INST_BID_TARGET WHERE TAG_CD = 'REGAIN';
++SELECT COUNT(*) AS MIG072_ROWS FROM MIG072_TARGET_TAG;
+diff --git a/kgi-ggreport-web/src/main/resources/db/oracle/072_target_tag_four.sql b/kgi-ggreport-web/src/main/resources/db/oracle/072_target_tag_four.sql
+new file mode 100644
+index 00000000..00264758
+--- /dev/null
++++ b/kgi-ggreport-web/src/main/resources/db/oracle/072_target_tag_four.sql
+@@ -0,0 +1,64 @@
++--------------------------------------------------------------------------------
++-- kgi-ggreport-web — Oracle 정본 (072) : 목표 구분 4값 — 신규 입찰·신규 수의계약·재유치 입찰·재유치 수의계약 (입찰 현황판, 사용자 11-27, Q-2026-11-27-21~23)
++-- 저장 = 한 칸 TAG_CD(코드 4개). RETAIN·NEW 는 코드 그대로 이름만 '재유치 입찰'·'신규 입찰'(사용자: RETAIN→재유치 입찰, NEW→신규 입찰 = 같은 뜻),
++--   RETAIN_PRIVATE·NEW_PRIVATE 2행 추가, REGAIN(되찾기 도전)은 사용 안 함(ENABLED=0, 지우지 않음 — 옛 결재 항목·이력이 이름을 읽는다).
++-- 옛 REGAIN 목표·관심 행은 모든 REV 를 NEW(신규 입찰)로 바꾸고(사용자: 되찾기 = 신규), 바꾼 행은 MIG072_TARGET_TAG 에
++--   키·전·후·시각·실행자(APPLIED_BY)·근거(BASIS)·결재 번호·종류를 남긴다(= 시스템 이관 기록이자 되돌리기 원본). 결재 항목(INST_BID_TARGET_REQ_ITEM)은 바꾸지 않는다(요청 당시 문서).
++--   결재 대기 중 REGAIN 항목은 승인 때 서버가 NEW 로 반영하고, 결재 문서 조회는 서버가 옛 REGAIN 을 NEW 로 같게 보아 '변경 없음'으로 낸다(TargetChangeService).
++-- ⚠️ INST_BID_TARGET 은 앱 계정 SELECT·INSERT 전용(043) — 이 UPDATE 는 DBA 가 이 파일에서 한 번만. 앱 계정 권한은 바꾸지 않는다.
++-- ⚠️ MIGRATED_AT 은 DB 시각(SYSDATE)에 +09:00 을 붙인다 — DB 시간대가 KST 라는 전제. 적용 전에 확인: SELECT SYSTIMESTAMP FROM DUAL;  (MySQL 미러는 SELECT @@time_zone;)
++--   KST 가 아니면 MIGRATED_AT 이 틀린 시각으로 남는다 — 그때는 배포 장부에 실제 적용 시각을 적는다.
++-- ⚠️ 이름 소급: 코드표 이름만 바꾸므로 072 이전 결재 문서·이력의 '재유치 도전'·'신규유치 도전'은 지금 '재유치 입찰'·'신규 입찰'로 보인다(코드 값은 그대로 — 표시만 바뀜).
++--   옛 REGAIN 행도 이관 뒤 '신규 입찰'로 보이며 원래 값은 MIG072_TARGET_TAG 에만 있다.
++-- 멱등하지 않다(CREATE·INSERT). 068 다음 한 번만. 069~071 과 의존 없음. 적용한 뒤에는 이 파일을 고치지 않는다(체크섬).
++-- 문장 순서: ① REGAIN 사용 중지(새 REGAIN 이 더 못 들어오게) → ② 기록 표 → ③ 기록 INSERT → ④ 기록에 있는 행만 UPDATE → ⑤ 이름·새 코드 → ⑥ 사후 확인.
++-- [적용 전 사전 조회 — 읽기 전용, 결과를 남겨 둔다]
++--   A 코드표:   SELECT CODE, CODE_NAME, SORT_NO, ENABLED FROM COMMON_CODE WHERE CODE_GROUP = 'TARGET_TAG' ORDER BY SORT_NO;
++--              → RETAIN·REGAIN·NEW 3행이고 RETAIN_PRIVATE·NEW_PRIVATE 가 없어야 한다(있으면 멈춘다 — PK 위반).
++--   B 바뀔 행:  SELECT COUNT(*) FROM INST_BID_TARGET WHERE TAG_CD = 'REGAIN';   → 적용 뒤 MIG072_TARGET_TAG 행 수와 같아야 한다.
++--   C 결재 대기: SELECT x.OP_CD, x.TAG_CD, COUNT(*) FROM INST_BID_TARGET_REQ_ITEM x JOIN APPROVAL_REQUEST r ON r.REQ_ID = x.REQ_ID
++--               WHERE r.STATUS = 'PENDING' AND x.TAG_CD IS NOT NULL GROUP BY x.OP_CD, x.TAG_CD;   → REGAIN 이 있으면 결재자에게 알린다(승인 시 신규 입찰로 반영).
++-- [배포 순서] ① 사전 조회 A~C ② 서버 중지 ③ 072 적용(DBA, 실제 실행 계정은 배포 장부에) ④ 사후 확인(맨 끝 SELECT 2개: 남은 REGAIN = 0, MIG072 행 수 = 사전 조회 B)
++--   ⑤ 072 대응 서버 기동. 순서가 어긋나도 데이터는 안전하다(구 서버+072 = REGAIN 저장 400 / 새 서버+072 전 = 수의계약 코드 저장 400).
++-- [되돌리기] (서버를 072 이전으로 먼저 되돌린 뒤, DBA)
++--   UPDATE INST_BID_TARGET b SET TAG_CD = 'REGAIN' WHERE TAG_CD = 'NEW' AND EXISTS (SELECT 1 FROM MIG072_TARGET_TAG m
++--     WHERE m.INSTITUTION_ID = b.INSTITUTION_ID AND m.TARGET_NO = b.TARGET_NO AND m.REV_NO = b.REV_NO);
++--   UPDATE COMMON_CODE SET CODE_NAME = '재유치 도전', SORT_NO = 1 WHERE CODE_GROUP = 'TARGET_TAG' AND CODE = 'RETAIN';
++--   UPDATE COMMON_CODE SET CODE_NAME = '신규유치 도전', SORT_NO = 3 WHERE CODE_GROUP = 'TARGET_TAG' AND CODE = 'NEW';
++--   UPDATE COMMON_CODE SET ENABLED = 1, SORT_NO = 2 WHERE CODE_GROUP = 'TARGET_TAG' AND CODE = 'REGAIN';
++--   수의계약 2코드: SELECT COUNT(*) FROM INST_BID_TARGET WHERE TAG_CD IN ('RETAIN_PRIVATE','NEW_PRIVATE'); (REQ_ITEM 도) 0 이면 DELETE, 아니면 ENABLED = 0 (이름은 남긴다).
++--   DROP TABLE MIG072_TARGET_TAG;   (되돌리기 확인 뒤)
++--   ⚠️ 되돌리기의 한계 1: 072 뒤 담당이 새로 만든 REV(NEW)는 기록 표에 없어 NEW 로 남는다 — 옛 REV 는 REGAIN, 새 REV 는 NEW 라 그 담당이 구분을 바꾼 것처럼 보인다.
++--   ⚠️ 되돌리기의 한계 2: 수의계약 코드가 쓰였으면 ENABLED=0 으로만 남는다. 구 서버는 RETAIN_PRIVATE 를 '신규'로 세고(성과 판정), 수의계약 건을 다시 '입찰 없음' 409 로 막는다.
++--------------------------------------------------------------------------------
++UPDATE COMMON_CODE SET ENABLED = 0, SORT_NO = 9, UPDATED_AT = '2026-11-27T00:00:00+09:00' WHERE CODE_GROUP = 'TARGET_TAG' AND CODE = 'REGAIN';
++
++CREATE TABLE MIG072_TARGET_TAG (
++    INSTITUTION_ID   VARCHAR2(64 CHAR)  NOT NULL,
++    TARGET_NO        NUMBER(6)          NOT NULL,
++    REV_NO           NUMBER(6)          NOT NULL,
++    OLD_TAG_CD       VARCHAR2(20 CHAR)  NOT NULL,
++    NEW_TAG_CD       VARCHAR2(20 CHAR)  NOT NULL,
++    KIND_CD          VARCHAR2(10 CHAR),
++    APPROVAL_REQ_ID  NUMBER(19),
++    APPLIED_BY       VARCHAR2(20 CHAR)  NOT NULL,
++    BASIS            VARCHAR2(40 CHAR)  NOT NULL,
++    MIGRATED_AT      VARCHAR2(40 CHAR)  NOT NULL,
++    CONSTRAINT PK_MIG072_TARGET_TAG PRIMARY KEY (INSTITUTION_ID, TARGET_NO, REV_NO)
++);
++INSERT INTO MIG072_TARGET_TAG (INSTITUTION_ID, TARGET_NO, REV_NO, OLD_TAG_CD, NEW_TAG_CD, KIND_CD, APPROVAL_REQ_ID, APPLIED_BY, BASIS, MIGRATED_AT)
++  SELECT INSTITUTION_ID, TARGET_NO, REV_NO, TAG_CD, 'NEW', KIND_CD, APPROVAL_REQ_ID, 'DBA-072', 'Q-2026-11-27-23', TO_CHAR(SYSDATE, 'YYYY-MM-DD"T"HH24:MI:SS') || '+09:00' FROM INST_BID_TARGET WHERE TAG_CD = 'REGAIN';
++UPDATE INST_BID_TARGET b SET TAG_CD = 'NEW' WHERE b.TAG_CD = 'REGAIN' AND EXISTS (SELECT 1 FROM MIG072_TARGET_TAG m
++    WHERE m.INSTITUTION_ID = b.INSTITUTION_ID AND m.TARGET_NO = b.TARGET_NO AND m.REV_NO = b.REV_NO);
++UPDATE COMMON_CODE SET CODE_NAME = '재유치 입찰', SORT_NO = 1, UPDATED_AT = '2026-11-27T00:00:00+09:00' WHERE CODE_GROUP = 'TARGET_TAG' AND CODE = 'RETAIN';
++UPDATE COMMON_CODE SET CODE_NAME = '신규 입찰', SORT_NO = 3, UPDATED_AT = '2026-11-27T00:00:00+09:00' WHERE CODE_GROUP = 'TARGET_TAG' AND CODE = 'NEW';
++
++-- [INSERT 블록 시작 — MySQL 072 와 글자 그대로 같다]
++INSERT INTO COMMON_CODE (CODE_GROUP, CODE, CODE_NAME, SORT_NO, ENABLED, UPDATED_AT) VALUES ('TARGET_TAG', 'RETAIN_PRIVATE', '재유치 수의계약', 2, 1, '2026-11-27T00:00:00+09:00');
++INSERT INTO COMMON_CODE (CODE_GROUP, CODE, CODE_NAME, SORT_NO, ENABLED, UPDATED_AT) VALUES ('TARGET_TAG', 'NEW_PRIVATE', '신규 수의계약', 4, 1, '2026-11-27T00:00:00+09:00');
++-- [INSERT 블록 끝 — 2행]
++COMMIT;
++
++-- 사후 확인: REMAINING_REGAIN 은 0, MIG072_ROWS 는 사전 조회 B 와 같아야 한다.
++SELECT COUNT(*) AS REMAINING_REGAIN FROM INST_BID_TARGET WHERE TAG_CD = 'REGAIN';
++SELECT COUNT(*) AS MIG072_ROWS FROM MIG072_TARGET_TAG;
+diff --git a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/db/TargetTagFourDdlPairTest.java b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/db/TargetTagFourDdlPairTest.java
+new file mode 100644
+index 00000000..af377a7c
+--- /dev/null
++++ b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/db/TargetTagFourDdlPairTest.java
+@@ -0,0 +1,72 @@
++package com.kbstar.kgi.ggreport.web.db;
++
++import org.junit.Test;
++
++import java.io.IOException;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.Paths;
++import java.util.ArrayList;
++import java.util.List;
++
++import static org.junit.Assert.assertEquals;
++import static org.junit.Assert.assertTrue;
++
++/** 목표 구분 4값 072 DDL 쌍 — INSERT 블록이 글자 그대로 같고 2행이며, REGAIN 중지·이관 UPDATE·기록 칸·사후 확인이 양쪽에 있고 문장 순서가 맞다. */
++public class TargetTagFourDdlPairTest {
++    private static final Path DB = Paths.get("src/main/resources/db");
++    private static final String FILE = "072_target_tag_four.sql";
++
++    private static List<String> lines(String dialect) throws IOException {
++        Path f = DB.resolve(dialect).resolve(FILE);
++        assertTrue(f + " 가 없다 — 작업 디렉터리가 kgi-ggreport-web/ 인지 확인", Files.exists(f));
++        return Files.readAllLines(f, StandardCharsets.UTF_8);
++    }
++
++    private static List<String> inserts(String dialect) throws IOException {
++        List<String> out = new ArrayList<>();
++        boolean in = false;
++        for (String line : lines(dialect)) {
++            if (line.contains("[INSERT 블록 시작")) in = true;
++            else if (line.contains("[INSERT 블록 끝")) in = false;
++            else if (in && line.startsWith("INSERT INTO COMMON_CODE")) out.add(line);
++        }
++        return out;
++    }
++
++    private static int indexOf(List<String> ls, String startsWith, String contains) {
++        for (int i = 0; i < ls.size(); i++) if (ls.get(i).startsWith(startsWith) && ls.get(i).contains(contains)) return i;
++        return -1;
++    }
++
++    @Test
++    public void 두_파일의_INSERT_블록이_같고_2행이다() throws IOException {
++        List<String> oracle = inserts("oracle"), mysql = inserts("mysql");
++        assertEquals(2, oracle.size());
++        assertEquals(oracle, mysql);
++        assertTrue(oracle.get(0).contains("'RETAIN_PRIVATE', '재유치 수의계약', 2, 1"));
++        assertTrue(oracle.get(1).contains("'NEW_PRIVATE', '신규 수의계약', 4, 1"));
++    }
++
++    @Test
++    public void 두_파일_모두_REGAIN_중지_기록_INSERT_기록에_있는_행만_UPDATE_순서다() throws IOException {
++        for (String d : new String[]{"oracle", "mysql"}) {
++            List<String> ls = lines(d);
++            int off = indexOf(ls, "UPDATE COMMON_CODE SET ENABLED = 0", "CODE = 'REGAIN'");
++            int mig = indexOf(ls, "INSERT INTO MIG072_TARGET_TAG", "");
++            int upd = indexOf(ls, "UPDATE INST_BID_TARGET b SET TAG_CD = 'NEW'", "b.TAG_CD = 'REGAIN'");
++            assertTrue(d + " REGAIN 사용 중지 문장이 없다", off >= 0);
++            assertTrue(d + " MIG072 INSERT 가 없다", mig >= 0);
++            assertTrue(d + " REGAIN → NEW UPDATE 가 없다", upd >= 0);
++            assertTrue(d + " 순서: REGAIN 중지 → MIG INSERT → UPDATE", off < mig && mig < upd);
++            StringBuilder all = new StringBuilder();
++            for (String l : ls) all.append(l).append('\n');
++            String s = all.toString();
++            assertTrue(d + " 기록 칸(APPLIED_BY·BASIS·APPROVAL_REQ_ID·KIND_CD)", s.contains("APPLIED_BY") && s.contains("'DBA-072'")
++                    && s.contains("'Q-2026-11-27-23'") && s.contains("APPROVAL_REQ_ID") && s.contains("KIND_CD"));
++            assertTrue(d + " UPDATE 가 기록에 있는 행만 건드린다", s.contains("EXISTS (SELECT 1 FROM MIG072_TARGET_TAG m"));
++            assertTrue(d + " 사후 확인 SELECT 2개", s.contains("SELECT COUNT(*) AS REMAINING_REGAIN") && s.contains("SELECT COUNT(*) AS MIG072_ROWS"));
++        }
++    }
++}

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>입찰 현황판 시안 — 결재 예외(시연)</title>
+<style>
+body{font:13px "Malgun Gothic",sans-serif;background:#f4f6f8;color:#1d2731;margin:0;padding:24px}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:15px;margin:28px 0 6px}
+.note{color:#5b6672;font-size:12px;margin:2px 0 10px}
+.lbl{display:inline-block;background:#1d2731;color:#fff;border-radius:3px;padding:1px 6px;font-size:11px;margin-right:6px}.lbl.a{background:#2b6cb0}
+.row{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.dlg{width:520px;background:#fff;border:1px solid #c9d1d8;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:16px 18px}
+.dlg h4{margin:0 0 10px;font-size:15px}
+.list{border:1px solid #e3e7eb;border-radius:4px;margin:8px 0}
+.list div{padding:6px 10px;border-bottom:1px solid #eef1f4;font-size:12px}.list div:last-child{border:0}
+.ex{margin:10px 0 0;padding:8px 10px;border:1px dashed #b8641b;border-radius:4px;background:#fffaf2}
+.ex label{font-weight:600}.ex .sub{color:#5b6672;font-size:12px;margin:4px 0 0 22px}
+.foot{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.foot button{height:34px;padding:0 14px;border:1px solid #6d7882;background:#fff;border-radius:4px;font:inherit}
+.foot .pri{background:#1d2731;color:#fff;border-color:#1d2731}
+.demo{display:inline-block;border:1px solid #b8641b;color:#b8641b;border-radius:3px;padding:1px 8px;font-size:11px;margin-left:8px;vertical-align:middle}
+.bar{background:#fff;border:1px solid #d5dbe1;border-radius:6px;padding:10px 14px;width:560px;font-weight:700}
+.card{width:520px;background:#fff;border:1px solid #d5dbe1;border-radius:6px;padding:10px 14px;font-size:12px}
+.tag{display:inline-block;border:1px solid #9aa5b1;color:#5b6672;border-radius:3px;padding:0 6px;font-size:11px;margin-left:6px}
+.q{background:#fff8e1;border:1px solid #f0d68a;border-radius:6px;padding:10px 14px;max-width:1100px;font-size:12px;margin-top:24px;line-height:1.7}
+</style></head><body>
+<h1>입찰 현황판 시안 — [목표 기관 추가] '결재 예외(시연)'</h1>
+<p class="note">시연을 위한 임시 조치. 설정 스위치를 켠 때만 보이고(기본 꺼짐), 운영 배포 전 제거. 목표 추가만 해당. 가짜 기관.</p>
+
+<h2>① 현황판 제목 줄 — 스위치가 켜져 있으면 작은 표시</h2>
+<div class="bar">입찰 현황판 <span class="demo">시연 모드: 결재 예외 사용 중</span></div>
+
+<h2>② [목표 기관 추가] 창</h2>
+<div class="row">
+<div><span class="lbl">전</span>지금(스위치 꺼짐도 이 모양 그대로)
+<div class="dlg"><h4>목표 기관 추가 — 2곳</h4>
+<div class="list"><div>서울 가나구청 · 2026</div><div>경기 다라시청 · 2026</div></div>
+<div class="note">팀장 결재 요청으로 올라가고, 승인되면 목표 기관에 넣습니다.</div>
+<div class="foot"><button>취소</button><button class="pri">결재 요청</button></div></div></div>
+<div><span class="lbl a">후</span>스위치 켬 + 체크함
+<div class="dlg"><h4>목표 기관 추가 — 2곳</h4>
+<div class="list"><div>서울 가나구청 · 2026</div><div>경기 다라시청 · 2026</div></div>
+<div class="ex"><label><input type="checkbox" checked> 결재 예외(시연) — 소속 팀장 승인으로 처리</label>
+<div class="sub">체크하면 결재 요청 없이 바로 목표 기관에 넣고, '결재 예외(시연)'으로 기록합니다. 팀장이 직접 넣을 때는 '결재선 결재자(부장) 승인으로 처리'로 보입니다.</div></div>
+<div class="foot"><button>취소</button><button class="pri">바로 반영</button></div></div>
+<p class="note">체크하지 않으면 지금처럼 [결재 요청]. 결과 알림: '목표 기관에 넣었습니다(결재 예외·시연).'</p></div>
+</div>
+
+<h2>③ 결재함 '처리한 결재' 이력 카드</h2>
+<div class="card"><b>목표 기관 추가 — 2곳</b><span class="tag">결재 예외(시연)</span><span class="tag">요청자 체크</span><br>요청 김영업 · 처리 이영업(팀장) 승인으로 처리 · 2026-11-27 17:20</div>
+
+<div class="q"><b>보실 것</b> — ① 체크박스 자리(창 아래 [바로 반영] 위)와 문구 ② 체크하면 단추가 [바로 반영]으로 바뀌는 것 ③ 제목 줄 '시연 모드' 표시 ④ 결재함 카드 꼬리표. 입찰 끝남·제안 준비 중·결재자 미지정 막음은 그대로입니다.</div>
+</body></html>
