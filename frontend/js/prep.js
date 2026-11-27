@@ -2051,27 +2051,58 @@
   function onScriptOpen() {
     const pt = root.preptask, dl = root.dlg, id = S.selected;
     if (!id || !pt || !pt.scriptDialogHtml || !dl || !dl.open || el('bs-dlg')) return;
-    const sc = S.script && S.script.bid === id ? S.script : (S.script = { bid: id, vals: {}, line: '', err: false, busy: false });
+    const sc = S.script && S.script.bid === id ? S.script : (S.script = { bid: id, vals: {}, line: '', err: false, busy: false, aiMarks: {}, ai: null, opening: false });
+    if (!sc.aiMarks) sc.aiMarks = {};
+    if (sc.opening) return;
+    if (!pt.aiGate((S.detail && S.detail.view) || {})) { openScriptDialog(sc, false); return; }   // 담당 영업·영업부장 + 4상태 밖이면 상태 조회도 하지 않는다
+    sc.opening = true;   // 상태를 받는 동안(최대 5초) 창이 두 번 열리지 않게
+    aiStatus().then(function (on) {
+      sc.opening = false;
+      if (S.script !== sc || S.selected !== sc.bid || el('bs-dlg')) return;   // 그 사이 다른 건으로 옮겼거나 이미 열렸다
+      openScriptDialog(sc, on);
+    });
+  }
+  // AI 초안 기능이 켜져 있는지 창을 열기 전에 받는다(열린 뒤 단추가 끼어들면 배치가 밀린다). enabled === true 만 켜짐으로 본다. 실패·시간 초과·꺼짐은 false = 단추 없음.
+  function aiStatus() {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const cut = ctl ? setTimeout(function () { ctl.abort(); }, 5000) : 0;
+    return fetch('/llm/script-draft/status', ctl ? { signal: ctl.signal } : undefined)
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { return !!j && j.enabled === true; })
+      .catch(function () { return false; })
+      .then(function (on) { if (cut) clearTimeout(cut); return on; });
+  }
+  function openScriptDialog(sc, aiOn) {
+    const pt = root.preptask, dl = root.dlg;
     const v = (S.detail && S.detail.view) || {};
-    document.body.insertAdjacentHTML('beforeend', pt.scriptDialogHtml({ name: str(v.institution_name) || caseName(), vals: sc.vals }));
+    const marked = Object.keys(sc.aiMarks).length > 0;   // 넣은 칸 표시는 기능이 꺼져 있어도 남는다
+    // 초안은 저장되지 않는다 — 창을 열 때마다 새로. (sc.aiMarks만 건 단위로 간직)
+    sc.ai = { on: !!aiOn, busy: false, run: 0, ctl: null, timer: 0, cut: 0, t0: 0, srMin: 0, timedOut: false, dead: false, hadResult: false, line: null, basis: [], boxes: {} };
+    document.body.insertAdjacentHTML('beforeend', pt.scriptDialogHtml({ name: str(v.institution_name) || caseName(), vals: sc.vals, ai: { on: !!aiOn, slots: !!aiOn || marked, again: false, basis: [] } }));
     const ov = el('bs-dlg');
     ov.addEventListener('click', function (e) {
       const b = e.target && e.target.closest ? e.target.closest('button') : null;
       if (!b) return;
       if (b.id === 'bs-cancel') dl.requestClose(ov);
       else if (b.id === 'bs-go') onScriptGo(sc);
+      else if (b.id === 'bs-ai-go') aiGo(sc);
+      else if (b.getAttribute('data-ai-act')) aiAct(sc, b.getAttribute('data-ai-act'), b.getAttribute('data-key'));
     });
     ov.addEventListener('input', function (e) {   // 여러 줄 칸의 글자 수
       const t = e.target;
       if (!t || t.tagName !== 'TEXTAREA') return;
       const n = el(t.id + '-n');
       if (n) n.textContent = pt.scriptCountText(t.value.length);
+      aiInput(sc, t);
     });
     dl.open(ov, {
       focus: el('bs-round'),
-      onClose: function () { scriptRead(sc); ov.remove(); },   // 취소·성공 모두 값을 간직한다(다시 열면 그대로)
+      isDirty: function () { return pt.aiHold(sc.ai); },   // 만드는 중이거나 넣지 않은 초안이 있을 때만 닫기 확인(칸에 적은 글은 지금처럼 간직)
+      get dirtyText() { return pt.aiDirtyText(pt.aiDirtyKind(sc.ai)); },
+      onClose: function () { scriptRead(sc); aiClose(sc); ov.remove(); },   // 취소·성공 모두 값을 간직한다(다시 열면 그대로). 진행 중인 요청은 끊는다
       restoreFallback: function () { return document.querySelector('#pp-case [data-act="script-open"]') || el('pp-case-title'); }
     });
+    aiRenderSlots(sc);   // 간직한 '넣은 칸' 표시를 다시 그린다
   }
   function scriptBusy(on) {
     const dl = root.dlg, pt = root.preptask;
@@ -2105,7 +2136,7 @@
     const id = sc.bid;
     sc.busy = true; scriptBusy(true);
     fetch(base(id) + '/board-script-docx', { method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Screen-Id': 'prep_detail', 'X-Button-Id': 'script_docx' }, body: JSON.stringify(pt.scriptBody(vals)) })
+      headers: { 'Content-Type': 'application/json', 'X-Screen-Id': 'prep_detail', 'X-Button-Id': 'script_docx' }, body: JSON.stringify(scriptReqBody(sc, vals)) })
       .then(function (r) {
         if (r.ok) {
           const draft = r.headers && r.headers.get ? r.headers.get('X-Script-Draft') === 'Y' : false;
@@ -2125,7 +2156,8 @@
           document.body.appendChild(a); a.click(); document.body.removeChild(a);
           setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
           const ov = el('bs-dlg');
-          if (ov) dl.close(ov);
+          if (ov && !pt.aiHold(sc.ai)) dl.close(ov);   // 만드는 중이거나 넣지 않은 AI 초안이 있으면 닫지 않는다(6분 걸린 초안이 말없이 사라지지 않게)
+          else if (ov) dl.line(el('bs-busy'), pt.T.aiWordDone);   // AI 진행 줄(#bs-ai-line)을 덮지 않으려고 이미 있는 안내 줄(#bs-busy)에 쓴다
           scriptLine(sc, pt.scriptDoneText(res.draft), false, res.draft);
           return;
         }
@@ -2138,6 +2170,200 @@
         } else if (el('bs-dlg')) dl.line(el('bs-err'), er.msg, true);
         else scriptLine(sc, er.msg, true);   // 만드는 동안 창을 닫았다면 구간 줄에
       });
+  }
+  // ── 7단계 대본 'AI 초안'(NEXT 129, design-reviewer 11-27 0028_a50813cc) ──
+  // sc.ai = 창을 연 동안의 실행 상태(닫으면 사라짐 — 초안은 저장하지 않는다), sc.aiMarks = { 칸key: { after, undo, prevMark } } '넣은 칸' 표시(건 단위로 간직).
+  // 서버 요청은 한 번에 2칸(intro·effect). 도착해도 포커스를 옮기지 않는다. 늦게 온 응답은 run 번호로 버린다.
+  // 서버가 준 글은 조립 함수(preptask.ai*Html — esc)나 textarea.value·textContent로만 칸에 넣는다(innerHTML 직접 대입 금지, security 11-27).
+  function aiFieldOf(key) {
+    const l = root.preptask.AI_FIELDS.filter(function (f) { return f.key === key; });
+    return l.length ? l[0] : null;
+  }
+  function aiSay(sc, text) { const n = el('bs-ai-sr'); if (n) n.textContent = text; }   // 읽어 주는 곳 — 시작·2분마다·도착·오류에만 바꾼다
+  function aiRenderLine(sc, tickOnly) {
+    const pt = root.preptask, ai = sc.ai, node = el('bs-ai-line');
+    if (!ai || !node) return;
+    const l = ai.line, tn = el('bs-ai-time');
+    if (tickOnly && tn && l && l.t) { tn.textContent = l.t; return; }   // 1초마다는 숫자만 바꾼다(단추 포커스가 풀리지 않게)
+    const act = document.activeElement, hadFocus = !!act && node.contains(act);
+    node.innerHTML = pt.aiLineHtml(l);
+    node.className = l && l.err ? 'dlg-err' : 'dlg-hint';   // 둘은 패딩·선이 같아 높이가 흔들리지 않는다
+    if (hadFocus) { const nb = node.querySelector('button') || el('bs-ai-go'); if (nb) nb.focus(); }
+  }
+  function aiRenderHead(sc) {
+    const pt = root.preptask, ai = sc.ai;
+    if (!ai || !ai.on) return;
+    const go = el('bs-ai-go'), help = el('bs-ai-h'), bs = el('bs-ai-basis');
+    if (go) {
+      go.textContent = pt.aiGoText(ai.busy, ai.hadResult);
+      if (ai.busy) go.setAttribute('aria-disabled', 'true'); else go.removeAttribute('aria-disabled');   // Tab은 머문다. 중복 요청은 aiGo가 막는다
+    }
+    if (help) help.textContent = ai.hadResult ? pt.T.aiHelpAgain : pt.T.aiHelp;
+    if (bs) { bs.innerHTML = pt.aiBasisHtml(ai.basis); bs.hidden = !ai.basis.length; }
+    aiRenderLine(sc);
+  }
+  function aiRenderSlot(sc, key) {
+    const pt = root.preptask, dl = root.dlg, f = aiFieldOf(key), node = f && el(f.id + '-ai-s'), ta = f && el(f.id);
+    if (!node || !ta) return;
+    const mark = sc.aiMarks[key] || null;
+    node.innerHTML = pt.aiSlotHtml(f, { box: (sc.ai && sc.ai.boxes[key]) || null, mark: mark, append: ta.value.trim() !== '' });
+    const aim = f.id + '-aim', cur = ta.getAttribute('aria-describedby');   // 칸에 들어가면 'AI 초안을 넣은 칸' 문장도 읽힌다
+    const next = mark ? dl.mergeDescribedBy(cur, aim) : dl.removeDescribedBy(cur, aim);
+    if (next) ta.setAttribute('aria-describedby', next); else ta.removeAttribute('aria-describedby');
+  }
+  function aiRenderSlots(sc) { root.preptask.AI_FIELDS.forEach(function (f) { aiRenderSlot(sc, f.key); }); }
+  function aiEnd(ai) {   // 타이머·마감을 풀고 이 실행의 번호를 무효로 한다(늦게 온 응답·옛 타이머가 새 실행을 건드리지 않게)
+    if (ai.timer) clearInterval(ai.timer);
+    if (ai.cut) clearTimeout(ai.cut);
+    ai.timer = 0; ai.cut = 0; ai.busy = false; ai.ctl = null; ai.run += 1;
+  }
+  function aiClose(sc) {   // 창을 닫을 때(확인 뒤 '버리고 닫기' 포함): 요청을 끊고 상태를 버린다. 칸의 글·'넣은 칸' 표시는 남기되 되돌리기는 거둔다
+    const ai = sc.ai;
+    if (!ai) return;
+    const ctl = ai.ctl;
+    ai.dead = true; aiEnd(ai);
+    if (ctl) ctl.abort();
+    Object.keys(sc.aiMarks).forEach(function (k) { sc.aiMarks[k].undo = null; sc.aiMarks[k].prevMark = null; });
+    sc.ai = null;
+  }
+  function aiGo(sc) {
+    const pt = root.preptask, ai = sc.ai;
+    if (!ai || !ai.on || ai.dead || ai.busy || S.script !== sc) return;   // aria-disabled 단추는 눌러도 아무것도 하지 않는다
+    const run = ai.run + 1;
+    ai.run = run; ai.busy = true; ai.timedOut = false; ai.t0 = Date.now(); ai.srMin = 0;
+    ai.line = pt.aiLine({ kind: 'busy', sec: 0 });
+    aiRenderHead(sc);   // 포커스는 단추에 그대로 둔다
+    aiSay(sc, pt.T.aiSrStart);
+    ai.timer = setInterval(function () { aiTick(sc, ai, run); }, 1000);
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    ai.ctl = ctl;
+    ai.cut = setTimeout(function () {   // 9분 — 서버 마감(480초)보다 길게
+      if (ai.run !== run) return;
+      ai.timedOut = true;
+      if (ctl) ctl.abort(); else aiDone(sc, ai, run, { ok: false, status: 0 });
+    }, pt.AI_FETCH_MS);
+    const init = { method: 'POST', headers: { 'X-Screen-Id': 'prep_detail', 'X-Button-Id': 'script_ai_draft' } };   // ScriptDraftUiIds가 기대하는 값(자기신고)
+    if (ctl) init.signal = ctl.signal;
+    fetch(base(sc.bid) + '/board-script-draft', init)
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) { return r.ok ? { ok: true, status: r.status, res: j } : { ok: false, status: r.status }; });
+      })
+      .catch(function () { return { ok: false, status: 0 }; })
+      .then(function (out) { aiDone(sc, ai, run, out); });
+  }
+  function aiTick(sc, ai, run) {
+    const pt = root.preptask;
+    if (ai.dead || ai.run !== run || !ai.busy) return;
+    const sec = Math.round((Date.now() - ai.t0) / 1000);
+    const next = pt.aiLine({ kind: sec >= pt.AI_LONG_SEC ? 'long' : 'busy', sec: sec });
+    const same = !!ai.line && ai.line.a === next.a && ai.line.b === next.b;
+    ai.line = next;
+    if (!(same && !next.t)) aiRenderLine(sc, same);   // 8분 뒤 줄은 글이 안 바뀌므로 다시 그리지 않는다
+    const min = Math.floor(sec / 60);
+    if (min >= 2 && min % 2 === 0 && min > ai.srMin) { ai.srMin = min; aiSay(sc, pt.T.aiSrTick(min)); }
+  }
+  function aiDone(sc, ai, run, out) {
+    const pt = root.preptask;
+    if (ai.dead || ai.run !== run) return;   // 닫았거나 그만뒀거나 새로 시작했다 — 늦게 온 응답은 버린다
+    const sec = Math.round((Date.now() - ai.t0) / 1000), timedOut = ai.timedOut;
+    aiEnd(ai);
+    const oc = out && out.ok ? pt.aiOutcome(out.res) : 'fail';
+    if (oc === 'fail') {   // 옛 초안·옛 근거는 그대로 둔다(실패해도 잃는 것이 없게)
+      const status = out && out.ok ? 200 : (out && out.status) || 0;
+      const reason = out && out.ok ? str(out.res && out.res.reason) : (status ? '' : (timedOut ? 'TIMEOUT' : 'UNREACHABLE'));
+      ai.line = pt.aiLine({ kind: 'fail', msg: pt.aiFailText(status, reason) });
+    } else {
+      ai.hadResult = true;
+      ai.boxes = pt.aiBoxes(out.res);   // 새 결과가 와야 옛 초안을 바꾼다
+      ai.basis = pt.aiBasisLines(out.res);
+      const blanks = pt.AI_FIELDS.filter(function (f) { return !ai.boxes[f.key].text; }).map(function (f) { return f.label; });
+      ai.line = oc === 'blank' ? pt.aiLine({ kind: 'allblank' }) : pt.aiLine({ kind: 'arrived', sec: sec, blanks: blanks });
+      aiRenderSlots(sc);
+    }
+    aiRenderHead(sc);
+    aiSay(sc, pt.aiLinePlain(ai.line));
+  }
+  function aiStop(sc) {
+    const pt = root.preptask, ai = sc.ai;
+    if (!ai || !ai.busy) return;
+    const ctl = ai.ctl;
+    aiEnd(ai);
+    ai.line = pt.aiLine({ kind: 'stopped' });
+    if (ctl) ctl.abort();
+    aiRenderHead(sc);
+    aiSay(sc, pt.aiLinePlain(ai.line));
+    const go = el('bs-ai-go');
+    if (go) go.focus();   // [그만두기] → 묶음 단추
+  }
+  function aiShow(sc) {   // [초안 보기] → 처음 온 초안 상자의 제목으로(스스로 도착해서는 포커스를 옮기지 않는다)
+    const pt = root.preptask, ai = sc.ai;
+    const list = pt.AI_FIELDS.filter(function (f) { return ai.boxes[f.key] && ai.boxes[f.key].text; });
+    const f = list[0] || pt.AI_FIELDS.filter(function (x) { return ai.boxes[x.key]; })[0];
+    const h = f ? el(f.id + '-ai-h') : null;
+    if (!h) return;
+    h.focus();
+    if (h.scrollIntoView) h.scrollIntoView({ block: 'nearest' });
+  }
+  function aiToEnd(ta) { ta.focus(); if (ta.setSelectionRange) ta.setSelectionRange(ta.value.length, ta.value.length); }
+  function aiPut(sc, key) {
+    const pt = root.preptask, dl = root.dlg, f = aiFieldOf(key), box = f && sc.ai.boxes[key], ta = f && el(f.id);
+    if (!f || !box || !box.text || !ta) return;
+    const m = pt.aiMerge(ta.value, box.text);
+    if (m.err) { const e = el(f.id + '-ai-e'); if (e) e.textContent = m.err; return; }   // 넣지 않는다. 단추는 막지 않는다
+    sc.aiMarks[key] = { after: m.value, undo: ta.value, prevMark: sc.aiMarks[key] || null };
+    ta.value = m.value;
+    delete sc.ai.boxes[key];
+    const n = el(f.id + '-n');
+    if (n) n.textContent = pt.scriptCountText(ta.value.length);
+    dl.clearInvalid(ta);
+    aiRenderSlot(sc, key);
+    aiToEnd(ta);
+  }
+  function aiDrop(sc, key) {   // [버리기]·[알림 닫기]
+    const f = aiFieldOf(key), ta = f && el(f.id);
+    if (!f || !ta) return;
+    delete sc.ai.boxes[key];
+    aiRenderSlot(sc, key);
+    ta.focus();
+  }
+  function aiUndo(sc, key) {
+    const pt = root.preptask, f = aiFieldOf(key), ta = f && el(f.id), m = sc.aiMarks[key];
+    if (!f || !ta || !m || m.undo == null) return;
+    ta.value = m.undo;
+    if (m.prevMark) sc.aiMarks[key] = m.prevMark; else delete sc.aiMarks[key];   // 되돌리면 AI 칸 표시도 걷는다(이전 넣기가 있었으면 그 표시로)
+    const n = el(f.id + '-n');
+    if (n) n.textContent = pt.scriptCountText(ta.value.length);
+    aiRenderSlot(sc, key);
+    aiToEnd(ta);
+  }
+  function aiAct(sc, act, key) {
+    const ai = sc.ai;
+    if (!ai || ai.dead || S.script !== sc) return;
+    if (act === 'stop') aiStop(sc);
+    else if (act === 'show') aiShow(sc);
+    else if (act === 'put') aiPut(sc, key);
+    else if (act === 'undo') aiUndo(sc, key);
+    else if (act === 'drop' || act === 'dismiss') aiDrop(sc, key);
+  }
+  function aiInput(sc, ta) {   // 칸을 고치는 중 — 되돌리기 거두기·AI 표시 걷기·[칸에 넣기]/[뒤에 붙이기] 이름 바꾸기
+    const pt = root.preptask;
+    if (!sc.ai) return;
+    const f = pt.AI_FIELDS.filter(function (x) { return x.id === ta.id; })[0];
+    if (!f) return;
+    const m = sc.aiMarks[f.key];
+    if (m && !ta.value.trim()) { delete sc.aiMarks[f.key]; aiRenderSlot(sc, f.key); }   // 칸을 비우면 'AI 칸'에서 뺀다
+    else if (m && m.undo != null && ta.value !== m.after) { m.undo = null; m.prevMark = null; aiRenderSlot(sc, f.key); }   // 한 글자라도 고치면 [되돌리기]만 사라지고 표시 줄은 남는다
+    const e = el(f.id + '-ai-e');
+    if (e) e.textContent = '';
+    const put = document.querySelector('#' + f.id + '-ai [data-ai-act="put"]');
+    if (put) { const l = pt.aiPutLabel(f, ta.value.trim() !== ''); put.textContent = l.text; put.setAttribute('aria-label', l.aria); }
+  }
+  // 요청 본문 = 기존 입력값 + 'AI 초안에서 시작한 칸' 키들(시스템 기록용 — Word에는 표시하지 않는다). 칸을 비웠으면 aiFieldsOf가 뺀다.
+  function scriptReqBody(sc, vals) {
+    const pt = root.preptask, body = pt.scriptBody(vals);   // 시험이 'pt.scriptBody(vals)' 글자를 이 구간에서 찾는다
+    const af = pt.aiFieldsOf(sc.aiMarks, vals);
+    if (af.length) body.ai_fields = af;
+    return body;
   }
   function onSetConfirmed(attachId) {
     const name = attachName(attachId);

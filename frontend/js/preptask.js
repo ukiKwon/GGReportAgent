@@ -215,7 +215,6 @@
     scriptDoneDraft: '대본 Word를 [확정 전 초안]으로 만들었습니다. 이사회 자료나 기관 선정 입찰참여 관련 요약이 아직 확정 전입니다. 확정한 뒤 다시 만들면 \'[확정 전 초안]\'이 빠집니다.',
     scriptErrRound: '차수는 1~999 사이 숫자로 적으세요.',
     scriptErrTerm: '약정기간은 1~30 사이 숫자(년)로 적으세요.',
-    scriptErrMeeting: '회의 이름을 다시 고르세요.',
     scriptErrAmount: '승인 금액 기준을 다시 고르세요.',
     scriptErrShort: function (label, max) { return label + scriptEunNeun(label) + ' ' + max + '자까지 적을 수 있습니다.'; },
     scriptErrArea: function (label) { return label + ' 칸은 12줄, 한 줄 300자, 합계 1,000자까지 적을 수 있습니다.'; },
@@ -228,6 +227,53 @@
     scriptErr404: '대본 Word를 만들지 못했습니다. 이 건을 볼 수 없거나 없어진 건입니다. [← 제안 준비 현황으로] 돌아가 다시 여세요.',
     scriptErr413: '대본 Word를 만들지 못했습니다. 적은 글이 너무 깁니다. 기관별 서술 칸을 줄인 뒤 다시 누르세요.',
     scriptErr500: '대본 Word를 만들지 못했습니다. 서버에서 오류가 났습니다. 잠시 뒤 다시 누르고, 계속되면 개발부서에 알려 주세요.',
+    // 발표 대본 'AI 초안'(NEXT 129, design-reviewer 11-27 0028_a50813cc 5절) — 공통 AI 초안 표시의 첫 사례
+    aiGo: 'AI 초안 만들기',
+    aiAgain: 'AI 초안 다시 만들기',
+    aiBusy: 'AI 초안 만드는 중…',
+    aiHelp: '보고 전 사전 설명과 기대효과 2칸의 초안을 함께 만듭니다. 몇 분 걸리고(최대 8분), 그동안 다른 칸을 계속 적을 수 있습니다.',
+    aiHelpAgain: '같은 자료로 다시 만들면 같은 글이 나옵니다. 이사회 자료나 요약서를 고친 뒤에 누르세요.',
+    aiStop: '그만두기', aiShow: '초안 보기', aiPut: '칸에 넣기', aiAppend: '뒤에 붙이기', aiDrop: '버리기', aiUndo: '되돌리기', aiDismiss: '알림 닫기',
+    aiTitle: 'AI 초안', aiChipCheck: '사실 확인 필요', aiChipPre: '확정 전 자료 기준',
+    aiChars: function (n) { return n + '자'; },
+    aiMark: 'AI 초안을 넣은 칸입니다. 초안이므로 발표자가 사실을 확인하고 고쳐 씁니다.',
+    aiOverTotal: function (cur, add) { return '붙이면 1,000자를 넘습니다(칸 ' + cur + '자 + 초안 ' + add + '자). 칸의 글을 줄인 뒤 다시 누르세요.'; },
+    aiOverLines: '붙이면 12줄을 넘습니다. 칸의 줄을 줄인 뒤 다시 누르세요.',
+    aiBasisHead: '근거 자료: ',
+    // 공고 파일 표시 코드→문구 표(5-5). 지금 서버는 USED/NONE만 준다 — 코드가 늘면 여기에 줄을 더한다. 모르는 코드는 NONE 문구.
+    aiNoticeText: { NONE: '공고 파일 내용은 이번 초안에 쓰지 않았습니다.' },
+    aiSrStart: 'AI 초안을 만들기 시작했습니다. 최대 8분 걸립니다.',
+    aiSrTick: function (m) { return m + '분 지났습니다. 아직 만드는 중입니다.'; },
+    aiWordDone: '대본 Word를 내려받았습니다. 칸에 넣지 않은 AI 초안은 Word에 들어가지 않았습니다.',
+    aiDirtyBusy: 'AI 초안을 만드는 중입니다. 닫으면 만들던 초안이 사라지고, 다시 만들면 처음부터 기다려야 합니다.',
+    aiDirtyDraft: '칸에 넣지 않은 AI 초안이 있습니다. 닫으면 초안이 사라집니다(저장되지 않음). 칸에 적은 글은 남습니다.',
+    // 고정 줄 #bs-ai-line — [앞, (경과 시간), 뒤] 조각. 경과 시간만 --mono로 감싼다
+    aiLn: {
+      busy: ['AI 초안을 만드는 중입니다(', ' 지남). 8분 안에 끝나지 않으면 멈춥니다. 다른 칸은 계속 적으세요.'],
+      long: '8분이 지났습니다. 곧 끝나지 않으면 멈춥니다.',
+      arrived2: ['AI 초안 2칸이 왔습니다(', '). 칸 아래 초안을 읽고 [칸에 넣기]를 눌러야 대본에 들어갑니다.'],
+      arrived1: ['AI 초안이 1칸만 왔습니다(', '). ', ' 비어 왔습니다. 칸 아래 이유를 보세요.'],
+      allBlank: '두 칸 모두 비어 왔습니다. 칸 아래 이유를 보세요.',
+      stopped: 'AI 초안 만들기를 그만두었습니다. 적은 내용은 그대로입니다.'
+    },
+    // 요청 전체 실패(5-3) — 고정 줄에 한 번만
+    aiErrBusy: 'AI 초안을 만들지 못했습니다. 다른 요청이 지금 AI를 쓰고 있습니다. 몇 분 뒤 다시 누르세요.',
+    aiErrCooldown: 'AI 초안을 만들지 못했습니다. 방금 요청해서 1분쯤 지나야 다시 만들 수 있습니다. 잠시 뒤 다시 누르세요.',
+    aiErrTimeout: 'AI 초안을 만들지 못했습니다. 8분 안에 끝나지 않아 멈췄습니다. 잠시 뒤 다시 누르거나 칸에 직접 적으세요.',
+    aiErrConnect: 'AI 초안을 만들지 못했습니다. AI에 연결되지 않았습니다. 이 PC의 AI 프로그램이 켜져 있는지 확인한 뒤 다시 누르고, 계속되면 개발부서에 알려 주세요.',
+    aiErrBasis: 'AI 초안을 만들지 못했습니다. 그 사이 이사회 자료의 확정 상태가 바뀌었습니다. 창을 닫았다가 다시 열어 만드세요.',
+    aiErr403: 'AI 초안을 만들지 못했습니다. 담당 영업과 영업부장만 만들 수 있습니다.',
+    aiErr404: 'AI 초안을 만들지 못했습니다. 이 건을 볼 수 없거나 없어진 건입니다. [← 제안 준비 현황으로] 돌아가 다시 여세요.',
+    aiErr409: 'AI 초안을 만들지 못했습니다. 이 건은 지금 단계에서 만들 수 없습니다(확정·중단·개설 대기). 창을 닫았다가 다시 여세요.',
+    aiErr500: 'AI 초안을 만들지 못했습니다. 서버에서 오류가 났습니다. 잠시 뒤 다시 누르고, 계속되면 개발부서에 알려 주세요.',
+    // 칸별 사유(5-4) — 숫자·개인정보·빈 답에는 '다시 누르세요'를 쓰지 않는다(같은 자료면 같은 글)
+    aiWhy: {
+      NO_BASIS: '근거로 쓸 자료가 없어 비웠습니다. 요약서나 이사회 자료를 채운 뒤 다시 만들거나 직접 적으세요.',
+      NUMBER_NOT_IN_BASIS: '자료에 없는 숫자가 나와 비웠습니다. 직접 적으세요.',
+      PII: '개인정보로 보이는 글이 섞여 비웠습니다. 직접 적으세요.',
+      EMPTY_OUTPUT: 'AI가 빈 답을 돌려주었습니다. 직접 적으세요.'
+    },
+    aiWhyDefault: 'AI가 이 칸을 비워 두었습니다. 직접 적으세요.',
     // 3단계 선정 평가표(공고 원본에서 글자 그대로 옮겨 옴 — LLM 없음)
     secScoring: '선정 평가표 (공고 원본에서 옮겨 옴)',
     scLoading: '공고 원본에서 선정 평가표를 찾는 중…',
@@ -757,7 +803,7 @@
   const SCRIPT_AREA_MAX = { lines: 12, line: 300, total: 1000 };
   function sf(key, id, kind, label, o) { return Object.assign({ key: key, id: id, kind: kind, label: label }, o || {}); }
   pt.SCRIPT_FIELDS = [
-    sf('meeting', 'bs-meeting', 'radio', '회의 이름', { def: 'BOARD', opts: [['BOARD', '이사회'], ['COMMITTEE', '출연금심의위원회']], help: '대본 제목과 첫 문장의 회의 이름이 바뀝니다.' }),
+    // 회의 이름은 '이사회' 고정(사용자 11-26) — 칸을 두지 않고 본문에도 싣지 않는다(서버 기본값 BOARD가 쓰인다).
     sf('round', 'bs-round', 'affix', '차수', { pre: '제', post: '차', max: 3, ph: '12', aria: '차수, 숫자', help: '숫자만 적습니다.' }),
     sf('agenda_no', 'bs-agenda', 'text', '의안번호', { max: 30, ph: '제 2026-○○-○○호', help: '공문에 적힌 그대로 \'의안번호\' 뒤에 들어갑니다.' }),
     sf('speaker_dept', 'bs-sdept', 'text', '소속', { max: 40, ph: '예: ○○영업본부', help: '시스템에 소속이 없어 직접 적습니다.' }),
@@ -767,17 +813,17 @@
     sf('review_when', 'bs-when', 'text', '심의·평가 예상 시기', { max: 40, ph: '10월 중', help: '문장에 그대로 들어갑니다. \'10월 중\'처럼 끝까지 적으세요.' }),
     sf('amount_mode', 'bs-amt', 'radio', '승인 금액 기준', { def: 'EXCL_IT', opts: [['EXCL_IT', '출연금+예비비'], ['TOTAL', '표 합계(전산 구축·운영비 포함)']], help: '이사회 자료 첫 표 \'재산상 이익제공 및 기부금(안)\'에서 어느 합을 쓸지 고릅니다.' }),
     sf('accounting', 'bs-acct', 'text', '회계처리 방식', { max: 40, ph: '무형자산', help: '비우면 \'무형자산\'으로 들어갑니다.' }),
-    sf('intro', 'bs-intro', 'area', '보고 전 사전 설명', { ph: '예: 신설 구로 행정구역이 바뀐 배경', help: '인사 뒤, 의안 소개 앞에 들어갑니다. 비우면 이 문단을 뺍니다.' }),
+    sf('intro', 'bs-intro', 'area', '보고 전 사전 설명', { ph: '예: 신설 구로 행정구역이 바뀐 배경', help: '인사 뒤, 의안 소개 앞에 들어갑니다. 비우면 이 문단을 뺍니다.', ai: true }),
     sf('status_note', 'bs-status', 'area', '기관 현황 덧붙임', { ph: '예: 과거 우리 은행이 금고였던 이력', help: '임직원 수·예산·현 거래 은행 문장 뒤에 이어 붙습니다.' }),
-    sf('effect', 'bs-effect', 'area', '기대효과', { ph: '비우면 요약서의 \'우리 회사 기대효과\'', help: '비우면 \'기관 선정 입찰참여 관련 요약\'의 기대효과가 들어갑니다. 그것도 비었으면 〔기대효과 입력 필요〕로 남습니다.' }),
+    sf('effect', 'bs-effect', 'area', '기대효과', { ph: '비우면 요약서의 \'우리 회사 기대효과\'', help: '비우면 \'기관 선정 입찰참여 관련 요약\'의 기대효과가 들어갑니다. 그것도 비었으면 〔기대효과 입력 필요〕로 남습니다.', ai: true }),
     sf('profit_note', 'bs-profit', 'area', '수익성 덧붙임', { ph: '예: 보수적으로 잡은 산출 근거', help: '순이익 문장 뒤에 이어 붙습니다.' }),
   ];
   pt.SCRIPT_GROUPS = [
-    { name: '회의', keys: ['meeting', 'round', 'agenda_no'] },
+    { name: '회의', keys: ['round', 'agenda_no'] },
     { name: '발표자', keys: ['speaker_dept', 'speaker_name', 'speaker_title'] },
     { name: '약정·일정', keys: ['term_years', 'review_when'] },
     { name: '금액·회계', keys: ['amount_mode', 'accounting'] },
-    { name: '기관별 서술', keys: ['intro', 'status_note', 'effect', 'profit_note'] },
+    { name: '기관별 서술', keys: ['intro', 'status_note', 'effect', 'profit_note'], ai: true },
   ];
   function scriptField(key) {
     for (let i = 0; i < pt.SCRIPT_FIELDS.length; i += 1) if (pt.SCRIPT_FIELDS[i].key === key) return pt.SCRIPT_FIELDS[i];
@@ -822,28 +868,30 @@
     const field = f.kind === 'affix' ? '<span class="bs-affix"><span aria-hidden="true">' + esc(f.pre) + '</span>' + input + '<span aria-hidden="true">' + esc(f.post) + '</span></span>' : input;
     return '<div class="dlg-f"><label for="' + f.id + '">' + esc(f.label) + '</label>' + field + '<p class="tm-note" id="' + f.id + '-h">' + esc(f.help) + '</p></div>';
   }
-  function scriptArea(f, val) {
+  function scriptArea(f, val, slot) {
     return '<div class="dlg-f bs-wide"><div class="bs-lrow"><label for="' + f.id + '">' + esc(f.label) + '</label><span id="' + f.id + '-n" class="tm-count">' + esc(pt.scriptCountText(val.length)) + '</span></div>' +
       '<textarea id="' + f.id + '" rows="3" maxlength="1000" placeholder="' + esc(f.ph) + '" aria-describedby="' + f.id + '-h ' + f.id + '-n">' + esc(val) + '</textarea>' +
-      '<p class="tm-note" id="' + f.id + '-h">' + esc(f.help) + '</p></div>';
+      '<p class="tm-note" id="' + f.id + '-h">' + esc(f.help) + '</p>' +
+      (f.ai && slot ? '<div class="bs-ai-slot" id="' + f.id + '-ai-s"></div>' : '') + '</div>';
   }
   // 입력 창 전체(덮개 포함, 숨김 상태). o = { name(기관명), vals(건별로 간직한 값 — 없으면 기본값) }. prep.js가 body 직계로 붙이고 dlg.open으로 연다.
   pt.scriptDialogHtml = function (o) {
-    const x = o || {}, vals = x.vals || {};
+    const x = o || {}, vals = x.vals || {}, aiOn = !!(x.ai && x.ai.on), slots = !!(x.ai && x.ai.slots);
     const auto = ['기관명·지역(시·도): 기관 정보', '임직원 수·예산·현 거래 은행: 기관 선정 입찰참여 관련 요약(볼 수 있는 사람에게만)',
       '승인 금액·순이익·연도: 이사회 자료(담당 영업·영업부장에게만)', '약정 시작일: 협약 개시일'];
     const groups = pt.SCRIPT_GROUPS.map(function (g) {
-      return '<fieldset class="bs-grp"><legend>' + esc(g.name) + '</legend><div class="bs-grid">' + g.keys.map(function (k) {
+      return '<fieldset class="bs-grp"><legend>' + esc(g.name) + '</legend>' + (g.ai && aiOn ? pt.aiBlockHtml(x.ai) : '') + '<div class="bs-grid">' + g.keys.map(function (k) {
         const f = scriptField(k), val = str(vals[k]);
         if (f.kind === 'radio') return scriptRadio(f, val || f.def);
-        return f.kind === 'area' ? scriptArea(f, val) : scriptInput(f, val);
+        return f.kind === 'area' ? scriptArea(f, val, slots) : scriptInput(f, val);
       }).join('') + '</div></fieldset>';
     }).join('');
     return '<div id="bs-dlg" class="modal-overlay" style="display:none"><div class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="bs-t" aria-describedby="bs-hint">' +
       '<header class="dlg-bar"><h2 class="dlg-t" id="bs-t" tabindex="-1">' + esc(T.scriptTitle(str(x.name))) + '</h2>' +
       '<div class="dlg-acts"><button type="button" id="bs-cancel">' + esc(T.scriptCancel) + '</button><button type="button" id="bs-go" class="dlg-go">' + esc(T.scriptGo) + '</button></div></header>' +
       '<div class="dlg-note"><p class="dlg-hint" id="bs-hint">' + esc(T.scriptHint1) + '<br>' + esc(T.scriptHint2) + '</p>' +
-      '<p class="dlg-hint" id="bs-busy" role="status"></p><p class="dlg-err" id="bs-err" role="alert"></p></div>' +
+      '<p class="dlg-hint" id="bs-busy" role="status"></p><p class="dlg-err" id="bs-err" role="alert"></p>' +
+      (aiOn ? '<p class="dlg-hint" id="bs-ai-line"></p><p class="sr-only" id="bs-ai-sr" role="status"></p>' : '') + '</div>' +
       '<div class="dlg-body"><section class="bs-auto" aria-labelledby="bs-auto-h"><h3 id="bs-auto-h">' + esc(T.scriptAutoHead) + '</h3><ul>' +
       auto.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul><p>' + esc(T.scriptAutoNote) + '</p></section>' + groups + '</div></div></div>';
   };
@@ -888,7 +936,6 @@
         let msg;
         if (f.key === 'round') msg = T.scriptErrRound;
         else if (f.key === 'term_years') msg = T.scriptErrTerm;
-        else if (f.key === 'meeting') msg = T.scriptErrMeeting;
         else if (f.key === 'amount_mode') msg = T.scriptErrAmount;
         else if (f.kind === 'area') msg = T.scriptErrArea(f.label);
         else msg = T.scriptErrShort(f.label, f.max);
@@ -903,6 +950,161 @@
     return { id: '', msg: T.scriptErr500 };
   };
   pt.scriptDoneText = function (draft) { return draft ? T.scriptDoneDraft : T.scriptDone; };
+
+  // ── 발표 대본 'AI 초안'(NEXT 129, design-reviewer 11-27 0028_a50813cc) — 공통 AI 초안 표시. 상태·요청은 prep.js가 가진다 ──
+  pt.AI_FIELDS = pt.SCRIPT_FIELDS.filter(function (f) { return f.ai === true; });
+  pt.AI_KEEP_AFTER_EDIT = true;   // 사용자 결정 11-27: [칸에 넣기]/[뒤에 붙이기]를 한 칸은 사람이 고쳐 써도 ai_fields에 남긴다(되돌리기·완전히 비움만 뺀다)
+  pt.AI_FETCH_MS = 540000;        // 브라우저가 기다리는 한계 9분 = 서버 마감 480초 + 60초
+  pt.AI_LONG_SEC = 480;           // 이 시간이 지나면 '8분이 지났습니다' 줄
+
+  // 단추를 그릴지(상태 조회 전 1차 판정) — 서버 규칙(담당 영업·영업부장, 4상태)과 같은 근거: viewer.is_assignee·is_head, state_cd
+  pt.aiGate = function (view) {
+    const v = view || {}, vw = v.viewer || {};
+    return (vw.is_assignee === true || vw.is_head === true) && prep.TASK_STATES.indexOf(str(v.state_cd)) >= 0;
+  };
+  pt.aiElapsed = function (sec) {
+    const s = Math.max(0, Math.floor(Number(sec) || 0)), m = Math.floor(s / 60), r = s % 60;
+    return m ? m + '분' + (r ? ' ' + r + '초' : '') : r + '초';
+  };
+  pt.aiGoText = function (busy, again) { return busy ? T.aiBusy : again ? T.aiAgain : T.aiGo; };
+
+  // 서버 응답 → 'ok'(칸 글이 하나라도 있음) | 'blank'(전부 빔 — 칸별 사유) | 'fail'(요청 전체 실패: BUSY·COOLDOWN·BASIS_CHANGED·시간 초과·연결·모양 이상)
+  pt.aiOutcome = function (res) {
+    const r = res && typeof res === 'object' ? res : {}, f = r.fields && typeof r.fields === 'object' ? r.fields : {};
+    if (pt.AI_FIELDS.some(function (x) { return str(f[x.key]).trim() !== ''; })) return 'ok';
+    const why = str(r.reason);
+    return why === 'ALL_BLANKED' || why === 'NO_BASIS' ? 'blank' : 'fail';
+  };
+  pt.aiReasonText = function (code) { return T.aiWhy[str(code)] || T.aiWhyDefault; };
+  // → { 칸key: { text, pre } | { text:'', why } } — pre = 확정 전 자료 기준(요청 단위 basis.draft)
+  pt.aiBoxes = function (res) {
+    const r = res || {}, f = r.fields || {}, why = r.empty_reasons || {}, pre = !!(r.basis && r.basis.draft === true), out = {};
+    pt.AI_FIELDS.forEach(function (x) {
+      const text = str(f[x.key]).trim();
+      out[x.key] = text ? { text: text, pre: pre } : { text: '', why: pt.aiReasonText(why[x.key]) };
+    });
+    return out;
+  };
+  // 근거 줄들(쓰지 않은 자료는 뺀다). 공고 파일 줄은 T.aiNoticeText(코드→문구 표)에서 찾는다 — 지금 서버는 USED/NONE만 준다(5-5).
+  pt.aiBasisLines = function (res) {
+    const r = res || {}, b = r.basis || {}, f = r.fields || {}, lab = { CONFIRMED: '(확정)', CURRENT: '(확정 전)' }, used = [], out = [];
+    if (str(f.intro).trim()) used.push('기관 정보');   // 사전 설명 글이 왔다 = 기관 정보를 근거로 삼았다(서버 askable 규칙)
+    if (lab[b.summary]) used.push('요약서' + lab[b.summary]);
+    if (lab[b.board]) used.push('이사회 자료' + lab[b.board]);
+    if (b.notice === 'USED') used.push('공고 파일');
+    if (used.length) out.push(T.aiBasisHead + used.join(', '));
+    if (b.notice !== 'USED') out.push(T.aiNoticeText[str(b.notice)] || T.aiNoticeText.NONE);
+    return out;
+  };
+  pt.aiBasisHtml = function (lines) { return (lines || []).map(function (l) { return '<p class="tm-note">' + esc(l) + '</p>'; }).join(''); };
+  // 요청 전체 실패 → 고정 줄 문장. status: HTTP 상태(네트워크·시간 초과는 0), reason: 200 본문의 reason 또는 클라이언트가 정한 TIMEOUT·UNREACHABLE
+  pt.aiFailText = function (status, reason) {
+    const s = Number(status) || 0, why = str(reason);
+    if (s === 401) return T.scriptErr401;
+    if (s === 403) return T.aiErr403;
+    if (s === 404) return T.aiErr404;
+    if (s === 409) return T.aiErr409;
+    if (s === 503) return T.aiErrConnect;
+    if (why === 'BUSY') return T.aiErrBusy;
+    if (why === 'COOLDOWN') return T.aiErrCooldown;
+    if (why === 'TIMEOUT') return T.aiErrTimeout;
+    if (why === 'BASIS_CHANGED') return T.aiErrBasis;
+    if (why === 'UNREACHABLE' || why === 'MODEL_MISSING') return T.aiErrConnect;
+    return T.aiErr500;   // LLM_ERROR·BAD_OUTPUT·그 밖
+  };
+  // 고정 줄 모델 { a, t, b, btn:'stop'|'show'|'', err } — t는 경과 시간(--mono로 감싼다). st.kind = busy|long|arrived|allblank|stopped|fail
+  pt.aiLine = function (st) {
+    const x = st || {}, ln = T.aiLn;
+    if (x.kind === 'busy') return { a: ln.busy[0], t: pt.aiElapsed(x.sec), b: ln.busy[1], btn: 'stop', err: false };
+    if (x.kind === 'long') return { a: ln.long, t: '', b: '', btn: 'stop', err: false };
+    if (x.kind === 'arrived') {
+      const blanks = x.blanks || [], t = pt.aiElapsed(x.sec);
+      if (!blanks.length) return { a: ln.arrived2[0], t: t, b: ln.arrived2[1], btn: 'show', err: false };
+      return { a: ln.arrived1[0], t: t, b: ln.arrived1[1] + blanks[0] + scriptEunNeun(blanks[0]) + ln.arrived1[2], btn: 'show', err: false };   // 칸이 2개라 빈 칸은 하나
+    }
+    if (x.kind === 'allblank') return { a: ln.allBlank, t: '', b: '', btn: '', err: false };
+    if (x.kind === 'stopped') return { a: ln.stopped, t: '', b: '', btn: '', err: false };
+    if (x.kind === 'fail') return { a: str(x.msg), t: '', b: '', btn: '', err: true };
+    return null;
+  };
+  pt.aiLinePlain = function (l) { return l ? str(l.a) + str(l.t) + str(l.b) : ''; };
+  pt.aiLineHtml = function (l) {
+    if (!l) return '';
+    const btn = l.btn === 'stop' ? '<button type="button" data-ai-act="stop">' + esc(T.aiStop) + '</button>'
+      : l.btn === 'show' ? '<button type="button" data-ai-act="show">' + esc(T.aiShow) + '</button>' : '';
+    return '<span class="bs-ai-lt">' + esc(l.a) + (l.t ? '<span class="m" id="bs-ai-time">' + esc(l.t) + '</span>' : '') + esc(l.b) + '</span>' + btn;
+  };
+  // 묶음 머리 아래 단추 블록. o = { busy, again, basis[] }
+  pt.aiBlockHtml = function (o) {
+    const x = o || {}, basis = x.basis || [];
+    return '<div class="bs-ai" id="bs-ai"><button type="button" id="bs-ai-go" aria-describedby="bs-ai-h"' + (x.busy ? ' aria-disabled="true"' : '') + '>' + esc(pt.aiGoText(x.busy, x.again)) + '</button>' +
+      '<p class="tm-note" id="bs-ai-h">' + esc(x.again ? T.aiHelpAgain : T.aiHelp) + '</p>' +
+      '<div class="bs-ai-basis" id="bs-ai-basis"' + (basis.length ? '' : ' hidden') + '>' + pt.aiBasisHtml(basis) + '</div></div>';
+  };
+  pt.aiPutLabel = function (f, append) {
+    return { text: append ? T.aiAppend : T.aiPut, aria: f.label + (append ? ' 칸 뒤에 AI 초안 붙이기' : ' 칸에 AI 초안 넣기') };
+  };
+  // 칸 아래 자리 안쪽: [넣은 뒤 표시 줄] + [초안 상자 | 사유 상자]. st = { box:{text,pre}|{text:'',why}|null, mark:{undo}|null, append }. 본문은 esc 뒤 CSS pre-wrap
+  pt.aiSlotHtml = function (f, st) {
+    const x = st || {}, b = x.box, id = f.id, key = esc(f.key);
+    let h = '';
+    if (x.mark) {
+      h += '<p class="tm-note bs-ai-mark" id="' + id + '-aim">' + esc(T.aiMark) +
+        (x.mark.undo != null ? '<button type="button" data-ai-act="undo" data-key="' + key + '" aria-label="' + esc(f.label + ' 칸 되돌리기') + '">' + esc(T.aiUndo) + '</button>' : '') + '</p>';
+    }
+    if (!b) return h;
+    const head = '<div class="bs-draft-h"><h3 id="' + id + '-ai-h" tabindex="-1">' + esc(T.aiTitle) + '<span class="sr-only">, ' + esc(f.label) + '</span></h3>';
+    if (b.text) {
+      const put = pt.aiPutLabel(f, !!x.append);
+      return h + '<section class="bs-draft" id="' + id + '-ai" aria-labelledby="' + id + '-ai-h">' + head +
+        '<span class="bs-tag">' + esc(T.aiChipCheck) + '</span>' + (b.pre ? '<span class="bs-tag bs-tag-pre">' + esc(T.aiChipPre) + '</span>' : '') + '</div>' +
+        '<p class="bs-draft-txt">' + esc(b.text) + '</p>' +
+        '<p class="tm-note bs-draft-err" id="' + id + '-ai-e" role="status"></p>' +
+        '<div class="bs-draft-acts"><button type="button" data-ai-act="put" data-key="' + key + '" aria-label="' + esc(put.aria) + '" aria-describedby="' + id + '-ai-e">' + esc(put.text) + '</button>' +
+        '<button type="button" data-ai-act="drop" data-key="' + key + '" aria-label="' + esc(f.label + ' AI 초안 버리기') + '">' + esc(T.aiDrop) + '</button>' +
+        '<span class="tm-count">' + esc(T.aiChars(b.text.length)) + '</span></div></section>';
+    }
+    return h + '<section class="bs-draft bs-draft--empty" id="' + id + '-ai" aria-labelledby="' + id + '-ai-h">' + head + '</div>' +
+      '<p class="bs-draft-txt">' + esc(b.why) + '</p>' +
+      '<div class="bs-draft-acts"><button type="button" data-ai-act="dismiss" data-key="' + key + '" aria-label="' + esc(f.label + ' AI 초안 알림 닫기') + '">' + esc(T.aiDismiss) + '</button></div></section>';
+  };
+  // 칸 글 뒤에 빈 줄 하나를 두고 초안을 붙인다(칸이 비면 초안만). 한도(SCRIPT_AREA_MAX 12줄·줄당 300자·합계 1,000자)를 넘으면 err를 돌려주고 넣지 않는다.
+  pt.aiMerge = function (cur, draft) {
+    const c = str(cur).replace(/\r\n?/g, '\n').replace(/\s+$/, ''), d = str(draft).replace(/\r\n?/g, '\n').trim();
+    const append = c.trim() !== '', value = append ? c + '\n\n' + d : d;
+    const lines = value.split('\n');
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+    let err = '';
+    if (value.length > SCRIPT_AREA_MAX.total) err = append ? T.aiOverTotal(c.length, d.length) : T.scriptErrTotal;
+    else if (lines.length > SCRIPT_AREA_MAX.lines) err = append ? T.aiOverLines : T.scriptErrLines(lines.length);
+    else {
+      for (let i = 0; i < lines.length; i += 1) {
+        if (lines[i].length > SCRIPT_AREA_MAX.line) { err = T.scriptErrLineLen(i + 1, lines[i].length); break; }
+      }
+    }
+    return { value: value, append: append, err: err };
+  };
+  // 'AI 칸'으로 시스템 기록에 남길 키들(Word 요청의 ai_fields — Word에는 표시하지 않는다). marks = { key: { after } }
+  pt.aiFieldsOf = function (marks, vals, keep) {
+    const k = keep === undefined ? pt.AI_KEEP_AFTER_EDIT : keep, out = [];
+    pt.AI_FIELDS.forEach(function (f) {
+      const m = marks && marks[f.key];
+      if (!m) return;
+      const v = str(vals && vals[f.key]).trim();
+      if (!v) return;                                   // 비운 칸은 뺀다
+      if (k || v === str(m.after).trim()) out.push(f.key);
+    });
+    return out;
+  };
+  // 닫기 확인: '' | 'busy'(만드는 중) | 'draft'(넣지 않은 초안). ai = prep.js의 sc.ai { busy, boxes }
+  pt.aiDirtyKind = function (ai) {
+    if (!ai) return '';
+    if (ai.busy) return 'busy';
+    const boxes = ai.boxes || {};
+    return Object.keys(boxes).some(function (k) { return boxes[k] && boxes[k].text; }) ? 'draft' : '';
+  };
+  pt.aiHold = function (ai) { return pt.aiDirtyKind(ai) !== ''; };   // Word 성공 뒤에도 창을 유지할 조건 = 닫기 확인 조건
+  pt.aiDirtyText = function (kind) { return kind === 'busy' ? T.aiDirtyBusy : T.aiDirtyDraft; };
   // Content-Disposition의 filename*=UTF-8''… → 파일 이름(읽을 수 없거나 경로·제어 문자가 있으면 기본 이름)
   pt.SCRIPT_FILE_DEFAULT = '발표대본.docx';
   pt.scriptFileName = function (disposition) {

@@ -750,7 +750,8 @@ test('대본 입력 창: 마크업·접근성·칸 id·기본 선택·필수 표
   assert.ok(/class="dlg dlg--wide" role="dialog" aria-modal="true" aria-labelledby="bs-t"/.test(h) && h.indexOf('id="bs-dlg" class="modal-overlay" style="display:none"') >= 0);
   assert.ok(h.indexOf('발표 대본 Word 만들기 — 청주시&lt;i&gt;') > 0, '기관명은 이스케이프');
   assert.ok(h.indexOf('모든 칸은 선택입니다') > 0 && h.indexOf('적은 내용은 저장되지 않습니다') > 0);
-  assert.ok(/<input type="radio" name="bs-meeting" value="BOARD" checked>/.test(h) && !/value="COMMITTEE" checked/.test(h));
+  assert.ok(h.indexOf('bs-meeting') < 0 && h.indexOf('COMMITTEE') < 0 && h.indexOf('회의 이름') < 0, '회의 이름은 이사회 고정 — 고르는 칸이 없다(사용자 11-26)');
+  assert.ok(/<legend>회의<\/legend>/.test(h) && h.indexOf('id="bs-round"') > 0 && h.indexOf('id="bs-agenda"') > 0, '차수·의안번호는 그대로');
   assert.ok(/<input type="radio" name="bs-amt" value="EXCL_IT" checked>/.test(h) && !/value="TOTAL" checked/.test(h));
   assert.strictEqual((h.match(/dlg-req/g) || []).length, 0, '빨간 * 없음');
   assert.ok(!/<form/.test(h), 'Enter로 제출되지 않는다');
@@ -761,16 +762,17 @@ test('대본 입력 창: 마크업·접근성·칸 id·기본 선택·필수 표
   assert.ok(/<textarea id="bs-intro" rows="3" maxlength="1000"/.test(h) && h.indexOf('id="bs-intro-n" class="tm-count">0/1,000') > 0);
   assert.ok(h.indexOf('자동으로 들어가는 값') > 0 && h.indexOf('지어내지 않고 〔… 확인 필요〕') > 0);
   // 간직한 값을 다시 채운다(이스케이프)
-  const again = pt.scriptDialogHtml({ name: 'A', vals: { meeting: 'COMMITTEE', amount_mode: 'TOTAL', agenda_no: '제 1호"x', intro: '가\n나<b>' } });
-  assert.ok(/value="COMMITTEE" checked/.test(again) && /value="TOTAL" checked/.test(again));
+  const again = pt.scriptDialogHtml({ name: 'A', vals: { amount_mode: 'TOTAL', agenda_no: '제 1호"x', intro: '가\n나<b>' } });
+  assert.ok(/value="TOTAL" checked/.test(again));
   assert.ok(again.indexOf('value="제 1호&quot;x"') > 0 && again.indexOf('가\n나&lt;b&gt;</textarea>') > 0 && again.indexOf('>6/1,000<') > 0);
 });
 
 test('대본: 400 key → 칸 id 짝(요청 칸 이름 전부), 칸별 오류 문구', function () {
   const pairs = { round: 'bs-round', agenda_no: 'bs-agenda', speaker_dept: 'bs-sdept', speaker_name: 'bs-sname', speaker_title: 'bs-stitle', term_years: 'bs-term',
-    review_when: 'bs-when', accounting: 'bs-acct', intro: 'bs-intro', status_note: 'bs-status', effect: 'bs-effect', profit_note: 'bs-profit', meeting: 'bs-meeting', amount_mode: 'bs-amt' };
+    review_when: 'bs-when', accounting: 'bs-acct', intro: 'bs-intro', status_note: 'bs-status', effect: 'bs-effect', profit_note: 'bs-profit', amount_mode: 'bs-amt' };
   Object.keys(pairs).forEach(function (k) { assert.strictEqual(pt.scriptKeyToId(k), pairs[k], k); });
   assert.strictEqual(pt.scriptKeyToId('nope'), '');
+  assert.strictEqual(pt.scriptKeyToId('meeting'), '', '회의 이름 칸은 없다(이사회 고정)');
   const e = function (key) { return pt.scriptError(400, { code: 'BAD_VALUE', key: key }); };
   assert.deepStrictEqual(e('round'), { id: 'bs-round', msg: '차수는 1~999 사이 숫자로 적으세요.' });
   assert.strictEqual(e('term_years').msg, '약정기간은 1~30 사이 숫자(년)로 적으세요.');
@@ -779,7 +781,7 @@ test('대본: 400 key → 칸 id 짝(요청 칸 이름 전부), 칸별 오류 �
   assert.strictEqual(e('speaker_name').msg, '이름은 30자까지 적을 수 있습니다.');
   assert.strictEqual(e('accounting').msg, '회계처리 방식은 40자까지 적을 수 있습니다.');
   assert.strictEqual(e('review_when').msg, '심의·평가 예상 시기는 40자까지 적을 수 있습니다.');
-  assert.strictEqual(e('meeting').msg, '회의 이름을 다시 고르세요.');
+  assert.deepStrictEqual(e('meeting'), { id: '', msg: pt.T.scriptErr400 }, '칸이 없으니 창 전체 오류');
   assert.strictEqual(e('amount_mode').msg, '승인 금액 기준을 다시 고르세요.');
   assert.ok(e('effect').msg.indexOf('기대효과') === 0 && e('effect').id === 'bs-effect');
   // 칸을 모르는 400·그 밖 상태는 창 전체 오류(칸 id 없음), 내부 용어를 내지 않는다
@@ -814,10 +816,10 @@ test('대본: 여러 줄 칸 사전 검사(13줄·301자·합계 1,000자) — �
 });
 
 test('대본: 요청 본문 — 비운 칸은 키를 뺀다, 라디오는 늘 값이 있다, 숫자 칸은 숫자로', function () {
-  assert.deepStrictEqual(pt.scriptBody({}), { meeting: 'BOARD', amount_mode: 'EXCL_IT' });
-  assert.deepStrictEqual(pt.scriptBody({ round: '  ', agenda_no: '', intro: '   ', speaker_name: '' }), { meeting: 'BOARD', amount_mode: 'EXCL_IT' });
+  assert.deepStrictEqual(pt.scriptBody({}), { amount_mode: 'EXCL_IT' }, '회의 이름(meeting)은 보내지 않는다 — 서버 기본값 BOARD');
+  assert.deepStrictEqual(pt.scriptBody({ round: '  ', agenda_no: '', intro: '   ', speaker_name: '' }), { amount_mode: 'EXCL_IT' });
   assert.deepStrictEqual(pt.scriptBody({ meeting: 'COMMITTEE', amount_mode: 'TOTAL', round: '12', term_years: '4', agenda_no: ' 제 1호 ', intro: '가\n나', effect: '' }),
-    { meeting: 'COMMITTEE', amount_mode: 'TOTAL', round: 12, term_years: 4, agenda_no: '제 1호', intro: '가\n나' });
+    { amount_mode: 'TOTAL', round: 12, term_years: 4, agenda_no: '제 1호', intro: '가\n나' }, '남아 있던 meeting 값이 들어와도 싣지 않는다');
   assert.strictEqual(pt.scriptBody({ round: 'x1' }).round, 'x1', '숫자 모양이 아니면 그대로 보내 서버가 key로 알린다');
   assert.ok(!('speaker_dept' in pt.scriptBody({ speaker_dept: '' })));
 });

@@ -55,7 +55,7 @@
   h1, h2, h3, h4 { font-family:var(--font-display); }
   .bd-w-title, .lg-brand, .lg-rows .lg-name, .lg-cards .lg-cname, .wf-cards-title, .tm-title, .ts-step-title, #ad-head, .dlg-t, .isf-title { font-family:var(--font-display); }
   .bd-m-return h3, .mn h4, .db-sub-h h4, .hb-rec h4, .bs-auto h3, .rs-rm-h h3,
-  .ad-sub, .ts-sec-h, .ts-doc-h, .dc-h, #dg-memo-h,
+  .bs-draft h3, .ad-sub, .ts-sec-h, .ts-doc-h, .dc-h, #dg-memo-h,
   .db-rec h3 small, #ad-head .dg-hint, .isf-title .isf-bid, .dg-bucket h4 span { font-family:var(--font-text); }
 
   /* 공통 컨트롤 — 부드러운 라운드, 200ms 전이, 눌림 피드백 */
@@ -1728,6 +1728,27 @@
   .bs-affix { display:flex; align-items:center; gap:6px; font-size:13px; } .bs-affix input[type="text"] { width:64px; }
   .bs-radios { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:13px; }
   .bs-lrow { display:flex; align-items:baseline; gap:8px; margin:0 0 4px; } .bs-lrow label { margin:0; flex:1 1 auto; }
+  /* 공통 AI 초안 표시(.bs-ai·.bs-draft, design-reviewer 11-27 0028_a50813cc 6-2) — 점선 = 사람이 아직 손대지 않은 글. 아이콘·보라·그림자·움직임 없음, 새 변수·새 색 없음 */
+  .bs-ai { margin:0 0 12px; }
+  .bs-ai .tm-note { margin-top:6px; }
+  .bs-ai-basis .tm-note { margin-top:2px; }
+  #bs-ai-go[aria-disabled="true"] { color:var(--muted); border-color:var(--line); cursor:default; }   /* 막힌 단추도 Tab은 머문다(DESIGN 비활성 규칙) */
+  #bs-ai-go[aria-disabled="true"]:hover { background:var(--panel); border-color:var(--line); }
+  .bs-draft { margin:8px 0 0; padding:10px 12px; border:1px dashed var(--line-strong); border-radius:var(--r);
+              background:var(--panel2); font-size:13px; line-height:1.6; }
+  .bs-draft-h { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:0 0 6px; }
+  .bs-draft-h h3 { margin:0 4px 0 0; font-size:13px; font-weight:600; color:var(--fg); }
+  .bs-tag { font-size:12px; line-height:1.4; padding:1px 6px; border:1px solid var(--line-strong); border-radius:var(--r);
+            color:var(--fg); background:var(--panel); white-space:nowrap; }
+  .bs-tag-pre { color:var(--orange); border-color:var(--orange); background:color-mix(in srgb, var(--orange) 10%, var(--panel)); }
+  .bs-draft-txt { margin:0; white-space:pre-wrap; word-break:keep-all; color:var(--fg); max-width:62em; }
+  .bs-draft--empty .bs-draft-txt { color:var(--muted); font-size:12px; }
+  .bs-draft-err { color:var(--red); } .bs-draft-err:empty { display:none; }
+  .bs-draft-acts { display:flex; align-items:center; gap:8px; margin-top:8px; }
+  .bs-draft-acts .tm-count { margin-left:auto; }
+  .bs-ai-mark button { margin-left:6px; height:24px; padding:0 8px; }
+  #bs-ai-line button { margin-left:8px; height:24px; padding:0 8px; }   /* .dlg-err button과 같은 크기 */
+  #bs-ai-line .m { font-family:var(--mono); }
   /* 협약준비 업무 끝 */
 
   #tab-approvals.active, #tab-admin.active, #tab-myinfo.active { overflow:auto; gap:10px; }
