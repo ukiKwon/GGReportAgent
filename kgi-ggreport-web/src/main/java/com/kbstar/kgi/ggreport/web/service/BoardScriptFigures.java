@@ -19,7 +19,7 @@ final class BoardScriptFigures {
     private static final Pattern NUM = Pattern.compile("-?(?:[0-9]{1,3}(?:,[0-9]{3}){0,4}|[0-9]{1,13})(?:\\.[0-9]{1,2})?");
 
     final BigDecimal exclIt;   // 출연금 + 예비비 (둘 다 있을 때만)
-    final BigDecimal total;    // 합계 칸
+    final BigDecimal total;    // 합계 칸(승인 총 금액 기준). 합계 칸이 비면 출연금+예비비+전산시스템 구축/운영비용(셋 다 있을 때만)
     final BigDecimal profit;   // 표 B 명목가치 순이익
 
     private BoardScriptFigures(BigDecimal exclIt, BigDecimal total, BigDecimal profit) {
@@ -39,6 +39,12 @@ final class BoardScriptFigures {
             contrib = labeled(a, cells, "출연금");
             reserve = labeled(a, cells, "예비비");
             total = labeled(a, cells, "합계");
+            if (total == null) {   // 합계 칸이 비었으면 표의 세 항목을 최소한으로 더한다
+                BigDecimal it = labeled(a, cells, "전산시스템 구축/운영비용");
+                if (contrib != null && reserve != null && it != null) {
+                    total = contrib.add(reserve).add(it);
+                }
+            }
         }
         BoardDocSpec.Table b = table(doc, "B");
         if (b != null) {

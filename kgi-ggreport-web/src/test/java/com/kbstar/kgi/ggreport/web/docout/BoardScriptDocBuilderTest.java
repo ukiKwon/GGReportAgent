@@ -64,7 +64,7 @@ public class BoardScriptDocBuilderTest {
         assertTrue(t, t.contains("금고 약정기간은 2027년 1월 1일부터 총 4년이며,"));
         assertTrue(t, t.contains("10월 중 금고지정 심의·평가를 진행할 것으로 예상하고 있습니다."));
         assertTrue(t, t.contains("출연금은 예비비 포함하여 지자체별 출연금 총액 승인 범위 내에서"));
-        assertTrue(t, t.contains("승인받고자 하는 총 금액은 6억원입니다."));
+        assertTrue(t, t.contains("승인받고자 하는 총 금액은 9억원입니다."));   // 기본 = 표 합계(출연금+예비비 6 아님)
         assertTrue(t, t.contains("「가상구」는 당행을 4년간 금고은행으로 지정하고,"));
         assertTrue(t, t.contains("순이익은 명목가치 기준 10.14억원입니다."));
         assertTrue(t, t.contains("출연금은 무형자산으로 회계처리하겠습니다."));
@@ -100,12 +100,22 @@ public class BoardScriptDocBuilderTest {
     }
 
     @Test
-    public void 금액_기준_TOTAL은_표_A_합계를_쓴다() {
-        BoardScriptInput in = full();
-        in.amountMode = BoardScriptDocBuilder.AMOUNT_TOTAL;
+    public void 금액_기준_기본은_표_A_합계이고_합계가_출연금_예비비_합과_달라도_합계를_쓴다() {
+        BoardScriptInput in = full();   // 합계 9 ≠ 출연금+예비비 6
+        assertEquals(BoardScriptDocBuilder.AMOUNT_TOTAL, in.amountMode);
         assertTrue(text(in).contains("승인받고자 하는 총 금액은 9억원입니다."));
-        in.amountTotal = null;
+        assertFalse(text(in).contains("총 금액은 6억원"));
+        in.amountMode = null;   // 비어 있어도 합계
+        assertTrue(text(in).contains("총 금액은 9억원입니다."));
+        in.amountTotal = null;  // 합계가 없으면 출연금+예비비로 대신하지 않고 확인 필요
         assertTrue(text(in).contains("〔이사회 자료 표 A 확인 필요〕"));
+    }
+
+    @Test
+    public void 금액_기준_EXCL_IT를_명시하면_출연금_예비비_합을_쓴다() {
+        BoardScriptInput in = full();
+        in.amountMode = BoardScriptDocBuilder.AMOUNT_EXCL_IT;
+        assertTrue(text(in).contains("승인받고자 하는 총 금액은 6억원입니다."));
     }
 
     @Test

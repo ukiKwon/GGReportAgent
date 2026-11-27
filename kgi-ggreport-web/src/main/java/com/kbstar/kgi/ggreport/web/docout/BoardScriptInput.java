@@ -22,11 +22,11 @@ public final class BoardScriptInput {
     public List<String> effectDefault = new ArrayList<String>();
     public String termStart;                // YYYY-MM-DD
     public BigDecimal amountExclIt;         // 표 A 출연금+예비비(억원)
-    public BigDecimal amountTotal;          // 표 A 합계(억원)
+    public BigDecimal amountTotal;          // 표 A 합계(억원) — 기본 승인 총 금액(출연금+예비비+전산시스템 구축/운영비용)
     public BigDecimal profit;               // 표 B 명목가치 순이익(억원)
     // ── 손 입력 ──
     public String meeting = BoardScriptDocBuilder.MEETING_BOARD;
-    public String amountMode = BoardScriptDocBuilder.AMOUNT_EXCL_IT;
+    public String amountMode = BoardScriptDocBuilder.AMOUNT_TOTAL;   // 기본 = 표 합계(사용자 결정 11-27). EXCL_IT 은 명시했을 때만
     public String round;
     public String agendaNo;
     public String speakerDept;

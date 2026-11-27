@@ -64,8 +64,7 @@ final class ScriptDraftPrompt {
         }
         if (wantEf) {
             putList(f, "우리 회사 기대효과(요약서)", b.effect, null, ef);
-            put(f, "이사회 자료 승인 금액(출연금+예비비, 억원)", plain(b.amountExclIt), null, ef);
-            put(f, "이사회 자료 표 합계(억원)", plain(b.amountTotal), null, ef);
+            put(f, "이사회 자료 승인 총 금액(표 합계, 억원)", plain(b.amountTotal), null, ef);
             put(f, "수익성 분석 순이익(명목가치, 억원)", plain(b.profit), null, ef);
             f.boardSent = b.hasBoardFigures();
         }

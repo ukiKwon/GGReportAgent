@@ -18,8 +18,14 @@ public class BoardScriptFiguresTest {
     }
 
     private static Map<String, Map<String, String>> values(String a1, String a2, String a4, String b) {
+        return values(a1, a2, a4, b, null);
+    }
+
+    /** a3 = 전산시스템 구축/운영비용 칸(r3_c2). */
+    private static Map<String, Map<String, String>> values(String a1, String a2, String a4, String b, String a3) {
         Map<String, Map<String, String>> v = new HashMap<String, Map<String, String>>();
         Map<String, String> a = new HashMap<String, String>();
+        if (a3 != null) a.put("r3_c2", a3);
         if (a1 != null) a.put("r1_c2", a1);
         if (a2 != null) a.put("r2_c2", a2);
         if (a4 != null) a.put("r4_c2", a4);
@@ -44,6 +50,16 @@ public class BoardScriptFiguresTest {
         assertNull(f.exclIt);
         assertEquals(new BigDecimal("9.00"), f.total);
         assertNull(f.profit);
+    }
+
+    @Test
+    public void 합계_칸이_비면_출연금_예비비_전산비를_더한다() {
+        BoardScriptFigures f = BoardScriptFigures.of(doc(), values("5.00", "1.00", null, null, "3.00"));
+        assertEquals(new BigDecimal("9.00"), f.total);
+        assertEquals(new BigDecimal("6.00"), f.exclIt);
+        assertNull(BoardScriptFigures.of(doc(), values("5.00", "1.00", null, null, null)).total);   // 전산비가 없으면 만들지 않는다
+        // 합계 칸이 있으면 그 값 그대로(더하지 않는다)
+        assertEquals(new BigDecimal("12.00"), BoardScriptFigures.of(doc(), values("5.00", "1.00", "12.00", null, "3.00")).total);
     }
 
     @Test

@@ -146,7 +146,7 @@ public final class BoardScriptDocBuilder {
     // ── 도우미 ──────────────────────────────────────────────────────────
 
     private static String amountText(BoardScriptInput in) {
-        BigDecimal v = AMOUNT_TOTAL.equals(in.amountMode) ? in.amountTotal : in.amountExclIt;
+        BigDecimal v = AMOUNT_EXCL_IT.equals(in.amountMode) ? in.amountExclIt : in.amountTotal;   // 기본(비어 있음 포함) = 표 합계
         if (v != null) {
             return fmtAmount(v) + "억원";
         }

@@ -183,11 +183,11 @@ public class PrepScriptService {
 
     private static String amountMode(String raw) {
         String v = raw == null ? "" : raw.trim();
-        if (v.isEmpty() || BoardScriptDocBuilder.AMOUNT_EXCL_IT.equals(v)) {
-            return BoardScriptDocBuilder.AMOUNT_EXCL_IT;
+        if (v.isEmpty() || BoardScriptDocBuilder.AMOUNT_TOTAL.equals(v)) {
+            return BoardScriptDocBuilder.AMOUNT_TOTAL;   // 비우면 표 합계(사용자 결정 11-27)
         }
-        if (BoardScriptDocBuilder.AMOUNT_TOTAL.equals(v)) {
-            return BoardScriptDocBuilder.AMOUNT_TOTAL;
+        if (BoardScriptDocBuilder.AMOUNT_EXCL_IT.equals(v)) {
+            return BoardScriptDocBuilder.AMOUNT_EXCL_IT;
         }
         throw bad("amount_mode", "승인 금액 기준이 올바르지 않습니다.");
     }
