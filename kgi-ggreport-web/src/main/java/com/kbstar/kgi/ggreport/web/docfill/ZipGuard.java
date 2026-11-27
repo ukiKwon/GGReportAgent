@@ -69,6 +69,16 @@ public final class ZipGuard {
      */
     public static Result check(byte[] zip, long maxEntry, long maxTotal, int maxCells, int maxRows, int maxCellChars,
                                int maxXmlElements) throws Rejected {
+        return check(zip, maxEntry, maxTotal, maxCells, maxRows, maxCellChars, maxXmlElements, false);
+    }
+
+    /**
+     * lenientNonXml=true(hwpx 전용)이면, 이름이 .xml/.hpf/.rels/.xsd/.rdf 로 끝나지 않는 항목이 '&lt;' 로 시작해도
+     * XML 파싱 실패(예: Preview/PrvText.txt 의 미리보기 글)는 거절하지 않고 건너뛴다. DOCTYPE·ENTITY 가 든 것,
+     * 요소 수 상한 초과 등 Rejected 로 던져지는 것은 그대로 거절한다. false 면 위 메서드와 같다.
+     */
+    public static Result check(byte[] zip, long maxEntry, long maxTotal, int maxCells, int maxRows, int maxCellChars,
+                               int maxXmlElements, boolean lenientNonXml) throws Rejected {
         Set<String> names = new LinkedHashSet<>();
         byte[] ct = null;
         long total = 0;
@@ -122,7 +132,10 @@ public final class ZipGuard {
                     }
                 }
                 if (scan) {
-                    countXml(kept.toByteArray(), counts, maxCells, maxRows, maxCellChars, maxXmlElements);
+                    // 지킬 조건 — 서버가 XML로 해석하는 항목 이름 ⊂ 엄격 검사 이름. 이름이 .xml이 아닌 항목을 XML로 읽는
+                    // 코드를 새로 만들면 이 완화를 다시 본다(security 11-27).
+                    boolean lenient = lenientNonXml && !strictXmlName(name);
+                    countXml(kept.toByteArray(), counts, maxCells, maxRows, maxCellChars, maxXmlElements, lenient);
                 }
                 if (isCt && kept != null && kept != NONE) {
                     ct = kept.toByteArray();
@@ -159,9 +172,33 @@ public final class ZipGuard {
         return false;
     }
 
+    private static final String[] STRICT_SUFFIX = {".xml", ".hpf", ".rels", ".xsd", ".rdf"};
+
+    /** 정규화(소문자)된 항목 이름이 XML 로 엄격히 검사할 이름인가. */
+    private static boolean strictXmlName(String name) {
+        for (String s : STRICT_SUFFIX) {
+            if (name.endsWith(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 파싱이 DTD 이벤트에 이르기 전에 실패해도 DOCTYPE·ENTITY 선언은 놓치지 않게 원문(0 바이트 제외)에서 찾는다. */
+    private static boolean hasDtdMarker(byte[] xml) {
+        StringBuilder sb = new StringBuilder(xml.length);
+        for (byte b : xml) {
+            if (b != 0) {
+                sb.append((char) (b & 0xFF));
+            }
+        }
+        String s = sb.toString().toLowerCase(Locale.ROOT);
+        return s.contains("<!doctype") || s.contains("<!entity");
+    }
+
     /** 한 xml 을 훑어 누적 칸·행·요소 수와 문자열 하나의 글자 수를 한도와 비교한다. DOCTYPE·파싱 실패는 BROKEN. */
     private static void countXml(byte[] xml, long[] counts, int maxCells, int maxRows, int maxCellChars,
-                                 int maxXmlElements) throws Rejected {
+                                 int maxXmlElements, boolean lenient) throws Rejected {
         XMLInputFactory f = XMLInputFactory.newInstance();
         f.setProperty(XMLInputFactory.SUPPORT_DTD, false);
         f.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
@@ -211,7 +248,11 @@ public final class ZipGuard {
                 }
             }
         } catch (XMLStreamException | RuntimeException ex) {
-            throw new Rejected("BROKEN");
+            // Rejected(DOCTYPE·요소 수 상한 등)는 여기 잡히지 않고 그대로 전파된다(checked, 위 두 타입의 하위가 아님).
+            if (!lenient || hasDtdMarker(xml)) {
+                throw new Rejected("BROKEN");
+            }
+            // lenient: XML 이 아닌 글(미리보기 텍스트 등) — 건너뜀
         } finally {
             if (r != null) {
                 try {

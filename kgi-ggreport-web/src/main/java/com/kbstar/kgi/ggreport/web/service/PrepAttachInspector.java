@@ -159,7 +159,8 @@ final class PrepAttachInspector {
     private static Result inspectZip(String ext, byte[] data) {
         ZipGuard.Result z;
         try {
-            z = ZipGuard.check(data, ENTRY_MAX, TOTAL_MAX, MAX_CELLS, MAX_ROWS, Integer.MAX_VALUE, MAX_ELEMENTS);
+            z = ZipGuard.check(data, ENTRY_MAX, TOTAL_MAX, MAX_CELLS, MAX_ROWS, Integer.MAX_VALUE, MAX_ELEMENTS,
+                    "hwpx".equals(ext));   // hwpx 의 Preview/PrvText.txt 는 '<' 로 시작하는 글이라 XML 이 아니어도 통과시킨다
         } catch (ZipGuard.Rejected e) {
             throw coded(400, "FILE_REJECTED", "파일 구조가 안전하지 않거나 열 수 없어 올릴 수 없습니다.");
         }
