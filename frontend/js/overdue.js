@@ -219,7 +219,7 @@
     if (n > 0) {
       const text = '공고 예정일 경과 미처리 ' + n + '건';
       btn.insertAdjacentHTML('beforeend', '<span class="nav-count" aria-hidden="true">' + n +
-        '</span><span class="sr-only ov-nav-sr">, ' + text + '</span>');
+        '</span><span class="sr-only ov-nav-sr"> (' + text + ')</span>');
       btn.title = text;
     } else if (label) {
       btn.title = label.textContent;
