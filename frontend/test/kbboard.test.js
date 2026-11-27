@@ -442,7 +442,7 @@ test('index.html: #notice-root 한 개, kbboard.js는 dashboard.js 뒤·app.js �
   assert.ok(!/@media \(max-width:1279px\)/.test(css.slice(css.indexOf('.hb-tt {'))) && /\.hb-tt col\.c-nm \{ width:auto; \}/.test(css));   // 12개월 열·범례와 1279px 숨김 규칙은 없다(사용자 11-26), 기관 열이 남는 폭을 받는다
   assert.ok(/@media \(max-width:880px\) \{[^@]*\.hb-band \{ grid-template-columns:1fr 1fr; \}[^@]*\.hb-tp \{ height:auto; \}/.test(css));
   assert.ok(/\.hb-tt \{ width:100%; min-width:814px;/.test(css) && /\.hb-tt\.wt \{ min-width:1028px; \}/.test(css) && !/@media[^{]*\{[^@]*\.hb-tt \{ min-width/.test(css) && /\.hb-ts \{[^}]*overflow:auto/.test(css));   // 816 = 기관 150 + 고르기 열 32(쓰기 모드는 늘 붙는다) + 고정 열 634(구분 166·금고 방식 92·마감까지 120·은행 124·준비 단계 132), 관심 표는 996 + 32 = 1028. 모든 폭에서 가로 스크롤(.hb-ts overflow:auto), 880px 미디어쿼리 밖(qa P2-1)
-  assert.ok(/\.hb-menu \{[^}]*border-radius:var\(--r\)/.test(css) && /\.hb-menu button\[aria-checked=false\] \.ck \{ visibility:hidden; \}/.test(css));
+  assert.ok(/\.hb-menu \{[^}]*border-radius:var\(--r-lg\)/.test(css) && /\.hb-menu button\[aria-checked=false\] \.ck \{ visibility:hidden; \}/.test(css));
   // 줄: 종료 D-n(크게 16px mono), 빨강·주황은 글자색만(채운 배경 없음), 종료일 미상은 muted, 행 이름 13px
   assert.ok(/\.hb-end b \{ font:700 16px\/1\.2 var\(--mono\)/.test(css) && /\.hb-end\.urgent b \{ color:color-mix\(in srgb, var\(--red\) 72%, var\(--fg\)\)/.test(css) && /\.hb-end\.soon b \{ color:color-mix\(in srgb, var\(--orange\) 72%, var\(--fg\)\)/.test(css));
   assert.ok(css.indexOf('72%, #fff') < 0 && css.indexOf('#626d81') < 0);                                     // 흰색 쪽 섞기·고정 색 없음(세션 44 요청)

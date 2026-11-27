@@ -71,7 +71,7 @@
     const cut = full.length > SRC_LIMIT;
     const shown = cut ? full.slice(0, SRC_LIMIT) + '…' : full;
     return {
-      html: '<span class="db-why"' + (cut ? ' title="' + esc(full) + '"' : '') + '>' + esc(shown) + ' (원문 표기)</span>',
+      html: '<span class="db-why pl-bud-src"' + (cut ? ' title="' + esc(full) + '"' : '') + '>' + esc(shown) + ' (원문 표기)</span>',
       sr: '원문 표기 ' + full,
       src: true,
     };

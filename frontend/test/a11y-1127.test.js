@@ -48,7 +48,7 @@ test('CSS: 별 24×24 이상, 열기 단추 카드 전체 영역, 쪽지 단추 
   assert.ok(/\.nt-act button \{[^}]*min-height:24px/.test(html));
   assert.ok(/input\[type=number\], input\[type=search\], input:not\(\[type\]\)/.test(html));
   assert.ok(/\.hb-stgs \{[^}]*padding:8px 16px/.test(html));
-  assert.ok(/\.bd-w-prog \{[^}]*border-radius:var\(--r\)/.test(html) && /#hb-ours \.waf i \{[^}]*border-radius:var\(--r\)/.test(html));
+  assert.ok(/\.bd-w-prog \{[^}]*border-radius:var\(--r-sm\)/.test(html) && /#hb-ours \.waf i \{[^}]*border-radius:var\(--r-sm\)/.test(html));
   assert.ok(/#ld-hero h1\{[^}]*letter-spacing:-\.02em/.test(html) && /\.lg-say \{[^}]*letter-spacing:-\.02em/.test(html));
   assert.ok(/#landing-view h2\{[^}]*text-wrap:balance/.test(html));
 });

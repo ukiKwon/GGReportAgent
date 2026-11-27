@@ -198,6 +198,7 @@
   <a href="#c142">142 이사회 발표 대본 — 'AI 초안' 단추와 초안 상자, 회의 이름 칸 제거</a>
   <a href="#c143">143 빈 표 2차 · 회의록 칸 글꼴 · 메뉴 접근 이름 · 현황판 제안 진행 줄 여백</a>
   <a href="#c145">145 표 여러 줄 행 첫 줄 맞춤 · 예산 칸 문구 오른쪽 (NEXT 124 마무리)</a>
+  <a href="#c146">146 모서리 3단(2/4/6px) — 팝업·표 틀·단추가 덜 각지게 (사용자 A안)</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2846,6 +2847,19 @@
 <p style="font-size:12px;margin:0 0 6px">• 여러 줄 행의 칸은 모두 첫 줄 글자 바닥선(baseline)에 맞춤 — 위에서부터 쌓이는 모양은 그대로, 단추·작은 글자도 첫 줄에 붙는다.</p>
 <table style="border-collapse:collapse;font-size:12px;width:100%"><thead><tr><th style="border:1px solid #ccd;padding:3px;text-align:center">예산(백만원)</th></tr></thead><tbody><tr><td style="border:1px solid #ccd;padding:3px;text-align:right">1,250</td></tr><tr><td style="border:1px solid #ccd;padding:3px;text-align:right;color:#666">예산 미기재</td></tr><tr><td style="border:1px solid #ccd;padding:3px;text-align:right">300<br><span style="display:block;text-align:right;color:#666">계산값</span></td></tr></tbody></table>
 <p style="font-size:12px;margin:4px 0 0">숫자와 사실 문구가 오른쪽 끝선 하나. 여러 줄로 꺾이는 원문 표기 문장만 왼쪽. 권한·메뉴 표 행 이름 칸에 낭독용 scope="row"(보이는 변화 없음). 죽은 CSS 3줄 정리.</p></div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c146">
+<h2>146 모서리 3단(2/4/6px) — 팝업·표 틀·단추가 덜 각지게 (2026-11-27, 사용자 시안 A안)</h2>
+<div class="why">왜: 사용자 11-27 "팝업이나 표나 기타 버튼들이 너무 각진 느낌" → impeccable 전수조사(handoff/agents/design-reviewer/2026-11-27_1228_a46e94f0.md) → 시안 4안(handoff/agents/history/2026-11-27_모서리_시안/index.html) 중 사용자가 A안 + 팝업 머리 아랫선 연하게를 고름.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+<div style="border:1px solid #6d7882;border-radius:2px;background:#fff"><div style="background:#f6f7f9;padding:8px;border-bottom:1px solid #6d7882;font-weight:700">결재 요청</div><div style="padding:8px;display:flex;gap:6px"><span style="border:1px solid #6d7882;border-radius:2px;padding:2px 10px">취소</span><span style="background:#0b50d0;color:#fff;border-radius:2px;padding:2px 10px">저장</span><span style="border:1px solid #c3c9d1;border-radius:2px;padding:0 6px;font-size:12px">칩</span></div></div>
+<p style="font-size:12px;margin:6px 0 0">모든 모서리 2px 한 값, 팝업 머리 아랫선도 바깥 틀과 같은 진한 선 — 상자 안에 상자가 겹쳐도 층이 안 보이고 각져 보였다.</p></div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+<div style="border:1px solid #6d7882;border-radius:6px;overflow:hidden;background:#fff"><div style="background:#f6f7f9;padding:8px;border-bottom:1px solid #c3c9d1;font-weight:700">결재 요청</div><div style="padding:8px;display:flex;gap:6px"><span style="border:1px solid #6d7882;border-radius:4px;padding:2px 10px">취소</span><span style="background:#0b50d0;color:#fff;border-radius:4px;padding:2px 10px">저장</span><span style="border:1px solid #c3c9d1;border-radius:4px;padding:0 6px;font-size:12px">칩</span></div></div>
+<p style="font-size:12px;margin:6px 0 0">작은 표식(견본·막대) 2px / 단추·입력·칩·탭·틀 안 카드 4px / 팝업·패널·띠·메뉴·말풍선·표 틀 6px. 팝업 머리 아랫선은 연한 선. 표 칸은 각진 그대로, 바깥 틀만 둥글게. 랜딩은 따로(--ld-r).</p></div></div></div>
 </div>
 </section>
 

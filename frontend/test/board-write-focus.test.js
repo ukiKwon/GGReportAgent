@@ -247,7 +247,7 @@ test('CSS 가시성 토큰(밝은 업무 포털, KRDS 참고): :root 값, hover 
   assert.strictEqual(tok('fg'), '#1e2124');
   assert.strictEqual(tok('muted'), '#464c53');
   assert.strictEqual(tok('accent-color'), '#0b50d0');
-  assert.ok(/--shadow:none/.test(root) && /--r-lg:2px; --r:2px; --r-sm:2px/.test(root));
+  assert.ok(/--shadow:none/.test(root) && /--r-lg:6px; --r:4px; --r-sm:2px/.test(root));
   assert.ok(/color-scheme:light/.test(root) && !/color-scheme:dark/.test(html));
   assert.ok(!/body::after \{ content:""/.test(html), '그레인 오버레이 삭제');
   assert.ok(/button:hover \{ background:var\(--panel2\); border-color:var\(--muted\); \}/.test(html));
