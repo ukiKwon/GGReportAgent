@@ -15,7 +15,7 @@
 6. **전체 mvn은 한 번에 한 세션**: 동시에 돌리면 CompleteApiTest가 %TEMP%\kgi-ggreport-test-archive 고정 폴더에서 부딪혀 1건 실패(단독 통과) — 돌리기 전에 다른 세션에 한 줄 알린다.
 
 ## 이어갈 일 (세션별 — 자세한 내용은 경로의 자료)
-- **fb(제안 준비 현황, 옛 6e) + 79**: e3306f88 내 작업=실제 담당만(79), af50db3f S3a·36e04b29·17431438 대본·742609a7 hwpx 올리기 수정·3a767b81·6c781be5 결과발표 표시(fb). **다음**: 팀 단위 권한 한 묶음(팀장=자기 팀 건만 열람·중단·확정 취소, 다른 팀 담당자 지정 차단, 이사회 자료·**회의록**도 자기 팀 팀장 열람 — Q-2026-11-27-02·15) security 검토 중 → 적용. 사용자 시험 대기: hwpx 공고 원본 올리기(사학연금, 이영업). 자료: handoff/agents/backend-dev/2026-11-27_1127_ae5e4868.md(팀 권한 설계), handoff/sessions/2026-11-27_1215_79.md, fb 세션 기록, 규칙 docs/화면규칙/제안 준비 현황*.md·이사회 자료 작성.md. 이어서 NEXT 133·121.
+- **fb(제안 준비 현황, 옛 6e) + 79**: 오늘 커밋 e3306f88(내 작업, 79)·af50db3f·36e04b29·17431438·742609a7·3a767b81·6c781be5·55b4620d(fb). **작업 폴더에 의도적 미커밋 6개 — 통째로 담지 말 것**: service/BidAssignmentService·PrepService·PrepAttachService·PrepFormService·PrepNobidService.java + test PrepServiceRulesTest.java(팀 권한 1차, 소스 적용 끝·시험 치환 전). 자료: **handoff/sessions/2026-11-27_0900_dash_fb.md** — 첫 일: 팀 권한 1차 시험 치환·커밋 → 2차(이사회 자료·회의록·디자인 검토·영업 작업물 1차 결재, Q-2026-11-27-02·15) → NEXT 136·137 설계·시안(설계 에이전트는 사용 한도로 보고서 없이 멈춤) → 125 S3b(ca S2 뒤). 79 기록 handoff/sessions/2026-11-27_1215_79.md(사용자 실화면 확인 2건).
 - **ca(입찰 현황판)**: NEXT 120 ① 2차 서버·② 기획 판정 → 114 ②~⑤. 자료: handoff/sessions/2026-11-26_0921_ca.md. security 후속(하): 응답 tag_source DEFAULT→NONE을 화면이 쓰는지, 옛 GOAL 이월 행 처리(data-auditor) — handoff/agents/security/ 11-26 15시대 PUSH-GATE 보고서.
 - **0d(디자인 검토)**: NEXT 124 남은 몫. 자료: handoff/sessions/2026-11-19_1930_0d.md '11-26'.
 - **e4(기관장)**: NEXT 77 — 옛 경력 12줄·qa P3·Word 실물·법원장 사진. 자료: handoff/sessions/2026-11-25_2020_e4.md '11-26'. 잊지 말 것: Word '요약'에는 연도·일자 정보가 없다.
