@@ -801,7 +801,7 @@
       const tabAttrs = ' role="tab" aria-selected="' + (on ? 'true' : 'false') + '" tabindex="' + ((on || (!hasActive && i === 0)) ? '0' : '-1') + '"' + (pin ? '' : ' aria-keyshortcuts="Delete"');   // 닫을 수 있는 탭은 Delete로도 닫힘을 낭독기에 알림(design P3)
       if (pin) {
         return '<div class="stab pin' + (on ? ' active' : '') + '" role="presentation" data-tab-id="' + esc(t.id) +
-          '" title="시작화면 (닫을 수 없음)"><button type="button" class="stab-tab"' + tabAttrs + '>' + homeIco + '<span class="stab-label">' + esc(t.label) + '</span><span class="sr-only">, 고정 탭</span></button></div>';
+          '" title="시작화면 (닫을 수 없음)"><button type="button" class="stab-tab"' + tabAttrs + '>' + homeIco + '<span class="stab-label">' + esc(t.label) + '</span><span class="sr-only"> (고정 탭)</span></button></div>';
       }
       return '<div class="stab' + (on ? ' active' : '') + '" role="presentation" data-tab-id="' + esc(t.id) +
         '" title="' + esc(t.label) + '"><button type="button" class="stab-tab"' + tabAttrs + '><span class="stab-label">' + esc(t.label) + '</span></button>' +
@@ -850,7 +850,6 @@
           '" aria-expanded="false" aria-controls="' + esc(lid) + '">' +
           '<span class="nav-label">' + esc(cat.title) + '</span>' +
           '<span class="nav-count nav-cat-count" aria-hidden="true" hidden></span><span class="sr-only nav-cat-sr" hidden></span>' +
-          '<span class="sr-only nav-cat-here" hidden>, 지금 보는 화면 포함</span>' +
           '<svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true" focusable="false"><path d="M4.5 2.5 8 6l-3.5 3.5"/></svg></button>' +
           '<div class="nav-items" id="' + esc(lid) + '" data-for="' + esc(cat.id) + '"><div class="nav-items-in">' + items + '</div></div>';
       }).join('');
@@ -896,22 +895,24 @@
       const vals = items ? Array.prototype.map.call(items.querySelectorAll('.nav-count'), function (c) { return c.textContent; }) : [];
       const n = root.nav.catBadgeSum(vals);
       const open = b.classList.contains('open');
-      const num = b.querySelector('.nav-cat-count'), sr = b.querySelector('.nav-cat-sr'), here = b.querySelector('.nav-cat-here');
-      const showN = n > 0 && !open;
+      const num = b.querySelector('.nav-cat-count'), sr = b.querySelector('.nav-cat-sr');
+      const showN = n > 0 && !open, showHere = b.classList.contains('has-active') && !open;
       if (num) {
         if (num.textContent !== (n > 0 ? String(n) : '')) num.textContent = n > 0 ? String(n) : '';
         if (num.hidden !== !showN) num.hidden = !showN;
       }
       if (sr) {
         // 항목 배지마다 짝지은 낭독 문장(.nav-count 바로 뒤 .sr-only)을 모아 쓴다 — 경과 배지(overdue)와 수집 요청 대기(plancollect)가 한 분류에 있어도 문장이 맞는다.
-        const t = n > 0 ? Array.prototype.map.call(items.querySelectorAll('.nav-count'), function (c) {
+        // 접힌 분류의 덧말 = 항목 배지 낭독 문장들 + 지금 보는 화면 여부를 괄호 하나로. 앞 공백으로 시작해야 Chrome 구분 공백과 겹쳐 ' , '가 생기지 않는다.
+        const parts = showN ? Array.prototype.map.call(items.querySelectorAll('.nav-count'), function (c) {
           const s = c.nextElementSibling;
-          return s && s.classList.contains('sr-only') ? s.textContent : '';
-        }).join('') : '';
+          return s && s.classList.contains('sr-only') ? s.textContent.replace(/^[\s,(]+|[\s)]+$/g, '') : '';
+        }).filter(Boolean) : [];
+        if (showHere) parts.push('지금 보는 화면이 이 안에 있음');
+        const t = parts.length ? ' (' + parts.join(', ') + ')' : '';
         if (sr.textContent !== t) sr.textContent = t;
-        if (sr.hidden !== !showN) sr.hidden = !showN;
+        if (sr.hidden !== !t) sr.hidden = !t;
       }
-      if (here) { const showHere = b.classList.contains('has-active') && !open; if (here.hidden !== !showHere) here.hidden = !showHere; }
     });
   };
 

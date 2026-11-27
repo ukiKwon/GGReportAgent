@@ -5,6 +5,7 @@
   // node --test로 열 수 있어야 면 클릭 규칙을 테스트로 고정할 수 있다.
   const logic = (typeof require !== 'undefined') ? require('./logic.js') : root.logic;
   const store = (typeof require !== 'undefined') ? require('./store.js') : root.store;
+  const tblEmpty = (typeof require !== 'undefined') ? require('./tblempty.js') : root.tblEmpty;
 
   const esc = logic.esc; // 공유 이스케이프(logic.esc) 위임
 
@@ -1489,7 +1490,9 @@
       if (!q) return true;
       return [r.name, r.type, render.REGION_NAME_ALL(r.region)].join(' ').toLowerCase().indexOf(q) >= 0;
     });
-    tb.innerHTML = rows.map(function (r) {
+    const none = document.getElementById('more-empty');
+    if (none) { none.hidden = rows.length > 0; none.textContent = q ? '조건에 맞는 입찰건이 없습니다. 검색어를 지우세요.' : '등록된 입찰건이 없습니다.'; }
+    tb.innerHTML = !rows.length ? tblEmpty.rowHtml(6) : rows.map(function (r) {
       return '<tr style="border-top:1px solid var(--line);">' +
         '<td style="padding:6px;">' + logic.esc(r.name) + '</td>' +
         '<td style="padding:6px;">' + logic.esc(r.type || '') + '</td>' +

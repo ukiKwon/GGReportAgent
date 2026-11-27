@@ -247,6 +247,31 @@ test('renderStageLog / renderLog / renderCoverage: 빈 입력도 예외 없이 �
   assert.match(el.innerHTML, /배점표가 아직 없습니다/);
 });
 
+test('renderCoverage: 배점표가 비어도 머리줄 6칸 + 빈 행 1줄 + 표 아래 안내', function () {
+  const el = fakeEl();
+  wf.renderCoverage(el, { criteria: [], total_score: 0 });
+  const h = el.innerHTML;
+  assert.ok(h.indexOf('class="wf-cov"') >= 0 && h.indexOf('<th>비고</th>') >= 0);
+  assert.strictEqual(h.match(/<tr class="tb-empty">[\s\S]*?<\/tr>/)[0].match(/<td>/g).length, 6);
+  assert.ok(h.indexOf('class="tb-empty-note"') >= 0 && h.indexOf('class="wf-empty"') < 0);
+});
+
+test('renderOverview: 제안서가 없어도 머리줄 7칸 + 빈 행 1줄, 안내는 표 아래(전체 0건 / 필터로 0건 문구가 다르다)', function () {
+  const el = { innerHTML: '' };
+  wf.renderOverview(el, { status: 'ok', rows: [], filter: 'all', error: '' });
+  let h = el.innerHTML;
+  assert.ok(h.indexOf('<th>마지막 변경</th>') >= 0);
+  assert.strictEqual(h.match(/<tr class="tb-empty">[\s\S]*?<\/tr>/)[0].match(/<td>/g).length, 7);
+  assert.ok(/class="tb-empty-note">등록된 제안서가 없습니다\./.test(h));
+  // 필터로 0건: 'review' 묶음을 뺀 표본(전체는 7건 남음)에 filter:'review'를 건다
+  const rows = wf.sortOverview(wf.overviewRows(OV)).filter(function (r) { return r.group !== 'review'; });
+  assert.ok(rows.length > 0);
+  wf.renderOverview(el, { status: 'ok', rows: rows, filter: 'review', error: '' });
+  h = el.innerHTML;
+  assert.strictEqual(h.match(/<tr class="tb-empty">[\s\S]*?<\/tr>/)[0].match(/<td>/g).length, 7);
+  assert.ok(/class="tb-empty-note">이 단계에 해당하는 제안서가 없습니다\./.test(h));
+});
+
 // ── 참여 결정 3단계 (계획 D) ────────────────────────────────────────
 test('participationRows: 결재된 차수는 done, 다음 한 차수만 current', function () {
   const rows = wf.participationRows({

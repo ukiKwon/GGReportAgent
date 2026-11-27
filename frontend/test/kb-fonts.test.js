@@ -47,7 +47,7 @@ test('KB 글꼴: url 이름 4개 고정, fonts/ 는 비어 있어도 되고(PC�
   faces.join('\n').replace(/url\("fonts\/([^"]+\.woff2)"\)/g, function (m, n) { if (names.indexOf(n) < 0) names.push(n); return m; });
   assert.deepStrictEqual(names.slice().sort(), ['KBFGDisplay-Bold.woff2', 'KBFGText-Bold.woff2', 'KBFGText-Light.woff2', 'KBFGText-Medium.woff2']);
   if (!fs.existsSync(dir)) return;   // 폴더가 없으면 통과 — 파일은 저장소 밖에서 따로 넣는다
-  const present = fs.readdirSync(dir).filter(function (f) { return !/^(\.gitkeep|readme(\..*)?)$/i.test(f); });
+  const present = fs.readdirSync(dir).filter(function (f) { return !/^(\.gitkeep|readme(\..*)?)$/i.test(f) && fs.statSync(path.join(dir, f)).isFile(); });   // 폴더는 무시(회사 보안 프로그램이 빈 폴더를 만든다, 11-27)
   present.forEach(function (n) {
     assert.ok(names.indexOf(n) >= 0, n + ' 은(는) 쓰지 않는 글꼴 이름');
     const p = path.join(dir, n);
@@ -83,4 +83,12 @@ test('KB 글꼴: 제목체는 h1~h4, 13px 이하 제목은 그 뒤에서 본문�
   ['.ad-sub', '.ts-sec-h', '.ts-doc-h', '.dc-h', '#dg-memo-h'].forEach(function (s) { assert.ok(back[0].indexOf(s) >= 0, s); });
   assert.ok(/\.lg-notice h3 \{[^}]*var\(--lg-serif\)/.test(css));   // 명조 제목은 그대로
   assert.ok(css.indexOf('input, select, textarea { font-family:inherit; }') > 0);
+});
+
+test('KB 글꼴: 회의록 붙여넣기 칸·가림 칩은 --mono(숫자·날짜 전용)를 쓰지 않고 본문체를 물려받는다', function () {
+  const slot = /\.mn-up \.mn-slot textarea \{[^}]*\}/.exec(css);
+  const mask = /\.mn-mask \{[^}]*\}/.exec(css);
+  assert.ok(slot && mask);
+  assert.ok(slot[0].indexOf('var(--mono)') < 0 && slot[0].indexOf('font-size:12px') > 0);
+  assert.ok(mask[0].indexOf('--mono') < 0 && mask[0].indexOf('font-size:12px') > 0);
 });

@@ -8,6 +8,7 @@
   const isNode = typeof require === 'function' && typeof module !== 'undefined';
   const logic = isNode ? require('./logic.js') : root.logic;
   const esc = logic.esc;
+  const tblEmpty = isNode ? require('./tblempty.js') : root.tblEmpty;
   const pc = {};
   function PL() { return isNode ? require('./plans.js') : root.plans; }
   function str(v) { return v == null ? '' : String(v); }
@@ -234,9 +235,9 @@
       '<div class="hc-actions"><button type="button" class="pp-danger" data-cr="do"' + (busy ? ' disabled' : '') + '>' +
       (busy ? '처리 중…' : (ex ? '제외하기' : '실패로 표시하기')) + '</button><button type="button" data-cr="cancel"' + (busy ? ' disabled' : '') + '>취소</button></div></div></td></tr>';
   };
-  pc.emptyHtml = function (view) {
-    return '<p class="ad-empty">' + (view === 'closed' ? '끝난 요청이 아직 없습니다.' : view === 'all' ? '수집 요청이 아직 없습니다.'
-      : '처리할 수집 요청이 없습니다. 영업부서가 기관 사업계획 화면에서 [수집 요청]을 누르면 여기에 모입니다.') + '</p>';
+  pc.emptyText = function (view) {
+    return view === 'closed' ? '끝난 요청이 아직 없습니다.' : view === 'all' ? '수집 요청이 아직 없습니다.'
+      : '처리할 수집 요청이 없습니다. 영업부서가 기관 사업계획 화면에서 [수집 요청]을 누르면 여기에 모입니다.';
   };
   pc.tableHtml = function (st) {
     const items = arr(st.items), sel = arr(st.sel), rk = pc.requestedKeys(items);
@@ -249,7 +250,7 @@
       return pc.rowHtml(it, { checked: sel.indexOf(it.req_key) >= 0, today: st.today, sub: typeof st.subOf === 'function' ? st.subOf(it.institution_id) : '' }) +
         (st.ask && st.ask.key === it.req_key ? pc.askRowHtml(it, st.ask, { busy: st.busy === 'close' }) : '');
     }).join('');
-    return '<table class="ad-table cr-table" id="cr-table" tabindex="-1"><caption class="sr-only">사업계획 수집 요청 목록(기관 단위)</caption>' + head + '<tbody>' + rows + '</tbody></table>';
+    return '<table class="ad-table cr-table" id="cr-table" tabindex="-1"><caption class="sr-only">사업계획 수집 요청 목록(기관 단위)</caption>' + head + '<tbody>' + (items.length ? rows : tblEmpty.rowHtml(8)) + '</tbody></table>';
   };
   // st = { view, items, agent, load:'idle'|'loading'|'ok'|'error'|'offline', code, sel, ask, runAsk, busy, today, subOf }
   pc.screenHtml = function (st) {
@@ -261,7 +262,7 @@
     }
     return (st.inboxOn && st.ib ? pc.ibHtml(st.ib) + '<h3 class="cr-h">기관별 수집 요청</h3>' : '') +   // 반입 절은 보기 전환 띠·목록 위에 따로(design 6-1). 폴더가 꺼졌으면 절도 안내도 없다
       pc.toolbarHtml(st) + (st.runAsk && st.agent ? pc.runAskHtml(pc.selection(st.items, st.sel).req.length) : '') +
-      (arr(st.items).length ? pc.tableHtml(st) : pc.emptyHtml(st.view));
+      pc.tableHtml(st) + (arr(st.items).length ? '' : tblEmpty.noteHtml(pc.emptyText(st.view)));
   };
 
   // ── 반입 대기 파일(NEXT 56) ──
@@ -401,12 +402,13 @@
     const head = '<thead><tr><th scope="col" class="cr-ck">' +
       (ready.length ? '<label><input type="checkbox" id="ib-all" aria-label="반입 가능 파일 모두 선택"' + (pc.ibAllOn(ib) ? ' checked' : '') + '></label>' : '<span class="sr-only">선택</span>') + '</th>' +
       '<th scope="col">기관</th><th scope="col">파일 날짜</th><th scope="col">상태</th><th scope="col" class="ib-num">건수</th><th scope="col" class="ib-num">경고</th></tr></thead>';
-    const rows = arr(ib.items).filter(Boolean).map(function (it) {
+    const list = arr(ib.items).filter(Boolean);
+    const rows = list.map(function (it) {
       const f = str(it.file_name);
       return pc.ibRowHtml(it, { checked: sel.indexOf(f) >= 0, result: own(res, f) ? res[f] : null });
     }).join('');
     return '<div class="ib-scroll" id="ib-scroll" tabindex="0" role="region" aria-label="반입 대기 파일 목록">' +
-      '<table class="ad-table cr-table ib-table" id="ib-table" tabindex="-1"><caption class="sr-only">반입 대기 파일 목록</caption>' + head + '<tbody>' + rows + '</tbody></table></div>';
+      '<table class="ad-table cr-table ib-table" id="ib-table" tabindex="-1"><caption class="sr-only">반입 대기 파일 목록</caption>' + head + '<tbody>' + (list.length ? rows : tblEmpty.rowHtml(6)) + '</tbody></table></div>';
   };
   pc.ibHtml = function (ib) {
     const b = pc.ibBtnState(ib), items = arr(ib.items);
@@ -419,7 +421,7 @@
     if (ib.scanned) {
       if (ib.ignored > 0) h += '<p class="ad-note">' + esc(pc.ignoredText(ib.ignored)) + '</p>';
       if (ib.truncated) h += '<p class="ad-note">' + esc(pc.TRUNC_TEXT) + '</p>';
-      h += items.length ? pc.ibTableHtml(ib) : '<p class="ad-empty">' + esc(pc.IB_EMPTY) + '</p>';
+      h += pc.ibTableHtml(ib) + (items.length ? '' : tblEmpty.noteHtml(pc.IB_EMPTY));
     }
     return h + '</section>';
   };

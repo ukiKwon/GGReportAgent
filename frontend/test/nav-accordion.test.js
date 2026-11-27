@@ -199,6 +199,7 @@ test('app.js 와이어링: 복원은 사번별, 저장은 직접 펼침·접음 
   assert.ok(/navHoming = true; try \{ openNavItem\(item\)/.test(APP));
   assert.ok(/saveNavOpen\(navOpenWho, openCat\)/.test(APP));                         // 로그아웃 중 guest 키로 새지 않게
   assert.ok(APP.indexOf('root.nav.catBadgeSum(vals)') >= 0);
-  assert.ok(APP.indexOf('nav-cat-count') >= 0 && APP.indexOf('지금 보는 화면 포함') >= 0);
+  assert.ok(APP.indexOf('nav-cat-count') >= 0 && APP.indexOf('지금 보는 화면이 이 안에 있음') >= 0);
+  assert.ok(APP.indexOf('nav-cat-here') < 0 && APP.indexOf('<span class="sr-only">, ') < 0);   // 덧말은 쉼표가 아니라 앞 공백 + 괄호(Chrome 구분 공백과 겹쳐 ' , '가 생기지 않게)
   assert.ok(/s\.emp \? s\.emp : 'guest'/.test(APP));                   // 키는 사번, 없으면 guest
 });

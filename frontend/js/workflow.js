@@ -3,6 +3,7 @@
   // 워크플로 현황판 (계획 C1). 순수 모델과 DOM 렌더를 한 파일 안에서 분리해 두고,
   // 순수부만 node --test로 고정한다. 서버 모드 전용 — file:// 폴백에서는 탭이 숨는다.
   const workflow = {};
+  const tblEmpty = (typeof require === 'function' && typeof module !== 'undefined') ? require('./tblempty.js') : root.tblEmpty;
 
   workflow.STAGES = [
     { no: 1, label: '입찰현황 파악', gate: null },
@@ -411,8 +412,11 @@
 
   workflow.renderCoverage = function (el, coverage) {
     const rows = workflow.coverageRows(coverage);
+    const covHead = '<table class="wf-cov"><thead><tr><th>평가항목</th><th>분류</th><th>배점</th>' +
+      '<th>담당팀</th><th>상태</th><th>비고</th></tr></thead><tbody>';
     if (!rows.length) {
-      el.innerHTML = '<p class="wf-empty">배점표가 아직 없습니다 — 3단계(RFP 공시·배점표 추출) 이후에 표시됩니다.</p>';
+      el.innerHTML = covHead + tblEmpty.rowHtml(6) + '</tbody></table>' +
+        tblEmpty.noteHtml('배점표가 아직 없습니다 — 3단계(RFP 공시·배점표 추출) 이후에 표시됩니다.');
       return;
     }
     const sum = workflow.coverageSummary(coverage);
@@ -424,8 +428,7 @@
       '<div class="wf-sum">배점표 매핑 — 작성 ' + sum.covered + '/' + sum.total + '항목 · ' +
         sum.coveredScore + '/' + sum.totalScore + '점</div>' +
       (pii ? '<div class="wf-sum wf-pii">' + esc(pii) + '</div>' : '') +
-      '<table class="wf-cov"><thead><tr><th>평가항목</th><th>분류</th><th>배점</th>' +
-      '<th>담당팀</th><th>상태</th><th>비고</th></tr></thead><tbody>' +
+      covHead +
       rows.map(function (r) {
         return '<tr class="' + r.state + '"><td>' + esc(r.item) + '</td>' +
           '<td>' + esc(r.category == null ? '-' : r.category) + '</td>' +
@@ -514,10 +517,10 @@
     el.innerHTML = head +
       '<div class="wf-chips" role="group" aria-label="단계 필터">' + chips +
         '<button id="wf-ov-reload">새로고침</button></div>' +
-      (shown.length
-        ? '<table class="ad-table wf-ov"><thead><tr><th>기관</th><th>지역</th><th>현재 단계</th><th>상태</th>' +
-          '<th>공고</th><th>작업 담당</th><th>마지막 변경</th></tr></thead><tbody>' + body + '</tbody></table>'
-        : '<p class="wf-empty">' + (all.length ? '이 단계에 해당하는 제안서가 없습니다.' : '등록된 제안서가 없습니다.') + '</p>');
+      '<table class="ad-table wf-ov"><thead><tr><th>기관</th><th>지역</th><th>현재 단계</th><th>상태</th>' +
+        '<th>공고</th><th>작업 담당</th><th>마지막 변경</th></tr></thead><tbody>' +
+        (shown.length ? body : tblEmpty.rowHtml(7)) + '</tbody></table>' +
+      (shown.length ? '' : tblEmpty.noteHtml(all.length ? '이 단계에 해당하는 제안서가 없습니다.' : '등록된 제안서가 없습니다.'));
   };
 
   // ── 배선 ────────────────────────────────────────────────────────────

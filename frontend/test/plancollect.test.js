@@ -241,6 +241,10 @@ test('screenHtml: 불러오는 중·오류(403은 권한 문구, 그 밖은 다�
   assert.ok(pc.screenHtml(screen({ load: 'offline' })).indexOf('서버에 연결되면') >= 0);
   assert.ok(pc.screenHtml(screen({ items: [] })).indexOf('처리할 수집 요청이 없습니다. 영업부서가 기관 사업계획 화면에서 [수집 요청]을 누르면 여기에 모입니다.') >= 0);
   assert.ok(pc.screenHtml(screen({ items: [], view: 'closed' })).indexOf('끝난 요청이 아직 없습니다.') >= 0);
+  const noReq = pc.screenHtml(screen({ items: [] }));   // 빈 목록도 머리줄 8칸 + 빈 행 1줄 + 표 아래 안내
+  assert.ok(noReq.indexOf('id="cr-table"') >= 0 && noReq.indexOf('class="tb-empty-note"') >= 0);
+  assert.strictEqual(noReq.match(/<tr class="tb-empty">[\s\S]*?<\/tr>/)[0].match(/<td>/g).length, 8);
+  assert.ok(pc.screenHtml(screen()).indexOf('tb-empty') < 0, '요청이 있으면 빈 행·안내가 없다');
   const h = pc.screenHtml(screen());
   assert.ok(h.indexOf('name="cr-view" value="open" checked') >= 0 && h.indexOf('id="cr-csv"') >= 0 && h.indexOf('id="cr-run"') < 0);
   assert.ok(h.indexOf('<caption class="sr-only">사업계획 수집 요청 목록(기관 단위)</caption>') >= 0 && h.indexOf('id="cr-all"') >= 0);
@@ -617,7 +621,7 @@ test('반입 절 그리기: 접힘(안내+[폴더 확인])·확인 중·빈 폴�
   assert.ok(c.indexOf('aria-busy') < 0 && pc.ibHtml(ibState({ items: [ibItem()] })).indexOf('aria-busy') < 0, '확인 중이 아니면 없다');
   assert.ok(pc.ibHtml(ibState({ items: [ibItem()], busy: 'scan' })).indexOf('<section class="ib-sec" id="ib-sec" aria-labelledby="ib-t" aria-busy="true">') >= 0);
   const empty = pc.ibHtml(ibState());
-  assert.ok(empty.indexOf('반입 폴더에 파일이 없습니다. 수집한 파일(기관ID_YYYYMMDD_plan.csv 또는 _news.csv)이 폴더에 들어오면 여기에 보입니다.') >= 0 && empty.indexOf('id="ib-table"') < 0);
+  assert.ok(empty.indexOf('반입 폴더에 파일이 없습니다. 수집한 파일(기관ID_YYYYMMDD_plan.csv 또는 _news.csv)이 폴더에 들어오면 여기에 보입니다.') >= 0 && empty.indexOf('id="ib-table"') >= 0 && empty.indexOf('<tr class="tb-empty">') >= 0 && empty.indexOf('class="tb-empty-note"') >= 0);
   assert.ok(empty.indexOf('id="ib-go" data-cr="ib-ask" disabled>선택한 <span class="v">0</span>개 반입</button>') >= 0 && empty.indexOf('id="ib-count"') >= 0);
   const notes = pc.ibHtml(ibState({ items: [ibItem()], ignored: 2, truncated: true }));
   assert.ok(notes.indexOf('이름 형식이 맞지 않는 파일 2개는 건너뛰었습니다') >= 0 && notes.indexOf('파일이 많아 최근 날짜부터 일부만 확인했습니다. 반입한 뒤 [폴더 확인]을 다시 누르세요.') >= 0);

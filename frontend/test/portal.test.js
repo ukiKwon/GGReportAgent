@@ -663,7 +663,7 @@ test('시작화면(11-19): 로그아웃·로그인 초기화, 복원 pending 보
   assert.ok(a.indexOf('root.nav.openTab(navTabs, item, navActiveId, undefined, pinId())') > 0 && a.indexOf('root.nav.closeTab(navTabs, id, navActiveId, pinId())') > 0);
   assert.ok(a.indexOf('root.nav.limitToRole(root.nav.build(visible, navContext()), navContext())') > 0);
   assert.ok(a.indexOf('homeId() && navActiveId === homeId()') > 0 && a.indexOf('root.nav.HOME_ID) hb') < 0);
-  assert.ok(/pin \? ' pin' : ''|class="stab pin/.test(a) && a.indexOf('시작화면 (닫을 수 없음)') > 0 && a.indexOf('고정 탭') > 0);
+  assert.ok(/pin \? ' pin' : ''|class="stab pin/.test(a) && a.indexOf('시작화면 (닫을 수 없음)') > 0 && a.indexOf('고정 탭') > 0 && a.indexOf('<span class="sr-only"> (고정 탭)</span>') > 0);
   assert.ok(/root\.dashboard\.onProfileChange\(\)/.test(a));
   // 기관 목록이 시작화면보다 늦게 오면 출처를 다시 불러온다(11-19 실측: 빠른 로그인에 '로그인과 서버 연결이 필요합니다'로 굳음)
   assert.ok(/applyServerModeUI\(\);[\s\S]{0,300}root\.portal\.onDataReady\(\)/.test(a) && /P\.onDataReady = function \(\) \{\s*if \(!host\) return;\s*S\.seq \+= 1; startLoad\(\);/.test(p));

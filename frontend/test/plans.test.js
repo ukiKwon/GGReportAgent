@@ -258,6 +258,17 @@ test('itemsTableHtml: 머리 단위는 단위가 하나일 때만, 분야 머리
   assert.ok(plans.itemsTableHtml([], 'MIL_KRW', '', '제목').indexOf('사업이 없습니다') >= 0);
 });
 
+test('itemsTableHtml: 사업이 없거나 검색 결과가 없어도 머리줄 3칸 + 빈 행 1줄 + 표 아래 안내', function () {
+  const none = plans.itemsTableHtml([], 'MIL_KRW', '', '제목');
+  assert.ok(none.indexOf('class="pl-tbl"') >= 0 && none.indexOf('예산(백만원)</th>') >= 0);
+  assert.strictEqual(none.match(/<tr class="tb-empty">[\s\S]*?<\/tr>/)[0].match(/<td>/g).length, 3);
+  assert.ok(none.indexOf('이 문서에 사업이 없습니다.') >= 0 && none.indexOf('건 / 전체') < 0);
+  const miss = plans.itemsTableHtml([item()], 'MIL_KRW', '없는말', '제목');
+  assert.ok(miss.indexOf('class="pl-tbl"') >= 0 && miss.indexOf('class="tb-empty-note"') >= 0);
+  assert.strictEqual(miss.match(/<tr class="tb-empty">[\s\S]*?<\/tr>/)[0].match(/<td>/g).length, 3);
+  assert.ok(miss.indexOf('조건에 맞는 사업이 없습니다') >= 0 && miss.indexOf('건 / 전체') >= 0);
+});
+
 // ── 문서 카드 ───────────────────────────────────────────────────────
 test('docHtml: 종류 칩·안내 줄(기간 지남·오래됨)과 비고 이스케이프, 확인 상태 줄·확인안됨 안내는 없다(check_counts가 와도)', function () {
   const h = plans.docHtml(doc(), '');

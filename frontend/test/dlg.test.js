@@ -110,6 +110,10 @@ test('전체 입찰건(#more-modal): body 직계 · --wide 보는 창 · [닫기
   assert.match(js, /root\.dlg\.open\(modal, \{ focus: search \}\)/);
   assert.match(js, /root\.dlg\.requestClose\(modal\)/);
   assert.doesNotMatch(js, /style\.display/);
+  // 빈 표(NEXT 128 2차): 머리줄 6칸 + 빈 행 1줄 + 표 아래 안내(#more-empty)
+  const tbl = fnOf(RENDER, 'render.renderMoreTable = function', 'if (typeof module');
+  assert.ok(tbl.indexOf('tblEmpty.rowHtml(6)') >= 0 && tbl.indexOf("'more-empty'") >= 0);
+  assert.match(HTML, /<p class="tb-empty-note" id="more-empty" hidden><\/p>/);
 });
 
 test('기관 추가(#add-modal): 필수 칸 * 표시·alert 없음·409는 칸 경고·실패는 .dlg-err', function () {

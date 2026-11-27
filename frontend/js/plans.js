@@ -9,6 +9,7 @@
   const isNode = typeof require === 'function' && typeof module !== 'undefined';
   const logic = isNode ? require('./logic.js') : root.logic;
   const esc = logic.esc;
+  const tblEmpty = isNode ? require('./tblempty.js') : root.tblEmpty;
   const plans = {};
   function D() { return isNode ? require('./dashboard.js') : root.dashboard; }
 
@@ -185,19 +186,20 @@
   };
   plans.itemsTableHtml = function (items, headUnit, kw, title) {
     const list = Array.isArray(items) ? items : [];
-    if (!list.length) return '<p class="db-empty">이 문서에 사업이 없습니다.</p>';
     const shown = plans.filterItems(list, kw);
-    const count = str(kw).trim() ? '<p class="db-why" aria-live="polite">' + mono(shown.length) + '건 / 전체 ' + mono(list.length) + '건</p>' : '';
-    if (!shown.length) return count + '<p class="db-empty">조건에 맞는 사업이 없습니다. 검색어를 지우세요.</p>';
+    const count = list.length && str(kw).trim() ? '<p class="db-why" aria-live="polite">' + mono(shown.length) + '건 / 전체 ' + mono(list.length) + '건</p>' : '';
     const hu = headUnit && UNIT[headUnit] ? headUnit : '';
     const head = '<thead><tr><th scope="col" class="pl-no">번호</th><th scope="col">사업명</th><th scope="col" class="pl-bud">예산' +
       (hu ? '(' + esc(UNIT[hu]) + ')' : '') + '</th></tr></thead>';
+    const cap = '<caption class="sr-only">' + esc(title || '') + ' 사업표</caption>';
+    if (!shown.length) return count + '<table class="pl-tbl">' + cap + head + '<tbody>' + tblEmpty.rowHtml(3) + '</tbody></table>' +
+      tblEmpty.noteHtml(list.length ? '조건에 맞는 사업이 없습니다. 검색어를 지우세요.' : '이 문서에 사업이 없습니다.');
     const body = plans.groupByField(plans.orderItems(shown)).map(function (g) {
       const label = [g.no, g.name].filter(Boolean).join(' ');
       return '<tbody>' + (label ? '<tr class="pl-fld"><th scope="rowgroup" colspan="3">' + esc(label) + '</th></tr>' : '') +
         g.items.map(function (it) { return plans.itemRowHtml(it, hu); }).join('') + '</tbody>';
     }).join('');
-    return count + '<table class="pl-tbl"><caption class="sr-only">' + esc(title || '') + ' 사업표</caption>' + head + body + '</table>';
+    return count + '<table class="pl-tbl">' + cap + head + body + '</table>';
   };
 
   // ── 순수: 문서 카드·상세 ───────────────────────────────────────────

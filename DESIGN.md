@@ -135,6 +135,8 @@ KB금융 글꼴(2026-11-26 사용자 결정, NEXT 130): 본문·표·컨트롤�
 - 생성 마크업은 `var(--…)`로 참조한다. 포인트색·지도색은 런타임에 바뀐다.
 - localStorage에서 온 색은 `render._safeColor()`를 거친다.
 - 모든 숫자·날짜·D-day는 `--mono`.
+- `--mono`는 숫자·날짜 전용이다. 글 입력 칸·이름표 칩에는 쓰지 않는다(본문체를 물려받는다, 11-27 design-reviewer 판정).
+- 화면 읽기 프로그램용 덧말(`.sr-only`)은 쉼표가 아니라 앞 공백 + 괄호 `' (…)'`로 붙인다 — Chrome이 덧말 앞에 구분 공백을 넣어 ', …'는 ' , '로 읽힌다(11-27).
 - 새 아이콘은 인라인 SVG 획 글리프로.
 - 구조·id·클래스·토큰을 건드리기 전에 `node --test "frontend/test/*.test.js"`를 돌린다.
 - 접근성(KWCAG 2.2): 머리 띠 맨 앞에 '본문 바로가기'(`.skip-link` → `#main`, tabindex=-1)를 둔다. 탭 줄은 `<button role="tab">`(선택 탭만 tabindex 0)와 형제 닫기 `<button aria-label="{이름} 닫기">`로 짓고(단추 안 단추 금지), ←→ Home End는 포커스만 옮기고 Enter/Space로 전환, Delete로 닫은 뒤 포커스는 이웃 탭으로. 입력칸에는 label·aria-label·aria-labelledby 중 하나로 이름을 붙인다.
