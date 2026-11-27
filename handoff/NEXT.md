@@ -639,6 +639,7 @@
 
 ### 131. 기관 상세 단계 화면 사용자 피드백 9건 (사용자 11-26 밤) [담당: db(a6) — design-reviewer → frontend-dev-write·backend-dev-write → qa → security]
 - **현재**: 9건 중 8건 반영·커밋(61f1dfde 묶음 1, 5a328494 시작 판정 일치, 840b7eb5 메뉴 '연관 업무', 5091eb0e 안건 번호+DB 068 — 푸시 전, design_history 137·138·140). security '막을 것 없음' 2회. **8080은 5a328494 빌드 — 5091eb0e는 로컬 DB 068 적용 뒤 cf가 재기동.** 쓰기 흐름(삭제·확정본 지정 창·일정 창·개최일/안건 번호·완료 ✓·메뉴 소제목)은 실화면 미확인(시험 건 bc-db44987f가 목표 기관 아님).
+- **사용자 실화면 11-27 09시(8080 77f63ccf, 6e에 전달)**: 메뉴 소제목 OK. 오류 ⓐ 김영업 '내 작업'에 이영업 담당 사립학교교직원연금공단이 보임 ⓑ 영천시청 4단계에 수익성 분석 올리기 기능이 안 보임 — 6e 1차 원인: 둘 다 자료 상태(ⓐ 김영업=확정자라 inScope 의도 동작, **사용자 답 11-27: 뺀다** — 내 작업=실제 담당 건만(남이 배정한 건은 확정자 것 아님, 보이려면 팀 작업), 보고 싶으면 기존 담당자가 담당자로 추가, 부장=모든 건·팀장=자기 팀 건 전부 열람 → 6e 적용 ⓑ 영천시청은 담당자 지정 전 CONFIRMED라 4단계 닫힘, 시작 전 안내 문구는 frontend-dev 분석 중). 근거 handoff/agents/backend-dev/2026-11-27_*_af794ba1.md.
 - **다음 한 걸음**: ① 사용자 DB 068 적용 → 재기동 ② 사용자 답(쓰기 검증을 어디서) → qa 실화면 ③ 후속: 막힌 건의 다음 줄 문구, 기관 상세 결과 등록 전용 감사 버튼 id, 이력에 안건 번호 변경 표시, 코드표 ATTACH_VOID 이름, 대본 회의 이름 '이사회' 고정(92), board-material.js 안건 번호, 옛 '개설 승인 뒤…' 문구, CompleteApiTest 고정 임시 폴더.
 - **자세히**: handoff/sessions/2026-11-27_0000_dash.md(커밋·확인·남은 것), planner handoff/agents/planner/2026-11-26_2358_a4e9147b.md, 규격 handoff/agents/design-reviewer/2026-11-27_0003_a559dee7.md, qa handoff/agents/qa-verifier/2026-11-27_0020_ac5367ef.md·0106_a0bd0cd9.md, security handoff/agents/security/2026-11-27_0018_a99dfb3f.md·0126_a53044bc.md, 출처 2026-11-27_summary `## Session 02:00`.
 
