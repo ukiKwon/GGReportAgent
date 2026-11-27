@@ -250,7 +250,7 @@
       return pc.rowHtml(it, { checked: sel.indexOf(it.req_key) >= 0, today: st.today, sub: typeof st.subOf === 'function' ? st.subOf(it.institution_id) : '' }) +
         (st.ask && st.ask.key === it.req_key ? pc.askRowHtml(it, st.ask, { busy: st.busy === 'close' }) : '');
     }).join('');
-    return '<table class="ad-table cr-table" id="cr-table" tabindex="-1"><caption class="sr-only">사업계획 수집 요청 목록(기관 단위)</caption>' + head + '<tbody>' + (items.length ? rows : tblEmpty.rowHtml(8)) + '</tbody></table>';
+    return '<table class="ad-table cr-table" id="cr-table" tabindex="-1"' + (items.length ? '' : ' aria-describedby="cr-empty"') + '><caption class="sr-only">사업계획 수집 요청 목록(기관 단위)</caption>' + head + '<tbody>' + (items.length ? rows : tblEmpty.rowHtml(8)) + '</tbody></table>';
   };
   // st = { view, items, agent, load:'idle'|'loading'|'ok'|'error'|'offline', code, sel, ask, runAsk, busy, today, subOf }
   pc.screenHtml = function (st) {
@@ -262,7 +262,7 @@
     }
     return (st.inboxOn && st.ib ? pc.ibHtml(st.ib) + '<h3 class="cr-h">기관별 수집 요청</h3>' : '') +   // 반입 절은 보기 전환 띠·목록 위에 따로(design 6-1). 폴더가 꺼졌으면 절도 안내도 없다
       pc.toolbarHtml(st) + (st.runAsk && st.agent ? pc.runAskHtml(pc.selection(st.items, st.sel).req.length) : '') +
-      pc.tableHtml(st) + (arr(st.items).length ? '' : tblEmpty.noteHtml(pc.emptyText(st.view)));
+      pc.tableHtml(st) + (arr(st.items).length ? '' : tblEmpty.noteHtml(pc.emptyText(st.view), '', { id: 'cr-empty' }));
   };
 
   // ── 반입 대기 파일(NEXT 56) ──
@@ -408,10 +408,10 @@
       return pc.ibRowHtml(it, { checked: sel.indexOf(f) >= 0, result: own(res, f) ? res[f] : null });
     }).join('');
     return '<div class="ib-scroll" id="ib-scroll" tabindex="0" role="region" aria-label="반입 대기 파일 목록">' +
-      '<table class="ad-table cr-table ib-table" id="ib-table" tabindex="-1"><caption class="sr-only">반입 대기 파일 목록</caption>' + head + '<tbody>' + (list.length ? rows : tblEmpty.rowHtml(6)) + '</tbody></table></div>';
+      '<table class="ad-table cr-table ib-table" id="ib-table" tabindex="-1"' + (list.length ? '' : ' aria-describedby="ib-empty"') + '><caption class="sr-only">반입 대기 파일 목록</caption>' + head + '<tbody>' + (list.length ? rows : tblEmpty.rowHtml(6)) + '</tbody></table></div>';
   };
   pc.ibHtml = function (ib) {
-    const b = pc.ibBtnState(ib), items = arr(ib.items);
+    const b = pc.ibBtnState(ib), items = arr(ib.items).filter(Boolean);   // 표(ibTableHtml)와 같은 기준으로 빈 판정
     let h = '<section class="ib-sec" id="ib-sec" aria-labelledby="ib-t"' + (ib.busy === 'scan' ? ' aria-busy="true"' : '') + '><h3 id="ib-t">반입 대기 파일</h3><div class="ad-toolbar ib-toolbar">' +
       '<button type="button" id="ib-scan" data-cr="ib-scan"' + (b.scan.disabled ? ' disabled' : '') + '>' + b.scan.html + '</button>' +
       (ib.scanned ? '<button type="button" id="ib-go" data-cr="ib-ask"' + (b.go.disabled ? ' disabled' : '') + '>' + b.go.html + '</button>' : '') +
@@ -421,7 +421,7 @@
     if (ib.scanned) {
       if (ib.ignored > 0) h += '<p class="ad-note">' + esc(pc.ignoredText(ib.ignored)) + '</p>';
       if (ib.truncated) h += '<p class="ad-note">' + esc(pc.TRUNC_TEXT) + '</p>';
-      h += pc.ibTableHtml(ib) + (items.length ? '' : tblEmpty.noteHtml(pc.IB_EMPTY));
+      h += pc.ibTableHtml(ib) + (items.length ? '' : tblEmpty.noteHtml(pc.IB_EMPTY, '', { id: 'ib-empty' }));
     }
     return h + '</section>';
   };
@@ -860,7 +860,7 @@
     const label = btn.querySelector('.nav-label');
     if (badgeN > 0) {
       const text = pc.badgeSr(badgeN);
-      btn.insertAdjacentHTML('beforeend', '<span class="nav-count pc-nav" aria-hidden="true">' + badgeN + '</span><span class="sr-only pc-nav-sr">, ' + esc(text) + '</span>');
+      btn.insertAdjacentHTML('beforeend', '<span class="nav-count pc-nav" aria-hidden="true">' + badgeN + '</span><span class="sr-only pc-nav-sr"> (' + esc(text) + ')</span>');
       btn.title = text;
     } else if (label) {
       btn.title = label.textContent;

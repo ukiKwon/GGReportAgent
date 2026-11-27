@@ -1491,15 +1491,15 @@
       return [r.name, r.type, render.REGION_NAME_ALL(r.region)].join(' ').toLowerCase().indexOf(q) >= 0;
     });
     const none = document.getElementById('more-empty');
-    if (none) { none.hidden = rows.length > 0; none.textContent = q ? '조건에 맞는 입찰건이 없습니다. 검색어를 지우세요.' : '등록된 입찰건이 없습니다.'; }
+    if (none) { none.textContent = rows.length ? '' : (q ? '조건에 맞는 입찰건이 없습니다. 검색어를 지우세요.' : '등록된 입찰건이 없습니다.'); none.hidden = rows.length > 0; }
     tb.innerHTML = !rows.length ? tblEmpty.rowHtml(6) : rows.map(function (r) {
       return '<tr style="border-top:1px solid var(--line);">' +
-        '<td style="padding:6px;">' + logic.esc(r.name) + '</td>' +
-        '<td style="padding:6px;">' + logic.esc(r.type || '') + '</td>' +
-        '<td style="padding:6px;">' + logic.esc(render.REGION_NAME_ALL(r.region)) + '</td>' +
-        '<td style="padding:6px;">' + logic.esc(logic.formatBidDateLabel(r)) + '</td>' +
-        '<td style="padding:6px;">' + logic.esc(r.term ? r.term + '년' : '') + '</td>' +
-        '<td style="padding:6px;">' + logic.esc(r.updatedAt || '') + '</td></tr>';
+        '<td>' + logic.esc(r.name) + '</td>' +
+        '<td>' + logic.esc(r.type || '') + '</td>' +
+        '<td>' + logic.esc(render.REGION_NAME_ALL(r.region)) + '</td>' +
+        '<td>' + logic.esc(logic.formatBidDateLabel(r)) + '</td>' +
+        '<td>' + logic.esc(r.term ? r.term + '년' : '') + '</td>' +
+        '<td>' + logic.esc(r.updatedAt || '') + '</td></tr>';
     }).join('');
   };
 

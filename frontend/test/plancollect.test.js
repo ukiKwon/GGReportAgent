@@ -245,6 +245,8 @@ test('screenHtml: 불러오는 중·오류(403은 권한 문구, 그 밖은 다�
   assert.ok(noReq.indexOf('id="cr-table"') >= 0 && noReq.indexOf('class="tb-empty-note"') >= 0);
   assert.strictEqual(noReq.match(/<tr class="tb-empty">[\s\S]*?<\/tr>/)[0].match(/<td>/g).length, 8);
   assert.ok(pc.screenHtml(screen()).indexOf('tb-empty') < 0, '요청이 있으면 빈 행·안내가 없다');
+  assert.ok(noReq.indexOf('id="cr-table" tabindex="-1" aria-describedby="cr-empty"') >= 0 && noReq.indexOf('id="cr-empty"') >= 0, '빈 표는 안내에 묶인다');
+  assert.ok(pc.screenHtml(screen()).indexOf('aria-describedby="cr-empty"') < 0, '항목이 있으면 묶지 않는다');
   const h = pc.screenHtml(screen());
   assert.ok(h.indexOf('name="cr-view" value="open" checked') >= 0 && h.indexOf('id="cr-csv"') >= 0 && h.indexOf('id="cr-run"') < 0);
   assert.ok(h.indexOf('<caption class="sr-only">사업계획 수집 요청 목록(기관 단위)</caption>') >= 0 && h.indexOf('id="cr-all"') >= 0);
@@ -324,6 +326,9 @@ test('연결: admin.js view collect → plancollect.mount, app.js onNavDrawn·�
   assert.ok(APP_SRC.indexOf('root.plancollect.onNavDrawn()') > 0 && APP_SRC.indexOf('c.nextElementSibling') > 0);
   assert.ok(APP_SRC.indexOf("const t = n > 0 ? ', 공고 예정일 경과 미처리 '") < 0, '낭독 문장이 경과 배지 문구로 고정돼 있지 않다');
   assert.ok(OVERDUE_SRC.indexOf('root.nav.COLLECT_ID') > 0);
+  // 배지 덧말은 ', 문장'이 아니라 ' (문장)' — 낭독이 배지 숫자 뒤에 괄호로 이어진다
+  assert.ok(PC_SRC.indexOf('pc-nav-sr">, ') < 0 && PC_SRC.indexOf("pc-nav-sr\"> (' + esc(text) + ')</span>") >= 0);
+  assert.ok(OVERDUE_SRC.indexOf('ov-nav-sr">, ') < 0 && OVERDUE_SRC.indexOf("ov-nav-sr\"> (' + text + ')</span>") >= 0);
   assert.ok(PLANS_SRC.indexOf('입찰이 가까운 기관부터 모읍니다') < 0 && PLANS_SRC.indexOf('수집 담당에게 전달하세요') < 0);
 });
 test('index.html: plancollect.js 는 plans.js 뒤·admin.js 앞, CSS 블록(새 hex 금지·11px 미만 금지·채운 주버튼 금지·pl-* 블록 밖)', function () {
@@ -623,6 +628,12 @@ test('반입 절 그리기: 접힘(안내+[폴더 확인])·확인 중·빈 폴�
   const empty = pc.ibHtml(ibState());
   assert.ok(empty.indexOf('반입 폴더에 파일이 없습니다. 수집한 파일(기관ID_YYYYMMDD_plan.csv 또는 _news.csv)이 폴더에 들어오면 여기에 보입니다.') >= 0 && empty.indexOf('id="ib-table"') >= 0 && empty.indexOf('<tr class="tb-empty">') >= 0 && empty.indexOf('class="tb-empty-note"') >= 0);
   assert.ok(empty.indexOf('id="ib-go" data-cr="ib-ask" disabled>선택한 <span class="v">0</span>개 반입</button>') >= 0 && empty.indexOf('id="ib-count"') >= 0);
+  // 빈 표 → 안내 aria-describedby, 표와 안내는 같은 빈 판정(items=[null] 도 빈 것)
+  assert.ok(empty.indexOf('aria-describedby="ib-empty"') >= 0 && empty.indexOf('id="ib-empty"') >= 0);
+  const nulls = pc.ibHtml(ibState({ items: [null] }));
+  assert.ok(nulls.indexOf('class="tb-empty-note"') >= 0 && nulls.indexOf('<tr class="tb-empty">') >= 0 && nulls.indexOf('id="ib-empty"') >= 0, 'items=[null] 도 표와 안내가 함께 빈 상태');
+  const filled = pc.ibHtml(ibState({ items: [ibItem()] }));
+  assert.ok(filled.indexOf('aria-describedby="ib-empty"') < 0 && filled.indexOf('id="ib-empty"') < 0);
   const notes = pc.ibHtml(ibState({ items: [ibItem()], ignored: 2, truncated: true }));
   assert.ok(notes.indexOf('이름 형식이 맞지 않는 파일 2개는 건너뛰었습니다') >= 0 && notes.indexOf('파일이 많아 최근 날짜부터 일부만 확인했습니다. 반입한 뒤 [폴더 확인]을 다시 누르세요.') >= 0);
   assert.ok(pc.ibHtml(ibState({ items: [ibItem()] })).indexOf('이름 형식이 맞지 않는') < 0 && pc.ibHtml(ibState({ items: [ibItem()] })).indexOf('일부만 확인') < 0);

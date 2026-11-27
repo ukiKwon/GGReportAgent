@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>시험 안내 — 모서리 다듬기·빈 표 후속</title>
+<style>
+:root{--ink:#222;--sub:#666;--line:#ddd;--bg:#f6f6f4;--card:#fff;--ok:#1f7a3a;--warn:#a15c00;--acc:#545045}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 "맑은 고딕","Malgun Gothic",sans-serif}
+header{background:var(--acc);color:#fff;padding:14px 24px}header h1{margin:0;font-size:24px}header p{margin:4px 0 0;font-size:12px;opacity:.85}
+main{max-width:1100px;margin:0 auto;padding:16px 24px 40px}
+.how{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--sub)}
+h2.day{font-size:20px;margin:24px 0 8px;border-bottom:2px solid var(--acc);padding-bottom:4px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:4px;margin:0 0 12px;padding:12px 16px}
+.c h3{margin:0 0 6px;font-size:18px}.meta{font-size:12px;color:var(--sub);margin-bottom:8px}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:2px;margin-right:4px;border:1px solid}
+.t-r{color:var(--warn);border-color:var(--warn)}.t-f{color:var(--ok);border-color:var(--ok)}.t-n{color:var(--sub);border-color:var(--line)}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid var(--line);padding:6px 8px;vertical-align:top}
+th{background:#f0efeb;text-align:center;width:16%}td.chk{width:56px;text-align:center}
+code{background:#f0efeb;padding:0 4px;border-radius:2px}
+</style></head><body>
+<header><h1>모서리 다듬기·빈 표 후속 시험 안내</h1><p>디자인 검토 세션 · 이 커밋 · 계정: 김영업 3918264 · 이영업(팀장) 5047192 · 마스터 8203417</p></header>
+<main>
+<div class="how"><span class="tag t-f">Ctrl+F5</span> 화면만 · <span class="tag t-r">재기동</span> 서버 바뀜(main이 8080 재기동 뒤) · <span class="tag t-n">시험 없음</span></div>
+
+<div class="c"><h3>모서리 다듬기 (팝업·패널·단추·칩)</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>이 커밋 · 8080 Ctrl+F5 뒤</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>아무 팝업이나 패널 (예: 결재 요청 창)</td><td>팝업을 열고 모서리를 본다</td><td>팝업·패널은 살짝 둥글고(6px), 단추·입력칸·칩은 조금 덜 둥글다(4px). 팝업 머리 아랫선이 연한 회색</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>선택된 탭 밑줄 곧게</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>이 커밋</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>시작화면 → '기관별 입찰 일정' 탭</td><td>탭을 눌러 본다, 선택된 탭 밑줄의 양 끝을 본다</td><td>밑줄 양 끝이 휘지 않고 곧게 끊긴다</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>이사회 자료 — 옆줄 있는 상자 모서리</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>이 커밋</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>이사회 자료 작성 → 목록 행 열기 → '작성' 탭 위 편집줄</td><td>편집줄의 왼쪽 모서리를 본다</td><td>왼쪽 굵은 색 줄 쪽 모서리는 각지고, 오른쪽 모서리만 둥글다</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>이사회 자료 → 같은 행 → '회의록' 탭 '대외비·참고용' 안내</td><td>안내 상자의 모서리를 본다</td><td>왼쪽 굵은 색 줄 쪽 모서리는 각지고, 오른쪽 모서리만 둥글다</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>표 카드·사례 카드 모서리 6px</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>이 커밋</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>이사회 자료 → 표가 든 카드</td><td>카드 모서리를 본다</td><td>모서리가 6px로 둥글다</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>로그인 화면 → 오른쪽 사례 카드</td><td>카드 모서리를 본다</td><td>모서리가 6px로 둥글다</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>범례 작은 네모 3개 (거의 각진 2px)</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>이 커밋</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>입찰 공고 현황 → '다가오는 기관별 공고현황' 범례</td><td>범례 작은 네모 3개를 본다</td><td>네모가 거의 각진 모양(2px)으로 보인다</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>빈 표 후속 — 없는 말로 검색 시 빈 줄 높이·안내 문구</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>이 커밋</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>예상 공고현황 → '전체 입찰건' 창</td><td>검색칸에 없는 말을 넣어 검색한다</td><td>머리줄 아래 빈 줄 높이가 다른 줄과 같다(전에는 얇았음)</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>같은 창, 표 아래</td><td>본다</td><td>'조건에 맞는 입찰건이 없습니다. 검색어를 지우세요.' 문구가 보인다</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>같은 창, 검색칸</td><td>검색어를 지운다</td><td>안내 문구가 사라지고 목록이 다시 채워진다</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>(선택) 화면 읽기 프로그램을 쓰는 경우만</h3><div class="meta"><span class="tag t-n">선택</span>이 커밋 · 화면 읽기 프로그램을 쓰지 않으면 건너뜀</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>펼친 메뉴의 '입찰 공고 현황'</td><td>메뉴 이름을 읽기 프로그램으로 듣는다</td><td>"… (공고 예정일 경과 미처리 N건)"처럼 괄호로 읽힌다</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>수집 요청 → 마지막 건 처리 뒤 빈 표</td><td>읽기 프로그램으로 빈 표를 듣는다</td><td>안내 문장이 함께 읽힌다</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+</main></body></html>

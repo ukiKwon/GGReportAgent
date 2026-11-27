@@ -229,7 +229,17 @@ test('CSS 칩: 카드 왼쪽 .bd-map 과 팝업 머리 .bd-w-srcjump 가 같은 
   ['font-family:var(--mono)', 'font-size:12px', 'border:1px solid var(--line-strong)', 'border-radius:var(--r)', 'min-height:26px'].forEach(function (s) { assert.ok(r.includes(s), s); });
   assert.ok(/\.bd-w-srcjump\[aria-current="true"\], \.bd-w-card\.has-sel \.bd-w-head \.bd-map \{ color:var\(--fg\); border-color:var\(--accent-color\)/.test(html));
 });
-test('CSS 전환: 200ms, prefers-reduced-motion 이면 없음', function () {
+test('모서리 다듬기: .pt-tab 위쪽만 둥글게, 범례 견본·옆줄 상자·바탕 틀 반경', function () {
+  assert.ok(rule('.pt-tab').includes('border-radius:var(--r) var(--r) 0 0'));
+  assert.ok(rule('.db-kq-leg .kq-s').includes('border-radius:var(--r-sm)'));
+  assert.ok(rule('.bd-card').includes('border-radius:var(--r-lg)'));
+  assert.ok(rule('.bd-editbar').includes('border-radius:0 var(--r-lg) var(--r-lg) 0'));
+  ['.bd-m-return', '.bd-m-lock', '.bd-m-warn', '.bd-m-decide', '.mn-mark', '.mn-rules', '.mn-stale'].forEach(function (s) {
+    assert.ok(rule(s).includes('border-radius:0 var(--r) var(--r) 0'), s);
+  });
+  assert.ok(/\.lg-cards li \{[^}]*border-radius:var\(--r-lg\)/.test(html));
+});
+test('CSS 전환: 200ms,prefers-reduced-motion 이면 없음', function () {
   assert.ok(/transition:color \.2s ease, border-color \.2s ease/.test(html));
   assert.ok(/@media \(prefers-reduced-motion: reduce\) \{\s*\.bd-w-card, \.bd-w-head \.bd-map[^}]*transition:none/.test(html));
 });

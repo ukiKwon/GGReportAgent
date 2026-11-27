@@ -113,7 +113,11 @@ test('전체 입찰건(#more-modal): body 직계 · --wide 보는 창 · [닫기
   // 빈 표(NEXT 128 2차): 머리줄 6칸 + 빈 행 1줄 + 표 아래 안내(#more-empty)
   const tbl = fnOf(RENDER, 'render.renderMoreTable = function', 'if (typeof module');
   assert.ok(tbl.indexOf('tblEmpty.rowHtml(6)') >= 0 && tbl.indexOf("'more-empty'") >= 0);
-  assert.match(HTML, /<p class="tb-empty-note" id="more-empty" hidden><\/p>/);
+  assert.match(HTML, /<p class="tb-empty-note" id="more-empty" aria-live="polite" hidden><\/p>/);
+  assert.ok(tbl.indexOf("none.textContent = rows.length ? ''") >= 0);   // 숨길 때 글도 비워 낭독기가 변화를 잡게
+  // 빈 행도 데이터 행과 같은 높이: 칸 안쪽 여백은 CSS 한 곳, 데이터 칸에 인라인 padding 없음
+  assert.match(HTML, /\.more-table td \{ padding:6px;/);
+  assert.doesNotMatch(tbl, /<td style="padding:6px;">/);
 });
 
 test('기관 추가(#add-modal): 필수 칸 * 표시·alert 없음·409는 칸 경고·실패는 .dlg-err', function () {

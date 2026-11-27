@@ -280,14 +280,14 @@
   .bd-m-rbadge { margin-left:0; }
   .bd-m-actrow { margin-top:8px; }
   .bd-m-return { margin-top:8px; padding:8px 12px; display:flex; flex-direction:column; gap:4px; font-size:13px;
-    border:1px solid var(--line-strong); border-left:3px solid var(--orange); border-radius:var(--r);
+    border:1px solid var(--line-strong); border-left:3px solid var(--orange); border-radius:0 var(--r) var(--r) 0;
     background:rgba(217,160,91,.08); background:color-mix(in srgb, var(--orange) 8%, transparent); }
   .bd-m-return h3 { margin:0; font-size:13px; font-weight:700; }
   .bd-m-rmeta { font-size:12px; color:var(--muted); } .bd-m-rmeta .mono { font-family:var(--mono); }
   .bd-m-reason { margin:0; max-width:60em; white-space:pre-wrap; word-break:break-word; }
   .bd-m-reason b { font-weight:600; color:var(--muted); margin-right:6px; }
   .bd-m-lock { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:8px 12px; font-size:13px;
-    background:var(--panel); border:1px solid var(--line-strong); border-left:3px solid var(--orange); border-radius:var(--r); margin-bottom:10px; }
+    background:var(--panel); border:1px solid var(--line-strong); border-left:3px solid var(--orange); border-radius:0 var(--r) var(--r) 0; margin-bottom:10px; }
   .bd-m-lock.is-done { border-left-color:var(--blue); }
   .bd-m-lock p { margin:0; }
   .bd-m-result label { display:inline-flex; gap:6px; align-items:center; font-size:12px; }
@@ -297,14 +297,14 @@
   .bd-m-modal label { display:flex; justify-content:space-between; font-size:12px; margin:12px 0 4px; }
   .bd-m-modal textarea { width:100%; box-sizing:border-box; resize:vertical; }
   .bd-m-cnt { font-family:var(--mono); font-size:12px; color:var(--muted); }
-  .bd-m-warn { margin:0; padding:8px 12px; font-size:13px; border-left:3px solid var(--orange); border-radius:var(--r);
+  .bd-m-warn { margin:0; padding:8px 12px; font-size:13px; border-left:3px solid var(--orange); border-radius:0 var(--r) var(--r) 0;
     background:rgba(217,160,91,.08); background:color-mix(in srgb, var(--orange) 8%, transparent); }
   .bd-m-modal-acts { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
   #bd-m-acterr { margin-top:8px; }
   .bd-m-review { display:flex; flex-direction:column; gap:10px; }
   .bd-m-decide { position:sticky; bottom:0; z-index:2; display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;
     padding:10px 12px; background:var(--panel); border:1px solid var(--line-strong); border-left:3px solid var(--orange);
-    border-radius:var(--r); box-shadow:var(--shadow); }
+    border-radius:0 var(--r) var(--r) 0; box-shadow:var(--shadow); }
   .bd-m-decide .bd-m-dfield { flex:1 1 360px; display:flex; flex-direction:column; gap:4px; font-size:12px; }
   .bd-m-decide textarea { min-height:34px; resize:vertical; }
   .bd-m-decide .bd-m-dhint { flex-basis:100%; margin:0; font-size:12px; color:var(--muted); }
@@ -312,7 +312,7 @@
   /* ── 이사회 회의록(047): 020 상세의 '회의록' 탭(#bd-m-hist 재사용). 글은 모두 textContent(security R8) ── */
   .mn { display:flex; flex-direction:column; gap:12px; }
   .mn-mark { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; margin:0; padding:6px 12px; font-size:12px; color:var(--muted);
-             background:var(--panel2); border:1px solid var(--line); border-left:3px solid var(--fg); border-radius:var(--r); }
+             background:var(--panel2); border:1px solid var(--line); border-left:3px solid var(--fg); border-radius:0 var(--r) var(--r) 0; }
   .mn-mark b { color:var(--fg); font-weight:700; }
   .mn-head { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
   .mn-head h3 { margin:0; font-size:14px; font-weight:700; letter-spacing:-.01em; }
@@ -358,12 +358,12 @@
   .mn-src label:has(input:checked), .mn-src label.on { background:color-mix(in srgb, var(--accent-color) 16%, transparent); color:var(--fg); font-weight:600; }
   .mn-src input { position:absolute; opacity:0; width:1px; height:1px; }
   .mn-src label:has(input:focus-visible) { outline:2px solid var(--accent-color); outline-offset:-2px; }
-  .mn-rules { margin:0; padding:8px 12px 8px 30px; font-size:13px; background:var(--panel2); border:1px solid var(--line); border-left:3px solid var(--fg); border-radius:var(--r); }
+  .mn-rules { margin:0; padding:8px 12px 8px 30px; font-size:13px; background:var(--panel2); border:1px solid var(--line); border-left:3px solid var(--fg); border-radius:0 var(--r) var(--r) 0; }
   .mn-rules li + li { margin-top:2px; }
   .mn-ack { display:flex; gap:8px; align-items:center; min-height:28px; font-size:13px; }
   .mn-pvbox { max-height:420px; overflow:auto; border:1px solid var(--line-strong); border-radius:var(--r); background:var(--panel); padding:10px 12px; }
   .mn-pvbox:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
-  .mn-stale { margin:0; padding:6px 12px; font-size:12px; border-left:3px solid var(--orange); background:var(--panel2); border-radius:var(--r); }
+  .mn-stale { margin:0; padding:6px 12px; font-size:12px; border-left:3px solid var(--orange); background:var(--panel2); border-radius:0 var(--r) var(--r) 0; }
   /* ── 회의록 고치기(이름표·발언): 미리보기·상세 공통 ── */
   .mn-fix { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:0; padding:6px 12px; font-size:12px;
             background:var(--panel2); border:1px solid var(--line); border-radius:var(--r); }
@@ -397,7 +397,7 @@
   .bd-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px; }
   #bd-msg { font-size:12px; color:var(--muted); }
   .bd-doc-name { font-size:14px; font-weight:700; }
-  .bd-card { border:1px solid var(--line); border-radius:var(--r); padding:12px 14px; background:var(--panel); }
+  .bd-card { border:1px solid var(--line); border-radius:var(--r-lg); padding:12px 14px; background:var(--panel); }
   .bd-card-head { margin:0 0 2px; }
   .bd-map { font-family:var(--mono); font-size:12px; color:var(--muted); }
   /* position:relative — 안의 .bd-sr(absolute)가 카드가 아니라 이 상자를 기준으로 잘려, 바깥 가로 스크롤을 만들지 않게 한다 */
@@ -419,7 +419,7 @@
   .bd-copybox input { width:240px; max-width:100%; }
   .bd-editbar { position:sticky; top:0; z-index:5; display:flex; gap:12px; align-items:center; flex-wrap:wrap;
                 padding:8px 12px; font-size:13px; background:var(--panel); border:1px solid var(--line-strong);
-                border-left:3px solid var(--accent-color); border-radius:var(--r); }
+                border-left:3px solid var(--accent-color); border-radius:0 var(--r-lg) var(--r-lg) 0; }
   /* 스크롤 컨테이너 위 여백(14px)으로 아래 표가 작성 바 위로 비치는 틈을 배경색으로 메운다 */
   .bd-editbar:not(.bd-writebar).is-stuck::before { content:""; position:absolute; left:-1px; right:-1px; top:-15px; height:14px; background:var(--bg); pointer-events:none; }
   /* 작성 바는 스크롤 0 일 때 위쪽 툴바와 겹치지 않도록, 바가 붙은 뒤(is-stuck: JS 가 스크롤 시 토글)에만 띠를 둔다. 왼쪽은 3px 테두리만큼 더 나간다. */
@@ -864,7 +864,7 @@
   .lg-bids .lg-bname { display:flex; align-items:center; gap:10px; min-width:0; font-weight:700; letter-spacing:-.01em; }
   .lg-bids .lg-bdate { font:12px var(--mono); color:var(--muted); }
   .lg-cards { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; align-content:start; }
-  .lg-cards li { padding:14px 16px 14px; border:1px solid var(--line-strong); border-radius:var(--r); background:var(--panel); display:grid; gap:4px; align-content:start; }
+  .lg-cards li { padding:14px 16px 14px; border:1px solid var(--line-strong); border-radius:var(--r-lg); background:var(--panel); display:grid; gap:4px; align-content:start; }
   .lg-cards .lg-chead { display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .lg-cards .lg-cname { font-size:16px; font-weight:700; letter-spacing:-.01em; }
   .lg-cards .lg-cbank { font-size:15px; }
@@ -1008,7 +1008,7 @@
   .sc-note { font-size:12px; fill:var(--muted); pointer-events:none; }
   path.subregion.hl { stroke:var(--fg); stroke-width:2; }
   #legend .lg-card { display:inline-block; width:16px; height:10px; box-sizing:border-box; background:var(--panel);
-                     border:1px solid var(--line-strong); border-left:3px solid var(--fg); border-radius:var(--r); }
+                     border:1px solid var(--line-strong); border-left:3px solid var(--fg); border-radius:0 var(--r) var(--r) 0; }
   /* 시군구 지시선 카드 끝 */
 
   /* 범례 — 판 하단 도킹 띠(지도 그림 영역 밖). 떠 있는 글래스 상자가 남동쪽 면(서초·강남 등)을 덮던 문제(11-16) */
@@ -1895,7 +1895,7 @@
   .more-table { width:100%; border-collapse:collapse; font-size:13px; }
   .more-table thead tr { text-align:center; color:var(--muted); }
   .more-table th { padding:6px; text-align:center; vertical-align:middle; border-bottom:1px solid var(--line-strong); }
-  .more-table td { text-align:center; vertical-align:middle; }   /* 기관·유형·지역·날짜·기간 모두 글자·날짜 칸 — 금액 열 없음(render.js:1486-1493) */
+  .more-table td { padding:6px; text-align:center; vertical-align:middle; }   /* 기관·유형·지역·날짜·기간 모두 글자·날짜 칸 — 금액 열 없음(render.js:1486-1493) */
   .more-table td:first-child { text-align:left; }   /* 기관명 칸만 왼쪽(행 머리 이름 칸 예외) */
   #doc-body pre { margin:0; white-space:pre-wrap; word-break:break-word; font-family:inherit;
                   font-size:13px; line-height:1.6; }
@@ -1986,7 +1986,7 @@
   .db-kq .db-h { flex-wrap:wrap; }
   .db-kq .db-per { margin:0; }
   .db-kq-leg { display:flex; flex-wrap:wrap; gap:4px 14px; margin:8px 0 0; padding:0; list-style:none; font-size:12px; color:var(--muted); }
-  .db-kq-leg .kq-s { display:inline-block; min-width:0; width:12px; height:12px; margin:0 6px 0 0; vertical-align:-2px; }
+  .db-kq-leg .kq-s { display:inline-block; min-width:0; width:12px; height:12px; margin:0 6px 0 0; vertical-align:-2px; border-radius:var(--r-sm); }
   .db-kq-rows { margin:10px 0 0; padding:0; list-style:none; display:grid; row-gap:6px; }
   .db-kq-row { display:grid; grid-template-columns:72px minmax(0, 1fr) 48px; align-items:center; column-gap:12px; }
   .db-kq-k { font-size:12px; color:var(--fg); }
@@ -2727,7 +2727,7 @@
   .pt-k .v.mut { color:var(--muted); }
   /* 기관 유형 탭 — 현황판 .db-tab 문법(모서리 var(--r), 12px, 건수 mono). 규격이 포인트를 '눌린 칸 막대'에만 허용하므로 활성 = 흰 바탕 + 아래 2px 포인트 막대(16% 틴트는 쓰지 않는다) */
   .pt-tabs { flex:none; display:flex; align-items:flex-end; gap:2px; height:36px; padding:0 8px; background:var(--panel2); border-bottom:1px solid var(--line); overflow-x:auto; }
-  .pt-tab { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border:0; border-radius:var(--r); background:transparent; font-size:12px; color:var(--muted); white-space:nowrap; }
+  .pt-tab { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; border:0; border-radius:var(--r) var(--r) 0 0; background:transparent; font-size:12px; color:var(--muted); white-space:nowrap; }
   .pt-tab:hover { background:color-mix(in srgb, var(--fg) 5%, transparent); }
   .pt-tab[aria-selected=true] { background:var(--panel); color:var(--fg); font-weight:700; box-shadow:inset 0 -2px 0 var(--accent-color); }
   .pt-tab:focus-visible { outline-offset:-2px; }
@@ -5031,7 +5031,7 @@ review, the verdict, and DESIGN.md
         </tr></thead>
         <tbody id="more-tbody"></tbody>
       </table>
-      <p class="tb-empty-note" id="more-empty" hidden></p>
+      <p class="tb-empty-note" id="more-empty" aria-live="polite" hidden></p>
     </div>
     <footer class="dlg-foot"><button type="button" id="more-close" title="닫기 (Esc)">닫기</button></footer>
   </div>

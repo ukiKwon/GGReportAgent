@@ -199,6 +199,7 @@
   <a href="#c143">143 빈 표 2차 · 회의록 칸 글꼴 · 메뉴 접근 이름 · 현황판 제안 진행 줄 여백</a>
   <a href="#c145">145 표 여러 줄 행 첫 줄 맞춤 · 예산 칸 문구 오른쪽 (NEXT 124 마무리)</a>
   <a href="#c146">146 모서리 3단(2/4/6px) — 팝업·표 틀·단추가 덜 각지게 (사용자 A안)</a>
+  <a href="#c147">147 모서리 다듬기 — 탭 밑줄·옆줄 상자·작은 견본 · 전체 입찰건 빈 행 높이</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2860,6 +2861,29 @@
 <div class="col after"><header>후</header><div class="body"><div class="mock">
 <div style="border:1px solid #6d7882;border-radius:6px;overflow:hidden;background:#fff"><div style="background:#f6f7f9;padding:8px;border-bottom:1px solid #c3c9d1;font-weight:700">결재 요청</div><div style="padding:8px;display:flex;gap:6px"><span style="border:1px solid #6d7882;border-radius:4px;padding:2px 10px">취소</span><span style="background:#0b50d0;color:#fff;border-radius:4px;padding:2px 10px">저장</span><span style="border:1px solid #c3c9d1;border-radius:4px;padding:0 6px;font-size:12px">칩</span></div></div>
 <p style="font-size:12px;margin:6px 0 0">작은 표식(견본·막대) 2px / 단추·입력·칩·탭·틀 안 카드 4px / 팝업·패널·띠·메뉴·말풍선·표 틀 6px. 팝업 머리 아랫선은 연한 선. 표 칸은 각진 그대로, 바깥 틀만 둥글게. 랜딩은 따로(--ld-r).</p></div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c147">
+<h2>147 모서리 다듬기 — 탭 밑줄·옆줄 상자·작은 견본 · 전체 입찰건 빈 행 높이 (2026-11-27, 모서리 A안 실화면 qa 후속 P3 + 빈 표 후속)</h2>
+<div class="why">왜: 모서리 A안(146장)을 실제 화면에 적용해 보니 탭 밑줄 끝과 옆줄 상자 모서리가 어긋나 보이고, 작은 견본이 너무 둥글었다. 같은 묶음에서 '전체 입찰건' 창의 빈 행이 다른 줄보다 얇아 빈 표 후속으로 함께 고쳤다. 근거: handoff/agents/qa-verifier/ 11-27 16시대 보고, 지시서 handoff/agents/frontend-dev/2026-11-27_1617_aa83f444.md.</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+<p style="font-size:12px;margin:0 0 6px">• 탭 밑줄: 끝이 4px 따라 휘어 탭 모서리가 둥글게 보임 (선택된 탭 밑줄 양 끝).</p>
+<div style="display:flex;gap:4px;border-bottom:1px solid #c3c9d1;margin-bottom:6px"><span style="padding:4px 10px;border:2px solid #0b50d0;border-bottom:none;border-radius:4px 4px 0 0;font-size:12px">기관별 입찰 일정</span><span style="padding:4px 10px;font-size:12px;color:#666">기타</span></div>
+<p style="font-size:12px;margin:0 0 6px">• 옆줄 상자: 3px 굵은 왼쪽 줄 때문에 상자 모서리가 괄호처럼 휨.</p>
+<div style="border:1px solid #c3c9d1;border-left:3px solid #0b50d0;border-radius:4px;padding:6px 10px;font-size:12px;margin-bottom:6px">대외비·참고용 안내</div>
+<p style="font-size:12px;margin:0 0 6px">• 작은 견본: 12px 범례 네모가 4px로 둥근 사각.</p>
+<span style="display:inline-block;width:12px;height:12px;background:#0b50d0;border-radius:4px"></span> <span style="font-size:12px">범례</span>
+<p style="font-size:12px;margin:6px 0 0">• 빈 행 19px — 다른 줄보다 얇아 빈 표가 허전해 보임. 이사회 표 카드·로그인 사례 카드는 4px.</p></div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+<p style="font-size:12px;margin:0 0 6px">• 탭은 위만 둥글게 — 밑줄 끝이 곧게 끊김.</p>
+<div style="display:flex;gap:4px;border-bottom:1px solid #c3c9d1;margin-bottom:6px"><span style="padding:4px 10px;border:2px solid #0b50d0;border-bottom:none;border-radius:4px 4px 0 0;font-size:12px">기관별 입찰 일정</span><span style="padding:4px 10px;font-size:12px;color:#666">기타</span></div>
+<p style="font-size:12px;margin:0 0 6px">• 옆줄 쪽 모서리 0, 반대쪽만 둥글게 — 굵은 줄이 상자 끝까지 곧음.</p>
+<div style="border:1px solid #c3c9d1;border-left:3px solid #0b50d0;border-radius:0 4px 4px 0;padding:6px 10px;font-size:12px;margin-bottom:6px">대외비·참고용 안내</div>
+<p style="font-size:12px;margin:0 0 6px">• 작은 견본은 2px로 거의 각지게.</p>
+<span style="display:inline-block;width:12px;height:12px;background:#0b50d0;border-radius:2px"></span> <span style="font-size:12px">범례</span>
+<p style="font-size:12px;margin:6px 0 0">• 바탕 위에 놓인 틀이라 6px. 빈 행은 데이터 행과 같은 높이(약 31px).</p></div></div></div>
 </div>
 </section>
 
