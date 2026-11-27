@@ -151,13 +151,20 @@ public class PrepBoardService {
 
     /**
      * 범위 판정. active: 그 건의 활성 담당 사번, ever: 끝난 건의 배정 이력 사번, team: 팀 사번(null 이면 팀 제한 없음 — 부장의 team).
-     * mine = 확정자 본인 또는 활성 담당(개설 전 포함) + 끝난 건은 옛 담당도.
+     * mine = 활성 담당 + 시작 전 건(확정됨·개설 대기, 끝난 건이면 시작 전 확정 취소)의 확정자 + 끝난 건은 옛 담당도.
+     * 남이 담당을 맡은 건은 확정자의 내 작업이 아니다(사용자 11-27 Q-2026-11-27-01) — 보려면 팀·부서 작업, 열려면 담당 추가.
      * team/dept = 개설 승인 뒤(SCOPE_OPENED_STATES) + 끝난 건은 개설 뒤 중단(OPENED_AT 있음)만 — 확정 취소(개설 전)는 결재가 없어 빠진다.
      */
     static boolean inScope(String scope, BidPrep p, String meEmp, Set<String> active, Set<String> ever, Set<String> team) {
         boolean ended = PrepService.CANCELLED.equals(p.getStateCd());
         if (SCOPE_MINE.equals(scope)) {
-            return meEmp.equals(p.getConfirmedBy()) || active.contains(meEmp) || (ended && ever.contains(meEmp));
+            if (active.contains(meEmp)) { return true; }
+            // 시작 전 판정은 활성 담당 수가 아니라 상태로 한다 — 끝난 건은 담당이 모두 풀려(중단 시 해제) 수로는 시작 전/뒤를 못 가르고,
+            // 모르는 상태는 확정자에게 넓히지 않는다(team/dept 의 opened 판정·checkBlock PRE_OPEN 과 짝).
+            boolean preStart = ended ? p.getOpenedAt() == null
+                    : PrepService.CONFIRMED.equals(p.getStateCd()) || PrepService.OPEN_PENDING.equals(p.getStateCd());
+            if (preStart) { return meEmp.equals(p.getConfirmedBy()); }
+            return ended && ever.contains(meEmp);
         }
         boolean opened = ended ? p.getOpenedAt() != null : SCOPE_OPENED_STATES.contains(p.getStateCd());
         if (!opened) { return false; }

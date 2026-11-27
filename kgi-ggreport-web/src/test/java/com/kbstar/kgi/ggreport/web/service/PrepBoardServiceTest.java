@@ -278,11 +278,20 @@ public class PrepBoardServiceTest {
     public void U12_범위_판정_조합표_mine_team_dept() {
         java.util.Set<String> none = Collections.<String>emptySet();
         // mine
-        assertTrue(PrepBoardService.inScope("mine", scoped("CONFIRMED", "A", null), "A", none, none, null));       // 확정자 본인(개설 전 포함)
+        assertTrue(PrepBoardService.inScope("mine", scoped("CONFIRMED", "A", null), "A", none, none, null));       // 시작 전 건의 확정자
         assertTrue(PrepBoardService.inScope("mine", scoped("IN_PROGRESS", "X", "t"), "A", set("A"), none, null));   // 활성 담당
         assertTrue(PrepBoardService.inScope("mine", scoped("CANCELLED", "X", "t"), "A", none, set("A"), null));     // 끝난 건 옛 담당
         assertFalse(PrepBoardService.inScope("mine", scoped("IN_PROGRESS", "X", "t"), "A", set("B"), set("A"), null));   // 진행 중 건은 옛 담당 이력 무관
         assertFalse(PrepBoardService.inScope("mine", scoped("IN_PROGRESS", "X", "t"), "A", set("B"), none, null));  // 무관
+        // 사용자 11-27(Q-2026-11-27-01): 남이 담당인 건은 확정자의 내 작업이 아니다
+        assertFalse(PrepBoardService.inScope("mine", scoped("IN_PROGRESS", "A", "t"), "A", set("B"), none, null));
+        assertFalse(PrepBoardService.inScope("mine", scoped("WRITING", "A", "t"), "A", set("B"), none, null));
+        assertTrue(PrepBoardService.inScope("mine", scoped("IN_PROGRESS", "A", "t"), "A", set("A", "B"), none, null));   // 확정자가 담당이기도 하면 보인다
+        assertTrue(PrepBoardService.inScope("mine", scoped("OPEN_PENDING", "A", null), "A", none, none, null));        // 시작 전
+        assertTrue(PrepBoardService.inScope("mine", scoped("CANCELLED", "A", null), "A", none, none, null));           // 시작 전 확정 취소 — 확정자
+        assertFalse(PrepBoardService.inScope("mine", scoped("CANCELLED", "A", "t"), "A", none, set("B"), null));       // 시작 뒤 중단 — 확정자만이면 없음
+        assertTrue(PrepBoardService.inScope("mine", scoped("CANCELLED", "A", "t"), "A", none, set("A"), null));        // 확정자가 옛 담당이면 있음
+        assertFalse(PrepBoardService.inScope("mine", scoped("WEIRD", "A", "t"), "A", none, none, null));               // 모르는 상태는 확정자에게 넓히지 않는다
         // team
         java.util.Set<String> team = set("A", "B");
         assertFalse(PrepBoardService.inScope("team", scoped("CONFIRMED", "A", null), "A", set("A"), none, team));

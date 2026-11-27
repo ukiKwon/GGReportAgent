@@ -149,7 +149,7 @@ public class PrepBoardApiTest {
     @Test
     public void D1_목록은_엑셀_27칸에_제안서_제출을_더한_28칸과_아이콘_4값을_주고_행에_가결_부결_키가_없다() throws Exception {
         String bid = opened(INST);
-        MvcResult r = list(MEMBER, null, "open");
+        MvcResult r = list(MEMBER, "scope=team", "open");
         assertEquals(200, r.getResponse().getStatus());
         JsonNode b = json(r);
         assertEquals(28, b.path("columns").size());
@@ -236,7 +236,7 @@ public class PrepBoardApiTest {
         assertEquals("ENDED", lost.path("stage5_cd").asText());
         assertEquals("DROP", lost.path("end_kind").asText());
         assertEquals("DROPPED", lost.path("case_status").asText());
-        JsonNode br = row(json(list(MEMBER, null, "open")), bid);
+        JsonNode br = row(json(list(MEMBER2, null, "open")), bid);
         assertEquals("DROPPED", br.path("case_status").asText());
         assertEquals("LOST", br.path("result_cd").asText());
     }
@@ -261,8 +261,9 @@ public class PrepBoardApiTest {
         JsonNode mine = row(json(list(MEMBER2, null, "open")), bid);
         assertTrue(mine.path("is_mine").asBoolean());
         assertTrue(mine.path("can_check").asBoolean());
-        JsonNode other = row(json(list(MEMBER, null, "open")), bid);
+        JsonNode other = row(json(list(MEMBER, "scope=team", "open")), bid);
         assertFalse(other.path("is_mine").asBoolean());
+        assertNull("확정만 한 사람의 내 작업에는 없다(사용자 11-27)", row(json(list(MEMBER, null, "open")), bid));
     }
 
     @Test
@@ -290,7 +291,7 @@ public class PrepBoardApiTest {
     public void D6_담당이_T1을_끝내면_기관_정보_분석_칸이_V와_오늘_날짜가_된다() throws Exception {
         String bid = opened(INST);
         assertEquals(200, postJson("/bidcases/" + bid + "/prep/tasks/T1/check", MEMBER2, "").getResponse().getStatus());
-        JsonNode cells = row(json(list(MEMBER, null, "refresh")), bid).path("cells");
+        JsonNode cells = row(json(list(MEMBER, "scope=team", "refresh")), bid).path("cells");
         JsonNode t1 = cells.path("INST_ANALYSIS");
         assertEquals("DONE", t1.path("mark_cd").asText());
         assertEquals(Times.todayKst(), t1.path("marked_on").asText());
@@ -615,16 +616,16 @@ public class PrepBoardApiTest {
     public void D27_include_ended_목록은_활성_1줄과_끝난_건_각_1줄이고_끄면_기관당_활성_1줄이다() throws Exception {
         String old = opened(INST);   // nowon: 중단된 건 + 다시 확정한 활성 건
         assertEquals(200, postJson("/bidcases/" + old + "/prep/cancel", LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
-        String active = confirm(MEMBER, INST);   // PrepApiTest 관례 — 중단 뒤 확정은 새 건
-        String ended1 = confirm(MEMBER, "dobong");   // dobong: 끝난 건만(확정 취소 뒤 재확정은 같은 건을 되살리므로 끝난 건은 1건)
+        String active = confirm(MEMBER2, INST);   // PrepApiTest 관례 — 중단 뒤 확정은 새 건. 확정자 MEMBER2 는 old 의 옛 담당이기도 해 세 건이 모두 MEMBER2 의 내 작업이다(사용자 11-27)
+        String ended1 = confirm(MEMBER2, "dobong");   // dobong: 끝난 건만(확정 취소 뒤 재확정은 같은 건을 되살리므로 끝난 건은 1건)
         assertEquals(200, postJson("/bidcases/" + ended1 + "/prep/unconfirm", LEAD, "{\"reason\":\"가상 취소\"}").getResponse().getStatus());
-        JsonNode on = json(list(MEMBER, "include_ended=true", "refresh"));
+        JsonNode on = json(list(MEMBER2, "include_ended=true", "refresh"));
         assertEquals(2, rowsOf(on, INST));
         assertEquals(1, rowsOf(on, "dobong"));
         assertFalse(row(on, active).path("ended").asBoolean());
         assertTrue("같은 기관의 옛 중단 건도 줄로 나온다(P3-6)", row(on, old).path("ended").asBoolean());
         assertTrue(row(on, ended1).path("ended").asBoolean());
-        JsonNode off = json(list(MEMBER, null, "refresh"));
+        JsonNode off = json(list(MEMBER2, null, "refresh"));
         assertEquals(1, rowsOf(off, INST));
         assertEquals(0, rowsOf(off, "dobong"));
         assertNull(row(off, old));
@@ -647,15 +648,15 @@ public class PrepBoardApiTest {
         String done = opened(INST);
         setState(done, "WRITABLE");
         String other = opened("dobong");   // IN_PROGRESS — 11-25 패치 B 로 건 줄이 남는다(이전에는 없었다)
-        assertEquals(200, list(MEMBER, null, "open").getResponse().getStatus());
+        assertEquals(200, list(MEMBER2, null, "open").getResponse().getStatus());   // 담당자라 두 건 모두 내 작업(사용자 11-27)
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_LIST_ROW' AND OUTCOME='OK'"
                 + " AND STATE_CD='WRITABLE' AND TASK_CD IS NULL AND ACTOR_EMP_NO=? AND SCREEN_ID='prep_dashboard' AND BUTTON_ID='open'"
-                + " AND UI_VALID=1", done, MEMBER));
+                + " AND UI_VALID=1", done, MEMBER2));
         assertEquals("IN_PROGRESS 도 건 줄이 남는다(패치 B)", 1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_LIST_ROW'"
-                + " AND OUTCOME='OK' AND STATE_CD='IN_PROGRESS' AND ACTOR_EMP_NO=?", other, MEMBER));
-        assertEquals("요약 줄은 그대로 한 줄", 1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST' AND BID_CASE_ID='NONE' AND ACTOR_EMP_NO=?", MEMBER));
+                + " AND OUTCOME='OK' AND STATE_CD='IN_PROGRESS' AND ACTOR_EMP_NO=?", other, MEMBER2));
+        assertEquals("요약 줄은 그대로 한 줄", 1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST' AND BID_CASE_ID='NONE' AND ACTOR_EMP_NO=?", MEMBER2));
         assertEquals("건 줄은 요약 줄과 같은 LOGGED_AT", 1, count("SELECT COUNT(*) FROM BID_PREP_ACT a WHERE a.ACTION_CD='DASH_LIST_ROW' AND a.BID_CASE_ID=?"
-                + " AND a.LOGGED_AT = (SELECT b.LOGGED_AT FROM BID_PREP_ACT b WHERE b.ACTION_CD='DASH_LIST' AND b.BID_CASE_ID='NONE' AND b.ACTOR_EMP_NO=?)", done, MEMBER));
+                + " AND a.LOGGED_AT = (SELECT b.LOGGED_AT FROM BID_PREP_ACT b WHERE b.ACTION_CD='DASH_LIST' AND b.BID_CASE_ID='NONE' AND b.ACTOR_EMP_NO=?)", done, MEMBER2));
         setState(other, "WRITING");
         assertEquals(200, list(LEAD, "include_ended=true", "refresh").getResponse().getStatus());
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='DASH_LIST_ROW' AND OUTCOME='OK'"
@@ -671,7 +672,8 @@ public class PrepBoardApiTest {
         assertEquals(200, check(MEMBER2, bid, COL, mark("DONE", 0)).getResponse().getStatus());
         assertEquals(200, postJson("/bidcases/" + bid + "/prep/cancel", LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
         // 김영업은 확정자지만 개설 뒤 중단 건의 상세는 옛 담당·팀장·부장만 연다(canSee).
-        JsonNode hidden = row(json(list(MEMBER, "include_ended=true", "refresh")), bid);
+        assertNull("확정자만으로는 내 작업에 없다(사용자 11-27)", row(json(list(MEMBER, "include_ended=true", "refresh")), bid));
+        JsonNode hidden = row(json(list(MEMBER, "include_ended=true&scope=team", "refresh")), bid);   // 팀 작업에서 본다
         assertTrue(hidden.path("ended").asBoolean());
         assertFalse(hidden.path("can_view").asBoolean());
         assertTrue(hidden.path("confirmed_by_name").isNull());
@@ -881,12 +883,12 @@ public class PrepBoardApiTest {
         assertNull("남이 확정만 한 건은 내 작업에 없다", row(asMember2, pre));   // PRE_OPEN 검사는 아래 MEMBER(확정자)가 맡는다
         assertTrue(row(asMember2, open).path("check_block").isNull());
         assertTrue(row(asMember2, open).path("can_check").asBoolean());
-        JsonNode asMember = json(list(MEMBER, "include_ended=true", "refresh"));
+        JsonNode asMember = json(list(MEMBER, "include_ended=true&scope=team", "refresh"));   // 확정만 한 사람은 팀 작업에서 본다(사용자 11-27)
         assertEquals("NOT_MINE", row(asMember, open).path("check_block").asText());
-        assertEquals("PRE_OPEN", row(asMember, pre).path("check_block").asText());   // 상태가 먼저 — 담당이 아니어도 PRE_OPEN
+        assertEquals("PRE_OPEN", row(json(list(MEMBER, "include_ended=true", "refresh")), pre).path("check_block").asText());   // 상태가 먼저 — 담당이 아니어도 PRE_OPEN. pre 는 팀에 없고 mine 에 있다
         setState(open, "CANCELLED");                      // 합성: 배정은 활성으로 남는다
         assertEquals("ENDED", row(json(list(MEMBER2, "include_ended=true", "refresh")), open).path("check_block").asText());
-        JsonNode endedAsMember = row(json(list(MEMBER, "include_ended=true", "refresh")), open);   // 담당이 아닌 사람 눈에도 ENDED
+        JsonNode endedAsMember = row(json(list(MEMBER, "include_ended=true&scope=team", "refresh")), open);   // 담당이 아닌 사람 눈에도 ENDED
         assertEquals("ENDED", endedAsMember.path("check_block").asText());
         assertFalse(endedAsMember.path("is_mine").asBoolean());
         assertFalse(endedAsMember.path("can_check").asBoolean());
@@ -947,15 +949,15 @@ public class PrepBoardApiTest {
     }
 
     @Test
-    public void D46_mine은_확정자_본인과_활성_담당의_건이고_개설_전도_포함한다() throws Exception {
+    public void D46_mine은_활성_담당과_시작_전_건의_확정자이고_남이_담당인_건은_빠진다() throws Exception {
         String pre = confirm(MEMBER, "dobong");
         String open = opened(INST);
         JsonNode m2 = body(MEMBER2, null);
         assertNotNull(row(m2, open));
         assertNull(row(m2, pre));
         JsonNode m1 = body(MEMBER, null);
-        assertNotNull(row(m1, open));
-        assertFalse(row(m1, open).path("is_mine").asBoolean());
+        assertNull("남이 담당인 건은 확정자의 내 작업이 아니다(사용자 11-27)", row(m1, open));
+        assertNotNull("팀 작업에서는 보인다", row(body(MEMBER, "scope=team"), open));
         assertNotNull(row(m1, pre));
         JsonNode lead = body(LEAD, "scope=mine");
         assertNull(row(lead, open));
@@ -1046,12 +1048,14 @@ public class PrepBoardApiTest {
         assertEquals(200, postJson("/bidcases/" + stopped + "/prep/cancel", LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
         String unconfirmed = confirm(MEMBER, "dobong");
         assertEquals(200, postJson("/bidcases/" + unconfirmed + "/prep/unconfirm", LEAD, "{\"reason\":\"가상 취소\"}").getResponse().getStatus());
-        for (String emp : new String[]{LEAD, HEAD, MEMBER2, MEMBER}) {
+        for (String emp : new String[]{LEAD, HEAD, MEMBER2}) {
             JsonNode v = body(emp, "include_ended=true");
             assertNotNull(emp, row(v, stopped));
-            if (!MEMBER.equals(emp)) { assertNull(emp, row(v, unconfirmed)); }
+            assertNull(emp, row(v, unconfirmed));
         }
         assertNotNull(row(body(MEMBER, "include_ended=true"), unconfirmed));
+        assertNull("시작 뒤 중단 건은 확정자만이면 내 작업에 없다(사용자 11-27)", row(body(MEMBER, "include_ended=true"), stopped));
+        assertNotNull(row(body(MEMBER, "include_ended=true&scope=team"), stopped));
         assertNull(row(body(LEAD2, "include_ended=true"), stopped));
         assertNull(row(body(LEAD2, "include_ended=true"), unconfirmed));
     }
@@ -1060,10 +1064,10 @@ public class PrepBoardApiTest {
     public void D50_목록_요약_감사_줄의_TASK_CD는_실제_적용_범위이고_건_줄은_NULL이다() throws Exception {
         String done = opened(INST);
         setState(done, "WRITABLE");
-        assertEquals(200, list(MEMBER, null, "open").getResponse().getStatus());
+        assertEquals(200, list(MEMBER2, null, "open").getResponse().getStatus());
         assertEquals(200, list(MEMBER2, "scope=dept", "open").getResponse().getStatus());
         assertEquals(200, list(LEAD, "include_ended=true", "refresh").getResponse().getStatus());
-        assertEquals(1, summaryTag("DASH_LIST", MEMBER, "SCOPE_MINE"));
+        assertEquals(1, summaryTag("DASH_LIST", MEMBER2, "SCOPE_MINE"));
         assertEquals(1, summaryTag("DASH_LIST", MEMBER2, "SCOPE_DEPT"));
         assertEquals(1, summaryTag("DASH_LIST_ENDED", LEAD, "SCOPE_TEAM"));
         assertEquals(3, actByCol(done, "DASH_LIST_ROW", "OK", null));
@@ -1075,5 +1079,21 @@ public class PrepBoardApiTest {
         assertEquals(403, list(DESIGNER, "scope=bad", "open").getResponse().getStatus());
         assertEquals(1, summaryTag("DASH_LIST", DESIGNER, "SCOPE_TEAM"));
         assertEquals(1, summaryTag("DASH_LIST", DESIGNER, null));
+    }
+
+    @Test
+    public void D56_담당_추가_뒤에는_확정자가_바로_상세를_열고_내_작업에_담당으로_뜬다() throws Exception {
+        String bid = opened(INST);   // 확정자 MEMBER, 담당 MEMBER2
+        assertEquals(404, mockMvc.perform(get("/bidcases/" + bid + "/prep").header("X-Emp-No", MEMBER)).andReturn().getResponse().getStatus());
+        assertNull("담당이 아닌 확정자의 내 작업에는 없다", row(body(MEMBER, null), bid));
+        MvcResult ok = postJson("/bidcases/" + bid + "/prep/assignees/change", MEMBER2,
+                "{\"add_emp_nos\":[\"" + MEMBER + "\"],\"reason\":\"함께 맡음\"}");
+        assertEquals(ok.getResponse().getContentAsString(), 200, ok.getResponse().getStatus());
+        assertEquals(200, mockMvc.perform(get("/bidcases/" + bid + "/prep").header("X-Emp-No", MEMBER)).andReturn().getResponse().getStatus());
+        JsonNode r = row(body(MEMBER, null), bid);
+        assertNotNull(r);
+        assertTrue(r.path("is_mine").asBoolean());
+        assertTrue(r.path("can_view").asBoolean());
+        assertTrue(r.path("can_check").asBoolean());
     }
 }
