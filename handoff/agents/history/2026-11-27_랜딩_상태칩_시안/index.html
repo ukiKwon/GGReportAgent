@@ -675,32 +675,109 @@ body{margin:0;background:#fff}
 :where(#landing-view) .ld-st-why{margin-top:4px;font-size:13px;line-height:1.6;color:var(--ld-muted)}
 :where(#landing-view) .ld-scene .ld-st-now+.ld-shift{margin-top:24px}
 /* 보기 전환: 안에 속하지 않은 보기에서는 숨김 */
-#landing-view[data-view="now"] .va,#landing-view[data-view="now"] .vb,
-#landing-view[data-view="a"] .vn,#landing-view[data-view="b"] .vn{display:none!important}
-#landing-view[data-view="a"] .vb:not(.va),#landing-view[data-view="b"] .va:not(.vb){display:none!important}
+#landing-view[data-view="now"] .va,#landing-view[data-view="a"] .vn{display:none!important}
 #landing-view{position:static;inset:auto;overflow:visible;z-index:auto}
+
+/* ── 큰 장면: 수익성 분석표와 이사회 자료 연동(시안 추가분, 접두어 bx-, 기존 변수만) ── */
+:where(#landing-view) .ld-scene-wide .ld-scene-grid{grid-template-columns:320px minmax(0,1fr);column-gap:48px}
+:where(#landing-view) .bx .ld-mock-body{height:520px;padding:12px;font-size:12px;line-height:1.4;overflow:hidden;transition:opacity 200ms linear}
+:where(#landing-view) .bx.bx-fade .ld-mock-body{opacity:0}
+:where(#landing-view) .bx-st{display:grid;align-items:center;height:32px;font-size:13px}
+:where(#landing-view) .bx-st>span{grid-area:1/1;transition:opacity 200ms linear}
+:where(#landing-view) .bx-s0,:where(#landing-view) .bx-s1{opacity:0}
+:where(#landing-view) .bx-cols{display:grid;grid-template-columns:372px minmax(0,1fr);column-gap:12px;height:456px;margin-top:8px}
+:where(#landing-view) .bx-cols>.ld-pnl{position:relative;height:auto;min-width:0;overflow:hidden}
+:where(#landing-view) .bx .ld-pnl-head{height:36px;padding:0 12px;font-size:13px}
+:where(#landing-view) .bx-file{font-size:12px}
+/* 엑셀 모양 원본 */
+:where(#landing-view) .bx-sheet{padding:10px 10px 0}
+:where(#landing-view) .bx-sheet table{table-layout:fixed;border-collapse:collapse;width:350px;font-size:12px;line-height:1.2}
+:where(#landing-view) .bx-sheet th,:where(#landing-view) .bx-sheet td{height:22px;padding:0 3px;border:1px solid var(--ld-line);white-space:nowrap;overflow:hidden}
+:where(#landing-view) .bx-sheet th{background:var(--ld-head);font:12px/1 var(--ld-mono);color:var(--ld-muted);text-align:center;padding:0}
+:where(#landing-view) .bx-sheet thead th{height:20px}
+:where(#landing-view) .bx-sheet td.bx-nm{text-align:right;font-family:var(--ld-mono);letter-spacing:-.02em}
+:where(#landing-view) .bx-sheet td.bx-xt{font-weight:700}
+:where(#landing-view) .bx-sheet td.bx-xh{background:var(--ld-head);font-weight:700;text-align:center;padding:0}
+:where(#landing-view) .bx-sheet td.bx-src{transition:box-shadow 150ms linear}
+:where(#landing-view) .bx-sheet td.bx-use{box-shadow:inset 0 0 0 2px var(--ld-ink)}
+:where(#landing-view) .bx-tabs{display:flex;gap:4px;margin:8px 10px 0;font-size:12px}
+:where(#landing-view) .bx-tabs span{padding:2px 10px;border:1px solid var(--ld-line);border-radius:var(--ld-r);background:var(--ld-panel2);color:var(--ld-muted)}
+:where(#landing-view) .bx-tabs .is-on{background:#fff;color:var(--ld-ink);font-weight:700;border-color:var(--ld-line-strong)}
+:where(#landing-view) .bx-cnt{margin:10px 12px 0;font-size:12px;color:var(--ld-muted)}
+:where(#landing-view) .bx-cnt b{color:var(--ld-ink)}
+:where(#landing-view) .bx-drop{position:absolute;left:0;right:0;top:36px;bottom:0;padding:20px;background:#fff;border-top:1px dashed var(--ld-line-strong);opacity:0;pointer-events:none;transition:opacity 200ms linear}
+:where(#landing-view) .bx-drop b{display:block;font-size:14px;line-height:1.5}
+:where(#landing-view) .bx-drop p{margin-top:4px;font-size:13px;line-height:1.5;color:var(--ld-muted)}
+:where(#landing-view) .bx-pick{display:flex;width:max-content;margin-top:12px;transition:background-color 150ms linear,border-color 150ms linear}
+/* 이사회 자료 양식 */
+:where(#landing-view) .bx-cards{display:flex;flex-direction:column;gap:8px;padding:8px}
+:where(#landing-view) .bx-card{border:1px solid var(--ld-line);border-radius:var(--ld-r);background:#fff;overflow:hidden}
+:where(#landing-view) .bx-ch{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;background:var(--ld-head);border-bottom:1px solid var(--ld-line)}
+:where(#landing-view) .bx-ch b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+:where(#landing-view) .bx-ch .ld-chip{flex:none;font-size:12px;line-height:1.3}
+:where(#landing-view) .bx-tck{flex:none;display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;border:1px solid transparent;border-radius:var(--ld-r);font-size:12px;font-weight:700;white-space:nowrap;color:var(--ld-muted);transition:border-color 200ms linear,color 200ms linear,background-color 200ms linear}
+:where(#landing-view) .bx-tck .ld-pgcount{font-size:12px}
+:where(#landing-view) .bx-box{display:inline-block;width:12px;height:12px;border:1px solid var(--ld-ink);border-radius:var(--ld-r);background:#fff}
+:where(#landing-view) .bx-card.is-ready .bx-tck{color:var(--ld-ink);border-color:var(--ld-ink);background:#fff}
+:where(#landing-view) .bx-card:not(.is-filled) .bx-fc{visibility:hidden}
+:where(#landing-view) .bx-t{table-layout:fixed;border-collapse:collapse;width:100%;font-size:12px;line-height:1.2}
+:where(#landing-view) .bx-t th,:where(#landing-view) .bx-t td{height:22px;padding:0 4px;border:1px solid var(--ld-line);text-align:center;white-space:nowrap;overflow:hidden}
+:where(#landing-view) .bx-t thead th{background:var(--ld-head);font-weight:700;padding:0}
+:where(#landing-view) .bx-t tr>:first-child{border-left:0}
+:where(#landing-view) .bx-t tr>:last-child{border-right:0}
+:where(#landing-view) .bx-t thead tr>*{border-top:0}
+:where(#landing-view) .bx-t td.bx-nm{text-align:right;font-family:var(--ld-mono);letter-spacing:-.02em;padding:0 6px;transition:background-color 200ms linear}
+:where(#landing-view) .bx-cs{display:grid;justify-items:end}
+:where(#landing-view) .bx-cs>*{grid-area:1/1;transition:opacity 200ms linear}
+:where(#landing-view) .bx-pl{color:var(--ld-muted)}
+:where(#landing-view) .bx-to.is-f{background:color-mix(in srgb,var(--ld-ink) 6%,#fff)}
+:where(#landing-view) .bx-to.is-f .bx-pl{opacity:0}
+:where(#landing-view) .bx-to:not(.is-f) .bx-v{opacity:0}
+/* 날아가는 값 */
+:where(#landing-view) .bx-tok{position:absolute;z-index:6;display:flex;align-items:center;background:#fff;border:1px solid var(--ld-ink);border-radius:var(--ld-r);font:12px/1 var(--ld-mono);letter-spacing:-.02em;pointer-events:none;opacity:0;transition:left 560ms var(--ld-ease),top 560ms var(--ld-ease),width 560ms var(--ld-ease),opacity 200ms linear}
+:where(#landing-view) .bx-tok.is-on{opacity:1}
+:where(#landing-view) .bx-tok>span{flex:1;min-width:0;padding-right:5px;text-align:right;white-space:nowrap}
+/* 재생 중의 시작 상태(.bx-play 는 JS 가 붙인다. 없으면 완성 상태) */
+:where(#landing-view) .bx-sheetwrap,:where(#landing-view) .bx-file{transition:opacity 240ms linear}
+:where(#landing-view) .bx-play:not(.bx-up) .bx-sheetwrap,:where(#landing-view) .bx-play:not(.bx-up) .bx-file{opacity:0}
+:where(#landing-view) .bx-play:not(.bx-up) .bx-drop{opacity:1}
+:where(#landing-view) .bx-play .bx-s2{opacity:0}
+:where(#landing-view) .bx-play:not(.bx-up) .bx-s0{opacity:1}
+:where(#landing-view) .bx-play.bx-up:not(.bx-done) .bx-s1{opacity:1}
+:where(#landing-view) .bx-play.bx-done .bx-s2{opacity:1}
+:where(#landing-view) .bx-tap .bx-pick{background:var(--ld-panel2);border-color:var(--ld-muted)}
+/* 커서(사람이 하는 일: 파일 고르기) */
+:where(#landing-view) .bx-play .ld-ptr{transition:transform 600ms var(--ld-ease),opacity 200ms linear}
+:where(#landing-view) .bx-ptr-on .ld-ptr{opacity:1}
+:where(#landing-view) .bx-tap .ld-ptr::after{animation:ld-tap-a 420ms ease-out}
+:where(#landing-view) .bx-cap{display:flex;align-items:center;justify-content:space-between;gap:12px}
+:where(#landing-view) .bx-replay{height:28px;padding:0 10px;background:#fff;border:1px solid var(--ld-line-strong);border-radius:var(--ld-r);font-size:12px;line-height:1;color:var(--ld-ink);white-space:nowrap}
+@media (max-width:1023px){
+  :where(#landing-view) .ld-scene-wide .ld-scene-grid{grid-template-columns:minmax(0,1fr)}
+  :where(#landing-view) .bx .ld-mock-body{overflow-x:auto}
+  :where(#landing-view) .bx-body>*{min-width:760px}
+}
 
 </style></head><body>
 <div id="sian-bar">
   <div class="row"><span class="tag">시안(실제 화면 아님)</span>
-    <button type="button" data-v="now" aria-pressed="false">지금</button>
-    <button type="button" data-v="a" aria-pressed="true">A안(권장)</button>
-    <button type="button" data-v="b" aria-pressed="false">B안</button></div>
-  <div class="desc" data-for="now" hidden><p>지금 랜딩 그대로입니다. 구역 이름은 "AI로 달라질 일", 모든 장면이 앞으로 붙일 기능의 완성 모습으로 읽힙니다.</p><p>이사회 자료 예시에는 "AI 기능이 아닙니다"라고 적혀 있습니다.</p></div><div class="desc" data-for="a" hidden><p>장면마다 상태 표시를 달았습니다: 지금 사용 중 / 일부 사용 중 / 준비 중. 일부만 되는 장면에는 지금 되는 것을 한 줄로 적습니다.</p><p>구역 이름은 "AI·자동화로 달라질 일"이고, 이사회 자료 채우기가 작은 장면 줄에 네 번째로 들어갔습니다.</p><p>권장: 시연에서 "지금 되나요?"에 장면마다 사실대로 답할 수 있습니다.</p></div><div class="desc" data-for="b" hidden><p>A안과 같되, 일부만 되는 장면도 모두 "지금 사용 중"으로 통일하고 덧붙이는 줄을 없앴습니다. 계획 확인 장면만 "준비 중"입니다.</p><p>화면은 깔끔하지만 아직 안 되는 부분(고침 단추, 검색 등)까지 되는 것처럼 보일 수 있습니다.</p></div>
+    <button type="button" data-v="a" aria-pressed="true">확정안(A)</button>
+    <button type="button" data-v="now" aria-pressed="false">지금</button></div>
+  <div class="desc" data-for="a" hidden><p>장면마다 상태 표시를 달았습니다: 지금 사용 중 / 일부 사용 중 / 준비 중. 일부만 되는 장면에는 지금 되는 것을 한 줄로 적습니다. 구역 이름은 "AI·자동화로 달라질 일"입니다.</p><p>새 큰 장면 "수익성 분석표와 이사회 자료 연동"이 AI 구역 큰 장면의 맨 끝에 들어갔습니다. 복잡한 엑셀이 이사회 자료 양식 세 표로 옮겨지는 모습이 자동 반복되며, 장면 아래 [다시 보기]로 처음부터 볼 수 있습니다(모션 줄이기 설정이면 끝 모습으로 정지).</p><p>업무 흐름 묶음 2의 예시 장면은 그대로입니다. 화면 속 기관·수치는 모두 가상입니다.</p></div><div class="desc" data-for="now" hidden><p>지금 랜딩 그대로입니다. 구역 이름은 "AI로 달라질 일", 모든 장면이 앞으로 붙일 기능의 완성 모습으로 읽힙니다. 새 큰 장면은 보이지 않습니다.</p><p>업무 흐름 묶음 2의 이사회 자료 예시에는 "AI 기능이 아닙니다"라고 적혀 있습니다.</p></div>
 </div>
 <div id="landing-view" data-view="a">
   <main>
     <section id="ld-ai" aria-labelledby="ld-ai-h">
       <div class="ld-wrap ld-sec-head">
-        <h2 id="ld-ai-h" tabindex="-1" class="ld-reveal-t"><span class="vn">AI로 달라질 일</span><span class="va vb">AI·자동화로 달라질 일</span></h2>
-        <p class="ld-lede ld-reveal-t"><span class="vn">아래 장면은 앞으로 붙일 기능의 완성 모습입니다. 판단과 결재는 지금처럼 담당자가 하고, AI는 읽고 찾고 정리하는 일을 돕습니다. 화면 속 기관·수치는 모두 가상입니다.</span><span class="va vb">장면마다 지금 쓰는 기능인지, 준비 중인 기능인지 표시했습니다. 판단과 결재는 지금처럼 담당자가 합니다. 화면 속 기관·수치는 모두 가상입니다.</span></p>
+        <h2 id="ld-ai-h" tabindex="-1" class="ld-reveal-t"><span class="vn">AI로 달라질 일</span><span class="va">AI·자동화로 달라질 일</span></h2>
+        <p class="ld-lede ld-reveal-t"><span class="vn">아래 장면은 앞으로 붙일 기능의 완성 모습입니다. 판단과 결재는 지금처럼 담당자가 하고, AI는 읽고 찾고 정리하는 일을 돕습니다. 화면 속 기관·수치는 모두 가상입니다.</span><span class="va">장면마다 지금 쓰는 기능인지, 준비 중인 기능인지 표시했습니다. 판단과 결재는 지금처럼 담당자가 합니다. 화면 속 기관·수치는 모두 가상입니다.</span></p>
       </div>
 
       <!-- 장면 1 -->
       <article class="ld-scene" id="scene-today" aria-labelledby="scene-today-h">
         <div class="ld-wrap ld-scene-grid">
           <div class="ld-scene-text">
-            <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p><p class="ld-st-row vb"><span class="ld-st is-on">지금 사용 중</span></p>
+            <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p>
             <h3 id="scene-today-h" tabindex="-1">오늘 먼저 할 일을 시작화면에</h3>
             <p>맡은 기관들의 남은 일정을 모아 급한 순서로 보여 주고, 왜 지금 이 일인지 한 줄로 알려 줍니다.</p>
                         <p class="ld-st-now va"><b>지금 되는 것</b> 일정 정렬은 지금 됩니다.</p>
@@ -745,7 +822,7 @@ body{margin:0;background:#fff}
       <article class="ld-scene" id="scene-rfp" aria-labelledby="scene-rfp-h">
         <div class="ld-wrap ld-scene-grid">
           <div class="ld-scene-text">
-            <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p><p class="ld-st-row vb"><span class="ld-st is-on">지금 사용 중</span></p>
+            <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p>
             <h3 id="scene-rfp-h" tabindex="-1">공고문에서 평가 항목과 배점을 표로</h3>
             <p>긴 공고문을 읽어 평가 항목, 배점, 제출서류를 표로 옮겨 둡니다. 원문 쪽수를 함께 달아 바로 대조할 수 있습니다.</p>
                         <p class="ld-st-now va"><b>지금 되는 것</b> HWPX 공고는 지금 됩니다. 원문 쪽수·스캔본은 준비 중입니다.</p>
@@ -815,7 +892,7 @@ body{margin:0;background:#fff}
       <article class="ld-scene" id="scene-check" aria-labelledby="scene-check-h">
         <div class="ld-wrap ld-scene-grid">
           <div class="ld-scene-text">
-            <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p><p class="ld-st-row vb"><span class="ld-st is-on">지금 사용 중</span></p>
+            <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p>
             <h3 id="scene-check-h" tabindex="-1">다른 기관 이름이 남아 있지 않은지 점검</h3>
             <p>이전 제안서를 고쳐 쓰다 남은 다른 기관 이름이나 맞지 않는 수치를 찾아 표시합니다. 고칠지는 담당자가 정합니다.</p>
                         <p class="ld-st-now va"><b>지금 되는 것</b> 지금은 다른 기관 이름 찾기·문맥 보기·의도한 언급 표시까지 됩니다. [고침]은 준비 중입니다.</p>
@@ -858,7 +935,7 @@ body{margin:0;background:#fff}
       <article class="ld-scene" id="scene-plan" aria-labelledby="scene-plan-h">
         <div class="ld-wrap ld-scene-grid">
           <div class="ld-scene-text">
-            <p class="ld-st-row va"><span class="ld-st is-soon">준비 중</span></p><p class="ld-st-row vb"><span class="ld-st is-soon">준비 중</span></p>
+            <p class="ld-st-row va"><span class="ld-st is-soon">준비 중</span></p>
             <h3 id="scene-plan-h" tabindex="-1">버튼 한 번으로 그 기관의 계획을 미리 파악</h3>
             <p>기관이 공개한 사업계획에서 제안에 참고할 사업을 출처 쪽수와 함께 목록으로 정리합니다.</p>
                         <dl class="ld-shift">
@@ -889,14 +966,85 @@ body{margin:0;background:#fff}
         </div>
       </article>
 
-      <!-- 작은 장면 5·6·7 -->
+      <!-- 장면 5(큰 장면): 수익성 분석표와 이사회 자료 연동 — 시안 11-27 A안, 움직이는 매핑 -->
+      <article class="ld-scene ld-scene-wide va" id="scene-boardmap" aria-labelledby="scene-boardmap-h">
+        <div class="ld-wrap ld-scene-grid">
+          <div class="ld-scene-text">
+            <p class="ld-st-row"><span class="ld-st is-on">지금 사용 중</span></p>
+            <h3 id="scene-boardmap-h" tabindex="-1">수익성 분석표와 이사회 자료 연동</h3>
+            <p>수익성 분석표 엑셀을 올리면 평균 잔액·예상 순이익 같은 값이 이사회 자료 양식의 정해진 칸으로 옮겨집니다. 담당자가 표마다 확인합니다.</p>
+            <p class="ld-st-why">숫자를 옮겨 적다 틀릴 일이 줄어듭니다.</p>
+          </div>
+          <figure class="ld-mock bx" data-scene="boardmap" data-step="end">
+            <div class="ld-win" aria-hidden="true">
+              <div class="ld-mock-bar"><b>이사회 자료 작성</b><span class="ld-fm-tags"><span class="ld-fm-v">예시 자료(가상)</span><span class="ld-now">지금 쓰는 화면</span></span></div>
+              <div class="ld-mock-body bx-body">
+                <p class="bx-st"><span class="bx-s0">수익성 분석 엑셀을 올려 주세요</span><span class="bx-s1">엑셀을 확인하고 양식에 값을 채우는 중입니다…</span><span class="bx-s2">값 25칸을 채웠습니다 · 담당자 확인 대기 (표 3개)</span></p>
+                <div class="bx-cols">
+                  <div class="ld-pnl bx-left">
+                    <div class="ld-pnl-head"><b>수익성 분석표</b><span class="ld-src bx-file">수익성분석_가나군(가상).xlsx</span></div>
+                    <div class="bx-sheetwrap">
+                      <div class="bx-sheet"><table><colgroup><col style="width:22px"><col style="width:94px"><col span="6" style="width:39px"></colgroup>
+                        <thead><tr><th></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th></tr></thead><tbody><tr><th>1</th><td class="bx-xt" colspan="7">가나군 금고 수익성 분석(가상) · 단위 억원</td></tr><tr><th>2</th><td class="bx-xh">항목</td><td class="bx-xh">초기</td><td class="bx-xh">1년</td><td class="bx-xh">2년</td><td class="bx-xh">3년</td><td class="bx-xh">4년</td><td class="bx-xh">계</td></tr><tr><th>3</th><td>수신 평균 잔액</td><td class="bx-nm">–</td><td class="bx-nm">1,100</td><td class="bx-nm">1,200</td><td class="bx-nm">1,300</td><td class="bx-nm">1,360</td><td class="bx-nm">1,240</td></tr><tr><th>4</th><td>대출 평균 잔액</td><td class="bx-nm">–</td><td class="bx-nm">300</td><td class="bx-nm">340</td><td class="bx-nm">380</td><td class="bx-nm">400</td><td class="bx-nm">355</td></tr><tr><th>5</th><td>총수익(A)</td><td class="bx-src bx-nm" data-g="C" data-f="c1" data-hl>0</td><td class="bx-src bx-nm" data-g="C" data-f="c1" data-hl>1,000</td><td class="bx-src bx-nm" data-g="C" data-f="c1" data-hl>1,200</td><td class="bx-src bx-nm" data-g="C" data-f="c1" data-hl>1,400</td><td class="bx-src bx-nm" data-g="C" data-f="c1" data-hl>1,400</td><td class="bx-src bx-nm" data-g="C" data-f="c1" data-hl>5,000</td></tr><tr><th>6</th><td>총비용(B)</td><td class="bx-src bx-nm" data-g="C" data-f="c2" data-hl>400</td><td class="bx-src bx-nm" data-g="C" data-f="c2" data-hl>700</td><td class="bx-src bx-nm" data-g="C" data-f="c2" data-hl>750</td><td class="bx-src bx-nm" data-g="C" data-f="c2" data-hl>700</td><td class="bx-src bx-nm" data-g="C" data-f="c2" data-hl>650</td><td class="bx-src bx-nm" data-g="C" data-f="c2" data-hl>3,200</td></tr><tr><th>7</th><td>순이익(세후)</td><td class="bx-src bx-nm" data-g="C" data-f="c3" data-hl>-400</td><td class="bx-src bx-nm" data-g="C" data-f="c3" data-hl>136</td><td class="bx-src bx-nm" data-g="C" data-f="c3" data-hl>253</td><td class="bx-src bx-nm" data-g="C" data-f="c3" data-hl>448</td><td class="bx-src bx-nm" data-g="C" data-f="c3" data-hl>487</td><td class="bx-src bx-nm" data-g="C" data-f="c3" data-hl>924</td></tr><tr><th>8</th><td>출연금</td><td class="bx-nm">0</td><td class="bx-nm">125</td><td class="bx-nm">125</td><td class="bx-nm">125</td><td class="bx-nm">125</td><td class="bx-src bx-nm" data-g="A" data-f="a1" data-hl>500</td></tr><tr><th>9</th><td>예비비</td><td class="bx-nm">0</td><td class="bx-nm">25</td><td class="bx-nm">25</td><td class="bx-nm">25</td><td class="bx-nm">25</td><td class="bx-src bx-nm" data-g="A" data-f="a2" data-hl>100</td></tr><tr><th>10</th><td>전산시스템비</td><td class="bx-nm">100</td><td class="bx-nm">100</td><td class="bx-nm">50</td><td class="bx-nm">50</td><td class="bx-nm">0</td><td class="bx-src bx-nm" data-g="A" data-f="a3" data-hl>300</td></tr><tr><th>11</th><td>이익제공 합계</td><td class="bx-nm">100</td><td class="bx-nm">250</td><td class="bx-nm">200</td><td class="bx-nm">200</td><td class="bx-nm">150</td><td class="bx-src bx-nm" data-g="A" data-f="a4" data-hl>900</td></tr><tr><th>12</th><td>회수기간</td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-src bx-nm" data-g="D" data-f="d1" data-hl>3.2년</td></tr><tr><th>13</th><td>순현재가치(NPV)</td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-src bx-nm" data-g="D" data-f="d2" data-hl>2,345</td></tr><tr><th>14</th><td>IRR</td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-nm"></td><td class="bx-src bx-nm" data-g="D" data-f="d3" data-hl>5.8%</td></tr></tbody></table></div>
+                      <div class="bx-tabs"><span class="is-on">수익성분석</span><span>가정</span><span>메모</span></div>
+                      <p class="bx-cnt">이사회 자료로 읽은 칸 <b>25</b>개</p>
+                    </div>
+                    <div class="bx-drop">
+                      <b>수익성 분석 엑셀을 올려 주세요</b>
+                      <p>엑셀(.xlsx) 파일 1개. 원본 파일은 저장되지 않습니다.</p>
+                      <span class="ld-btnlike bx-pick">엑셀 파일 고르기</span>
+                    </div>
+                  </div>
+                  <div class="ld-pnl bx-right">
+                    <div class="ld-pnl-head"><b>이사회 자료 · 가나군(가상)</b><span class="ld-chip">표 확인 0/3</span></div>
+                    <div class="bx-cards">
+                      <section class="bx-card is-filled is-ready" data-card="A">
+                        <div class="bx-ch"><span class="ld-chip">A</span><b>재산상 이익제공 및 기부금(안)</b><span class="ld-chip bx-fc">채움</span><label class="bx-tck"><i class="bx-box"></i>이 표 확인 <span class="ld-pgcount">4칸</span></label></div>
+                        <table class="bx-t"><colgroup><col style="width:68px"><col style="width:140px"><col style="width:70px"><col style="width:107px"></colgroup>
+                          <thead><tr><th>기관명</th><th>구분</th><th>제공금액</th><th>비고</th></tr></thead>
+                          <tbody>
+                            <tr><td rowspan="4">가나군</td><td>출연금</td><td class="bx-to bx-nm is-f" data-g="A" data-f="a1"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">500</span></span></td><td rowspan="3"></td></tr>
+                            <tr><td>예비비</td><td class="bx-to bx-nm is-f" data-g="A" data-f="a2"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">100</span></span></td></tr>
+                            <tr><td>전산시스템 구축·운영비</td><td class="bx-to bx-nm is-f" data-g="A" data-f="a3"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">300</span></span></td></tr>
+                            <tr><td>합계</td><td class="bx-to bx-nm is-f" data-g="A" data-f="a4"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">900</span></span></td><td></td></tr>
+                          </tbody></table></section>
+                      <section class="bx-card is-filled is-ready" data-card="C">
+                        <div class="bx-ch"><span class="ld-chip">C-2</span><b>Ⅱ. 명목가치 수익성</b><span class="ld-chip bx-fc">채움</span><label class="bx-tck"><i class="bx-box"></i>이 표 확인 <span class="ld-pgcount">18칸</span></label></div>
+                        <table class="bx-t"><colgroup><col style="width:91px"><col span="6" style="width:49px"></colgroup>
+                          <thead><tr><th>구분</th><th>사업초기</th><th>1년차</th><th>2년차</th><th>3년차</th><th>4년차</th><th>계</th></tr></thead>
+                          <tbody>
+                            <tr><td>총수익(A)</td><td class="bx-to bx-nm is-f" data-g="C" data-f="c1" data-i="0"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">0</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c1" data-i="1"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">1,000</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c1" data-i="2"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">1,200</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c1" data-i="3"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">1,400</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c1" data-i="4"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">1,400</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c1" data-i="5"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">5,000</span></span></td></tr>
+                            <tr><td>총비용(B)</td><td class="bx-to bx-nm is-f" data-g="C" data-f="c2" data-i="0"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">400</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c2" data-i="1"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">700</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c2" data-i="2"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">750</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c2" data-i="3"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">700</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c2" data-i="4"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">650</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c2" data-i="5"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">3,200</span></span></td></tr>
+                            <tr><td>순이익(세후)</td><td class="bx-to bx-nm is-f" data-g="C" data-f="c3" data-i="0"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">-400</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c3" data-i="1"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">136</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c3" data-i="2"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">253</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c3" data-i="3"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">448</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c3" data-i="4"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">487</span></span></td><td class="bx-to bx-nm is-f" data-g="C" data-f="c3" data-i="5"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">924</span></span></td></tr>
+                          </tbody></table></section>
+                      <section class="bx-card is-filled is-ready" data-card="D">
+                        <div class="bx-ch"><span class="ld-chip">C-4</span><b>Ⅳ. 투자적정성 분석</b><span class="ld-chip bx-fc">채움</span><label class="bx-tck"><i class="bx-box"></i>이 표 확인 <span class="ld-pgcount">3칸</span></label></div>
+                        <table class="bx-t"><colgroup><col style="width:112px"><col style="width:62px"><col style="width:211px"></colgroup>
+                          <thead><tr><th>구분</th><th>산출값</th><th>투자가부 결정 판단기준</th></tr></thead>
+                          <tbody>
+                            <tr><td>회수기간법</td><td class="bx-to bx-nm is-f" data-g="D" data-f="d1"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">3.2년</span></span></td><td>회수기간이 목표기간보다 짧으면 투자</td></tr>
+                            <tr><td>순현재가치(NPV)</td><td class="bx-to bx-nm is-f" data-g="D" data-f="d2"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">2,345</span></span></td><td>순현재가치가 0보다 크면 투자</td></tr>
+                            <tr><td>내부수익률법(IRR)</td><td class="bx-to bx-nm is-f" data-g="D" data-f="d3"><span class="bx-cs"><span class="bx-pl">—</span><span class="bx-v">5.8%</span></span></td><td>올린 표의 판단기준을 따름</td></tr>
+                          </tbody></table></section>
+                    </div>
+                  </div>
+                </div>
+                <span class="ld-ptr"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M2 1.5V14.5L5.4 11.4 7.7 16.5 10 15.5 7.7 10.4H12.5Z" fill="#1e2124" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg></span>
+              </div>
+            </div>
+            <figcaption class="bx-cap"><span>예시 화면. 가상 자료로 만든 완성 모습입니다.</span><button type="button" class="bx-replay">다시 보기</button><span class="sr-only"> 수익성 분석표 엑셀을 올리자, 재산상 이익제공 및 기부금, 명목가치 수익성, 투자적정성 분석 세 표의 값 25칸이 이사회 자료 양식의 정해진 칸으로 차례로 옮겨지고, 담당자의 표별 확인을 기다리는 예시 화면.</span></figcaption>
+          </figure>
+        </div>
+      </article>
+
+      <!-- 작은 장면 6·7·8 -->
       <div class="ld-trio" id="ld-trio">
         <div class="ld-wrap">
-          <div class="ld-trio-hrow"><h3 class="ld-trio-h"><span class="vn">그 밖에 붙일 기능</span><span class="va vb">그 밖의 기능</span></h3><p class="ld-trio-note"><span class="vn">세 장면 모두 예시 화면이며, 가상 자료로 만든 완성 모습입니다.</span><span class="va vb">네 장면 모두 예시 화면이며, 화면 속 자료는 가상입니다.</span></p></div>
+          <div class="ld-trio-hrow"><h3 class="ld-trio-h"><span class="vn">그 밖에 붙일 기능</span><span class="va">그 밖의 기능</span></h3><p class="ld-trio-note"><span class="vn">세 장면 모두 예시 화면이며, 가상 자료로 만든 완성 모습입니다.</span><span class="va">세 장면 모두 예시 화면이며, 화면 속 자료는 가상입니다.</span></p></div>
 
           <article class="ld-trow" id="scene-script" aria-labelledby="scene-script-h">
             <div class="ld-trow-text">
-              <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p><p class="ld-st-row vb"><span class="ld-st is-on">지금 사용 중</span></p>
+              <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p>
               <h4 id="scene-script-h" tabindex="-1">이사회 자료 장마다 발표 대본 초안</h4>
               <p>확정된 이사회 자료를 장 순서대로 읽고, 발표자가 다듬을 대본 초안을 붙입니다.</p>
               <p class="ld-st-now va"><b>지금 되는 것</b> 대본 틀은 지금 됩니다. 초안은 시범 중입니다.</p>
@@ -925,7 +1073,7 @@ body{margin:0;background:#fff}
 
           <article class="ld-trow" id="scene-draft" aria-labelledby="scene-draft-h">
             <div class="ld-trow-text">
-              <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p><p class="ld-st-row vb"><span class="ld-st is-on">지금 사용 중</span></p>
+              <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p>
               <h4 id="scene-draft-h" tabindex="-1">근거를 모아 요약서·협력 과제 초안으로</h4>
               <p>기관 정보와 사업계획 근거를 모아 기관 요약서와 협력 과제 후보의 초안 칸을 채웁니다. 근거가 없는 칸은 비워 둡니다.</p>
               <p class="ld-st-now va"><b>지금 되는 것</b> 기본 칸 자동 채움은 지금 됩니다.</p>
@@ -954,7 +1102,7 @@ body{margin:0;background:#fff}
 
           <article class="ld-trow" id="scene-minutes" aria-labelledby="scene-minutes-h">
             <div class="ld-trow-text">
-              <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p><p class="ld-st-row vb"><span class="ld-st is-on">지금 사용 중</span></p>
+              <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p>
               <h4 id="scene-minutes-h" tabindex="-1">회의는 핵심과 할 일로, 질문에는 근거 달린 답으로</h4>
               <p>회의 기록에서 결정과 할 일을 뽑고, 사내 자료에 물으면 출처와 함께 답합니다.</p>
               <p class="ld-st-now va"><b>지금 되는 것</b> 발언 나누기·가림은 지금 됩니다. 검색은 준비 중입니다.</p>
@@ -979,35 +1127,6 @@ body{margin:0;background:#fff}
                 </div>
               </div>
               <figcaption class="sr-only">회의 발언에서 할 일 1건을 뽑고, 질문에 근거 쪽수를 단 답을 보인 예시 화면.</figcaption>
-            </figure>
-          </article>
-
-          <article class="ld-trow va vb" id="scene-board-fill" aria-labelledby="scene-board-fill-h">
-            <div class="ld-trow-text">
-              <p class="ld-st-row"><span class="ld-st is-on">지금 사용 중</span></p>
-              <h4 id="scene-board-fill-h" tabindex="-1">수익성 분석표를 올리면 이사회 자료 칸이 채워짐</h4>
-              <p>엑셀을 올리면 평균 잔액·예상 순이익 같은 값이 이사회 자료의 정해진 칸으로 옮겨집니다. 담당자가 표마다 확인합니다.</p>
-              <p class="ld-st-why">숫자를 옮겨 적다 틀릴 일이 줄어듭니다.</p>
-            </div>
-            <figure class="ld-mock is-sm" data-scene="boardfill" data-step="end">
-              <div class="ld-win" aria-hidden="true">
-                <div class="ld-mock-bar"><b>이사회 자료 작성</b><span class="ld-ex">예시 화면</span></div>
-                <div class="ld-mock-body">
-                  <div class="ld-pnl ld-s6">
-                    <div class="ld-s6-l">
-                      <p class="ld-lbl">수익성 분석표(원본)</p>
-                      <p class="ld-s6-ev"><span class="ld-src">수익성분석_가나시(가상).xlsx</span></p>
-                      <p class="ld-s6-ev">평균 잔액 <b>1,240</b> · 예상 순이익 <b>38.6</b></p>
-                    </div>
-                    <div class="ld-s6-r">
-                      <p class="ld-lbl">이사회 자료 · 수익성 요약(억원)</p>
-                      <div class="ld-field"><span>평균 잔액</span><span class="ld-chip" style="color:var(--ld-ink)">1,240</span></div>
-                      <div class="ld-field" style="margin-top:6px"><span>예상 순이익</span><span class="ld-chip" style="color:var(--ld-ink)">38.6</span></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <figcaption class="sr-only">수익성 분석표의 값 2칸이 이사회 자료의 정해진 칸으로 옮겨진 예시 화면.</figcaption>
             </figure>
           </article>
         </div>
@@ -1072,7 +1191,7 @@ body{margin:0;background:#fff}
                     <span class="ld-ptr"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M2 1.5V14.5L5.4 11.4 7.7 16.5 10 15.5 7.7 10.4H12.5Z" fill="#1e2124" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg></span>
                   </div>
                 </div>
-                <figcaption><span class="vn">수익성 분석표의 수치를 이사회 자료의 정해진 자리에 채웁니다. 규칙으로 동작하며 AI 기능이 아닙니다.</span><span class="va vb">수익성 분석표의 수치를 이사회 자료의 정해진 자리에 채웁니다.</span><span class="sr-only"> 이사회 자료 작성 예시 화면(가상 자료). [엑셀 파일 고르기]로 수익성 분석표를 올리자 원본 B4·B5·B6 칸의 값(평균 잔액 1,240, 예상 순이익 38.6, 협력사업비 12.0, 단위 억원)이 이사회 자료 '수익성 요약' 표의 정해진 칸으로 차례로 옮겨졌고, 담당자가 '이 표 확인'을 눌러 확인함으로 표시했다.</span></figcaption>
+                <figcaption><span class="vn">수익성 분석표의 수치를 이사회 자료의 정해진 자리에 채웁니다. 규칙으로 동작하며 AI 기능이 아닙니다.</span><span class="va">수익성 분석표의 수치를 이사회 자료의 정해진 자리에 채웁니다.</span><span class="sr-only"> 이사회 자료 작성 예시 화면(가상 자료). [엑셀 파일 고르기]로 수익성 분석표를 올리자 원본 B4·B5·B6 칸의 값(평균 잔액 1,240, 예상 순이익 38.6, 협력사업비 12.0, 단위 억원)이 이사회 자료 '수익성 요약' 표의 정해진 칸으로 차례로 옮겨졌고, 담당자가 '이 표 확인'을 눌러 확인함으로 표시했다.</span></figcaption>
               </figure>
               <dl class="ld-gdl">
                 <div><dt>체크로 관리</dt><dd>가결위(재무), 출심위(사업부), 이사회 하위 3칸(사무국, 감사·감시, 준법)</dd></div>
@@ -1089,7 +1208,121 @@ body{margin:0;background:#fff}
   var lv=document.getElementById('landing-view'),bs=document.querySelectorAll('#sian-bar button'),ds=document.querySelectorAll('#sian-bar .desc');
   function set(v){lv.setAttribute('data-view',v);bs.forEach(function(b){b.setAttribute('aria-pressed',b.dataset.v===v?'true':'false')});ds.forEach(function(d){d.hidden=d.dataset.for!==v});}
   bs.forEach(function(b){b.addEventListener('click',function(){set(b.dataset.v);try{history.replaceState(null,'','#'+b.dataset.v)}catch(e){}})});
-  var h=(location.hash||'').slice(1);set(/^(now|a|b)$/.test(h)?h:'a');
+  var h=(location.hash||'').slice(1);set(/^(now|a)$/.test(h)?h:'a');
+})();
+
+/* 큰 장면 "수익성 분석표와 이사회 자료 연동" — 움직이는 매핑.
+   기본(마크업)이 끝 상태. .bx-play 를 붙이면 시작 상태로 돌아가 타이머로 단계를 진행한다. */
+(function(){
+  var fig=document.querySelector('[data-scene="boardmap"]');if(!fig)return;
+  var stage=fig.querySelector('.ld-mock-body'),btn=fig.querySelector('.bx-replay'),ptr=fig.querySelector('.ld-ptr');
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var N=fig.querySelectorAll('.bx-to').length;
+  var cntN=fig.querySelector('.bx-cnt b'),s2=fig.querySelector('.bx-s2'),tchk=fig.querySelector('.bx-right .ld-pnl-head .ld-chip');
+  var cards=[].slice.call(fig.querySelectorAll('.bx-card'));
+  var SRC='.bx-sheet td[data-g]',DST='.bx-to';
+  var timers=[],loopOn=false;
+  var CYCLE=12000;                       // 한 바퀴 = 움직임 약 8.3초 + 끝 상태 약 3.7초
+  if(cntN)cntN.textContent=N;
+  if(s2)s2.textContent='값 '+N+'칸을 채웠습니다 · 담당자 확인 대기 (표 '+cards.length+'개)';
+  if(tchk)tchk.textContent='표 확인 0/'+cards.length;
+  function T(fn,ms){timers.push(setTimeout(fn,ms));}
+  function clearT(){timers.forEach(clearTimeout);timers=[];}
+  function q(root,sel){return [].slice.call(root.querySelectorAll(sel));}
+  function cells(sel,g,f){return q(fig,sel+'[data-g="'+g+'"][data-f="'+f+'"]');}
+  function endState(){
+    fig.classList.remove('bx-play','bx-up','bx-done','bx-tap','bx-ptr-on','bx-fade');
+    q(fig,DST).forEach(function(c){c.classList.add('is-f')});
+    q(fig,SRC).forEach(function(c){c.classList.remove('bx-use','ld-hl-on')});
+    cards.forEach(function(c){c.classList.add('is-filled','is-ready')});
+    q(fig,'.bx-tok').forEach(function(t){t.remove()});
+    if(cntN)cntN.textContent=N;
+    fig.setAttribute('data-step','end');
+  }
+  function reset(){
+    fig.classList.remove('bx-up','bx-done','bx-tap','bx-ptr-on','bx-fade');
+    fig.classList.add('bx-play');fig.setAttribute('data-step','play');
+    q(fig,DST).forEach(function(c){c.classList.remove('is-f')});
+    q(fig,SRC).forEach(function(c){c.classList.remove('bx-use','ld-hl-on')});
+    cards.forEach(function(c){c.classList.remove('is-filled','is-ready')});
+    q(fig,'.bx-tok').forEach(function(t){t.remove()});
+    if(cntN)cntN.textContent='0';
+  }
+  function rel(r,sr){return {l:r.left-sr.left,t:r.top-sr.top,w:r.width,h:r.height};}
+  function union(list){
+    var a=list[0].getBoundingClientRect(),b=list[list.length-1].getBoundingClientRect();
+    return {left:a.left,top:a.top,width:b.right-a.left,height:a.height};
+  }
+  function land(g,f,tok){
+    cells(DST,g,f).forEach(function(c){c.classList.add('is-f')});
+    cells(SRC,g,f).forEach(function(c){c.classList.remove('bx-use')});
+    if(tok){tok.classList.remove('is-on');setTimeout(function(){tok.remove()},260);}
+  }
+  function fly(g,f){
+    var src=cells(SRC,g,f),dst=cells(DST,g,f);if(!src.length||!dst.length)return;
+    var sr=stage.getBoundingClientRect(),a=rel(union(src),sr),b=rel(union(dst),sr);
+    if(!a.w||!b.w){land(g,f,null);return;}
+    var tok=document.createElement('div');tok.className='bx-tok';
+    src.forEach(function(c){var sp=document.createElement('span');sp.textContent=c.textContent;tok.appendChild(sp);});
+    tok.style.left=a.l+'px';tok.style.top=a.t+'px';tok.style.width=a.w+'px';tok.style.height=a.h+'px';
+    stage.appendChild(tok);
+    void tok.offsetWidth;                       // 시작 위치를 먼저 확정
+    tok.classList.add('is-on');
+    requestAnimationFrame(function(){
+      tok.style.left=b.l+'px';tok.style.top=b.t+'px';tok.style.width=b.w+'px';tok.style.height=b.h+'px';
+    });
+    T(function(){land(g,f,tok);},600);
+  }
+  function mark(g,f){                          // 형광펜: 자동으로 읽음 + 옮길 동안 테두리
+    var cs=cells(SRC,g,f);
+    cs.forEach(function(c){c.classList.remove('ld-hl-on');void c.offsetWidth;c.classList.add('ld-hl-on');c.classList.add('bx-use');});
+    if(cntN)cntN.textContent=String(+cntN.textContent+cs.length);
+  }
+  function ids(g){var m={},out=[];q(fig,SRC+'[data-g="'+g+'"]').forEach(function(c){var f=c.getAttribute('data-f');if(!m[f]){m[f]=1;out.push(f)}});return out;}
+  function group(g,t0){                        // 반환: 이 묶음이 끝나는 시각(ms)
+    var fl=ids(g);
+    fl.forEach(function(f,i){T(function(){mark(g,f);},t0+i*160);});
+    var tf=t0+fl.length*160+300;
+    fl.forEach(function(f,i){T(function(){fly(g,f);},tf+i*140);});
+    var end=tf+(fl.length-1)*140+660;
+    T(function(){var cd=fig.querySelector('.bx-card[data-card="'+g+'"]');if(cd)cd.classList.add('is-filled');},end);
+    return end;
+  }
+  function place(x,y,instant){
+    if(instant){ptr.style.transition='none';}
+    ptr.style.setProperty('--px',x+'px');ptr.style.setProperty('--py',y+'px');
+    if(instant){void ptr.offsetWidth;ptr.style.transition='';}
+  }
+  function run(){
+    clearT();reset();var t;
+    // ① 엑셀 올림(사람이 하는 일): 커서가 [엑셀 파일 고르기]를 누른다
+    T(function(){place(stage.clientWidth-80,180,true);},40);
+    T(function(){fig.classList.add('bx-ptr-on');},300);
+    T(function(){
+      var pk=fig.querySelector('.bx-pick'),sr=stage.getBoundingClientRect(),r=pk.getBoundingClientRect();
+      place(r.left-sr.left+r.width/2,r.top-sr.top+r.height/2-4,false);
+    },420);
+    T(function(){fig.classList.add('bx-tap');},1100);
+    T(function(){fig.classList.add('bx-up');},1250);
+    T(function(){fig.classList.remove('bx-tap');fig.classList.remove('bx-ptr-on');},1650);
+    // ② 읽음(형광펜) → ③ 옮김 → ④ 채움, 묶음별로 차례로
+    t=group('A',1900);          // 재산상 이익제공 및 기부금(안)
+    t=group('C',t+300);         // 명목가치 수익성
+    t=group('D',t+300);         // 투자적정성 분석
+    // ⑤ 끝: 표마다 [이 표 확인]이 눌릴 수 있게 켜지고 담당자 확인 대기
+    T(function(){fig.classList.add('bx-done');cards.forEach(function(c){c.classList.add('is-ready')});},t+300);
+    T(function(){fig.classList.add('bx-fade');},CYCLE);
+    T(function(){if(loopOn)run();},CYCLE+260);
+  }
+  function stop(){loopOn=false;clearT();endState();}
+  function start(){loopOn=true;run();}
+  if(reduce){endState();if(btn)btn.hidden=true;return;}
+  if(btn)btn.addEventListener('click',function(){loopOn=true;run();});
+  if('IntersectionObserver' in window){
+    new IntersectionObserver(function(es){es.forEach(function(e){
+      if(e.isIntersecting&&e.intersectionRatio>=.35){if(!loopOn)start();}else if(loopOn){stop();}
+    });},{threshold:[0,.35,.6]}).observe(stage);
+  }else start();
 })();
 </script>
 </body></html>
