@@ -12,7 +12,8 @@ public final class TargetUiIds {
             BTN_TO_GOAL = "move_to_goal", BTN_TO_WATCH = "move_to_watch",
             BTN_CHANGE = "submit_target_change", BTN_SAVE_VALUES = "save_target_values",   // NEXT 114 — 일괄 창 [수정하기]
             BTN_CARRY = "carry_targets", BTN_TERM = "set_term_start",   // 056 — 일괄 변경·자동 이월·협약 개시일
-            BTN_AIM = "set_target_aim_rank";                            // 063 — 금고 방식 고르기(단건·일괄 모두)
+            BTN_AIM = "set_target_aim_rank",                            // 063 — 금고 방식 고르기(단건·일괄 모두)
+            BTN_LINK = "link_bid_case";                                 // NEXT 125 — 추정 연결을 명시로 굳히기
     public static final Set<String> ADD = Collections.singleton(BTN_ADD);
     public static final Set<String> ADD_WATCH = Collections.singleton(BTN_ADD_WATCH);
     public static final Set<String> EDIT = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(BTN_EDIT, BTN_TAG, BTN_NEXT_YEAR, BTN_AIM)));
@@ -22,6 +23,7 @@ public final class TargetUiIds {
     public static final Set<String> CHANGE = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(BTN_CHANGE, BTN_SAVE_VALUES, BTN_AIM)));
     public static final Set<String> CARRY = Collections.singleton(BTN_CARRY);
     public static final Set<String> TERM = Collections.singleton(BTN_TERM);
+    public static final Set<String> LINK = Collections.singleton(BTN_LINK);
     public static final String BTN_HEART = "toggle_watch_heart";   // 061 지도 ♥
     public static final Set<String> WATCH_ON = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(BTN_HEART, BTN_ADD_WATCH)));
     public static final Set<String> WATCH_OFF = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(BTN_HEART, BTN_CANCEL)));

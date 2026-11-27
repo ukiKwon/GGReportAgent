@@ -3,12 +3,14 @@ package com.kbstar.kgi.ggreport.web.web;
 import com.kbstar.kgi.ggreport.web.config.AccessLogInterceptor;
 import com.kbstar.kgi.ggreport.web.dto.BidTargetCancelIn;
 import com.kbstar.kgi.ggreport.web.dto.BidTargetIn;
+import com.kbstar.kgi.ggreport.web.dto.BidTargetLinkIn;
 import com.kbstar.kgi.ggreport.web.dto.BidTargetMoveIn;
 import com.kbstar.kgi.ggreport.web.dto.BidTermIn;
 import com.kbstar.kgi.ggreport.web.dto.MyWatchIn;
 import com.kbstar.kgi.ggreport.web.dto.TargetChangeIn;
 import com.kbstar.kgi.ggreport.web.service.ApprovalRequestService;
 import com.kbstar.kgi.ggreport.web.service.BidTargetService;
+import com.kbstar.kgi.ggreport.web.service.TargetLinkService;
 import com.kbstar.kgi.ggreport.web.support.TargetUiIds;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,11 +38,13 @@ public class BidTargetController {
     private final BidTargetService targets;
     private final ApprovalRequestService approvals;
     private final MenuGuard guard;
+    private final TargetLinkService links;
 
-    public BidTargetController(BidTargetService targets, ApprovalRequestService approvals, MenuGuard guard) {
+    public BidTargetController(BidTargetService targets, ApprovalRequestService approvals, MenuGuard guard, TargetLinkService links) {
         this.targets = targets;
         this.approvals = approvals;
         this.guard = guard;
+        this.links = links;
     }
 
     @GetMapping("/bid-targets")
@@ -116,6 +120,26 @@ public class BidTargetController {
         req.setAttribute(AccessLogInterceptor.DETAIL, "bid-target move no=" + out.get("target_no") + " rev=" + out.get("rev_no")
                 + " to=" + ("WATCH".equals(kind) ? "watch" : "goal") + " other=" + (Boolean.TRUE.equals(out.get("edited_by_other")) ? "1" : "0")
                 + (out.get("warning") != null ? " warn=INST_BID_CLOSED" : ""));
+        return ResponseEntity.status(HttpStatus.CREATED).body(out);
+    }
+
+    /**
+     * NEXT 125 — 서버가 다시 계산한 추정 연결과 같은 건만 명시로 굳힌다(현황판 [연결 확인], 버튼 link_bid_case). 결재 없음(목표 내용 불변).
+     * 같은 쓰기 자격·같은 DENIED 경로. DETAIL 엔 번호·REV 만(건 번호·값 없음).
+     */
+    @PostMapping("/institutions/{institutionId}/bid-targets/{targetNo}/link")
+    public ResponseEntity<Map<String, Object>> link(@PathVariable String institutionId, @PathVariable String targetNo,
+                                                    @RequestBody(required = false) BidTargetLinkIn body, HttpServletRequest req) {
+        Actor actor = requireEditor(req);
+        Map<String, Object> out;
+        try {
+            out = links.confirmInferred(institutionId, targetNo, body, actor, TargetUiIds.of(req, TargetUiIds.LINK));
+        } catch (ApiException e) {
+            deniedIfRole(req, e);
+            req.setAttribute(AccessLogInterceptor.DETAIL, failDetail("link", e));
+            throw e;
+        }
+        req.setAttribute(AccessLogInterceptor.DETAIL, "bid-target link no=" + out.get("target_no") + " rev=" + out.get("rev_no"));
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
     }
 

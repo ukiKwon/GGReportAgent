@@ -10,6 +10,7 @@ import com.kbstar.kgi.ggreport.web.mapper.BidTargetMapper;
 import com.kbstar.kgi.ggreport.web.mapper.PrepMapper;
 import com.kbstar.kgi.ggreport.web.mapper.SysUserMapper;
 import com.kbstar.kgi.ggreport.web.support.BoardUiIds;
+import com.kbstar.kgi.ggreport.web.support.Teams;
 import com.kbstar.kgi.ggreport.web.support.Times;
 import com.kbstar.kgi.ggreport.web.web.Actor;
 import com.kbstar.kgi.ggreport.web.web.ApiException;
@@ -42,7 +43,6 @@ public class BidTargetService {
     static final int CARRY_MAX_INST = 300;                 // 한 번 호출에 처리할 기관 상한(넘으면 more=true, 화면이 한 번 더)
     public static final String DIRECT_ROLE = "ROLE", DIRECT_VALUE_EDIT = "VALUE_EDIT", DIRECT_WATCH = "WATCH";   // 바로 반영 근거(NEXT 114)
     public static final String APPROVAL_MSG = "목표 기관 정보를 바꾸려면 결재가 필요합니다. 체크한 뒤 [결재 요청]으로 올려 주세요.";
-    static final String PENDING_MSG = "이 기관은 목표 변경 결재가 진행 중입니다. 결재가 끝난 뒤 다시 시도해 주세요.";
     private static final String WATCH_DUP_MSG = "이미 관심 기관입니다.";
     static final String NOT_OWNER_MSG = "다른 사람의 관심 기관은 바꿀 수 없습니다.";
     static final String WATCH_USER_MSG = "등록된 사용자만 관심 기관을 쓸 수 있습니다.";
@@ -87,7 +87,7 @@ public class BidTargetService {
         return !settings.isApprovalRequired() || HeadRules.ROLE_HEAD.equals(HeadRules.roleOf(u.getRole()));
     }
 
-    static ApiException pendingConflict(BidTarget cur) { return conflict("CHANGE_PENDING", PENDING_MSG, cur); }
+    static ApiException pendingConflict(BidTarget cur) { return conflict("CHANGE_PENDING", BidTargetKeys.TARGET_PENDING_MSG, cur); }
 
     static final String PREP_ACTIVE_MSG = "제안을 준비 중인 기관은 목표 기관에서 제외하거나 관심 기관으로 옮길 수 없습니다. 제안 준비 화면에서 중단한 뒤 다시 하세요.";
 
@@ -112,8 +112,12 @@ public class BidTargetService {
         throw ApiException.withDetail(409, d);
     }
 
-    private void requireNoPending(String inst, BidTarget cur) {
-        if (mapper.countPendingByInst(inst) > 0) throw pendingConflict(cur);
+    /**
+     * NEXT 125 — 결재 중 잠금은 건 단위(사용자 11-26 ③): 결재 중인 그 목표 건(TARGET_NO)만 막는다. 새로 넣기(cur == null)는
+     * 칸 검사 checkGoalSlots(SLOT_PENDING)가 막는다. 기관 잠금 안에서 부른다.
+     */
+    void requireNoPending(String inst, BidTarget cur) {
+        if (cur != null && mapper.countPendingByTarget(inst, cur.getTargetNo()) > 0) throw pendingConflict(cur);
     }
 
     /** S9 — 역할 때문에 거절하는 것이라 403(+code). 컨트롤러가 ACCESS_LOG DENIED 로 남긴다. */
@@ -159,26 +163,77 @@ public class BidTargetService {
         }
         Map<String, BidTerm> terms = new HashMap<String, BidTerm>();
         for (BidTerm t : mapper.selectTermsForYear(year)) terms.put(t.getInstitutionId(), t);
+        // NEXT 125 — 목표 건 줄: 이은 공고(명시·추정)·건 상태·펼침 줄 값. /preps 열람 범위(영업 계열·디자이너)에만 제안 건 값을 싣는다(security 11절 4)
+        SysUser viewer = users.selectByEmpNo(empNo);
+        boolean seePrep = viewer != null && Teams.isSalesFamily(viewer.getRole());
+        List<BidTarget> goals = mapper.selectActiveByYear(year);
+        List<TargetCaseRef> caseList = mapper.selectCasesForYear(year);
+        Map<String, TargetCaseRef> cases = new HashMap<String, TargetCaseRef>();
+        for (TargetCaseRef c : caseList) cases.put(c.getBidCaseId(), c);
+        Map<String, Map<String, String>> marks = new HashMap<String, Map<String, String>>();
+        for (PrepBoardCheck k : preps.selectStageMarks()) {
+            Map<String, String> m = marks.get(k.getBidCaseId());
+            if (m == null) { m = new HashMap<String, String>(); marks.put(k.getBidCaseId(), m); }
+            m.put(k.getColCd(), k.getMarkCd());
+        }
+        Map<String, String> inferred = BidTargetKeys.infer(goals, caseList, marks);
+        // 펼침 줄의 공고일·마감 — 기관 최신 '찾은 공고'(EXT_CHECK). 지난해 목표 줄은 옛 공고와 섞지 않는다
+        Map<String, ExtCheck> notice = new HashMap<String, ExtCheck>();
+        if (year >= thisYear) for (ExtCheck n : mapper.selectLatestNotices()) notice.put(n.getInstitutionId(), n);
+        Set<String> goalInsts = new HashSet<String>();
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
-        for (BidTarget t : mapper.selectActiveByYear(year)) {
+        for (BidTarget t : goals) {
             List<BankContract> l = lines.get(t.getInstitutionId());
+            String subj = t.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : t.getBidSubjectCd();
+            boolean main = BidSubjects.MAIN_BANK.equals(subj);   // 공고 상태(037)·약정(039)·개시일은 금고 주기 — 금고 밖 건은 '—'(null)
             Map<String, Object> v = view(t, false, edit);
             v.put("edited_by_other", editedByOther(t));
             v.put("can_cancel", edit);
-            v.put("bank", BankYears.summary(l, today));
-            v.put("next_term_to", BidTargetRules.nextTermTo(l, today));
+            // 사용자 11-26 ④ — 현 금고 은행은 금고 건에만, 그 순위 줄로(1·2금고 건은 그 순위만, 단수·주거래·기타·미정은 전체). 금고 밖 = null
+            List<BankContract> rl = main ? BidTargetKeys.linesFor(l, t.getAimRankCd()) : null;
+            v.put("bank", main ? BankYears.summary(rl, today) : null);
+            v.put("next_term_to", main ? BidTargetRules.nextTermTo(rl, today) : null);
             // 올해 목표에만 — 서버 근거(공고 상태·금고 약정). 진행 중 제안 여부는 화면이 줄의 제안 단계로 함께 본다.
-            v.put("bid_closed", year == thisYear ? BidTargetRules.bidClosedBasis(notices.get(t.getInstitutionId()), l, today) : null);
-            BidTerm tm = terms.get(t.getInstitutionId());
+            Map<String, Object> closed = main && year == thisYear ? BidTargetRules.bidClosedBasis(notices.get(t.getInstitutionId()), l, today) : null;
+            v.put("bid_closed", closed);
+            BidTerm tm = main ? terms.get(t.getInstitutionId()) : null;   // INST_BID_TERM = 금고 건의 RFP 협약 개시일
             boolean has = tm != null && ACTION_SAVE.equals(tm.getActionCd());
             v.put("term_start", has ? tm.getTermStart() : null);                 // RFP 협약 개시일(기록)
             v.put("term_rev_no", tm == null ? 0 : tm.getRevNo());                // 개시일 저장의 base_rev_no
-            v.put("judge_from", has ? tm.getTermStart()
+            v.put("judge_from", !main ? null : has ? tm.getTermStart()
                     : settings.getCarryDefaultStart().atYear(year + 1).toString());   // 협약 성과 달성 판정일·관심 이월 기준일(기록 없으면 추정)
-            v.put("judge_from_assumed", !has);
+            v.put("judge_from_assumed", main && !has);
+            String link = t.getBidCaseId(), basis = link == null ? null : "LINKED";
+            String key = t.getInstitutionId() + "#" + t.getTargetNo();
+            if (link == null && inferred.containsKey(key)) { link = inferred.get(key); basis = "INFERRED"; }
+            TargetCaseRef c = link == null ? null : cases.get(link);
+            Map<String, String> mk = c == null || !marks.containsKey(c.getBidCaseId()) ? Collections.<String, String>emptyMap() : marks.get(c.getBidCaseId());
+            boolean active = c != null && PrepStage5.blocking(c.getStateCd(), mk);
+            String[] st = c == null ? new String[]{PrepStage5.BEFORE, null} : PrepStage5.of(c.getStateCd(), c.getOpenedAt(), mk);
+            String rc = PrepStage5.resultCd(mk.get("RESULT"));
+            v.put("bid_case_id", seePrep ? link : null);
+            v.put("link_basis", seePrep ? basis : null);
+            v.put("prep_state_cd", seePrep && c != null ? c.getStateCd() : null);
+            v.put("case_status", seePrep ? (c == null ? PrepStage5.ST_NONE : PrepStage5.status(c.getStateCd(), c.getOpenedAt(), mk)) : null);   // '상태' 열(사용자 11-26 ①)
+            v.put("stage5_cd", seePrep ? st[0] : null);
+            v.put("end_kind", seePrep ? st[1] : null);
+            v.put("result_cd", seePrep ? rc : null);
+            v.put("result_recheck", seePrep && PrepStage5.R_UNDECIDED.equals(rc));   // 옛 '완료' — 담당이 선정/탈락을 다시 고름
+            v.put("rank_locked", seePrep && "LINKED".equals(basis) && active && t.getAimRankCd() != null);
+            v.put("prep_cleanup_needed", seePrep && main && active && closed != null && BidTargetRules.BASIS_NO_BID.equals(closed.get("basis_cd"))
+                    && !kbNow(rl, today));   // 입찰 없음 + 타행 유지인데 진행 중 준비(사용자 11-26 Q2ⓐ)
+            // 펼침 줄(사용자 11-26 ③) — 공고명은 이은 건 제목을 먼저, 없으면 금고 건만 기관 최신 찾은 공고 제목. 공고일·마감은 금고 건에만(수집 검색어가 금고 문맥뿐), 금고 밖 = null('—')
+            ExtCheck nt = main ? notice.get(t.getInstitutionId()) : null;
+            String caseTitle = c != null ? BidSubjects.blankToNull(c.getBidTitle()) : BidSubjects.blankToNull(t.getBidTitle());
+            v.put("bid_title", caseTitle != null ? caseTitle : nt == null ? null : BidSubjects.blankToNull(nt.getTitle()));   // null = 공고 전(화면 표기)
+            v.put("notice_posted_at", nt == null ? null : dateOnly(nt.getPostedAt()));       // 공고일 YYYY-MM-DD(형식 밖이면 null)
+            v.put("notice_deadline_at", nt == null ? null : dateOnly(nt.getDeadlineAt()));   // 접수 마감
+            v.put("notice_basis", nt == null ? null : "INST_NOTICE");                       // 기관 최신 찾은 공고(1·2금고 두 줄은 같은 값일 수 있다)
+            // 주 담당 이름 = view() 의 owner_name(열람자 모두 — 지금 목록 규칙), 사번은 쓰기 자격자에게만(그대로)
             v.put("change_mode", goalMode);
             v.put("aim_mode", aimMode(t, edit, goalMode, thisYear));   // 063 — 이 줄의 금고 방식 고르기: DIRECT|APPROVAL|null
-            putPending(v, pending.get(t.getInstitutionId()), edit);
+            putPending(v, pending.get(t.getInstitutionId() + "#" + t.getTargetNo()), edit);   // 결재 중 = 그 건(사용자 11-26 ③)
+            goalInsts.add(t.getInstitutionId());
             items.add(v);
         }
         Map<String, List<BankContract>> wlines = byInstitution(mapper.selectContractsForWatch(empNo));
@@ -191,7 +246,7 @@ public class BidTargetService {
             v.put("bank", BankYears.summary(l, today));
             v.put("next_term_to", BidTargetRules.nextTermTo(l, today));
             v.put("change_mode", edit ? "DIRECT" : null);
-            putPending(v, pending.get(t.getInstitutionId()), edit);
+            putPending(v, pending.get(t.getInstitutionId() + "#" + t.getTargetNo()), edit);
             watch.add(v);
         }
         Map<String, Object> out = new LinkedHashMap<String, Object>();
@@ -201,6 +256,9 @@ public class BidTargetService {
         out.put("can_edit", edit);
         out.put("selectable_years", selectableYears(thisYear));
         out.put("items", items);
+        out.put("goal_case_n", items.size());                                           // NEXT 125 — 머리 숫자: 건 수 + 기관 수
+        out.put("goal_institution_n", goalInsts.size());
+        out.put("multi_subject", settings.isMultiSubject());                            // 화면이 '입찰 대상'·1+2금고 나누기를 보일지
         out.put("watch_items", watch);
         out.put("pending_goal_items", pendingGoalItems(pendAll, year));   // NEXT 114 — 줄이 없는 기관의 '목표 기관 결재 대기' 표시용(팀 공유)
         out.put("goal_change_mode", goalMode);                                          // 목표 넣기 버튼: DIRECT|APPROVAL|null
@@ -211,12 +269,27 @@ public class BidTargetService {
         return out;
     }
 
-    private Map<String, BidTargetReqItem> pendingMap() { return pendingMap(mapper.selectPendingItems()); }
-
+    /** 결재 중 항목 → 열쇠 "기관#목표건번호"(건 단위, 사용자 11-26 ③). 번호가 없는 ADD 항목은 pending_goal_items 로만 나간다. */
     private static Map<String, BidTargetReqItem> pendingMap(List<BidTargetReqItem> all) {
         Map<String, BidTargetReqItem> m = new HashMap<String, BidTargetReqItem>();
-        for (BidTargetReqItem x : all) if (!m.containsKey(x.getInstitutionId())) m.put(x.getInstitutionId(), x);
+        for (BidTargetReqItem x : all) {
+            if (x.getTargetNo() == null) continue;
+            String k = x.getInstitutionId() + "#" + x.getTargetNo();
+            if (!m.containsKey(k)) m.put(k, x);
+        }
         return m;
+    }
+
+    private static boolean kbNow(List<BankContract> l, LocalDate today) {
+        if (l == null) return false;
+        for (BankContract c : l) if (BankYears.KB_BANK.equals(c.getBankCd()) && "CURRENT".equals(BankContractRules.termState(c.getTermFrom(), c.getTermTo(), today))) return true;
+        return false;
+    }
+
+    /** 'YYYY-MM-DD…' 앞 10자를 엄격히 읽는다 — 형식 밖이면 null(원문을 내보내지 않는다, PrepBoardService.noticeDeadlines 와 같은 규칙). */
+    static String dateOnly(String s) {
+        if (s == null || s.trim().length() < 10) return null;
+        try { return LocalDate.parse(s.trim().substring(0, 10)).toString(); } catch (RuntimeException e) { return null; }
     }
 
     /**
@@ -229,10 +302,14 @@ public class BidTargetService {
         for (BidTargetReqItem x : all) {
             String op = x.getOpCd();
             boolean toGoal = TargetChangeService.OP_ADD.equals(op) || TargetChangeService.OP_TO_GOAL.equals(op) || TargetChangeService.OP_EDIT.equals(op);
-            if (!toGoal || x.getToYear() == null || x.getToYear().intValue() != year || !seen.add(x.getInstitutionId())) continue;
+            String subj = x.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : x.getBidSubjectCd();
+            // NEXT 125 — 같은 기관이라도 대상·금고 순위가 다른 결재 중 건은 따로(건 단위)
+            if (!toGoal || x.getToYear() == null || x.getToYear().intValue() != year || !seen.add(x.getInstitutionId() + "|" + subj + "|" + x.getAimRankCd())) continue;
             Map<String, Object> m = new LinkedHashMap<String, Object>();
             m.put("institution_id", x.getInstitutionId());
             m.put("target_year", year);
+            m.put("bid_subject_cd", subj);
+            m.put("aim_rank_cd", x.getAimRankCd());
             out.add(m);
         }
         return out;
@@ -350,7 +427,13 @@ public class BidTargetService {
         String kind = cur == null ? BidTargetRules.kind(in.getKindCd()) : BidTargetRules.kindOf(cur);
         if (cur != null && in.getKindCd() != null && !kind.equals(BidTargetRules.kind(in.getKindCd()))) throw ApiException.badRequest(KIND_EDIT_MSG);
         boolean watch = BidTargetRules.KIND_WATCH.equals(kind);
-        if (cur == null && !watch) BidTargetRules.requireNoAimOnAdd(in.getAimRankCd());   // 063 — 목표로 처음 넣을 때 금고 방식은 비운다(관심은 parseWatch 가 400)
+        // NEXT 125 — 금고 순위가 건 키라 스위치가 켜지면 넣을 때 고른다(1금고·2금고). 꺼짐 = 옛 063 규칙(넣을 때 금고 방식은 비운다, 관심은 parseWatch 가 400)
+        if (cur == null && !watch && !settings.isMultiSubject()) BidTargetRules.requireNoAimOnAdd(in.getAimRankCd());
+        if (watch && BidTargetKeys.subjectGiven(in.getBidSubjectCd(), in.getBidSubjectEtc())) throw ApiException.badRequest(BidTargetKeys.WATCH_SUBJECT_MSG);
+        String[] subj = watch ? new String[]{BidSubjects.MAIN_BANK, null}
+                : cur == null ? BidTargetKeys.subject(in.getBidSubjectCd(), in.getBidSubjectEtc(), codeCheck())
+                : fixedSubject(cur, in.getBidSubjectCd(), in.getBidSubjectEtc());
+        if (!watch) BidTargetKeys.requireSubjectAllowed(subj[0], cur == null, settings.isMultiSubject());
         BidTargetRules.Parsed p = watch ? BidTargetRules.parseWatch(in, codeCheck())
                 : BidTargetRules.parse(in, thisYear, cur == null ? null : cur.getTargetYear(), codeCheck());
         BidTargetRules.keepUnsent(p, in.getMemo(), in.getAimRankCd(), cur);   // NEXT 114 — 빠진 메모·금고 방식은 지금 값 그대로
@@ -364,11 +447,16 @@ public class BidTargetService {
             return out;
         }
         Integer year = watch ? null : Integer.valueOf(p.year);
+        if (!watch) BidTargetKeys.requireRankFits(subj[0], p.aim);
+        if (!watch) requireYearUnlinked(cur, year);   // 팀 결정 — 입찰 건에 이어진 목표는 연도를 못 바꾼다
         requireNoPending(inst, cur);
+        if (watch && cur == null) requireNoMyToWatchPending(inst, actor.getEmpNo());   // qa P2-1 — watchOn 과 같은 검사
+        boolean fillCaseRank = !watch && checkRankLock(cur, p.aim);   // 진행 중 제안과 이어진 건의 순위 잠금. 미정→값은 한 번 허용(true = 공고 순위도 채움)
         if (watch) checkWatchOverlap(inst, cur == null ? 0 : cur.getTargetNo(), actor.getEmpNo());
-        else checkGoalOverlap(inst, cur == null ? 0 : cur.getTargetNo(), year);
+        else checkGoalSlots(inst, Collections.singletonList(new BidTargetKeys.Slot(cur == null ? 0 : cur.getTargetNo(), year, subj[0], subj[1], p.aim)), null, null);   // 바로 반영이어도 키 판정은 거친다(사용자 11-26 ①)
         Map<String, Object> warning = null;
-        if (!watch && p.year == thisYear && (cur == null || !year.equals(cur.getTargetYear()))) warning = closedCheck(inst, today);
+        boolean mainSubject = BidSubjects.MAIN_BANK.equals(subj[0]);   // 공고 종료(037)·약정(039)은 금고 주기 — 그 밖 대상은 보지 않는다
+        if (!watch && mainSubject && p.year == thisYear && (cur == null || !year.equals(cur.getTargetYear()))) warning = closedCheck(inst, today);
         boolean valueEdit = BidTargetRules.valueOnlyEdit(cur, p, thisYear);
         String aimEdit = BidTargetRules.aimEdit(cur, p);
         boolean roleDirect = !watch && directGoal(users.selectByEmpNo(actor.getEmpNo()));   // 영업부장 등 역할상 바로 가능(security F4)
@@ -389,7 +477,11 @@ public class BidTargetService {
         row.setOwnerName(ownerName);
         row.setWatchEmpNo(watch ? actor.getEmpNo() : null);   // 고치기면 위 requireWatchOwner 로 주인 = 본인
         row.setAimRankCd(p.aim);
+        row.setAimRankEtc(p.aimEtc);
+        row.setBidSubjectCd(subj[0]); row.setBidSubjectEtc(subj[1]);
+        row.setBidCaseId(cur == null ? null : cur.getBidCaseId());   // 새 행 객체 — 이은 공고를 잃지 않게 옮긴다
         Map<String, Object> out = insert(row, actor, ui);
+        if (fillCaseRank) mapper.updateCaseRankIfNull(cur.getBidCaseId(), p.aim);
         out.put("mode", "DIRECT");
         out.put("direct_basis", watch ? DIRECT_WATCH : roleDirect ? DIRECT_ROLE : DIRECT_VALUE_EDIT);
         if (aimEdit != null) out.put("aim_edit", aimEdit);   // FIRST|CHANGE|CLEAR — 접근 이력 종류(값 아님)
@@ -420,11 +512,18 @@ public class BidTargetService {
         int thisYear = today.getYear();
         boolean toWatch = BidTargetRules.KIND_WATCH.equals(to);
         Integer year = BidTargetRules.moveYear(in.getTargetYear(), toWatch, thisYear);
-        if (toWatch) checkWatchOverlap(inst, no, actor.getEmpNo()); else checkGoalOverlap(inst, no, year);
-        Map<String, Object> warning = !toWatch && year.intValue() == thisYear ? closedCheck(inst, today) : null;
+        if (toWatch) checkWatchOverlap(inst, no, actor.getEmpNo());
+        else {
+            // NEXT 125 — 관심→목표: 대상은 기본 MAIN_BANK(관심 행은 늘 그렇다), 금고 순위는 관심 행 값을 잇는다. 새 건의 키는 칸 검사가 판정
+            String aim = BidSubjects.MAIN_BANK.equals(cur.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : cur.getBidSubjectCd()) ? cur.getAimRankCd() : null;
+            checkGoalSlots(inst, Collections.singletonList(new BidTargetKeys.Slot(no, year, cur.getBidSubjectCd(), cur.getBidSubjectEtc(), aim)), null, null);
+        }
+        Map<String, Object> warning = !toWatch && year.intValue() == thisYear
+                && BidSubjects.MAIN_BANK.equals(cur.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : cur.getBidSubjectCd()) ? closedCheck(inst, today) : null;
         requireDirect(actor, cur);   // 옮기기는 어느 방향이든 목표가 바뀐다
         if (toWatch) requireNoActivePrep(inst);   // 11-27 — 제안 준비 중인 기관은 관심으로 옮길 수 없다
         if (cur.getRevNo() + 1 > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, cur);
+        if (toWatch) clearForWatch(cur);   // 관심 행 = 대상 없음(MAIN_BANK)·기타 이름 없음·공고 연결 없음(앞 REV 에 연결 이력이 남는다)
         cur.setRevNo(cur.getRevNo() + 1);
         cur.setActionCd(ACTION_MOVE);
         cur.setKindCd(to);
@@ -437,16 +536,104 @@ public class BidTargetService {
         return out;
     }
 
+    /** 목표→관심: 관심 행은 대상 없음(MAIN_BANK)·기타 이름 없음·공고 연결 없음(security 고칠 것 ④). 앞 REV 에 이력이 남는다. */
+    static void clearForWatch(BidTarget cur) {
+        cur.setBidCaseId(null);
+        cur.setBidSubjectCd(BidSubjects.MAIN_BANK); cur.setBidSubjectEtc(null);
+        // 금고 순위·기타 이름은 비우지 않는다 — 관심으로 갔다 와도 금고 방식을 이어받는다(063 기존 동작, 시험이 고정)
+    }
+
     /**
-     * 목표끼리는 같은 해만 막는다(043 DUP_TARGET). 061 — 관심(사람별)은 목표를 막지 않는다(ALREADY_GOAL·옛 ALREADY_WATCH 목표 쪽 규칙 폐지).
-     * 잠금 안에서 부른다. skipNo = 지금 고치거나 옮기는 기록(넣기면 0).
+     * NEXT 125 — 목표 건 키 검사(BidTargetKeys). 잠금 안에서 부른다. changes = 바뀐 뒤 모습(no>0 기존 건, no<=0 새 건),
+     * removed = 목표에서 빠지는 번호, selfReq = 승인 재검사 때 자기 요청(null = 상신·단건).
+     * ① 키를 바꾸는 변경(새 건·연도·대상·순위가 다른 기존 건)이 건드리는 칸에 다른 결재 중 항목이 있으면 409 SLOT_PENDING —
+     *    칸마다 결재 중 요청은 많아야 하나라서 두 요청이 각각 통과해 키가 깨지지 않는다(security 정보행). latest 는 싣지 않는다(다른 요청의 건 정보 비노출).
+     * ② 바뀐 뒤 모습이 규칙을 어기면 409 DUP_TARGET(코드는 옛 규칙과 같다 — 화면 분기 유지). 061 — 관심은 목표를 막지 않는다.
      */
-    void checkGoalOverlap(String inst, int skipNo, Integer goalYear) {
-        if (goalYear == null) return;
+    void checkGoalSlots(String inst, List<BidTargetKeys.Slot> changes, Set<Integer> removed, Long selfReq) {
+        Map<Integer, BidTarget> live = new HashMap<Integer, BidTarget>();
+        Map<Integer, BidTargetKeys.Slot> after = new LinkedHashMap<Integer, BidTargetKeys.Slot>();
         for (BidTarget o : mapper.selectActiveByInst(inst)) {
-            if (o.getTargetNo() == skipNo || BidTargetRules.KIND_WATCH.equals(BidTargetRules.kindOf(o))) continue;
-            if (goalYear.equals(o.getTargetYear())) throw conflict("DUP_TARGET", "이 기관은 같은 연도 목표에 이미 들어 있습니다.", o);
+            if (BidTargetRules.KIND_WATCH.equals(BidTargetRules.kindOf(o))) continue;
+            live.put(o.getTargetNo(), o);
+            after.put(o.getTargetNo(), BidTargetKeys.Slot.of(o));
         }
+        Set<String> touched = new HashSet<String>();
+        for (BidTargetKeys.Slot s : changes) {
+            BidTargetKeys.Slot before = s.no > 0 ? after.get(s.no) : null;
+            boolean keyChange = before == null || !before.bucket().equals(s.bucket()) || !Objects.equals(before.aim, s.aim);
+            if (!keyChange) continue;
+            if (s.year != null) touched.add(s.bucket());
+            if (before != null) touched.add(before.bucket());
+        }
+        if (!touched.isEmpty()) {
+            Set<String> pend = BidTargetKeys.pendingBuckets(mapper.selectPendingItemsByInst(inst), selfReq);
+            for (String b : touched) if (pend.contains(b)) throw conflict("SLOT_PENDING", BidTargetKeys.SLOT_PENDING_MSG, null);
+        }
+        if (removed != null) for (Integer n : removed) after.remove(n);
+        List<BidTargetKeys.Slot> all = new ArrayList<BidTargetKeys.Slot>();
+        for (BidTargetKeys.Slot s : changes) if (s.no > 0) after.remove(s.no);   // 바뀌는 건은 뒤로 — 충돌 때 latest 는 원래 있던(안 바뀐) 건이 먼저
+        all.addAll(after.values());
+        for (BidTargetKeys.Slot s : changes) if (s.no > 0) all.add(s);
+        for (BidTargetKeys.Slot s : changes) if (s.no <= 0) all.add(s);
+        BidTargetKeys.Slot bad = BidTargetKeys.conflictOf(all, settings.isMultiSubject());
+        if (bad != null) throw conflict("DUP_TARGET", BidTargetKeys.DUP_MSG, bad.no > 0 ? live.get(bad.no) : null);
+    }
+
+    /**
+     * NEXT 125 — 진행 중 제안과 명시 연결된 건의 금고 순위 잠금(코드만 비교 — 기타 이름만 고치기는 허용).
+     * 미정→값은 한 번 허용(true = 공고 순위도 채울 것). 값→다른 값·지움은 409 RANK_LOCKED. 잠금 안.
+     */
+    boolean checkRankLock(BidTarget cur, String newAim) {
+        if (cur == null || cur.getBidCaseId() == null || Objects.equals(cur.getAimRankCd(), newAim)) return false;
+        if (cur.getAimRankCd() == null && newAim != null) {   // 미정→값: 이어진 공고에 순위가 이미 있고 다르면 409(TargetLinkService.link 와 같은 규칙, security)
+            for (TargetCaseRef c : mapper.selectCasesOfInst(cur.getInstitutionId())) {
+                if (cur.getBidCaseId().equals(c.getBidCaseId()) && c.getBidRankCd() != null && !c.getBidRankCd().equals(newAim)) {
+                    throw conflict("RANK_MISMATCH", "공고의 금고 순위가 목표 건과 다릅니다.", cur);
+                }
+            }
+        }
+        BidPrep p = preps.selectPrep(cur.getBidCaseId());
+        if (p == null || !PrepStage5.blocking(p.getStateCd(), stageMarksOf(cur.getBidCaseId()))) return false;
+        if (cur.getAimRankCd() != null) throw conflict("RANK_LOCKED", BidTargetKeys.RANK_LOCKED_MSG, cur);
+        return true;
+    }
+
+    private Map<String, String> stageMarksOf(String bid) {
+        Map<String, String> m = new HashMap<String, String>();
+        for (PrepBoardCheck c : preps.selectStageMarksOf(bid)) m.put(c.getColCd(), c.getMarkCd());
+        return m;
+    }
+
+    boolean multiSubject() { return settings.isMultiSubject(); }
+
+    static final String YEAR_LINKED_MSG = "입찰 건에 이어진 목표는 연도를 바꿀 수 없습니다. 연결을 푼 뒤 바꾸세요.";
+
+    /** 팀 결정(11-27) — 입찰 건(BID_CASE_ID)에 이어진 목표 건의 연도 바꾸기는 막는다(단건·결재 상신·승인 모두). 409 YEAR_LINKED. */
+    static void requireYearUnlinked(BidTarget cur, Integer newYear) {
+        if (cur != null && cur.getBidCaseId() != null && newYear != null && !newYear.equals(cur.getTargetYear())) {
+            throw conflict("YEAR_LINKED", YEAR_LINKED_MSG, cur);
+        }
+    }
+
+    /** 내가 올린 목표→관심(TO_WATCH) 결재가 진행 중이면 409 CHANGE_PENDING(승인 때 ALREADY_WATCH 로 막히지 않게, NEXT 117 P3-a). */
+    void requireNoMyToWatchPending(String inst, String empNo) {
+        for (BidTargetReqItem x : mapper.selectPendingItemsByInst(inst)) {
+            if (TargetChangeService.OP_TO_WATCH.equals(x.getOpCd()) && empNo.equals(x.getRequesterEmpNo())) throw pendingConflict(null);
+        }
+    }
+
+    /** 고치기 — 대상은 바꿀 수 없다(보냈으면 지금 값과 같아야). 기타가 아닌 건에 이름이 오면 400. */
+    static String[] fixedSubject(BidTarget cur, String cdRaw, String etcRaw) {
+        String cd = cur.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : cur.getBidSubjectCd();
+        if (!BidSubjects.ETC.equals(cd) && etcRaw != null && !etcRaw.trim().isEmpty()) throw ApiException.badRequest(BidTargetKeys.ETC_ONLY_MSG);
+        if (BidTargetKeys.subjectGiven(cdRaw, etcRaw)) {
+            String c = cdRaw == null || cdRaw.trim().isEmpty() ? BidSubjects.MAIN_BANK : cdRaw.trim();
+            if (!c.equals(cd) || (BidSubjects.ETC.equals(cd) && !BidTargetKeys.etcKey(etcRaw).equals(BidTargetKeys.etcKey(cur.getBidSubjectEtc())))) {
+                throw ApiException.badRequest(BidTargetKeys.SUBJECT_FIXED_MSG);
+            }
+        }
+        return new String[]{cd, cur.getBidSubjectEtc()};
     }
 
     /** 061 — 관심은 사람마다 기관당 1개. 남의 관심·팀 목표와는 겹쳐도 된다. 잠금 안에서 부른다. 409 의 latest 는 내 기록이다. */
@@ -505,6 +692,7 @@ public class BidTargetService {
         cur.setActionCd(ACTION_CANCEL);
         cur.setCancelReasonCd(cp.reasonCd);
         cur.setCancelReasonEtc(cp.reasonEtc);
+        cur.setBidCaseId(null);   // NEXT 125 — 빼기 REV 는 공고 연결 없음(앞 REV 에 연결 이력이 남는다)
         return insert(cur, actor, ui);
     }
 
@@ -519,6 +707,7 @@ public class BidTargetService {
 
     /** 한 행 쓰기 + 조회 결과. 자격 검사는 부른 쪽(insert = 영업 계열, ♥ = 등록된 ACTIVE 사용자). reqId 는 항상 덮어쓴다. */
     private Map<String, Object> write(BidTarget row, SysUser me, Actor actor, BoardUiIds.Ui ui, Long reqId) {
+        if (row.getBidSubjectCd() == null) row.setBidSubjectCd(BidSubjects.MAIN_BANK);   // 066 NOT NULL — NULL 을 넣으면 DEFAULT 가 안 먹는다
         row.setApprovalReqId(reqId);
         row.setEditorEmpNo(actor.getEmpNo());
         row.setEditorName(me.getName());
@@ -576,11 +765,13 @@ public class BidTargetService {
         }
         Map<String, List<BankContract>> lines = byInstitution(mapper.selectContractsForCarry(from, thisYear));
         Map<String, Map<Integer, String>> starts = startsByInst(mapper.selectTermsForCarry(from, thisYear));
-        Set<String> pending = pendingMap().keySet();
+        Set<String> pending = new HashSet<String>();   // 이월은 자동 처리라 기관 단위로 보수적으로(결재 중인 기관은 건너뜀)
+        for (BidTargetReqItem x : mapper.selectPendingItems()) pending.add(x.getInstitutionId());
         List<String> out = new ArrayList<String>();
         for (Map.Entry<String, List<BidTarget>> e : byInst.entrySet()) {
             if (pending.contains(e.getKey())) continue;
             for (BidTarget src : CarryRules.sourcesOf(e.getValue(), from, thisYear)) {
+                if (!BidSubjects.MAIN_BANK.equals(src.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : src.getBidSubjectCd())) continue;   // NEXT 125 — 비금고 건은 금고 약정으로 판정하지 않는다
                 if (!CarryRules.decide(src, e.getValue(), lines.get(e.getKey()), starts.get(e.getKey()), today,
                         settings.getCarryDefaultStart()).isEmpty()) { out.add(e.getKey()); break; }
             }
@@ -626,7 +817,8 @@ public class BidTargetService {
             BidTarget src = null;
             for (BidTarget t : rows) if (t.getTargetNo() == first.getTargetNo()) src = t;
             if (src == null || ACTION_CANCEL.equals(src.getActionCd())) continue;
-            CarryRules.Decision d = CarryRules.decide(src, rows, lines, starts, today, settings.getCarryDefaultStart());
+            if (!BidSubjects.MAIN_BANK.equals(src.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : src.getBidSubjectCd())) continue;   // NEXT 125 — 비금고 건은 자동 이월하지 않는다
+            CarryRules.Decision d = CarryRules.decide(src, rows, lines, starts, today, settings.getCarryDefaultStart());   // 순위별 약정 거르기는 S4(성과·이월 건 단위화)에서 — 지금은 기관 약정 전체(기존 동작)
             for (BidTarget c : d.revoke) {
                 if (c.getRevNo() + 1 > NO_MAX) throw conflict("LIMIT", LIMIT_MSG, c);
                 c.setRevNo(c.getRevNo() + 1); c.setActionCd(ACTION_CANCEL); c.setCancelReasonCd(CANCEL_CARRY_REVOKED); c.setCancelReasonEtc(null);
@@ -642,6 +834,8 @@ public class BidTargetService {
             row.setKindCd(d.carryKind); row.setTargetYear(null);          // 11-26 — 이월은 관심뿐(목표 연도 NULL)
             row.setTagCd(src.getTagCd()); row.setMemo(src.getMemo()); row.setOwnerEmpNo(src.getOwnerEmpNo()); row.setOwnerName(src.getOwnerName());   // 이어받은 값은 다시 검사하지 않는다
             row.setAimRankCd(src.getAimRankCd());   // 063 — 금고 방식도 잇는다(팀 결정 11-25)
+            row.setAimRankEtc(src.getAimRankEtc());   // 066 — 기타 이름도
+            row.setBidSubjectCd(BidSubjects.MAIN_BANK); row.setBidSubjectEtc(null); row.setBidCaseId(null);   // 관심 행 = MAIN_BANK·연결 없음(이월은 금고 건만)
             row.setCarryFromNo(src.getTargetNo()); row.setCarryBasisCd(d.verdict);
             row.setWatchEmpNo(BidTargetRules.KIND_WATCH.equals(d.carryKind) ? CarryRules.watchOwnerOf(src) : null);   // 061 — 이월 관심 주인
             insert(row, actor, ui, null);
@@ -682,9 +876,7 @@ public class BidTargetService {
         SysUser me = watchUser(actor);
         BidTarget[] m = mine(inst, actor.getEmpNo());
         if (m[0] != null) return watchState(inst, m[0], true);
-        for (BidTargetReqItem x : mapper.selectPendingItemsByInst(inst)) {   // 내가 올린 목표→관심 결재가 진행 중이면 ♥로 먼저 켜지 않는다(승인 때 ALREADY_WATCH 로 막힘)
-            if (TargetChangeService.OP_TO_WATCH.equals(x.getOpCd()) && actor.getEmpNo().equals(x.getRequesterEmpNo())) throw pendingConflict(null);
-        }
+        requireNoMyToWatchPending(inst, actor.getEmpNo());   // 내가 올린 목표→관심 결재가 진행 중이면 ♥로 먼저 켜지 않는다(승인 때 ALREADY_WATCH 로 막힘)
         boolean given = tagRaw != null && !tagRaw.trim().isEmpty();
         String tag = given ? BidTargetRules.tag(tagRaw, codeCheck()) : null;   // NEXT 114 ⑥ — 안 오면 비움(기본 구분을 서버가 정하지 않는다)
         BidTarget row;
@@ -700,6 +892,7 @@ public class BidTargetService {
         }
         row.setActionCd(ACTION_SAVE); row.setKindCd(BidTargetRules.KIND_WATCH); row.setTargetYear(null); row.setTagCd(tag);
         row.setMemo(null); row.setOwnerEmpNo(null); row.setOwnerName(null); row.setAimRankCd(null);   // 다시 켤 때 옛 값을 잇지 않는다
+        row.setAimRankEtc(null); row.setBidSubjectCd(BidSubjects.MAIN_BANK); row.setBidSubjectEtc(null); row.setBidCaseId(null);   // 066 — 관심 행 = MAIN_BANK·이름 없음·연결 없음
         row.setCancelReasonCd(null); row.setCancelReasonEtc(null); row.setCarryFromNo(null); row.setCarryBasisCd(null);
         row.setWatchEmpNo(actor.getEmpNo());
         Map<String, Object> out = write(row, me, actor, ui, null);
@@ -851,7 +1044,8 @@ public class BidTargetService {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("tags", codeList(BidTargetRules.G_TAG));
         m.put("cancel_reasons", codeList(BidTargetRules.G_CANCEL));
-        m.put("aim_ranks", codeList(BidTargetRules.G_AIM));   // 063 금고 방식
+        m.put("aim_ranks", codeList(BidTargetRules.G_AIM));   // 063 금고 방식(066 부터 '기타' 포함)
+        m.put("subjects", codeList(BidSubjects.GROUP));        // NEXT 125 입찰 대상
         return m;
     }
 
@@ -887,6 +1081,14 @@ public class BidTargetService {
         m.put("memo", t.getMemo() == null ? "" : t.getMemo());
         m.put("aim_rank_cd", t.getAimRankCd());     // 063 — null = '-'(아직 안 정함)
         m.put("aim_rank_name", t.getAimRankName());
+        String subj = t.getBidSubjectCd() == null ? BidSubjects.MAIN_BANK : t.getBidSubjectCd();
+        boolean other = BidTargetRules.AIM_OTHER.equals(t.getAimRankCd());
+        m.put("aim_rank_etc", t.getAimRankEtc());                                           // 기타 이름(손 입력 — 화면 esc)
+        m.put("aim_rank_label", other && t.getAimRankEtc() != null ? t.getAimRankEtc() : t.getAimRankName());
+        m.put("aim_rank_sort", BidTargetKeys.aimSort(subj, t.getAimRankCd(), t.getAimRankSort()));   // 1금고→2금고→단수→주거래→기타→정하지 않음(90)→해당 없음(99)
+        m.put("bid_subject_cd", subj);                                                      // NEXT 125
+        m.put("bid_subject_name", BidSubjects.label(subj, t.getBidSubjectEtc(), t.getBidSubjectName()));   // ETC 손 이름 — 화면은 esc()
+        m.put("rank_state", BidTargetKeys.rankState(subj, t.getAimRankCd()));               // NA 해당 없음 | UNDECIDED 미정 | SET
         m.put("owner_name", t.getOwnerName());
         if (showOwnerEmpNo) m.put("owner_emp_no", t.getOwnerEmpNo());
         if (withAction) {

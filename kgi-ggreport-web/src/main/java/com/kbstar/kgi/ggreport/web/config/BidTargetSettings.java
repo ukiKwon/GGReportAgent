@@ -33,6 +33,16 @@ public class BidTargetSettings {
         catch (DateTimeParseException e) { throw new IllegalStateException("ggreport.bid-target.carry.default-start must be a valid MM-DD"); }
     }
 
+    private volatile boolean multiSubject;
+
+    /**
+     * NEXT 125 — true 면 MAIN_BANK 밖 입찰 대상 목표 건 만들기와 1금고+2금고 두 건 함께 두기를 허용한다. 기본 false(S2 서버만 먼저 배포해도 옛 화면과 같은 모습).
+     * 6e 확정 연결(target_no)·화면이 준비된 뒤 켠다. 생성자는 그대로 둔다(손으로 만드는 시험이 깨지지 않게).
+     */
+    @Value("${ggreport.bid-target.multi-subject:false}")
+    public void setMultiSubject(boolean v) { multiSubject = v; }
+    public boolean isMultiSubject() { return multiSubject; }
+
     public boolean isApprovalRequired() { return approvalRequired; }
     public boolean isCarryEnabled() { return carryEnabled; }
 

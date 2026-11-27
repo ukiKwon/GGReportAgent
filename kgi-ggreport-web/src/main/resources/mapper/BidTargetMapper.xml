@@ -2,7 +2,8 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- INST_BID_TARGET — 043. 양쪽 방언 같은 문장(ANSI), 페이징은 RowBounds. 쓰기는 기관 행 잠금이 먼저(039 와 같은 잠금).
      INSERT 만 — UPDATE·DELETE 문장은 일부러 없다. INST_BANK_CONTRACT 는 읽기만.
-     044 — 살아 있음 = 최대 REV 의 ACTION_CD &lt;&gt; 'CANCEL'(SAVE·MOVE). NOTICE_ROUND·NOTICE_ROUND_LOG 는 읽기만. -->
+     044 — 살아 있음 = 최대 REV 의 ACTION_CD &lt;&gt; 'CANCEL'(SAVE·MOVE). NOTICE_ROUND·NOTICE_ROUND_LOG 는 읽기만.
+     066 — 대상·연결·기타 금고 방식 칸. BID_CASES 는 updateCaseRankIfNull 하나만 UPDATE(금고 순위 NULL→값, NEXT 125). EXT_CHECK·BID_PREP 는 읽기만. -->
 <mapper namespace="com.kbstar.kgi.ggreport.web.mapper.BidTargetMapper">
 
   <resultMap id="inst" type="BankContractInst">
@@ -49,6 +50,13 @@
     <result property="watchEmpNo" column="WATCH_EMP_NO"/>
     <result property="aimRankCd" column="AIM_RANK_CD"/>
     <result property="aimRankName" column="AIM_RANK_NAME"/>
+    <result property="aimRankEtc" column="AIM_RANK_ETC"/>
+    <result property="aimRankSort" column="AIM_RANK_SORT"/>
+    <result property="bidSubjectCd" column="BID_SUBJECT_CD"/>
+    <result property="bidSubjectEtc" column="BID_SUBJECT_ETC"/>
+    <result property="bidSubjectName" column="BID_SUBJECT_NAME"/>
+    <result property="bidCaseId" column="BID_CASE_ID"/>
+    <result property="bidTitle" column="BID_TITLE"/>
   </resultMap>
 
   <resultMap id="line" type="BankContract">
@@ -83,15 +91,20 @@
     f.ACTION_CD AS FIRST_ACTION_CD, f.KIND_CD AS FIRST_KIND_CD,
     ri.REQUESTER_EMP_NO AS REQUESTER_EMP_NO, ri.REQUESTER_NAME AS REQUESTED_BY_NAME,
     fr.REQUESTER_EMP_NO AS FIRST_REQUESTER_EMP_NO, fr.REQUESTER_NAME AS FIRST_REQUESTED_BY_NAME, b.WATCH_EMP_NO,
-    b.AIM_RANK_CD, ar.CODE_NAME AS AIM_RANK_NAME</sql>
+    b.AIM_RANK_CD, ar.CODE_NAME AS AIM_RANK_NAME, b.AIM_RANK_ETC, ar.SORT_NO AS AIM_RANK_SORT,
+    b.BID_SUBJECT_CD, b.BID_SUBJECT_ETC, sj.CODE_NAME AS BID_SUBJECT_NAME, b.BID_CASE_ID, bk.TITLE AS BID_TITLE</sql>
   <sql id="from">FROM INST_BID_TARGET b
     LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = b.INSTITUTION_ID
     LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'TARGET_TAG' AND c.CODE = b.TAG_CD
     LEFT JOIN COMMON_CODE d ON d.CODE_GROUP = 'TARGET_CANCEL_REASON' AND d.CODE = b.CANCEL_REASON_CD
     LEFT JOIN INST_BID_TARGET f ON f.INSTITUTION_ID = b.INSTITUTION_ID AND f.TARGET_NO = b.TARGET_NO AND f.REV_NO = 1
-    LEFT JOIN INST_BID_TARGET_REQ_ITEM ri ON ri.REQ_ID = b.APPROVAL_REQ_ID AND ri.INSTITUTION_ID = b.INSTITUTION_ID
-    LEFT JOIN INST_BID_TARGET_REQ_ITEM fr ON fr.REQ_ID = f.APPROVAL_REQ_ID AND fr.INSTITUTION_ID = f.INSTITUTION_ID
-    LEFT JOIN COMMON_CODE ar ON ar.CODE_GROUP = 'TARGET_AIM_RANK' AND ar.CODE = b.AIM_RANK_CD</sql>
+    LEFT JOIN INST_BID_TARGET_REQ_ITEM ri ON ri.REQ_ID = b.APPROVAL_REQ_ID AND ri.ITEM_NO = 1
+    LEFT JOIN INST_BID_TARGET_REQ_ITEM fr ON fr.REQ_ID = f.APPROVAL_REQ_ID AND fr.ITEM_NO = 1
+    LEFT JOIN COMMON_CODE ar ON ar.CODE_GROUP = 'TARGET_AIM_RANK' AND ar.CODE = b.AIM_RANK_CD
+    LEFT JOIN COMMON_CODE sj ON sj.CODE_GROUP = 'BID_SUBJECT' AND sj.CODE = b.BID_SUBJECT_CD
+    LEFT JOIN BID_CASES bk ON bk.BID_CASE_ID = b.BID_CASE_ID</sql>
+  <!-- 066 — 한 요청에 같은 기관 여러 항목(PK REQ_ID·ITEM_NO). 요청자는 요청당 1명이라 항목 1번 줄에서 읽는다(줄 중복 방지). -->
+
   <sql id="latest">NOT EXISTS (SELECT 1 FROM INST_BID_TARGET n
       WHERE n.INSTITUTION_ID = b.INSTITUTION_ID AND n.TARGET_NO = b.TARGET_NO AND n.REV_NO &gt; b.REV_NO)</sql>
 
@@ -124,12 +137,13 @@
   <insert id="insertRow" parameterType="BidTarget">
     INSERT INTO INST_BID_TARGET (INSTITUTION_ID, TARGET_NO, REV_NO, ACTION_CD, KIND_CD, TARGET_YEAR, TAG_CD, MEMO, OWNER_EMP_NO, OWNER_NAME,
         CANCEL_REASON_CD, CANCEL_REASON_ETC, EDITOR_EMP_NO, EDITOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, SAVED_AT,
-        APPROVAL_REQ_ID, CARRY_FROM_NO, CARRY_BASIS_CD, WATCH_EMP_NO, AIM_RANK_CD)
+        APPROVAL_REQ_ID, CARRY_FROM_NO, CARRY_BASIS_CD, WATCH_EMP_NO, AIM_RANK_CD, AIM_RANK_ETC, BID_SUBJECT_CD, BID_SUBJECT_ETC, BID_CASE_ID)
     VALUES (#{institutionId}, #{targetNo}, #{revNo}, #{actionCd}, #{kindCd}, #{targetYear,jdbcType=INTEGER}, #{tagCd,jdbcType=VARCHAR}, #{memo,jdbcType=VARCHAR},
         #{ownerEmpNo,jdbcType=VARCHAR}, #{ownerName,jdbcType=VARCHAR}, #{cancelReasonCd,jdbcType=VARCHAR}, #{cancelReasonEtc,jdbcType=VARCHAR},
         #{editorEmpNo}, #{editorName}, #{empVerified}, #{screenId}, #{buttonId}, #{uiValid}, #{savedAt},
         #{approvalReqId,jdbcType=BIGINT}, #{carryFromNo,jdbcType=INTEGER}, #{carryBasisCd,jdbcType=VARCHAR},
-        #{watchEmpNo,jdbcType=VARCHAR}, #{aimRankCd,jdbcType=VARCHAR})
+        #{watchEmpNo,jdbcType=VARCHAR}, #{aimRankCd,jdbcType=VARCHAR}, #{aimRankEtc,jdbcType=VARCHAR},
+        #{bidSubjectCd}, #{bidSubjectEtc,jdbcType=VARCHAR}, #{bidCaseId,jdbcType=VARCHAR})
   </insert>
 
   <sql id="lineCols">k.INSTITUTION_ID, k.CONTRACT_NO, k.REV_NO, k.RANK_CD, k.BANK_CD, k.BANK_NAME_ETC, k.TERM_FROM, k.TERM_TO, c.CODE_NAME AS BANK_NAME</sql>
@@ -207,6 +221,41 @@
      WHERE x.INSTITUTION_ID = #{institutionId} AND r.STATUS = 'PENDING'
   </select>
 
+  <!-- NEXT 125 — 결재 중 잠금 = 건 단위(사용자 11-26): 그 목표 건(TARGET_NO)에 걸린 PENDING 항목 수. 넣기(ADD)는 TARGET_NO 가 없어 칸 검사(SLOT_PENDING)가 막는다. -->
+  <select id="countPendingByTarget" resultType="int" flushCache="true">
+    SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM x JOIN APPROVAL_REQUEST r ON r.REQ_ID = x.REQ_ID
+     WHERE x.INSTITUTION_ID = #{institutionId} AND x.TARGET_NO = #{targetNo} AND r.STATUS = 'PENDING'
+  </select>
+
+  <!-- NEXT 125 — 목표 건 ↔ 제안 건(읽기만). 그 해 살아 있는 목표 기관들의 모든 제안 건 + 공고 대상·순위·제목. -->
+  <sql id="caseCols">p.BID_CASE_ID, p.INSTITUTION_ID, p.STATE_CD, p.CONFIRMED_AT, p.OPENED_AT,
+    c.BID_SUBJECT_CD, c.BID_SUBJECT_ETC, c.BID_RANK_CD, c.TITLE AS BID_TITLE</sql>
+  <select id="selectCasesForYear" resultType="TargetCaseRef" flushCache="true">
+    SELECT <include refid="caseCols"/> FROM BID_PREP p LEFT JOIN BID_CASES c ON c.BID_CASE_ID = p.BID_CASE_ID
+     WHERE p.INSTITUTION_ID IN (SELECT t.INSTITUTION_ID FROM INST_BID_TARGET t
+             WHERE t.KIND_CD = 'GOAL' AND t.TARGET_YEAR = #{year} AND t.ACTION_CD &lt;&gt; 'CANCEL' AND NOT EXISTS (SELECT 1 FROM INST_BID_TARGET m
+               WHERE m.INSTITUTION_ID = t.INSTITUTION_ID AND m.TARGET_NO = t.TARGET_NO AND m.REV_NO &gt; t.REV_NO))
+     ORDER BY p.INSTITUTION_ID, p.CONFIRMED_AT DESC
+  </select>
+  <select id="selectCasesOfInst" resultType="TargetCaseRef" flushCache="true">
+    SELECT <include refid="caseCols"/> FROM BID_PREP p LEFT JOIN BID_CASES c ON c.BID_CASE_ID = p.BID_CASE_ID
+     WHERE p.INSTITUTION_ID = #{institutionId} ORDER BY p.CONFIRMED_AT DESC
+  </select>
+  <!-- 금고 순위 미정 → 값(연결된 건에서 한 번). 이미 값이 있으면 0행(덮어쓰지 않는다). BID_CASES 에 쓰는 유일한 UPDATE(NEXT 125). -->
+  <update id="updateCaseRankIfNull">
+    UPDATE BID_CASES SET BID_RANK_CD = #{rank} WHERE BID_CASE_ID = #{bidCaseId} AND BID_RANK_CD IS NULL
+  </update>
+
+  <!-- NEXT 125 펼침 줄 — 기관별 최신 '찾은 공고'(금고 문맥 수집)의 제목·공고일·접수 마감. 읽기만. 형식 검사는 서버(BidTargetService.dateOnly). -->
+  <select id="selectLatestNotices" resultType="ExtCheck" flushCache="true">
+    SELECT INSTITUTION_ID, TITLE, POSTED_AT, DEADLINE_AT FROM (
+      SELECT INSTITUTION_ID, TITLE, POSTED_AT, DEADLINE_AT,
+             ROW_NUMBER() OVER (PARTITION BY INSTITUTION_ID ORDER BY CHECKED_AT DESC, IMPORTED_AT DESC, CHECK_KEY) AS RN
+        FROM EXT_CHECK
+       WHERE SOURCE_KIND = 'notice' AND STATUS_CD = 'found'
+    ) T WHERE RN = 1
+  </select>
+
   <sql id="carryInst">SELECT t.INSTITUTION_ID FROM INST_BID_TARGET t
              WHERE t.KIND_CD = 'GOAL' AND t.TARGET_YEAR BETWEEN #{fromYear} AND #{toYear} AND t.ACTION_CD &lt;&gt; 'CANCEL' AND NOT EXISTS (SELECT 1 FROM INST_BID_TARGET m
                WHERE m.INSTITUTION_ID = t.INSTITUTION_ID AND m.TARGET_NO = t.TARGET_NO AND m.REV_NO &gt; t.REV_NO)</sql>
@@ -249,7 +298,9 @@
     x.OWNER_EMP_NO, x.OWNER_NAME, x.CANCEL_REASON_CD, x.CANCEL_REASON_ETC, x.WARN_CD, x.REQUESTER_EMP_NO, x.REQUESTER_NAME, x.CREATED_AT,
     r.CREATED_AT AS REQ_CREATED_AT, i.NAME_KO AS INSTITUTION_NAME, c.CODE_NAME AS TAG_NAME, d.CODE_NAME AS CANCEL_REASON_NAME,
     bt.TAG_CD AS BASE_TAG_CD, bc.CODE_NAME AS BASE_TAG_NAME, bt.MEMO AS BASE_MEMO, bt.OWNER_NAME AS BASE_OWNER_NAME,
-    x.AIM_RANK_CD, ar.CODE_NAME AS AIM_RANK_NAME, bt.AIM_RANK_CD AS BASE_AIM_RANK_CD, bar.CODE_NAME AS BASE_AIM_RANK_NAME</sql>
+    x.AIM_RANK_CD, ar.CODE_NAME AS AIM_RANK_NAME, bt.AIM_RANK_CD AS BASE_AIM_RANK_CD, bar.CODE_NAME AS BASE_AIM_RANK_NAME,
+    x.AIM_RANK_ETC, bt.AIM_RANK_ETC AS BASE_AIM_RANK_ETC,
+    x.BID_SUBJECT_CD, x.BID_SUBJECT_ETC, xs.CODE_NAME AS BID_SUBJECT_NAME, bk.TITLE AS BID_TITLE</sql>
   <sql id="itemFrom">FROM INST_BID_TARGET_REQ_ITEM x
     JOIN APPROVAL_REQUEST r ON r.REQ_ID = x.REQ_ID
     LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = x.INSTITUTION_ID
@@ -258,7 +309,9 @@
     LEFT JOIN INST_BID_TARGET bt ON bt.INSTITUTION_ID = x.INSTITUTION_ID AND bt.TARGET_NO = x.TARGET_NO AND bt.REV_NO = x.BASE_REV_NO
     LEFT JOIN COMMON_CODE bc ON bc.CODE_GROUP = 'TARGET_TAG' AND bc.CODE = bt.TAG_CD
     LEFT JOIN COMMON_CODE ar ON ar.CODE_GROUP = 'TARGET_AIM_RANK' AND ar.CODE = x.AIM_RANK_CD
-    LEFT JOIN COMMON_CODE bar ON bar.CODE_GROUP = 'TARGET_AIM_RANK' AND bar.CODE = bt.AIM_RANK_CD</sql>
+    LEFT JOIN COMMON_CODE bar ON bar.CODE_GROUP = 'TARGET_AIM_RANK' AND bar.CODE = bt.AIM_RANK_CD
+    LEFT JOIN COMMON_CODE xs ON xs.CODE_GROUP = 'BID_SUBJECT' AND xs.CODE = x.BID_SUBJECT_CD
+    LEFT JOIN BID_CASES bk ON bk.BID_CASE_ID = bt.BID_CASE_ID</sql>
   <select id="selectPendingItems" resultType="BidTargetReqItem" flushCache="true">
     SELECT <include refid="itemCols"/> <include refid="itemFrom"/> WHERE r.STATUS = 'PENDING' ORDER BY x.INSTITUTION_ID, x.REQ_ID
   </select>
@@ -270,11 +323,13 @@
   </select>
   <insert id="insertReqItem" parameterType="BidTargetReqItem">
     INSERT INTO INST_BID_TARGET_REQ_ITEM (REQ_ID, INSTITUTION_ID, ITEM_NO, OP_CD, TARGET_NO, BASE_REV_NO, BASE_KIND_CD, BASE_YEAR, TO_YEAR, TAG_CD, MEMO,
-        OWNER_EMP_NO, OWNER_NAME, CANCEL_REASON_CD, CANCEL_REASON_ETC, WARN_CD, REQUESTER_EMP_NO, REQUESTER_NAME, CREATED_AT, AIM_RANK_CD)
+        OWNER_EMP_NO, OWNER_NAME, CANCEL_REASON_CD, CANCEL_REASON_ETC, WARN_CD, REQUESTER_EMP_NO, REQUESTER_NAME, CREATED_AT, AIM_RANK_CD,
+        AIM_RANK_ETC, BID_SUBJECT_CD, BID_SUBJECT_ETC)
     VALUES (#{reqId}, #{institutionId}, #{itemNo}, #{opCd}, #{targetNo,jdbcType=INTEGER}, #{baseRevNo,jdbcType=INTEGER}, #{baseKindCd,jdbcType=VARCHAR},
         #{baseYear,jdbcType=INTEGER}, #{toYear,jdbcType=INTEGER}, #{tagCd,jdbcType=VARCHAR}, #{memo,jdbcType=VARCHAR}, #{ownerEmpNo,jdbcType=VARCHAR},
         #{ownerName,jdbcType=VARCHAR}, #{cancelReasonCd,jdbcType=VARCHAR}, #{cancelReasonEtc,jdbcType=VARCHAR}, #{warnCd,jdbcType=VARCHAR},
-        #{requesterEmpNo}, #{requesterName}, #{createdAt}, #{aimRankCd,jdbcType=VARCHAR})
+        #{requesterEmpNo}, #{requesterName}, #{createdAt}, #{aimRankCd,jdbcType=VARCHAR},
+        #{aimRankEtc,jdbcType=VARCHAR}, #{bidSubjectCd}, #{bidSubjectEtc,jdbcType=VARCHAR})
   </insert>
   <insert id="insertReqAct" parameterType="BidTargetReqAct">
     INSERT INTO INST_BID_TARGET_REQ_ACT (REQ_ID, ACT_CD, ACTOR_BASIS, ACTOR_EMP_NO, ACTOR_NAME, EMP_VERIFIED, SCREEN_ID, BUTTON_ID, UI_VALID, ACTED_AT)

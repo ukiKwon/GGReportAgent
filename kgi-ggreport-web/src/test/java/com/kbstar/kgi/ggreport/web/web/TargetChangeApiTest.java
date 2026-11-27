@@ -135,6 +135,172 @@ public class TargetChangeApiTest {
         return json(r).path("request").path("req_id").asLong();
     }
 
+    // ===== NEXT 125 S2 — qa/security 검토 반영 시험 =====
+
+    private static Map<String, Object> kv(Object... kv) {
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        for (int i = 0; i < kv.length; i += 2) m.put((String) kv[i], kv[i + 1]);
+        return m;
+    }
+    private static String code(MvcResult r) throws Exception { return json(r).path("detail").path("code").asText(); }
+
+    /** qa P2-1 — 내 TO_WATCH 결재 중에는 [관심 추가] 단건 저장도 409 CHANGE_PENDING(승인 때 ALREADY_WATCH 로 막히지 않게). */
+    @Test public void 내_TO_WATCH_결재_중_관심_추가_단건_저장은_409_행_수_그대로() throws Exception {
+        baseSeed();
+        userPerm(SALES, "map", 1, 1);
+        assertEquals(200, status(change(SALES, req("관심으로", item("mapo", "TO_WATCH", "target_no", 1, "base_rev_no", 1)))));
+        int before = count("SELECT COUNT(*) FROM INST_BID_TARGET");
+        MvcResult w = send(SALES, "/institutions/mapo/bid-targets", "bid_board", "add_watch_target", kv("kind_cd", "WATCH", "tag_cd", "NEW"));
+        assertEquals(raw(w), 409, status(w)); assertEquals("CHANGE_PENDING", code(w));
+        assertEquals(before, count("SELECT COUNT(*) FROM INST_BID_TARGET"));
+    }
+
+    /** SLOT_PENDING(스위치 꺼짐) — T1 연도 Y→Y+1 상신 뒤 같은 칸(Y+1) ADD 는 409(latest null), 다른 칸(Y+2)은 통과, 첫 요청 승인은 200. */
+    @Test public void 연도_바꾸기_결재_중_같은_칸_ADD는_SLOT_PENDING_다른_칸은_통과_승인_200() throws Exception {
+        baseSeed();
+        final int Y = y();
+        MvcResult r1 = change(SALES, req("연도 조정", item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y + 1, "tag_cd", "NEW")));
+        assertEquals(raw(r1), 200, status(r1));
+        long id = json(r1).path("request").path("req_id").asLong();
+        MvcResult slot = change(SALES, req("넣기", item("jung", "ADD", "tag_cd", "NEW", "target_year", Y + 1)));
+        assertEquals(raw(slot), 409, status(slot)); assertEquals("SLOT_PENDING", code(slot));
+        assertTrue(json(slot).path("detail").path("latest").isNull());
+        MvcResult other = change(SALES, req("넣기", item("jung", "ADD", "tag_cd", "NEW", "target_year", Y + 2)));
+        assertEquals(raw(other), 200, status(other));
+        MvcResult ok = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(ok), 200, status(ok));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND TARGET_NO=1 AND REV_NO=2 AND TARGET_YEAR=?", Y + 1));
+    }
+
+    private void pairSeed() {   // 스위치 켬 시험 바탕: jung 올해 1금고(T1)·2금고(T2)
+        final int Y = y();
+        target("jung", 1, 1, "SAVE", "GOAL", Y, null);
+        target("jung", 2, 1, "SAVE", "GOAL", Y, null);
+        jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='FIRST' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");
+        jdbc.update("UPDATE INST_BID_TARGET SET AIM_RANK_CD='SECOND' WHERE INSTITUTION_ID='jung' AND TARGET_NO=2");
+    }
+
+    /** 건 단위 잠금(스위치 켬) — T1 결재 중이어도 같은 기관 T2 메모는 201, T1 메모는 409 CHANGE_PENDING. */
+    @Test public void 건_단위_잠금_T1_결재_중_T2는_201_T1은_409() throws Exception {
+        settings.setMultiSubject(true);
+        try {
+            pairSeed();
+            userPerm(SALES, "map", 1, 1);
+            final int Y = y();
+            assertEquals(200, status(change(SALES, req("뺌", item("jung", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")))));
+            MvcResult t2 = send(SALES, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_no", 2, "base_rev_no", 1, "target_year", Y, "tag_cd", "RETAIN"));
+            assertEquals(raw(t2), 201, status(t2));
+            MvcResult t1 = send(SALES, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "RETAIN"));
+            assertEquals(raw(t1), 409, status(t1)); assertEquals("CHANGE_PENDING", code(t1));
+        } finally {
+            settings.setMultiSubject(false);
+        }
+    }
+
+    /** qa P2-2 — 스위치 켬: 한 요청에 같은 기관을 관심으로 두 번 옮기면 400 DUP_WATCH(관심은 사람마다 기관당 1개). */
+    @Test public void 같은_요청_안_같은_기관_TO_WATCH_두_건은_400() throws Exception {
+        settings.setMultiSubject(true);
+        try {
+            pairSeed();
+            MvcResult r = change(SALES, req("관심으로", item("jung", "TO_WATCH", "target_no", 1, "base_rev_no", 1), item("jung", "TO_WATCH", "target_no", 2, "base_rev_no", 1)));
+            assertEquals(raw(r), 400, status(r)); assertEquals("DUP_WATCH", code(r));
+            assertEquals(2, json(r).path("detail").path("item_no").asInt());
+            assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET_REQ_ITEM"));
+        } finally {
+            settings.setMultiSubject(false);
+        }
+    }
+
+    /** security ④ — 목표→관심·빼기 REV 는 공고 연결을 비우고 대상은 MAIN_BANK(금고 방식은 남긴다 — 063 팀 정본). */
+    @Test public void TO_WATCH_와_CANCEL_행은_BID_CASE_ID를_비우고_대상은_MAIN_BANK() throws Exception {
+        baseSeed();
+        jdbc.update("UPDATE INST_BID_TARGET SET BID_CASE_ID='bt-test-case', BID_SUBJECT_CD='CORP_CARD' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");
+        jdbc.update("UPDATE INST_BID_TARGET SET BID_CASE_ID='bt-test-case-2' WHERE INSTITUTION_ID='mapo' AND TARGET_NO=1");
+        Map<String, Object> toWatch = kv("base_rev_no", 1, "to_kind_cd", "WATCH");
+        MvcResult w = send(HEAD, "/institutions/jung/bid-targets/1/move", "bid_board", "move_to_watch", toWatch);
+        assertEquals(raw(w), 201, status(w));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2 AND KIND_CD='WATCH'"
+                + " AND BID_CASE_ID IS NULL AND BID_SUBJECT_CD='MAIN_BANK'"));
+        MvcResult c = send(HEAD, "/institutions/mapo/bid-targets/1/cancel", "bid_board", "cancel_bid_target", kv("base_rev_no", 1, "cancel_reason_cd", "DROPPED"));
+        assertEquals(raw(c), 201, status(c));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='mapo' AND REV_NO=2 AND ACTION_CD='CANCEL' AND BID_CASE_ID IS NULL"));
+    }
+
+    /** 결재 승인으로 반영된 TO_WATCH·CANCEL 도 연결을 비운다. */
+    @Test public void 결재_승인된_TO_WATCH_CANCEL도_BID_CASE_ID를_비운다() throws Exception {
+        baseSeed();
+        jdbc.update("UPDATE INST_BID_TARGET SET BID_CASE_ID='bt-test-case' WHERE INSTITUTION_ID='mapo' AND TARGET_NO=1");
+        jdbc.update("UPDATE INST_BID_TARGET SET BID_CASE_ID='bt-test-case-2' WHERE INSTITUTION_ID='jungnang' AND TARGET_NO=1");
+        MvcResult r = change(SALES, req("정리", item("mapo", "TO_WATCH", "target_no", 1, "base_rev_no", 1),
+                item("jungnang", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")));
+        assertEquals(raw(r), 200, status(r));
+        assertEquals(200, status(decide(LEAD, json(r).path("request").path("req_id").asLong(), "APPROVE", null)));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='mapo' AND REV_NO=2 AND KIND_CD='WATCH' AND BID_CASE_ID IS NULL AND BID_SUBJECT_CD='MAIN_BANK'"));
+        assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jungnang' AND REV_NO=2 AND ACTION_CD='CANCEL' AND BID_CASE_ID IS NULL"));
+    }
+
+    /** ITEM_NO=1 조인 — 두 기관 요청 승인 뒤 2번 항목 기관의 이력 줄도 요청자 이름이 나오고 줄이 중복되지 않는다. */
+    @Test public void 두_기관_요청의_2번_항목_기관도_요청자_이름이_나오고_줄이_중복되지_않는다() throws Exception {
+        baseSeed();
+        userPerm(SALES, "map", 1, 1);
+        MvcResult r = change(SALES, req("두 곳 정리",
+                item("jung", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED"),
+                item("mapo", "CANCEL", "target_no", 1, "base_rev_no", 1, "cancel_reason_cd", "DROPPED")));
+        assertEquals(raw(r), 200, status(r));
+        assertEquals(200, status(decide(LEAD, json(r).path("request").path("req_id").asLong(), "APPROVE", null)));
+        JsonNode items = json(getAs(SALES, "/institutions/mapo/bid-targets/history")).path("items");
+        assertEquals(2, items.size());
+        boolean named = false;
+        for (JsonNode it : items) if ("CANCEL".equals(it.path("action_cd").asText()) && "김영업".equals(it.path("requested_by_name").asText())) named = true;
+        assertTrue(named);
+    }
+
+    /** security — 미정→값에서 이어진 공고 순위가 이미 있고 다르면 409 RANK_MISMATCH(단건·일괄), 같으면 통과. */
+    @Test public void 미정에서_값으로_공고_순위와_다르면_409_RANK_MISMATCH() throws Exception {
+        baseSeed();
+        userPerm(SALES, "map", 1, 1);
+        final int Y = y();
+        jdbc.update("INSERT INTO BID_CASES (BID_CASE_ID, INSTITUTION_ID) VALUES ('rm-case', 'jung')");
+        jdbc.update("UPDATE BID_CASES SET BID_RANK_CD='SECOND' WHERE BID_CASE_ID='rm-case'");
+        jdbc.update("INSERT INTO BID_PREP (BID_CASE_ID, INSTITUTION_ID, STATE_CD, CONFIRMED_BY, CONFIRMED_AT, UPDATED_BY, UPDATED_AT)"
+                + " VALUES ('rm-case', 'jung', 'CONFIRMED', '3918264', '2026-11-16T00:00:00+09:00', '3918264', '2026-11-16T00:00:00+09:00')");
+        jdbc.update("UPDATE INST_BID_TARGET SET BID_CASE_ID='rm-case' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");
+        MvcResult s = send(SALES, "/institutions/jung/bid-targets", "bid_board", "set_target_aim_rank",
+                single("target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "NEW", "aim_rank_cd", "FIRST"));
+        assertEquals(raw(s), 409, status(s)); assertEquals("RANK_MISMATCH", code(s));
+        MvcResult b = send(SALES, "/bid-targets/changes", "bid_board", "save_target_values",
+                req(null, item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "NEW", "aim_rank_cd", "FIRST")));
+        assertEquals(raw(b), 409, status(b)); assertEquals("RANK_MISMATCH", code(b));
+        assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jung' AND REV_NO=2"));
+        MvcResult ok = send(SALES, "/institutions/jung/bid-targets", "bid_board", "set_target_aim_rank",
+                single("target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "NEW", "aim_rank_cd", "SECOND"));
+        assertEquals(raw(ok), 201, status(ok));
+    }
+
+    /** 팀 결정 — 입찰 건에 이어진 목표의 연도 바꾸기는 409 YEAR_LINKED(단건·결재 상신·승인 모두). */
+    @Test public void 이어진_목표의_연도_바꾸기는_409_YEAR_LINKED_단건_상신_승인() throws Exception {
+        baseSeed();
+        userPerm(SALES, "map", 1, 1);
+        final int Y = y();
+        // 승인 시점 검사: 연결 전에 상신 → 연결 → 승인
+        MvcResult pending = change(SALES, req("연도 조정", item("mapo", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y + 1, "tag_cd", "NEW")));
+        assertEquals(raw(pending), 200, status(pending));
+        long id = json(pending).path("request").path("req_id").asLong();
+        jdbc.update("UPDATE INST_BID_TARGET SET BID_CASE_ID='yl-case' WHERE INSTITUTION_ID='mapo' AND TARGET_NO=1");
+        MvcResult ap = decide(LEAD, id, "APPROVE", null);
+        assertEquals(raw(ap), 409, status(ap)); assertEquals("YEAR_LINKED", code(ap));
+        // 단건·상신
+        jdbc.update("UPDATE INST_BID_TARGET SET BID_CASE_ID='yl-case-2' WHERE INSTITUTION_ID='jung' AND TARGET_NO=1");
+        MvcResult s = send(SALES, "/institutions/jung/bid-targets", "bid_board", "goal_next_year", single("target_no", 1, "base_rev_no", 1, "target_year", Y + 1, "tag_cd", "NEW"));
+        assertEquals(raw(s), 409, status(s)); assertEquals("YEAR_LINKED", code(s));
+        MvcResult b = change(SALES, req("연도 조정", item("jung", "EDIT", "target_no", 1, "base_rev_no", 1, "target_year", Y + 1, "tag_cd", "NEW")));
+        assertEquals(raw(b), 409, status(b)); assertEquals("YEAR_LINKED", code(b));
+        assertEquals(1, json(b).path("detail").path("item_no").asInt());
+        // 연도를 안 바꾸는 고치기(메모·구분)는 연결돼 있어도 통과
+        MvcResult tag = send(SALES, "/institutions/jung/bid-targets", "bid_board", "change_target_tag", single("target_no", 1, "base_rev_no", 1, "target_year", Y, "tag_cd", "RETAIN"));
+        assertEquals(raw(tag), 201, status(tag));
+    }
+
     private MvcResult confirmPrep(String emp, String inst) throws Exception {
         Map<String, Object> m = new LinkedHashMap<String, Object>(); m.put("institution_id", inst);
         return send(emp, "/preps", "bid_board", "confirm", m);
@@ -155,7 +321,8 @@ public class TargetChangeApiTest {
             assertTrue(emp, hasInst(l.path("pending_goal_items"), "jongno"));
         }
         JsonNode p = json(getAs(HEAD, "/bid-targets?year=" + Y)).path("pending_goal_items").get(0);
-        assertEquals(2, p.size());                        // institution_id·target_year 만(요청자·사유·번호 없음)
+        assertEquals(4, p.size());                        // institution_id·target_year + NEXT 125 건 단위 bid_subject_cd·aim_rank_cd (요청자·사유·번호 없음)
+        assertEquals("MAIN_BANK", p.path("bid_subject_cd").asText());
         assertEquals(Y, p.path("target_year").asInt());
         assertFalse(hasInst(json(getAs(SALES, "/bid-targets?year=" + (Y + 1))).path("pending_goal_items"), "jongno"));
         MvcResult c = confirmPrep(SALES, "jongno");
@@ -215,7 +382,8 @@ public class TargetChangeApiTest {
         assertEquals(0, count("SELECT COUNT(*) FROM INST_BID_TARGET"));
     }
 
-    @Test public void 영업부장_반려_뒤_그_기관_관심_기록_저장은_201_잠금_풀림() throws Exception {
+    /** NEXT 125 건 단위 잠금(1737 ② 표 '결재 중 잠금', 사용자 11-26 ③): 결재 중인 목표 ADD 는 그 칸(연도·대상)만 막는다. 새 관심 기록은 목표 칸이 아니라 기관 단위로 막지 않는다. */
+    @Test public void 영업부장_반려_뒤_그_기관_관심_기록_저장은_201_결재_중에도_막히지_않는다() throws Exception {
         userPerm(SALES, "map", 1, 1);
         final int Y = y();
         MvcResult r1 = change(SALES, req("반려 시험", item("jongno", "ADD", "tag_cd", "NEW", "target_year", Y)));
@@ -223,11 +391,13 @@ public class TargetChangeApiTest {
         long id = json(r1).path("request").path("req_id").asLong();
         Map<String, Object> watch = new LinkedHashMap<String, Object>();
         watch.put("kind_cd", "WATCH"); watch.put("tag_cd", "NEW");
-        assertEquals(409, status(send(SALES, "/institutions/jongno/bid-targets", "bid_board", "add_watch_target", watch)));   // 결재 중 = 잠금
-        assertEquals(200, status(decide(HEAD2, id, "REJECT", "보류")));
         MvcResult w = send(SALES, "/institutions/jongno/bid-targets", "bid_board", "add_watch_target", watch);
-        assertEquals(raw(w), 201, status(w));
+        assertEquals(raw(w), 201, status(w));   // 결재 중(목표 ADD)이어도 새 관심 기록은 통과(건 단위 잠금)
+        assertEquals(200, status(decide(HEAD2, id, "REJECT", "보류")));
         assertEquals(1, count("SELECT COUNT(*) FROM INST_BID_TARGET WHERE INSTITUTION_ID='jongno' AND KIND_CD='WATCH'"));
+        MvcResult again = send(SALES, "/institutions/jongno/bid-targets", "bid_board", "add_watch_target", watch);
+        assertEquals(409, status(again));   // 관심은 사람마다 기관당 1개(ALREADY_WATCH) — 잠금과 무관한 기존 규칙
+        assertEquals("ALREADY_WATCH", json(again).path("detail").path("code").asText());
     }
 
     @Test public void TO_GOAL_승인은_MOVE_행_KIND_GOAL_결재번호를_남긴다() throws Exception {

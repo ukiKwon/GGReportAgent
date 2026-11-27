@@ -10,6 +10,8 @@ public class BidTargetReqItem {
     // 조인 칸
     private String institutionName, tagName, cancelReasonName, baseTagCd, baseTagName, baseMemo, baseOwnerName, reqCreatedAt;
     private String aimRankCd, aimRankName, baseAimRankCd, baseAimRankName;   // 063 금고 방식
+    private String aimRankEtc, baseAimRankEtc;                               // 066 기타 금고 방식 이름(요청 때 값·요청 때 본 기록 값)
+    private String bidSubjectCd, bidSubjectEtc, bidSubjectName, bidTitle;    // 066 입찰 대상 스냅샷·조인 이름·이은 공고 제목
 
     public Long getReqId() { return reqId; } public void setReqId(Long v) { reqId = v; }
     public String getInstitutionId() { return institutionId; } public void setInstitutionId(String v) { institutionId = v; }
@@ -42,4 +44,10 @@ public class BidTargetReqItem {
     public String getAimRankName() { return aimRankName; } public void setAimRankName(String v) { aimRankName = v; }
     public String getBaseAimRankCd() { return baseAimRankCd; } public void setBaseAimRankCd(String v) { baseAimRankCd = v; }
     public String getBaseAimRankName() { return baseAimRankName; } public void setBaseAimRankName(String v) { baseAimRankName = v; }
+    public String getAimRankEtc() { return aimRankEtc; } public void setAimRankEtc(String v) { aimRankEtc = v; }
+    public String getBaseAimRankEtc() { return baseAimRankEtc; } public void setBaseAimRankEtc(String v) { baseAimRankEtc = v; }
+    public String getBidSubjectCd() { return bidSubjectCd; } public void setBidSubjectCd(String v) { bidSubjectCd = v; }
+    public String getBidSubjectEtc() { return bidSubjectEtc; } public void setBidSubjectEtc(String v) { bidSubjectEtc = v; }
+    public String getBidSubjectName() { return bidSubjectName; } public void setBidSubjectName(String v) { bidSubjectName = v; }
+    public String getBidTitle() { return bidTitle; } public void setBidTitle(String v) { bidTitle = v; }
 }

@@ -7,7 +7,9 @@ import com.kbstar.kgi.ggreport.web.domain.BidTarget;
 import com.kbstar.kgi.ggreport.web.domain.BidTerm;
 import com.kbstar.kgi.ggreport.web.domain.BidTargetReqAct;
 import com.kbstar.kgi.ggreport.web.domain.BidTargetReqItem;
+import com.kbstar.kgi.ggreport.web.domain.ExtCheck;
 import com.kbstar.kgi.ggreport.web.domain.NoticeRoundView;
+import com.kbstar.kgi.ggreport.web.domain.TargetCaseRef;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.session.RowBounds;
@@ -60,6 +62,15 @@ public interface BidTargetMapper {
     int countPendingByInst(@Param("institutionId") String institutionId);
     List<BidTargetReqItem> selectPendingItems();
     List<BidTargetReqItem> selectPendingItemsByInst(@Param("institutionId") String institutionId);
+    /** NEXT 125 — 그 목표 건에 결재 중(PENDING)인 항목 수(건 단위 잠금). */
+    int countPendingByTarget(@Param("institutionId") String institutionId, @Param("targetNo") int targetNo);
+    /** NEXT 125 — 그 해 살아 있는 목표 기관들의 모든 제안 건(대상·순위·제목 포함, 읽기만). */
+    List<TargetCaseRef> selectCasesForYear(@Param("year") int year);
+    List<TargetCaseRef> selectCasesOfInst(@Param("institutionId") String institutionId);
+    /** NEXT 125 — BID_CASES 금고 순위 NULL → 값(이미 값이 있으면 0행). */
+    int updateCaseRankIfNull(@Param("bidCaseId") String bidCaseId, @Param("rank") String rank);
+    /** NEXT 125 — 기관별 최신 '찾은 공고'(EXT_CHECK, 제목·공고일·마감만). */
+    List<ExtCheck> selectLatestNotices();
     int countMoveRows(@Param("institutionId") String institutionId, @Param("targetNo") int targetNo);
     List<BidTargetReqItem> selectReqItems(@Param("reqId") Long reqId);
     int insertReqItem(BidTargetReqItem item);

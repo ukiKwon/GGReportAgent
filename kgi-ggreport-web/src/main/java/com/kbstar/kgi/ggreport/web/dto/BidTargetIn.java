@@ -18,6 +18,9 @@ public class BidTargetIn {
     @JsonProperty("owner_emp_no") private String ownerEmpNo;    // 선택
     @JsonProperty("kind_cd")      private String kindCd;        // 넣기만: GOAL(기본)|WATCH. 고치기에서 다른 값이면 400
     @JsonProperty("aim_rank_cd")  private String aimRankCd;     // 063 금고 방식(TARGET_AIM_RANK), 목표 고치기만(넣기에서 비어 있지 않으면 400). null=그대로, ""=지움
+    @JsonProperty("aim_rank_etc") private String aimRankEtc;       // NEXT 125 — aim_rank_cd=OTHER(기타)일 때만 1~30자. null = 그대로(고치기)
+    @JsonProperty("bid_subject_cd")  private String bidSubjectCd;  // NEXT 125 — 넣기만. 비우면 MAIN_BANK. 고치기에서 지금과 다르면 400
+    @JsonProperty("bid_subject_etc") private String bidSubjectEtc; // NEXT 125 — bid_subject_cd=ETC 일 때만 1~50자
 
     public Integer getTargetNo() { return targetNo; } public void setTargetNo(Integer v) { targetNo = v; }
     public Integer getBaseRevNo() { return baseRevNo; } public void setBaseRevNo(Integer v) { baseRevNo = v; }
@@ -27,4 +30,7 @@ public class BidTargetIn {
     public String getOwnerEmpNo() { return ownerEmpNo; } public void setOwnerEmpNo(String v) { ownerEmpNo = v; }
     public String getKindCd() { return kindCd; } public void setKindCd(String v) { kindCd = v; }
     public String getAimRankCd() { return aimRankCd; } public void setAimRankCd(String v) { aimRankCd = v; }
+    public String getAimRankEtc() { return aimRankEtc; } public void setAimRankEtc(String v) { aimRankEtc = v; }
+    public String getBidSubjectCd() { return bidSubjectCd; } public void setBidSubjectCd(String v) { bidSubjectCd = v; }
+    public String getBidSubjectEtc() { return bidSubjectEtc; } public void setBidSubjectEtc(String v) { bidSubjectEtc = v; }
 }

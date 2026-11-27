@@ -14,6 +14,9 @@ public class BidTarget {
     private String requesterEmpNo, requestedByName, firstRequesterEmpNo, firstRequestedByName;      // 056 조회 — 결재 항목 요청자(사번은 내보내지 않음)
     private String watchEmpNo;    // 061 — 관심(WATCH) 주인 사번, 목표는 NULL. 화면에 내보내지 않는다
     private String aimRankCd, aimRankName;   // 063 — 금고 방식(TARGET_AIM_RANK)·조회 조인 이름
+    private String aimRankEtc;               // 066 — 기타(OTHER) 금고 방식 이름(1~30자, 그 밖은 null)
+    private Integer aimRankSort;             // 066 조회 — 코드표 SORT_NO(정렬)
+    private String bidSubjectCd, bidSubjectEtc, bidSubjectName, bidCaseId, bidTitle;   // 066 — 입찰 대상·기타 이름·조인 이름·이은 공고 건·그 제목(조회 조인)
 
     public String getInstitutionId() { return institutionId; } public void setInstitutionId(String v) { institutionId = v; }
     public String getInstitutionName() { return institutionName; } public void setInstitutionName(String v) { institutionName = v; }
@@ -55,4 +58,11 @@ public class BidTarget {
     public String getWatchEmpNo() { return watchEmpNo; } public void setWatchEmpNo(String v) { watchEmpNo = v; }
     public String getAimRankCd() { return aimRankCd; } public void setAimRankCd(String v) { aimRankCd = v; }
     public String getAimRankName() { return aimRankName; } public void setAimRankName(String v) { aimRankName = v; }
+    public String getAimRankEtc() { return aimRankEtc; } public void setAimRankEtc(String v) { aimRankEtc = v; }
+    public Integer getAimRankSort() { return aimRankSort; } public void setAimRankSort(Integer v) { aimRankSort = v; }
+    public String getBidSubjectCd() { return bidSubjectCd; } public void setBidSubjectCd(String v) { bidSubjectCd = v; }
+    public String getBidSubjectEtc() { return bidSubjectEtc; } public void setBidSubjectEtc(String v) { bidSubjectEtc = v; }
+    public String getBidSubjectName() { return bidSubjectName; } public void setBidSubjectName(String v) { bidSubjectName = v; }
+    public String getBidCaseId() { return bidCaseId; } public void setBidCaseId(String v) { bidCaseId = v; }
+    public String getBidTitle() { return bidTitle; } public void setBidTitle(String v) { bidTitle = v; }
 }

@@ -26,6 +26,9 @@ public class TargetChangeIn {
         @JsonProperty("cancel_reason_cd")  private String cancelReasonCd;  // CANCEL
         @JsonProperty("cancel_reason_etc") private String cancelReasonEtc; // CANCEL
         @JsonProperty("aim_rank_cd")       private String aimRankCd;       // EDIT(063 금고 방식, null=그대로 ""=지움). ADD 에서 비어 있지 않으면 400
+        @JsonProperty("aim_rank_etc")      private String aimRankEtc;      // NEXT 125 — aim_rank_cd=OTHER 일 때만 1~30자
+        @JsonProperty("bid_subject_cd")    private String bidSubjectCd;    // NEXT 125 — ADD·TO_GOAL(비우면 MAIN_BANK), EDIT 는 지금과 같은 값만
+        @JsonProperty("bid_subject_etc")   private String bidSubjectEtc;   // NEXT 125 — ETC 일 때만 1~50자
 
         public String getInstitutionId() { return institutionId; } public void setInstitutionId(String v) { institutionId = v; }
         public String getOpCd() { return opCd; } public void setOpCd(String v) { opCd = v; }
@@ -38,5 +41,8 @@ public class TargetChangeIn {
         public String getCancelReasonCd() { return cancelReasonCd; } public void setCancelReasonCd(String v) { cancelReasonCd = v; }
         public String getCancelReasonEtc() { return cancelReasonEtc; } public void setCancelReasonEtc(String v) { cancelReasonEtc = v; }
         public String getAimRankCd() { return aimRankCd; } public void setAimRankCd(String v) { aimRankCd = v; }
+        public String getAimRankEtc() { return aimRankEtc; } public void setAimRankEtc(String v) { aimRankEtc = v; }
+        public String getBidSubjectCd() { return bidSubjectCd; } public void setBidSubjectCd(String v) { bidSubjectCd = v; }
+        public String getBidSubjectEtc() { return bidSubjectEtc; } public void setBidSubjectEtc(String v) { bidSubjectEtc = v; }
     }
 }
