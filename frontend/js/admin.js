@@ -383,15 +383,15 @@
     const hasSelf = !!selfRole && g.rows.some(function (r) { return r.role === selfRole; });
     container.innerHTML =
       (hasSelf ? '<p class="ad-note" id="mg-self-note" style="margin:0 0 8px">본인 역할(' + esc(rl(selfRole)) + ') 줄은 다른 역할의 관리자가 바꿉니다.</p>' : '') +
-      '<table class="ad-grid"' + (hasSelf ? ' aria-describedby="mg-self-note"' : '') + '><thead><tr><th rowspan="2">역할</th>' +
-      admin.groupSpans(cols).map(function (s) { return '<th colspan="' + s.span + '">' + esc(s.group) + '</th>'; }).join('') +
+      '<table class="ad-grid"' + (hasSelf ? ' aria-describedby="mg-self-note"' : '') + '><thead><tr><th rowspan="2" scope="col">역할</th>' +
+      admin.groupSpans(cols).map(function (s) { return '<th colspan="' + s.span + '" scope="colgroup">' + esc(s.group) + '</th>'; }).join('') +
       '</tr><tr>' + cols.map(function (m) {
-        return '<th' + (m.serverOnly ? ' title="서버 모드에서만 열립니다"' : '') + '>' +
+        return '<th scope="col"' + (m.serverOnly ? ' title="서버 모드에서만 열립니다"' : '') + '>' +
           esc(m.label) + (m.serverOnly ? ' <span class="ad-so">*</span>' : '') + '</th>';
       }).join('') + '</tr></thead><tbody>' +
       g.rows.map(function (r) {
         const mine = hasSelf && r.role === selfRole;
-        return '<tr><th>' + esc(rl(r.role)) + (mine ? ' <span class="ad-badge">본인 역할</span>' : '') + '</th>' + cols.map(function (m) {
+        return '<tr><th scope="row">' + esc(rl(r.role)) + (mine ? ' <span class="ad-badge">본인 역할</span>' : '') + '</th>' + cols.map(function (m) {
           const on = r.cells[m.key] ? ' checked' : '';
           return '<td><input type="checkbox" data-role="' + esc(r.role) +
             '" data-menu="' + esc(m.key) + '"' + on + (mine ? ' disabled aria-describedby="mg-self-note"' : '') +
@@ -726,7 +726,7 @@
               (tip ? ' title="' + esc(tip) + '"' : '') +
               ' aria-label="' + esc(r.label + ' ' + FIELD_KO[field]) + '"></td>';
           }
-          return '<tr><th>' + esc(names[r.menu_key] || r.label) + '</th>' + box('view') + box('write') + box('edit') +
+          return '<tr><th scope="row">' + esc(names[r.menu_key] || r.label) + '</th>' + box('view') + box('write') + box('edit') +
             box('approve', !r.approvable, r.approvable ? '' : '이 메뉴에는 결재 기능이 없습니다') +
             '<td><span class="ad-badge ' + (r.source === 'user' ? 'warn' : 'muted') + '">' +
             (r.source === 'user' ? '개별 설정' : '역할 기본') + '</span></td></tr>';

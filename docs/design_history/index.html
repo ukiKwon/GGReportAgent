@@ -197,6 +197,7 @@
   <a href="#c141">141 랜딩 '업무 흐름' — 캡처 자리표시 대신 움직이는 예시 화면 5개</a>
   <a href="#c142">142 이사회 발표 대본 — 'AI 초안' 단추와 초안 상자, 회의 이름 칸 제거</a>
   <a href="#c143">143 빈 표 2차 · 회의록 칸 글꼴 · 메뉴 접근 이름 · 현황판 제안 진행 줄 여백</a>
+  <a href="#c145">145 표 여러 줄 행 첫 줄 맞춤 · 예산 칸 문구 오른쪽 (NEXT 124 마무리)</a>
 </nav>
 
 <section class="ch" id="c1">
@@ -2830,6 +2831,21 @@
 <p style="font-size:12px"><b>낱말</b>: 창·결재함 카드·알림·바로 반영 단추까지 '목표 기관에서 제외/제외됨/제외했습니다'.</p>
 <p class="legend-note">숫자(계산값 — 이 세션 브라우저 연결 실패로 실측·캡처 없음): 고정 열 632px = 128+128+120+124+132, 최소 폭 814px = 기관 150 + 고르기 32 + 632. 진행 중 상태 6개(확정·열기 대기·진행·승인 요청 중·작성 가능·작성 중) 화면·서버 같음. 새 색·새 변수 0, 안내 상자는 기존 .tc-skipnote. 시안: 사용자에게 전·후 A·후 B를 보여 후 A 선택.</p>
 </div></div></div>
+</div>
+</section>
+
+<section class="ch" id="c145">
+<h2>145 표 여러 줄 행 첫 줄 맞춤 · 예산 칸 문구 오른쪽 (2026-11-27, NEXT 124 마무리)</h2>
+<div class="why">왜: 사용자 규칙 "금액은 오른쪽"을 예산 칸의 사실 문구까지 지키고, 여러 줄 행의 위 정렬이 칸 테두리가 아니라 글자를 맞추게 하려고. 근거: handoff/agents/design-reviewer/2026-11-27_1152_a29a5a29.md 판정 1~4. (11-26 3차 때 '예산 미기재 가운데' 권장을 이번에 오른쪽으로 고침 — 숫자와 끝선 하나.)</div>
+<div class="ba">
+<div class="col before"><header>전</header><div class="body"><div class="mock">
+<p style="font-size:12px;margin:0 0 6px">• 이사회 자료 버전 이력: [보기] 단추가 같은 줄 글자보다 6px 낮음. 담당자 이력: 시각(12px)이 본문(13px)보다 떠 보임. 기관 사업계획: 번호 글자 위 11px·사업명 9px(2px 어긋남).</p>
+<table style="border-collapse:collapse;font-size:12px;width:100%"><thead><tr><th style="border:1px solid #ccd;padding:3px;text-align:center">예산(백만원)</th></tr></thead><tbody><tr><td style="border:1px solid #ccd;padding:3px;text-align:right">1,250</td></tr><tr><td style="border:1px solid #ccd;padding:3px;text-align:left;color:#666">예산 미기재</td></tr><tr><td style="border:1px solid #ccd;padding:3px;text-align:right">300<br><span style="display:block;text-align:left;color:#666">계산값</span></td></tr></tbody></table>
+<p style="font-size:12px;margin:4px 0 0">한 열에 끝선이 두 개(숫자는 오른쪽, 문구는 왼쪽).</p></div></div></div>
+<div class="col after"><header>후</header><div class="body"><div class="mock">
+<p style="font-size:12px;margin:0 0 6px">• 여러 줄 행의 칸은 모두 첫 줄 글자 바닥선(baseline)에 맞춤 — 위에서부터 쌓이는 모양은 그대로, 단추·작은 글자도 첫 줄에 붙는다.</p>
+<table style="border-collapse:collapse;font-size:12px;width:100%"><thead><tr><th style="border:1px solid #ccd;padding:3px;text-align:center">예산(백만원)</th></tr></thead><tbody><tr><td style="border:1px solid #ccd;padding:3px;text-align:right">1,250</td></tr><tr><td style="border:1px solid #ccd;padding:3px;text-align:right;color:#666">예산 미기재</td></tr><tr><td style="border:1px solid #ccd;padding:3px;text-align:right">300<br><span style="display:block;text-align:right;color:#666">계산값</span></td></tr></tbody></table>
+<p style="font-size:12px;margin:4px 0 0">숫자와 사실 문구가 오른쪽 끝선 하나. 여러 줄로 꺾이는 원문 표기 문장만 왼쪽. 권한·메뉴 표 행 이름 칸에 낭독용 scope="row"(보이는 변화 없음). 죽은 CSS 3줄 정리.</p></div></div></div>
 </div>
 </section>
 

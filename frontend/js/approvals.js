@@ -432,7 +432,7 @@
     const hasBefore = rows.some(function (c) { return !!c.before; });
     return '<table class="ad-table ap-changes"><thead><tr><th>메뉴</th><th>조회</th><th>작성</th><th>수정</th><th>결재</th></tr></thead><tbody>' +
       rows.map(function (c) {
-        return '<tr><th>' + esc(c.menu) + '</th>' + approvals.changeCells(c).map(function (k) {
+        return '<tr><th scope="row">' + esc(c.menu) + '</th>' + approvals.changeCells(c).map(function (k) {
           if (k.state === 'none') return '<td>' + k.mark + '</td>';
           const tip = labels[k.field] + ' ' + k.text;
           return '<td class="ap-chg ap-chg-' + k.state + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' +

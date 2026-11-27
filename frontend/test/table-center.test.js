@@ -21,25 +21,16 @@ test('.ad-table 머리·칸: 가로 가운데 + 세로 가운데', function () {
   assert.ok(!/text-align:\s*left/.test(r));
 });
 
-test('.ap-changes 첫 열 왼쪽 규칙이 없다', function () {
-  assert.ok(!/\.ap-changes th:first-child/.test(css));
-});
-
-test('동작 칸·격자 행 머리는 가운데', function () {
-  assert.ok(/\.ad-ops \{[^}]*text-align:\s*center/.test(css));
-  assert.ok(/\.ad-grid tbody th \{[^}]*text-align:\s*center/.test(css));
-});
-
-test('여러 줄 사유 칸(tm-t-reason)만 왼쪽·위 예외', function () {
+test('여러 줄 사유 칸(tm-t-reason)만 왼쪽·첫 줄 기준선 예외', function () {
   const r = rule('.ad-table td.tm-t-reason');
   assert.ok(/text-align:\s*left/.test(r));
-  assert.ok(/vertical-align:\s*top/.test(r));
+  assert.ok(/vertical-align:\s*baseline/.test(r));
 });
 
-test('결재 카드 목표 변경 메모(.ad-table.ap-tc .tc-memo)는 왼쪽·위', function () {
+test('결재 카드 목표 변경 메모(.ad-table.ap-tc .tc-memo)는 왼쪽, vertical-align 선언 없음', function () {
   const r = rule('.ad-table.ap-tc .tc-memo');
   assert.ok(/text-align:\s*left/.test(r));
-  assert.ok(/vertical-align:\s*top/.test(r));
+  assert.ok(!/vertical-align/.test(r));
 });
 
 // ── 사용자 11-26: 머리값은 무조건 가운데, 금액 칸은 오른쪽, 그 밖은 가운데·세로 가운데 ──
@@ -79,7 +70,7 @@ test('금액 칸은 오른쪽: 사업 예산(.pl-bud 칸)·요약 연평잔(.ts-
 });
 
 test('예외: 사업명·분야 줄·문맥 줄·요청 문장·요약 값·입력 칸은 왼쪽', function () {
-  assert.ok(/text-align:\s*left/.test(rule('.pl-tbl td.pl-nm')) && /vertical-align:\s*top/.test(rule('.pl-tbl td.pl-nm')));
+  assert.ok(/text-align:\s*left/.test(rule('.pl-tbl td.pl-nm')) && !/vertical-align/.test(rule('.pl-tbl td.pl-nm')));
   assert.ok(/text-align:\s*left/.test(rule('.pl-tbl .pl-fld th')));
   assert.ok(/text-align:\s*left/.test(rule('.dc-ctx td, .dc-hits .dc-ctx td')));
   assert.ok(/text-align:\s*left/.test(rule('.cr-table tr.cr-ask td')));
@@ -137,12 +128,13 @@ test('짧고 고른 이름·라벨 칸과 사용자 지정 표는 가운데 유�
   assert.ok(/text-align:\s*center/.test(rule('.isf-years th:first-child, .isf-years td:first-child')));
 });
 
-test('위 정렬 본문 칸이 있는 줄은 줄 전체를 위로', function () {
-  assert.ok(/vertical-align:\s*top/.test(rule('.pl-tbl td')), '.pl-tbl td 는 위');
+test('여러 줄 본문 칸이 있는 줄은 줄 전체를 첫 줄 기준선(baseline)으로', function () {
+  assert.ok(/vertical-align:\s*baseline/.test(rule('.pl-tbl td')), '.pl-tbl td 는 baseline');
+  assert.ok(/vertical-align:\s*baseline/.test(rule('.ap-tc td, .ap-tc th')), '.ap-tc td, th 는 baseline');
   const sel = '.ad-table tr:has(> td.tm-t-reason) > td';
   const i = css.indexOf(sel);
   assert.ok(i >= 0, sel + ' 규칙이 있어야 한다');
-  assert.ok(/vertical-align:\s*top/.test(css.slice(i, css.indexOf('}', i))));
+  assert.ok(/vertical-align:\s*baseline/.test(css.slice(i, css.indexOf('}', i))));
   assert.ok(/text-align:\s*center/.test(rule('.ad-table td.tm-t-reason > .dg-hint:only-child')), '빈 메모 — 는 가운데');
 });
 
@@ -157,6 +149,7 @@ test('열 폭·원문 표기 후속(design 11-26 실측)', function () {
   assert.ok(css.indexOf('.rs-tt col.c-tag { width:104px; }') >= 0);
   assert.ok(rule('.rs-tt').indexOf('min-width:960px') >= 0, '.rs-tt 최소 폭 960');
   assert.ok(css.indexOf('.rs-tt col.c-prep { width:120px; }') >= 0);
-  assert.ok(/text-align:\s*left/.test(rule('.pl-bud .db-why')));
+  assert.ok(/text-align:\s*left/.test(rule('.pl-bud .db-why.pl-bud-src')), '원문 표기 문장만 왼쪽');
+  assert.ok(!/text-align:\s*left/.test(rule('.pl-bud .db-why')), '예산 칸 사실 문구는 열(오른쪽)을 따른다');
   assert.ok(/padding:\s*4px 2px/.test(rule('.pb-t thead th')));
 });

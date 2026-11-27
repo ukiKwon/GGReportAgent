@@ -134,7 +134,7 @@ test('budgetCell 계산값: 서버 AMOUNT 계산값이면 값+계산값 표시�
 test('budgetCell 확인안됨: 칩 없이 비고의 예산 원문 글자(원문 표기), 40자 넘으면 자르고 title에 전체, 원문 조각이 없으면 예산 미기재', function () {
   const mk = function (note) { return plans.budgetCell(item({ budget: { state_cd: 'UNVERIFIED', amount: null, unit_cd: null }, note: note }), 'MIL_KRW'); };
   const a = mk('예산 원문: 268+32 / 기타');
-  assert.strictEqual(a.html, '<span class="db-why">268+32 (원문 표기)</span>');
+  assert.strictEqual(a.html, '<span class="db-why pl-bud-src">268+32 (원문 표기)</span>');
   assert.strictEqual(a.sr, '원문 표기 268+32');
   assert.ok(a.html.indexOf('pop-unk') < 0 && a.html.indexOf('확인안됨') < 0);
   assert.strictEqual(mk('앞말\n예산 원문: 12+3\n뒷말').sr, '원문 표기 12+3');   // 줄바꿈 앞까지

@@ -107,7 +107,7 @@
 
   function paintBasic() {
     el('mi-body').innerHTML = '<table class="ad-table mi-kv"><tbody>' + myinfo.basicRows(me).map(function (r) {
-      return '<tr><th>' + esc(r.label) + '</th><td>' + esc(r.value) + '</td></tr>';
+      return '<tr><th scope="row">' + esc(r.label) + '</th><td>' + esc(r.value) + '</td></tr>';
     }).join('') + '</tbody></table>' +
       '<h4 class="ad-sub">비밀번호</h4>' +
       '<p class="dg-hint">현재는 사번 로그인만 지원합니다. 인증 방식(SSO 등)이 정해지면 이곳에 추가합니다.</p>';
@@ -125,7 +125,7 @@
             (disabled ? ' disabled' : '') + (tip ? ' title="' + esc(tip) + '"' : '') +
             ' aria-label="' + esc(r.label + ' ' + FIELD_KO[field]) + '"></td>';
         }
-        return '<tr><th>' + esc(r.label) + '</th>' + box('view') + box('write') + box('edit') +
+        return '<tr><th scope="row">' + esc(r.label) + '</th>' + box('view') + box('write') + box('edit') +
           box('approve', !r.approvable, r.approvable ? '' : '이 메뉴에는 결재 기능이 없습니다') +
           '<td><span class="ad-badge ' + (r.source === 'user' ? 'warn' : 'muted') + '">' +
           (r.source === 'user' ? '개별 설정' : '역할 기본') + '</span></td></tr>';
