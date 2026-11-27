@@ -3473,8 +3473,25 @@
 :where(#landing-view) .ld-shift dt{font-size:14px;font-weight:700;line-height:1.5;color:var(--ld-muted)}
 :where(#landing-view) .ld-shift dd{font-size:16px;line-height:1.6}
 
+/* 상태 칩: 장면마다 지금 쓰는 기능인지 알린다(지금 사용 중 / 일부 사용 중 / 준비 중). 새 색 없이 기존 변수만 */
+:where(#landing-view) .ld-st-row{margin:0 0 12px;line-height:1}
+:where(#landing-view) .ld-trow .ld-st-row{margin-bottom:8px}
+:where(#landing-view) .ld-st{display:inline-block;font-size:12px;font-weight:700;line-height:1.4;border-radius:var(--ld-r);padding:2px 8px;white-space:nowrap;border:1px solid var(--ld-gray);color:var(--ld-ink);background:#fff}
+:where(#landing-view) .ld-st.is-on{background:var(--ld-gray);color:#fff}
+:where(#landing-view) .ld-st.is-part{background:color-mix(in srgb,var(--ld-gray) 10%,#fff);color:var(--ld-ink)}
+:where(#landing-view) .ld-st.is-soon{border-color:var(--ld-line-strong);color:var(--ld-muted);background:#fff;border-style:dashed}
+:where(#landing-view) .ld-st-now{margin-top:16px;padding-left:12px;border-left:3px solid var(--ld-line-strong);font-size:14px;line-height:1.6;color:var(--ld-ink)}
+:where(#landing-view) .ld-st-now b{margin-right:4px;color:var(--ld-muted)}
+:where(#landing-view) .ld-trow .ld-st-now{margin-top:8px;font-size:13px}
+:where(#landing-view) .ld-st-why{margin-top:4px;font-size:13px;line-height:1.6;color:var(--ld-muted)}
+:where(#landing-view) .ld-scene .ld-st-now+.ld-shift{margin-top:24px}
+:where(#landing-view) .ld-scene-text>p.ld-st-row,:where(#landing-view) .ld-trow-text>p.ld-st-row{margin-top:0;line-height:1}
+:where(#landing-view) .ld-scene-text>p.ld-st-now{font-size:14px;line-height:1.6;color:var(--ld-ink)}
+:where(#landing-view) .ld-trow-text>p.ld-st-now{color:var(--ld-ink)}
+:where(#landing-view) .ld-scene-text>p.ld-st-why{margin-top:4px;font-size:13px;line-height:1.6}
+
 /* 작은 장면 3개를 한 화면에 */
-:where(#landing-view) .ld-trio{min-height:max(560px, calc(100vh - 64px));display:flex;align-items:center;padding:24px 0;border-top:1px solid var(--ld-line)}
+:where(#landing-view) .ld-trio{min-height:max(560px, calc(100vh - 64px));display:flex;align-items:center;padding:12px 0;border-top:1px solid var(--ld-line)}
 :where(#landing-view) .ld-trio>.ld-wrap{width:var(--ld-wrap)}
 :where(#landing-view) .ld-trio-hrow{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:16px}
 :where(#landing-view) .ld-trio-h{font-size:20px;line-height:1.4;font-weight:700;margin-bottom:0}
@@ -3590,18 +3607,128 @@
 :where(#landing-view) .ld-s6-r .ld-lbl{margin-bottom:2px}
 :where(#landing-view) .ld-s6-r .ld-field+.ld-lbl{margin-top:6px}
 
-/* 장면 7 */
-:where(#landing-view) .ld-s7{display:flex;flex-direction:column;padding:0 14px}
-:where(#landing-view) .ld-s7-top,:where(#landing-view) .ld-s7-bot{flex:1;display:flex;align-items:center;gap:16px}
-:where(#landing-view) .ld-s7-top{border-bottom:1px solid var(--ld-line)}
-:where(#landing-view) .ld-s7-say{flex:1;min-width:0;font-size:14px;line-height:1.5}
-:where(#landing-view) .ld-s7-tbl{border-collapse:collapse;font-size:13px;line-height:1.3}
-:where(#landing-view) .ld-s7-tbl th,:where(#landing-view) .ld-s7-tbl td{padding:4px 10px;border:1px solid var(--ld-line)}
-:where(#landing-view) .ld-s7-tbl th{background:var(--ld-head);font-size:12px;font-weight:700;text-align:center;white-space:nowrap}
-:where(#landing-view) .ld-s7-tbl td{white-space:nowrap}
-:where(#landing-view) .ld-c{text-align:center}
-:where(#landing-view) .ld-q{flex:1;height:32px;min-width:0}
-:where(#landing-view) .ld-s7-ans{flex:none;font-size:14px;line-height:1.5}
+/* 큰 장면 boardmap: 수익성 분석표 → 이사회 자료. 마크업 기본값 = 끝 상태(값이 다 채워짐). 재생 중(data-step="play")에만 시작 상태로 돌아가고 data-on 토큰으로 진행한다.
+   값이 가는 길의 위치·이동량은 landing.js measureFlights 가 --fx --fy --fw --fh --dx --dy --tw --th 로 둔다. */
+:where(#landing-view) .ld-scene-wide{padding:32px 0}
+:where(#landing-view) .ld-scene-wide .ld-scene-grid{grid-template-columns:264px minmax(0,1fr);column-gap:32px}
+:where(#landing-view) .bx .ld-mock-body{height:600px;padding:12px;font-size:12px;line-height:1.4;overflow:hidden}
+:where(#landing-view) .bx-st{display:grid;align-items:center;height:32px;font-size:13px}
+:where(#landing-view) .bx-st>span{grid-area:1/1;transition:opacity 200ms linear}
+:where(#landing-view) .bx-s0,:where(#landing-view) .bx-s1{opacity:0}
+:where(#landing-view) .bx-cols{display:grid;grid-template-columns:400px minmax(0,1fr);column-gap:12px;height:536px;margin-top:8px}
+:where(#landing-view) .bx-cols>.ld-pnl{position:relative;height:auto;min-width:0;overflow:hidden}
+:where(#landing-view) .bx .ld-pnl-head{height:36px;padding:0 12px;font-size:13px}
+:where(#landing-view) .bx .ld-pnl-head .ld-chip{margin-left:auto}
+:where(#landing-view) .bx-file{font-size:12px;transition:opacity 240ms linear}
+/* 엑셀 모양 원본 */
+:where(#landing-view) .bx-sheetwrap{transition:opacity 240ms linear}
+:where(#landing-view) .bx-sheet{padding:10px 10px 0}
+:where(#landing-view) .bx-sheet table{table-layout:fixed;border-collapse:collapse;width:378px;font-size:12px;line-height:1.2}
+:where(#landing-view) .bx-sheet th,:where(#landing-view) .bx-sheet td{height:22px;padding:0 2px;border:1px solid var(--ld-line);white-space:nowrap;overflow:hidden}
+:where(#landing-view) .bx-sheet th{background:var(--ld-head);font:12px/1 var(--ld-mono);color:var(--ld-muted);text-align:center;padding:0}
+:where(#landing-view) .bx-sheet thead th{height:20px}
+:where(#landing-view) .bx-sheet td.bx-nm{text-align:right;font-family:var(--ld-mono);letter-spacing:-.02em}
+:where(#landing-view) .bx-sheet td.bx-xt{font-weight:700}
+:where(#landing-view) .bx-sheet td.bx-xh{background:var(--ld-head);font-weight:700;text-align:center;padding:0}
+:where(#landing-view) .bx-sheet td.bx-wr{white-space:normal;line-height:1.2;text-align:center}
+:where(#landing-view) .bx-sheet td.bx-src{transition:box-shadow 150ms linear}
+:where(#landing-view) .bx-sheet .ld-hl-on::before{animation-delay:var(--hd,0ms)}
+:where(#landing-view) .bx-tabs{display:flex;gap:4px;margin:8px 10px 0;font-size:12px}
+:where(#landing-view) .bx-tabs span{padding:2px 10px;border:1px solid var(--ld-line);border-radius:var(--ld-r);background:var(--ld-panel2);color:var(--ld-muted)}
+:where(#landing-view) .bx-tabs .is-on{background:#fff;color:var(--ld-ink);font-weight:700;border-color:var(--ld-line-strong)}
+:where(#landing-view) .bx-cnt{margin:10px 12px 0;font-size:12px;color:var(--ld-muted)}
+:where(#landing-view) .bx-cnt b{color:var(--ld-ink)}
+:where(#landing-view) .bx-drop{position:absolute;left:0;right:0;top:36px;bottom:0;padding:20px;background:#fff;border-top:1px dashed var(--ld-line-strong);opacity:0;pointer-events:none;transition:opacity 200ms linear}
+:where(#landing-view) .bx-drop b{display:block;font-size:14px;line-height:1.5}
+:where(#landing-view) .bx-drop p{margin-top:4px;font-size:13px;line-height:1.5;color:var(--ld-muted)}
+:where(#landing-view) .bx-pick{display:flex;width:max-content;margin-top:12px;transition:background-color 150ms linear,border-color 150ms linear}
+/* 이사회 자료 양식 */
+:where(#landing-view) .bx-cards{display:flex;flex-direction:column;gap:8px;padding:8px}
+:where(#landing-view) .bx-card{border:1px solid var(--ld-line);border-radius:var(--ld-r);background:#fff;overflow:hidden}
+:where(#landing-view) .bx-ch{display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;background:var(--ld-head);border-bottom:1px solid var(--ld-line)}
+:where(#landing-view) .bx-ch b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+:where(#landing-view) .bx-ch .ld-chip{flex:none;font-size:12px;line-height:1.3}
+:where(#landing-view) .bx-tck{flex:none;display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 6px;border:1px solid var(--ld-ink);border-radius:var(--ld-r);font-size:12px;font-weight:700;white-space:nowrap;color:var(--ld-ink);background:#fff;transition:border-color 200ms linear,color 200ms linear}
+:where(#landing-view) .bx-tck .ld-pgcount{font-size:12px}
+:where(#landing-view) .bx-box{display:inline-block;width:12px;height:12px;border:1px solid var(--ld-ink);border-radius:var(--ld-r);background:#fff}
+:where(#landing-view) .bx-t{table-layout:fixed;border-collapse:collapse;width:100%;font-size:12px;line-height:1.2}
+:where(#landing-view) .bx-t th,:where(#landing-view) .bx-t td{height:22px;padding:0 4px;border:1px solid var(--ld-line);text-align:center;white-space:nowrap;overflow:hidden}
+:where(#landing-view) .bx-t thead th{background:var(--ld-head);font-weight:700;padding:0}
+:where(#landing-view) .bx-t tr>:first-child{border-left:0}
+:where(#landing-view) .bx-t tr>:last-child{border-right:0}
+:where(#landing-view) .bx-t thead tr>*{border-top:0}
+:where(#landing-view) .bx-t td:first-child{white-space:normal;line-height:1.3}
+:where(#landing-view) .bx-t td.bx-nm{text-align:right;font-family:var(--ld-mono);letter-spacing:-.02em;padding:0 6px}
+:where(#landing-view) .bx-t td.bx-w{white-space:normal;line-height:1.3;padding:3px 6px}
+:where(#landing-view) .bx-t td.bx-w .bx-cs{justify-items:center}
+:where(#landing-view) .bx-t td.bx-to{background:color-mix(in srgb,var(--ld-ink) 6%,#fff);transition:background-color 200ms linear}
+:where(#landing-view) .bx-cs{display:grid;justify-items:end}
+:where(#landing-view) .bx-cs>*{grid-area:1/1}
+:where(#landing-view) .bx-pl{color:var(--ld-muted)}
+/* 날아가는 값(마크업의 .bx-tok — 기본은 안 보임) */
+:where(#landing-view) .bx-tok{position:absolute;z-index:6;left:var(--fx,0px);top:var(--fy,0px);width:var(--fw,0px);height:var(--fh,0px);display:flex;align-items:center;overflow:hidden;background:#fff;border:1px solid var(--ld-ink);border-radius:var(--ld-r);font:12px/1 var(--ld-mono);letter-spacing:-.02em;pointer-events:none;opacity:0}
+:where(#landing-view) .bx-tok>span{flex:1;min-width:0;padding-right:5px;text-align:right;white-space:nowrap}
+/* ── 재생 중의 시작 상태와 진행(토큰) ── */
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"] .bx-s2{opacity:0}
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"]:not([data-on~="up"]) .bx-s0{opacity:1}
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="up"]:not([data-on~="done"]) .bx-s1{opacity:1}
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="done"] .bx-s2{opacity:1}
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"]:not([data-on~="up"]) .bx-sheetwrap,
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"]:not([data-on~="up"]) .bx-file{opacity:0}
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"]:not([data-on~="up"]) .bx-drop{opacity:1}
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-on~="pr1"]:not([data-on~="up"]) .bx-pick{background:var(--ld-panel2);border-color:var(--ld-muted)}
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"]:not([data-on~="done"]) .bx-tck{border-color:transparent;color:var(--ld-muted)}
+/* 원본 칸: 읽는 순간부터 옮겨질 때까지 테두리 */
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="rA"]:not([data-on~="lA"]) .bx-src[data-g="A"],
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="rC"]:not([data-on~="lC"]) .bx-src[data-g="C"],
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="rD"]:not([data-on~="lD"]) .bx-src[data-g="D"]{box-shadow:inset 0 0 0 2px var(--ld-ink)}
+/* 양식 칸: 값이 내려앉기 전에는 바탕색 없음 */
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"]:not([data-on~="lA"]) .bx-to[data-g="A"],
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"]:not([data-on~="lC"]) .bx-to[data-g="C"],
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"]:not([data-on~="lD"]) .bx-to[data-g="D"]{background:transparent}
+/* 값이 날아감: m = 출발 칸 위에서 도착 칸으로, l = 도착 뒤 사라짐(값은 data-in/out 으로 그 칸에 나타남) */
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="mA"] .bx-tok[data-g="A"][style*="--dx"],
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="mC"] .bx-tok[data-g="C"][style*="--dx"],
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="mD"] .bx-tok[data-g="D"][style*="--dx"]{opacity:1;width:var(--tw);height:var(--th);transform:translate(var(--dx),var(--dy));transition:opacity 200ms linear var(--td,0ms),transform 560ms var(--ld-ease) var(--td,0ms),width 560ms var(--ld-ease) var(--td,0ms),height 560ms var(--ld-ease) var(--td,0ms)}
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="lA"] .bx-tok[data-g="A"][style*="--dx"],
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="lC"] .bx-tok[data-g="C"][style*="--dx"],
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="lD"] .bx-tok[data-g="D"][style*="--dx"]{opacity:0;transition:opacity 150ms linear}
+/* 커서(사람이 하는 일: 엑셀 고르기) — 고정 좌표(왼쪽 위 기준이라 창 너비와 무관) */
+:where(#landing-view) [data-scene="boardmap"] .ld-ptr{--px:330px;--py:300px}
+:where(#landing-view) [data-scene="boardmap"][data-on~="p1"] .ld-ptr{--px:96px;--py:180px}
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"] .ld-ptr{transition:transform 600ms var(--ld-ease),opacity 200ms linear}
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-step="play"][data-on~="ptr"]:not([data-on~="pend"]) .ld-ptr{opacity:1}
+:where(#landing-view).ld-anim [data-scene="boardmap"][data-on~="pr1"] .ld-ptr::after{animation:ld-tap-a 420ms ease-out}
+@media (max-width:1023px){
+  :where(#landing-view) .ld-scene-wide .ld-scene-grid{grid-template-columns:minmax(0,1fr)}
+  :where(#landing-view) .bx .ld-mock-body{overflow-x:auto}
+  :where(#landing-view) .bx-cols{min-width:760px}
+  :where(#landing-view) [data-scene="boardmap"] .ld-ptr{display:none}
+}
+
+/* 작은 장면 minutes: 이사회 녹음 글(STT)을 올리면 보완할 곳을 근거와 함께 요약. 기존 ld-* 변수만 */
+:where(#landing-view) .mn{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:10px;row-gap:3px;align-content:space-between;padding:4px 10px;overflow:hidden;font-size:12px;line-height:15px}
+:where(#landing-view) .mn-h{display:flex;align-items:center;justify-content:space-between;gap:8px;height:16px;border-bottom:1px solid var(--ld-line);font-size:12px;font-weight:700;line-height:15px;color:var(--ld-muted)}
+:where(#landing-view) .mn-h .ld-stk{justify-items:end}
+:where(#landing-view) .mn-btn{height:16px;padding:0 6px;font-size:12px;line-height:14px}
+:where(#landing-view) .mn-h .ld-chip{font-size:12px;line-height:13px;padding:0 6px}
+:where(#landing-view) .mn-col p{display:flex;gap:6px;margin:0;white-space:nowrap;overflow:hidden}
+:where(#landing-view) .mn-no{flex:none;font:12px/15px var(--ld-mono);font-style:normal;color:var(--ld-muted)}
+:where(#landing-view) .mn-who{flex:none;font-weight:700;color:var(--ld-muted)}
+:where(#landing-view) .mn-gaps{grid-column:1/-1}
+:where(#landing-view) .mn-gaps ul{margin:0;padding:0;list-style:none}
+:where(#landing-view) .mn-g{display:flex;align-items:center;gap:8px;white-space:nowrap}
+:where(#landing-view) .mn-g b{flex:none}
+:where(#landing-view) .mn-g>span:not(.ld-src){min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--ld-muted)}
+:where(#landing-view) .mn-g .ld-src{margin-left:auto;flex:none;line-height:15px}
+:where(#landing-view) [data-scene="minutes"] .ld-ptr{--px:560px;--py:96px}
+:where(#landing-view) [data-scene="minutes"][data-on~="p1"] .ld-ptr{--px:640px;--py:22px}
+:where(#landing-view).ld-anim [data-scene="minutes"][data-step="play"] .ld-ptr{transition:transform 450ms var(--ld-ease),opacity 200ms linear}
+:where(#landing-view).ld-anim [data-scene="minutes"][data-step="play"][data-on~="ptr"]:not([data-on~="pend"]) .ld-ptr{opacity:1}
+:where(#landing-view).ld-anim [data-scene="minutes"][data-on~="pr1"] .ld-ptr::after{animation:ld-tap-a 420ms ease-out}
+:where(#landing-view).ld-anim [data-scene="minutes"][data-on~="pr1"]:not([data-on~="up"]) .mn-btn{background:var(--ld-panel2);border-color:var(--ld-muted)}
+@media (min-width:720px){:where(#landing-view) .is-sm[data-scene="minutes"] .ld-mock-body{height:176px}}
+@media (max-width:1023px){:where(#landing-view) [data-scene="minutes"] .ld-ptr{display:none}}
 
 /* ── D. 업무 흐름 ──────────────────────────────────────── */
 :where(#landing-view) #ld-flow{background:var(--ld-bg);scroll-margin-top:64px}
@@ -3656,7 +3783,6 @@
 :where(#landing-view) .ld-stk{display:inline-grid;justify-items:start}
 :where(#landing-view) .ld-stk>*{grid-area:1/1}
 :where(#landing-view) .ld-m{font-family:var(--ld-mono)}
-:where(#landing-view) .ld-r{text-align:right!important}
 :where(#landing-view) .ld-g{flex:none;width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 :where(#landing-view) .ld-g.is-done{color:var(--ld-ink)}
 :where(#landing-view) .ld-g.is-prog{color:var(--ld-orange)}
@@ -3701,62 +3827,6 @@
 :where(#landing-view) [data-scene="map"] .ld-ptr{--px:328px;--py:298px}
 :where(#landing-view) [data-scene="map"][data-on~="go"] .ld-ptr{--px:250px;--py:108px}
 :where(#landing-view).ld-anim [data-scene="map"][data-on~="pick"] .ld-ptr::after{animation:ld-tap-a 420ms ease-out}
-
-/* 장면 board: 이사회 자료 작성 */
-:where(#landing-view) .ld-bm-st{display:grid;align-items:center;height:32px;font-size:13px}
-:where(#landing-view) .ld-bm{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;margin-top:12px}
-:where(#landing-view) .ld-bm .ld-pnl{position:relative;height:316px}
-:where(#landing-view) .ld-bm .ld-pnl-head{height:36px;font-size:13px}
-:where(#landing-view) .ld-bm-sheet{padding:12px}
-:where(#landing-view) .ld-bm-sheet table,:where(#landing-view) .ld-bm-tbl{table-layout:fixed;border-collapse:collapse;font-size:13px;line-height:1.3}
-:where(#landing-view) .ld-bm-sheet table{width:276px}
-:where(#landing-view) .ld-bm-sheet th,:where(#landing-view) .ld-bm-sheet td{height:32px;padding:0 8px;border:1px solid var(--ld-line);white-space:nowrap}
-:where(#landing-view) .ld-bm-sheet thead th{height:24px;background:var(--ld-head);font:12px/1 var(--ld-mono);color:var(--ld-muted);text-align:center}
-:where(#landing-view) .ld-bm-sheet tbody th{padding:0;background:var(--ld-head);font:12px/1 var(--ld-mono);color:var(--ld-muted);text-align:center}
-:where(#landing-view) .ld-bm-src{font-family:var(--ld-mono)}
-:where(#landing-view) .ld-bm-h{font-weight:700}
-:where(#landing-view) .ld-bm-drop{position:absolute;left:0;right:0;top:36px;bottom:0;padding:20px;background:#fff;border-top:1px dashed var(--ld-line-strong)}
-:where(#landing-view) .ld-bm-drop b{display:block;font-size:14px;line-height:1.5}
-:where(#landing-view) .ld-bm-drop p{margin-top:4px;font-size:13px;line-height:1.5;color:var(--ld-muted)}
-:where(#landing-view) .ld-bm-pick{display:flex;width:max-content;margin-top:12px}
-:where(#landing-view) .ld-bm-doc .ld-pnl-head{display:grid;grid-template-columns:180px auto auto;justify-content:start;align-items:center;column-gap:12px}
-:where(#landing-view) .ld-bm-ck{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700}
-:where(#landing-view) .ld-bm-box{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border:1px solid var(--ld-ink);border-radius:var(--ld-r);background:var(--ld-ink)}
-:where(#landing-view) .ld-bm-box svg{width:10px;height:10px;fill:none;stroke:#fff;stroke-width:1.8}
-:where(#landing-view) .ld-bm-tbl{width:456px;margin:12px}
-:where(#landing-view) .ld-bm-tbl th,:where(#landing-view) .ld-bm-tbl td{padding:0 12px;border:1px solid var(--ld-line)}
-:where(#landing-view) .ld-bm-tbl th{height:32px;background:var(--ld-head);font-size:12px;font-weight:700;text-align:center}
-:where(#landing-view) .ld-bm-tbl td{height:40px}
-:where(#landing-view) .ld-bm-to .ld-stk{justify-items:end;width:100%}
-:where(#landing-view) .ld-bm-v{padding:0 4px;border:1px solid transparent;border-radius:var(--ld-r);font-family:var(--ld-mono)}
-:where(#landing-view) .ld-bm-ad{font:12px/1 var(--ld-mono);color:var(--ld-muted);text-align:center}
-/* 값 하나가 원본 칸에서 떠올라(a) 자리로 옮겨 가고(m) 내려앉는다(s) */
-:where(#landing-view).ld-anim [data-scene="board"] .ld-bm-v{transition:transform 560ms var(--ld-ease),opacity 200ms linear,border-color 200ms linear,background-color 200ms linear}
-:where(#landing-view).ld-anim [data-scene="board"] .ld-bm-to,:where(#landing-view).ld-anim [data-scene="board"] .ld-bm-src{transition:background-color 200ms linear,box-shadow 150ms linear}
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"] .ld-bm-v{opacity:0;transform:translate(var(--dx),var(--dy))}
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"][data-on~="a1"] .ld-bm-v[data-k="1"],
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"][data-on~="a2"] .ld-bm-v[data-k="2"],
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"][data-on~="a3"] .ld-bm-v[data-k="3"]{opacity:1;border-color:var(--ld-ink);background:#fff}
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"][data-on~="m1"] .ld-bm-v[data-k="1"],
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"][data-on~="m2"] .ld-bm-v[data-k="2"],
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"][data-on~="m3"] .ld-bm-v[data-k="3"]{transform:none}
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"][data-on~="s1"] .ld-bm-v[data-k="1"],
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"][data-on~="s2"] .ld-bm-v[data-k="2"],
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"][data-on~="s3"] .ld-bm-v[data-k="3"]{border-color:transparent;background:transparent}
-:where(#landing-view).ld-anim [data-scene="board"][data-on~="a1"]:not([data-on~="s1"]) .ld-bm-src[data-k="1"],
-:where(#landing-view).ld-anim [data-scene="board"][data-on~="a2"]:not([data-on~="s2"]) .ld-bm-src[data-k="2"],
-:where(#landing-view).ld-anim [data-scene="board"][data-on~="a3"]:not([data-on~="s3"]) .ld-bm-src[data-k="3"]{box-shadow:inset 0 0 0 2px var(--ld-ink)}
-:where(#landing-view).ld-anim [data-scene="board"][data-on~="m1"]:not([data-on~="s1"]) .ld-bm-to[data-k="1"],
-:where(#landing-view).ld-anim [data-scene="board"][data-on~="m2"]:not([data-on~="s2"]) .ld-bm-to[data-k="2"],
-:where(#landing-view).ld-anim [data-scene="board"][data-on~="m3"]:not([data-on~="s3"]) .ld-bm-to[data-k="3"]{background:var(--ld-head)}
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"]:not([data-on~="ck"]) .ld-bm-box{background:#fff}
-:where(#landing-view).ld-anim [data-scene="board"][data-step="play"]:not([data-on~="ck"]) .ld-bm-box svg{opacity:0}
-:where(#landing-view).ld-anim [data-scene="board"][data-on~="pr1"]:not([data-on~="up"]) .ld-bm-pick{background:var(--ld-panel2);border-color:var(--ld-muted)}
-:where(#landing-view) [data-scene="board"] .ld-ptr{--px:198px;--py:338px}
-:where(#landing-view) [data-scene="board"][data-on~="p1"] .ld-ptr{--px:98px;--py:206px}
-:where(#landing-view) [data-scene="board"][data-on~="p2"] .ld-ptr{--px:546px;--py:77px}
-:where(#landing-view).ld-anim [data-scene="board"][data-on~="pr1"] .ld-ptr::after{animation:ld-tap-a 420ms ease-out}
-:where(#landing-view).ld-anim [data-scene="board"][data-on~="ck"] .ld-ptr::after{animation:ld-tap-b 420ms ease-out}
 
 /* 장면 prop: 제안서 진행 현황 */
 :where(#landing-view) .ld-pp-bar{display:flex;align-items:center;gap:6px;height:32px}
@@ -4000,9 +4070,9 @@
   :where(#landing-view) #ld-hero h1{font-size:36px}
   :where(#landing-view) .ld-mock-body,:where(#landing-view) .is-sm .ld-mock-body{height:auto}
   :where(#landing-view) .ld-s2,:where(#landing-view) .ld-s6{grid-template-columns:minmax(0,1fr)}
-  :where(#landing-view) .ld-s7-top,:where(#landing-view) .ld-s7-bot,:where(#landing-view) .ld-s5{flex-wrap:wrap}
+  :where(#landing-view) .ld-s5{flex-wrap:wrap}
   :where(#landing-view) .ld-dlg{left:16px;right:16px;width:auto}
-  :where(#landing-view) .ld-rvline,:where(#landing-view) .ld-cell,:where(#landing-view) .ld-s7-tbl td{white-space:normal}
+  :where(#landing-view) .ld-rvline,:where(#landing-view) .ld-cell{white-space:normal}
   :where(#landing-view) .ld-cell{height:auto;min-height:40px;padding-block:8px}
   :where(#landing-view) .ld-s1-r2{height:auto;padding-left:0}
 }
@@ -4038,7 +4108,7 @@ review, the verdict, and DESIGN.md
       <p class="ld-brand"><b>기관영업지원 시스템</b><span>금고 입찰 현황</span></p>
       <div class="ld-top-r">
         <nav class="ld-top-nav" aria-label="구역 바로가기">
-          <a href="#ld-ai">AI로 달라질 일</a>
+          <a href="#ld-ai">AI·자동화</a>
           <a href="#ld-flow">업무 흐름</a>
         </nav>
         <span class="ld-sep" aria-hidden="true"></span>
@@ -4059,10 +4129,10 @@ review, the verdict, and DESIGN.md
       <div class="ld-wrap ld-hero-grid">
         <div class="ld-hero-text">
           <h1 id="ld-hero-h" class="ld-enter">임박한 금고 입찰,<br>전국 지도에서 먼저 찾고<br>끝까지 챙깁니다.</h1>
-          <p class="ld-sub ld-enter" style="--d:90ms">전국 지자체·공공기관 금고의 약정 만료 시점을 지도에 모으고, 입찰 공고 확인부터 협약 이행까지 27단계 준비 상황을 기관별로 이어 기록합니다.</p>
+          <p class="ld-sub ld-enter" style="--d:90ms">전국 지자체·공공기관 금고의 약정 만료 시점을 지도에 모으고, 입찰 공고 확인부터 협약 이행까지 준비 상황을 기관별로 이어 기록합니다.</p>
           <p class="ld-btns ld-enter" style="--d:180ms">
             <button class="ld-cta" type="button" data-go="login">로그인</button>
-            <a class="ld-ghost" href="#ld-ai">AI로 달라질 일 보기</a>
+            <a class="ld-ghost" href="#ld-ai">AI·자동화 장면 보기</a>
           </p>
         </div>
 
@@ -4088,22 +4158,24 @@ review, the verdict, and DESIGN.md
       </div>
     </section>
 
-    <!-- ── AI로 달라질 일 ─────────────────────────────────── -->
+    <!-- ── AI·자동화로 달라질 일 ─────────────────────────────────── -->
     <section id="ld-ai" aria-labelledby="ld-ai-h">
       <div class="ld-wrap ld-sec-head">
-        <h2 id="ld-ai-h" tabindex="-1" class="ld-reveal-t">AI로 달라질 일</h2>
-        <p class="ld-lede ld-reveal-t">아래 장면은 앞으로 붙일 기능의 완성 모습입니다. 판단과 결재는 지금처럼 담당자가 하고, AI는 읽고 찾고 정리하는 일을 돕습니다. 화면 속 기관·수치는 모두 가상입니다.</p>
+        <h2 id="ld-ai-h" tabindex="-1" class="ld-reveal-t">AI·자동화로 달라질 일</h2>
+        <p class="ld-lede ld-reveal-t">장면마다 위에 지금 사용 중·일부 사용 중·준비 중을 표시합니다. 판단과 결재는 지금처럼 담당자가 합니다. 화면 속 기관·수치는 모두 가상입니다.</p>
       </div>
 
       <!-- 장면 1 -->
       <article class="ld-scene" id="scene-today" aria-labelledby="scene-today-h">
         <div class="ld-wrap ld-scene-grid">
           <div class="ld-scene-text">
+            <p class="ld-st-row"><span class="ld-st is-part">일부 사용 중</span></p>
             <h3 id="scene-today-h" tabindex="-1">오늘 먼저 할 일을 시작화면에</h3>
             <p>맡은 기관들의 남은 일정을 모아 급한 순서로 보여 주고, 왜 지금 이 일인지 한 줄로 알려 줍니다.</p>
+            <p class="ld-st-now"><b>지금 되는 것</b> 시작화면의 기관별 일정 정렬은 지금 됩니다.</p>
             <dl class="ld-shift">
-              <div><dt>지금</dt><dd>기관마다 표를 열어 남은 칸과 날짜를 직접 맞춰 봅니다.</dd></div>
-              <div><dt>앞으로</dt><dd>순서는 일정 규칙으로 정하고, AI는 각 일에 '왜 지금인지'와 '다음 한 걸음'을 붙입니다.</dd></div>
+              <div><dt>손으로 할 때</dt><dd>기관마다 표를 열어 남은 칸과 날짜를 직접 맞춰 봅니다.</dd></div>
+              <div><dt>기능을 쓰면</dt><dd>순서는 일정 규칙으로 정하고, AI는 각 일에 '왜 지금인지'와 '다음 한 걸음'을 붙입니다.</dd></div>
             </dl>
           </div>
           <figure class="ld-mock" data-scene="today" data-step="end">
@@ -4142,11 +4214,13 @@ review, the verdict, and DESIGN.md
       <article class="ld-scene" id="scene-rfp" aria-labelledby="scene-rfp-h">
         <div class="ld-wrap ld-scene-grid">
           <div class="ld-scene-text">
+            <p class="ld-st-row"><span class="ld-st is-part">일부 사용 중</span></p>
             <h3 id="scene-rfp-h" tabindex="-1">공고문에서 평가 항목과 배점을 표로</h3>
             <p>긴 공고문을 읽어 평가 항목, 배점, 제출서류를 표로 옮겨 둡니다. 원문 쪽수를 함께 달아 바로 대조할 수 있습니다.</p>
+            <p class="ld-st-now"><b>지금 되는 것</b> HWPX 공고의 평가표 옮기기·배점 합계 검산은 지금 됩니다. 스캔본·원문 쪽수는 준비 중입니다.</p>
             <dl class="ld-shift">
-              <div><dt>지금</dt><dd>공고문을 처음부터 읽으며 배점과 서류 목록을 손으로 옮겨 적습니다.</dd></div>
-              <div><dt>앞으로</dt><dd>AI가 표 초안을 만들고, 담당자가 원문 쪽수를 보며 확인합니다.</dd></div>
+              <div><dt>손으로 할 때</dt><dd>공고문을 처음부터 읽으며 배점과 서류 목록을 손으로 옮겨 적습니다.</dd></div>
+              <div><dt>기능을 쓰면</dt><dd>AI가 표 초안을 만들고, 담당자가 원문 쪽수를 보며 확인합니다.</dd></div>
             </dl>
           </div>
           <figure class="ld-mock" data-scene="rfp" data-step="end">
@@ -4210,11 +4284,13 @@ review, the verdict, and DESIGN.md
       <article class="ld-scene" id="scene-check" aria-labelledby="scene-check-h">
         <div class="ld-wrap ld-scene-grid">
           <div class="ld-scene-text">
+            <p class="ld-st-row"><span class="ld-st is-part">일부 사용 중</span></p>
             <h3 id="scene-check-h" tabindex="-1">다른 기관 이름이 남아 있지 않은지 점검</h3>
             <p>이전 제안서를 고쳐 쓰다 남은 다른 기관 이름이나 맞지 않는 수치를 찾아 표시합니다. 고칠지는 담당자가 정합니다.</p>
+            <p class="ld-st-now"><b>지금 되는 것</b> 다른 기관 이름 찾기·문맥 보기·의도한 언급 표시까지 됩니다. [고침]은 준비 중입니다.</p>
             <dl class="ld-shift">
-              <div><dt>지금</dt><dd>제출 직전에 여러 사람이 처음부터 끝까지 다시 읽습니다.</dd></div>
-              <div><dt>앞으로</dt><dd>AI가 의심 문장을 표시하고 확인 창을 띄우면, 담당자가 '고침'이나 '그대로 둠'을 고릅니다.</dd></div>
+              <div><dt>손으로 할 때</dt><dd>제출 직전에 여러 사람이 처음부터 끝까지 다시 읽습니다.</dd></div>
+              <div><dt>기능을 쓰면</dt><dd>AI가 의심 문장을 표시하고 확인 창을 띄우면, 담당자가 '고침'이나 '그대로 둠'을 고릅니다.</dd></div>
             </dl>
           </div>
           <figure class="ld-mock" data-scene="check" data-step="end">
@@ -4251,11 +4327,12 @@ review, the verdict, and DESIGN.md
       <article class="ld-scene" id="scene-plan" aria-labelledby="scene-plan-h">
         <div class="ld-wrap ld-scene-grid">
           <div class="ld-scene-text">
+            <p class="ld-st-row"><span class="ld-st is-soon">준비 중</span></p>
             <h3 id="scene-plan-h" tabindex="-1">버튼 한 번으로 그 기관의 계획을 미리 파악</h3>
             <p>기관이 공개한 사업계획에서 제안에 참고할 사업을 출처 쪽수와 함께 목록으로 정리합니다.</p>
             <dl class="ld-shift">
-              <div><dt>지금</dt><dd>기관 홈페이지에서 계획 문서를 찾아 내려받아 읽습니다.</dd></div>
-              <div><dt>앞으로</dt><dd>[지자체 계획 확인하기]를 누르면 AI가 계획 문서를 요약하고, 사업마다 출처 문서와 쪽수를 답니다.</dd></div>
+              <div><dt>손으로 할 때</dt><dd>기관 홈페이지에서 계획 문서를 찾아 내려받아 읽습니다.</dd></div>
+              <div><dt>기능을 쓰면</dt><dd>[지자체 계획 확인하기]를 누르면 AI가 계획 문서를 요약하고, 사업마다 출처 문서와 쪽수를 답니다.</dd></div>
             </dl>
           </div>
           <figure class="ld-mock" data-scene="plan" data-step="end">
@@ -4281,15 +4358,101 @@ review, the verdict, and DESIGN.md
         </div>
       </article>
 
-      <!-- 작은 장면 5·6·7 -->
+      <!-- 장면 5(큰 장면): 수익성 분석표와 이사회 자료 연동 -->
+      <article class="ld-scene ld-scene-wide" id="scene-boardmap" aria-labelledby="scene-boardmap-h">
+        <div class="ld-wrap ld-scene-grid">
+          <div class="ld-scene-text">
+            <p class="ld-st-row"><span class="ld-st is-on">지금 사용 중</span></p>
+            <h3 id="scene-boardmap-h" tabindex="-1">수익성 분석표와 이사회 자료 연동</h3>
+            <p>수익성 분석표 엑셀을 올리면 출연금·총수익·순이익 같은 값이 이사회 자료 양식의 정해진 칸으로 옮겨집니다(백만원 단위는 억원으로 바뀝니다). 담당자가 표마다 확인합니다.</p>
+            <p class="ld-st-why">숫자를 옮겨 적다 틀릴 일이 줄어듭니다.</p>
+          </div>
+          <figure class="ld-mock bx" data-scene="boardmap" data-step="end">
+            <div class="ld-win" aria-hidden="true">
+              <div class="ld-mock-bar"><b>이사회 자료 작성</b><span class="ld-fm-tags"><span class="ld-fm-v">예시 자료(가상)</span><span class="ld-now">지금 쓰는 화면</span></span></div>
+              <div class="ld-mock-body ld-fadebox bx-body">
+                <p class="bx-st"><span class="bx-s0">수익성 분석 엑셀을 올려 주세요</span><span class="bx-s1">엑셀을 확인하고 양식에 값을 채우는 중입니다…</span><span class="bx-s2">값 32칸을 채웠습니다(합계 1칸은 계산) · 표마다 담당자 확인 대기</span></p>
+                <div class="bx-cols">
+                  <div class="ld-pnl bx-left">
+                    <div class="ld-pnl-head"><b>수익성 분석표</b><span class="ld-src bx-file">수익성분석_가나군(가상).xlsx</span></div>
+                    <div class="bx-sheetwrap">
+                      <div class="bx-sheet"><table><colgroup><col style="width:24px"><col style="width:114px"><col span="6" style="width:40px"></colgroup>
+                        <thead><tr><th></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th></tr></thead><tbody><tr><th>1</th><td class="bx-xt" colspan="7">2. 세부 산출표 (단위:백만원)</td></tr><tr><th>2</th><td class="bx-xh">구분</td><td class="bx-xh">사업초기</td><td class="bx-xh">1년</td><td class="bx-xh">2년</td><td class="bx-xh">3년</td><td class="bx-xh">4년</td><td class="bx-xh">계</td></tr><tr><th>14</th><td>총수익(A)</td><td class="bx-nm bx-src" data-g="C" data-f="c1" data-hl="rC" style="--hd:0ms">0</td><td class="bx-nm bx-src" data-g="C" data-f="c1" data-hl="rC" style="--hd:0ms">1,000</td><td class="bx-nm bx-src" data-g="C" data-f="c1" data-hl="rC" style="--hd:0ms">1,200</td><td class="bx-nm bx-src" data-g="C" data-f="c1" data-hl="rC" style="--hd:0ms">1,400</td><td class="bx-nm bx-src" data-g="C" data-f="c1" data-hl="rC" style="--hd:0ms">1,400</td><td class="bx-nm bx-src" data-g="C" data-f="c1" data-hl="rC" style="--hd:0ms">5,000</td></tr><tr><th>21</th><td>전산구축비(사후관리비용 포함)</td><td class="bx-nm">100</td><td class="bx-nm">100</td><td class="bx-nm">50</td><td class="bx-nm">50</td><td class="bx-nm">0</td><td class="bx-nm bx-src" data-g="A" data-f="a3" data-hl="rA" style="--hd:320ms">300</td></tr><tr><th>33</th><td>총비용(B)</td><td class="bx-nm bx-src" data-g="C" data-f="c2" data-hl="rC" style="--hd:160ms">400</td><td class="bx-nm bx-src" data-g="C" data-f="c2" data-hl="rC" style="--hd:160ms">700</td><td class="bx-nm bx-src" data-g="C" data-f="c2" data-hl="rC" style="--hd:160ms">750</td><td class="bx-nm bx-src" data-g="C" data-f="c2" data-hl="rC" style="--hd:160ms">700</td><td class="bx-nm bx-src" data-g="C" data-f="c2" data-hl="rC" style="--hd:160ms">650</td><td class="bx-nm bx-src" data-g="C" data-f="c2" data-hl="rC" style="--hd:160ms">3,200</td></tr><tr><th>34</th><td>영업이익(C)</td><td class="bx-nm">-400</td><td class="bx-nm">300</td><td class="bx-nm">450</td><td class="bx-nm">700</td><td class="bx-nm">750</td><td class="bx-nm">1,800</td></tr><tr><th>35</th><td>출연금(D)</td><td class="bx-nm">0</td><td class="bx-nm">125</td><td class="bx-nm">125</td><td class="bx-nm">125</td><td class="bx-nm">125</td><td class="bx-nm bx-src" data-g="A" data-f="a1" data-hl="rA" style="--hd:0ms">500</td></tr><tr><th>37</th><td>예비비(F)</td><td class="bx-nm">0</td><td class="bx-nm">25</td><td class="bx-nm">25</td><td class="bx-nm">25</td><td class="bx-nm">25</td><td class="bx-nm bx-src" data-g="A" data-f="a2" data-hl="rA" style="--hd:160ms">100</td></tr><tr><th>40</th><td>순이익(I)</td><td class="bx-nm bx-src" data-g="C" data-f="c3" data-hl="rC" style="--hd:320ms">-400</td><td class="bx-nm bx-src" data-g="C" data-f="c3" data-hl="rC" style="--hd:320ms">136</td><td class="bx-nm bx-src" data-g="C" data-f="c3" data-hl="rC" style="--hd:320ms">253</td><td class="bx-nm bx-src" data-g="C" data-f="c3" data-hl="rC" style="--hd:320ms">448</td><td class="bx-nm bx-src" data-g="C" data-f="c3" data-hl="rC" style="--hd:320ms">487</td><td class="bx-nm bx-src" data-g="C" data-f="c3" data-hl="rC" style="--hd:320ms">924</td></tr><tr><th>44</th><td class="bx-xt" colspan="7">3. 투자 및 출연금 적정성 검토</td></tr><tr><th>45</th><td class="bx-xh">구분</td><td class="bx-xh">사업초기</td><td class="bx-xh">1년</td><td class="bx-xh">2년</td><td class="bx-xh">3년</td><td class="bx-xh">4년</td><td class="bx-xh">계</td></tr><tr><th>52</th><td>순이익(NPV)</td><td class="bx-nm bx-src" data-g="C" data-f="c4" data-hl="rC" style="--hd:480ms">-400</td><td class="bx-nm bx-src" data-g="C" data-f="c4" data-hl="rC" style="--hd:480ms">131</td><td class="bx-nm bx-src" data-g="C" data-f="c4" data-hl="rC" style="--hd:480ms">234</td><td class="bx-nm bx-src" data-g="C" data-f="c4" data-hl="rC" style="--hd:480ms">398</td><td class="bx-nm bx-src" data-g="C" data-f="c4" data-hl="rC" style="--hd:480ms">416</td><td class="bx-nm bx-src" data-g="C" data-f="c4" data-hl="rC" style="--hd:480ms">779</td></tr><tr><th>58</th><td class="bx-xh">구분</td><td class="bx-xh bx-wr" colspan="2">회수기간법</td><td class="bx-xh bx-wr" colspan="2">순현재가치<br>(NPV)</td><td class="bx-xh bx-wr" colspan="2">내부수익률법</td></tr><tr><th>59</th><td></td><td class="bx-nm bx-src" colspan="2" data-g="D" data-f="d1" data-hl="rD" style="--hd:0ms">3.2</td><td class="bx-nm bx-src" colspan="2" data-g="D" data-f="d2" data-hl="rD" style="--hd:160ms">779</td><td class="bx-nm bx-src" colspan="2" data-g="D" data-f="d3" data-hl="rD" style="--hd:320ms">5.8%</td></tr><tr><th>60</th><td>투자가부결정기준</td><td class="bx-wr" colspan="2">목표기간 보다 회수기간이 짧은 경우</td><td class="bx-wr" colspan="2">순현재가치가 &quot;0&quot;보다 클 경우</td><td class="bx-wr bx-src" colspan="2" data-g="D" data-f="d4" data-hl="rD" style="--hd:480ms">4.00%보다 높을 경우</td></tr></tbody></table></div>
+                      <div class="bx-tabs"><span class="is-on">수익성분석</span></div>
+                      <p class="bx-cnt" data-fade="rA">이사회 자료로 읽은 칸 <b>31</b>개 · 일부 행만 보여 줍니다</p>
+                    </div>
+                    <div class="bx-drop">
+                      <b>수익성 분석 엑셀을 올려 주세요</b>
+                      <p>엑셀(.xlsx) 파일 1개. 원본 파일은 저장되지 않습니다.</p>
+                      <span class="ld-btnlike bx-pick">엑셀 파일 고르기</span>
+                    </div>
+                  </div>
+                  <div class="ld-pnl bx-right">
+                    <div class="ld-pnl-head"><b>이사회 자료 · 가나군(가상)</b><span class="ld-src">단위: 억원</span><span class="ld-chip">표 확인 0/3</span></div>
+                    <div class="bx-cards">
+                      <section class="bx-card" data-card="A">
+                        <div class="bx-ch"><span class="ld-chip">A</span><b>재산상 이익제공 및 기부금(안)</b><span class="ld-chip bx-fc" data-in="lA">채움</span><label class="bx-tck"><i class="bx-box"></i>이 표 확인 <span class="ld-pgcount">4칸</span></label></div>
+                        <table class="bx-t"><colgroup><col style="width:70px"><col style="width:174px"><col style="width:66px"><col style="width:112px"></colgroup>
+                          <thead><tr><th>기관명</th><th>구분</th><th>제공금액</th><th>비고</th></tr></thead>
+                          <tbody>
+                            <tr><td rowspan="4">가나군</td><td>출연금</td><td class="bx-to bx-nm" data-g="A" data-f="a1"><span class="bx-cs"><span class="bx-pl" data-out="lA">—</span><span class="bx-v" data-in="lA">5.00</span></span></td><td rowspan="3"></td></tr>
+                            <tr><td>예비비</td><td class="bx-to bx-nm" data-g="A" data-f="a2"><span class="bx-cs"><span class="bx-pl" data-out="lA">—</span><span class="bx-v" data-in="lA">1.00</span></span></td></tr>
+                            <tr><td>전산시스템 구축/운영비용</td><td class="bx-to bx-nm" data-g="A" data-f="a3"><span class="bx-cs"><span class="bx-pl" data-out="lA">—</span><span class="bx-v" data-in="lA">3.00</span></span></td></tr>
+                            <tr><td>합계</td><td class="bx-to bx-nm" data-g="A" data-f="a4" data-d><span class="bx-cs"><span class="bx-pl" data-out="lA">—</span><span class="bx-v" data-in="lA">9.00</span></span></td><td></td></tr>
+                          </tbody></table></section>
+                      <section class="bx-card" data-card="C">
+                        <div class="bx-ch"><span class="ld-chip">C-2</span><b>Ⅱ. 명목가치 수익성</b><span class="ld-chip bx-fc" data-in="lC">채움</span><label class="bx-tck"><i class="bx-box"></i>이 표 확인 <span class="ld-pgcount">24칸</span></label></div>
+                        <table class="bx-t"><colgroup><col style="width:150px"><col style="width:52px"><col span="5" style="width:44px"></colgroup>
+                          <thead><tr><th>구분</th><th>사업초기</th><th>1년차</th><th>2년차</th><th>3년차</th><th>4년차</th><th>계</th></tr></thead>
+                          <tbody>
+                            <tr><td>총수익(A)</td><td class="bx-to bx-nm" data-g="C" data-f="c1"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">0.00</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c1"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">10.00</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c1"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">12.00</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c1"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">14.00</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c1"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">14.00</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c1"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">50.00</span></span></td></tr>
+                            <tr><td>총비용(B)</td><td class="bx-to bx-nm" data-g="C" data-f="c2"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">4.00</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c2"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">7.00</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c2"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">7.50</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c2"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">7.00</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c2"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">6.50</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c2"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">32.00</span></span></td></tr>
+                            <tr><td>순이익(법인세차감후)<br>(E-F)</td><td class="bx-to bx-nm" data-g="C" data-f="c3"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">-4.00</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c3"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">1.36</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c3"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">2.53</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c3"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">4.48</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c3"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">4.87</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c3"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">9.24</span></span></td></tr>
+                            <tr><td>순이익<br>(현재가치(NPV)기준)</td><td class="bx-to bx-nm" data-g="C" data-f="c4"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">-4.00</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c4"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">1.31</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c4"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">2.34</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c4"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">3.98</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c4"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">4.16</span></span></td><td class="bx-to bx-nm" data-g="C" data-f="c4"><span class="bx-cs"><span class="bx-pl" data-out="lC">—</span><span class="bx-v" data-in="lC">7.79</span></span></td></tr>
+                          </tbody></table></section>
+                      <section class="bx-card" data-card="D">
+                        <div class="bx-ch"><span class="ld-chip">C-4</span><b>Ⅳ. 투자적정성 분석</b><span class="ld-chip bx-fc" data-in="lD">채움</span><label class="bx-tck"><i class="bx-box"></i>이 표 확인 <span class="ld-pgcount">4칸</span></label></div>
+                        <table class="bx-t"><colgroup><col style="width:120px"><col style="width:58px"><col style="width:244px"></colgroup>
+                          <thead><tr><th>구분</th><th>산출값</th><th>투자가부 결정 판단기준</th></tr></thead>
+                          <tbody>
+                            <tr><td>회수기간법(Payback Period)</td><td class="bx-to bx-nm" data-g="D" data-f="d1"><span class="bx-cs"><span class="bx-pl" data-out="lD">—</span><span class="bx-v" data-in="lD">3.2년</span></span></td><td class="bx-w">목표기간 보다 회수기간 짧을 시 투자 결정</td></tr>
+                            <tr><td>순현재가치(NPV)</td><td class="bx-to bx-nm" data-g="D" data-f="d2"><span class="bx-cs"><span class="bx-pl" data-out="lD">—</span><span class="bx-v" data-in="lD">7.79</span></span></td><td class="bx-w">순 현재가치가 &quot;0&quot;보다 클 때 투자 결정</td></tr>
+                            <tr><td>내부수익률법(IRR)</td><td class="bx-to bx-nm" data-g="D" data-f="d3"><span class="bx-cs"><span class="bx-pl" data-out="lD">—</span><span class="bx-v" data-in="lD">5.8%</span></span></td><td class="bx-to bx-w" data-g="D" data-f="d4"><span class="bx-cs"><span class="bx-pl" data-out="lD">—</span><span class="bx-v" data-in="lD">IRR이 4.00%(고정자산 기회비용률)를 상회하는 경우 투자 결정</span></span></td></tr>
+                          </tbody></table></section>
+                    </div>
+                  </div>
+                </div>
+                <!-- 값 길 11개: 출발 칸(data-fly-from)에서 도착 칸(data-fly-to)으로. 위치·이동량은 landing.js 가 잰다 -->
+                <span class="bx-tok" data-g="A" data-fly-from=".bx-src[data-f=a1]" data-fly-to=".bx-to[data-f=a1]" style="--td:0ms"><span>500</span></span>
+                <span class="bx-tok" data-g="A" data-fly-from=".bx-src[data-f=a2]" data-fly-to=".bx-to[data-f=a2]" style="--td:140ms"><span>100</span></span>
+                <span class="bx-tok" data-g="A" data-fly-from=".bx-src[data-f=a3]" data-fly-to=".bx-to[data-f=a3]" style="--td:280ms"><span>300</span></span>
+                <span class="bx-tok" data-g="C" data-fly-from=".bx-src[data-f=c1]" data-fly-to=".bx-to[data-f=c1]" style="--td:0ms"><span>0</span><span>1,000</span><span>1,200</span><span>1,400</span><span>1,400</span><span>5,000</span></span>
+                <span class="bx-tok" data-g="C" data-fly-from=".bx-src[data-f=c2]" data-fly-to=".bx-to[data-f=c2]" style="--td:140ms"><span>400</span><span>700</span><span>750</span><span>700</span><span>650</span><span>3,200</span></span>
+                <span class="bx-tok" data-g="C" data-fly-from=".bx-src[data-f=c3]" data-fly-to=".bx-to[data-f=c3]" style="--td:280ms"><span>-400</span><span>136</span><span>253</span><span>448</span><span>487</span><span>924</span></span>
+                <span class="bx-tok" data-g="C" data-fly-from=".bx-src[data-f=c4]" data-fly-to=".bx-to[data-f=c4]" style="--td:420ms"><span>-400</span><span>131</span><span>234</span><span>398</span><span>416</span><span>779</span></span>
+                <span class="bx-tok" data-g="D" data-fly-from=".bx-src[data-f=d1]" data-fly-to=".bx-to[data-f=d1]" style="--td:0ms"><span>3.2</span></span>
+                <span class="bx-tok" data-g="D" data-fly-from=".bx-src[data-f=d2]" data-fly-to=".bx-to[data-f=d2]" style="--td:140ms"><span>779</span></span>
+                <span class="bx-tok" data-g="D" data-fly-from=".bx-src[data-f=d3]" data-fly-to=".bx-to[data-f=d3]" style="--td:280ms"><span>5.8%</span></span>
+                <span class="bx-tok" data-g="D" data-fly-from=".bx-src[data-f=d4]" data-fly-to=".bx-to[data-f=d4]" style="--td:420ms"><span>4.00%</span></span>
+                <span class="ld-ptr"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M2 1.5V14.5L5.4 11.4 7.7 16.5 10 15.5 7.7 10.4H12.5Z" fill="#1e2124" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg></span>
+              </div>
+            </div>
+            <figcaption>예시 화면, 가상 자료입니다. 실제로는 표 6개를 채우고 여기서는 3개만 보여 줍니다.<span class="sr-only"> 수익성 분석표 엑셀을 올리자, 재산상 이익제공 및 기부금, 명목가치 수익성, 투자적정성 분석 세 표의 값 32칸이 이사회 자료 양식의 정해진 칸으로 차례로 옮겨지고, 담당자의 표별 확인을 기다리는 예시 화면.</span></figcaption>
+          </figure>
+        </div>
+      </article>
+
+      <!-- 작은 장면 3개 -->
       <div class="ld-trio" id="ld-trio">
         <div class="ld-wrap">
-          <div class="ld-trio-hrow"><h3 class="ld-trio-h">그 밖에 붙일 기능</h3><p class="ld-trio-note">세 장면 모두 예시 화면이며, 가상 자료로 만든 완성 모습입니다.</p></div>
+          <div class="ld-trio-hrow"><h3 class="ld-trio-h">그 밖의 기능</h3><p class="ld-trio-note">세 장면 모두 예시 화면이며, 화면 속 자료는 가상입니다.</p></div>
 
           <article class="ld-trow" id="scene-script" aria-labelledby="scene-script-h">
             <div class="ld-trow-text">
+              <p class="ld-st-row"><span class="ld-st is-part">일부 사용 중</span></p>
               <h4 id="scene-script-h" tabindex="-1">이사회 자료 장마다 발표 대본 초안</h4>
               <p>확정된 이사회 자료를 장 순서대로 읽고, 발표자가 다듬을 대본 초안을 붙입니다.</p>
+              <p class="ld-st-now"><b>지금 되는 것</b> 대본 틀은 지금 됩니다. 초안은 시범 중입니다.</p>
             </div>
             <figure class="ld-mock is-sm" data-scene="script" data-step="end">
               <div class="ld-win" aria-hidden="true">
@@ -4315,8 +4478,10 @@ review, the verdict, and DESIGN.md
 
           <article class="ld-trow" id="scene-draft" aria-labelledby="scene-draft-h">
             <div class="ld-trow-text">
+              <p class="ld-st-row"><span class="ld-st is-part">일부 사용 중</span></p>
               <h4 id="scene-draft-h" tabindex="-1">근거를 모아 요약서·협력 과제 초안으로</h4>
               <p>기관 정보와 사업계획 근거를 모아 기관 요약서와 협력 과제 후보의 초안 칸을 채웁니다. 근거가 없는 칸은 비워 둡니다.</p>
+              <p class="ld-st-now"><b>지금 되는 것</b> 기관명·기관장·주요 사업 칸 자동 채움은 지금 됩니다. 협력 과제 초안은 준비 중입니다.</p>
             </div>
             <figure class="ld-mock is-sm" data-scene="draft" data-step="end">
               <div class="ld-win" aria-hidden="true">
@@ -4342,29 +4507,41 @@ review, the verdict, and DESIGN.md
 
           <article class="ld-trow" id="scene-minutes" aria-labelledby="scene-minutes-h">
             <div class="ld-trow-text">
-              <h4 id="scene-minutes-h" tabindex="-1">회의는 핵심과 할 일로, 질문에는 근거 달린 답으로</h4>
-              <p>회의 기록에서 결정과 할 일을 뽑고, 사내 자료에 물으면 출처와 함께 답합니다.</p>
+              <p class="ld-st-row"><span class="ld-st is-part">일부 사용 중</span></p>
+              <h4 id="scene-minutes-h" tabindex="-1">이사회 녹음을 올리면 보완할 곳을 요약</h4>
+              <p>안건 발표 대본을 준비하고, 회의 뒤 녹음을 글로 옮긴 자료(STT)를 올리면 질의에서 답이 부족했던 곳과 자료에 더 채울 곳을 요약해 알려 줍니다. 무엇을 고칠지는 담당자가 정합니다.</p>
+              <p class="ld-st-now"><b>지금 되는 것</b> 대본 Word 만들기, 녹음 글(STT) 올리기·발언 나누기는 지금 됩니다. 요약은 준비 중입니다.</p>
             </div>
             <figure class="ld-mock is-sm" data-scene="minutes" data-step="end">
               <div class="ld-win" aria-hidden="true">
-                <div class="ld-mock-bar"><b>회의록·지식 검색</b><span class="ld-ex">예시 화면</span></div>
+                <div class="ld-mock-bar"><b>이사회 녹음 점검</b><span class="ld-ex">예시 화면</span></div>
                 <div class="ld-mock-body ld-fadebox">
-                  <div class="ld-pnl ld-s7">
-                    <div class="ld-s7-top">
-                      <p class="ld-s7-say"><span class="ld-lbl">발언</span> <span data-hl="hl">“A시 PT는 15분 이내로 하자”</span></p>
-                      <table class="ld-s7-tbl">
-                        <thead><tr><th>할 일</th><th>담당</th></tr></thead>
-                        <tbody><tr data-in="todo"><td>발표자료 15분 분량으로 조정</td><td class="ld-c">미정</td></tr></tbody>
-                      </table>
+                  <div class="ld-pnl mn">
+                    <div class="mn-col">
+                      <div class="mn-h"><span>발표 대본 · 안건 2 출연금(가나군)</span></div>
+                      <p><i class="mn-no">1문단</i><span data-hl="g1">협약 4년간 출연금은 5억 원입니다.</span></p>
+                      <p><i class="mn-no">2문단</i><span data-hl="g2">예비비는 1억 원으로 둡니다.</span></p>
+                      <p><i class="mn-no">3문단</i><span data-hl="g3">수익률은 4%를 넘는 것으로 봅니다.</span></p>
                     </div>
-                    <div class="ld-s7-bot">
-                      <div class="ld-field ld-q"><span class="ld-rvline" data-rv="q">A시 지난 협약 기간은?</span></div>
-                      <p class="ld-s7-ans"><b data-in="ans">4년</b> <span class="ld-src" data-fade="src">근거: A시 협약 문서(가상) p.2</span></p>
+                    <div class="mn-col">
+                      <div class="mn-h"><span>회의 녹음 글(STT)</span><span class="ld-stk"><span class="ld-btnlike mn-btn" data-out="up">녹음 글 올리기</span><span class="ld-chip" data-in="up">올림 · 발언 3건</span></span></div>
+                      <p data-in="up"><i class="mn-no">1</i><span class="mn-who">위원 A</span><span data-hl="r1">출연금 5억은 어떻게 정했나요?</span></p>
+                      <p data-in="up"><i class="mn-no">2</i><span class="mn-who">위원 B</span><span data-hl="r2">예비비 1억의 기준이 무엇인가요?</span></p>
+                      <p data-in="up"><i class="mn-no">3</i><span class="mn-who">위원 A</span><span data-hl="r3">수익률 4%는 어떤 가정인가요?</span></p>
+                    </div>
+                    <div class="mn-gaps">
+                      <div class="mn-h"><span>보완할 곳 3</span></div>
+                      <ul>
+                        <li class="mn-g" data-in="g1"><b>① 출연금 산정 근거</b><span>질의에 산정 근거를 수치로 답하지 못함</span><span class="ld-src">대본 1문단 · 발언 1</span></li>
+                        <li class="mn-g" data-in="g2"><b>② 예비비 기준</b><span>기준 설명이 대본에도 답변에도 없음</span><span class="ld-src">대본 2문단 · 발언 2</span></li>
+                        <li class="mn-g" data-in="g3"><b>③ 수익률 가정</b><span>가정의 근거 자료를 덧붙여야 함</span><span class="ld-src">대본 3문단 · 발언 3</span></li>
+                      </ul>
                     </div>
                   </div>
+                  <span class="ld-ptr"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M2 1.5V14.5L5.4 11.4 7.7 16.5 10 15.5 7.7 10.4H12.5Z" fill="#1e2124" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg></span>
                 </div>
               </div>
-              <figcaption class="sr-only">회의 발언에서 할 일 1건을 뽑고, 질문에 근거 쪽수를 단 답을 보인 예시 화면.</figcaption>
+              <figcaption class="sr-only">이사회 녹음 글(STT)을 올리자 위원 질의 3건이 차례로 읽히고, 대응하는 발표 대본 문단과 함께 보완할 곳 3건(출연금 산정 근거, 예비비 기준, 수익률 가정)이 근거 위치와 함께 목록으로 나타난 예시 화면. 기관·수치는 가상.</figcaption>
             </figure>
           </article>
         </div>
@@ -4376,7 +4553,7 @@ review, the verdict, and DESIGN.md
       <div class="ld-wrap">
         <div class="ld-sec-head ld-flow-head">
           <h2 id="ld-flow-h" tabindex="-1" class="ld-reveal-t">공고 확인부터 협약식까지</h2>
-          <p class="ld-lede ld-reveal-t">기관마다 27단계를 '제안 준비 현황' 표의 칸으로 기록합니다. 일부 칸은 시스템이 자동으로 표시하고, 나머지 칸은 담당 영업이 체크합니다. 아래 화면 그림은 지금 쓰는 화면을 가상 자료로 다시 그린 예시입니다.</p>
+          <p class="ld-lede ld-reveal-t">기관마다 준비 단계를 '제안 준비 현황' 표의 칸으로 기록합니다. 일부 칸은 시스템이 자동으로 표시하고, 나머지 칸은 담당 영업이 체크합니다. 아래 화면 그림은 지금 쓰는 화면을 가상 자료로 다시 그린 예시입니다.</p>
           <p class="ld-legend"><span class="ld-kind">자동</span> 시스템이 기록 <span class="ld-kind">공고</span> 공고 판정을 그대로 가져옴 <span class="ld-kind">체크</span> 담당자가 완료·진행·대상 아님을 표시</p>
         </div>
 
@@ -4386,10 +4563,9 @@ review, the verdict, and DESIGN.md
             <span class="ld-rail-fill" aria-hidden="true"></span>
             <ol>
               <li><a href="#flow-1"><span class="ld-sq">1</span><span class="ld-rail-t"><span class="ld-rail-name">분석</span><span class="ld-rail-sub">칸 3개</span></span></a></li>
-              <li><a href="#flow-2"><span class="ld-sq">2</span><span class="ld-rail-t"><span class="ld-rail-name">심의·이사회</span><span class="ld-rail-sub">칸 5개</span></span></a></li>
-              <li><a href="#flow-3"><span class="ld-sq">3</span><span class="ld-rail-t"><span class="ld-rail-name">제안·제출</span><span class="ld-rail-sub">칸 5개</span></span></a></li>
-              <li><a href="#flow-4"><span class="ld-sq">4</span><span class="ld-rail-t"><span class="ld-rail-name">발표·선정</span><span class="ld-rail-sub">칸 3개</span></span></a></li>
-              <li><a href="#flow-5"><span class="ld-sq">5</span><span class="ld-rail-t"><span class="ld-rail-name">협약·이행</span><span class="ld-rail-sub">칸 11개</span></span></a></li>
+              <li><a href="#flow-2"><span class="ld-sq">2</span><span class="ld-rail-t"><span class="ld-rail-name">제안·제출</span><span class="ld-rail-sub">칸 5개</span></span></a></li>
+              <li><a href="#flow-3"><span class="ld-sq">3</span><span class="ld-rail-t"><span class="ld-rail-name">발표·선정</span><span class="ld-rail-sub">칸 3개</span></span></a></li>
+              <li><a href="#flow-4"><span class="ld-sq">4</span><span class="ld-rail-t"><span class="ld-rail-name">협약·이행</span><span class="ld-rail-sub">칸 11개</span></span></a></li>
             </ol>
           </nav>
 
@@ -4436,77 +4612,13 @@ review, the verdict, and DESIGN.md
               </figure>
               <dl class="ld-gdl">
                 <div><dt>체크로 관리</dt><dd>없음</dd></div>
-                <div><dt>AI 적용 예정</dt><dd><a href="#scene-today">오늘 먼저 할 일을 시작화면에</a>, <a href="#scene-rfp">공고문에서 평가 항목과 배점을 표로</a>, <a href="#scene-plan">버튼 한 번으로 그 기관의 계획을 미리 파악</a></dd></div>
+                <div><dt>AI·자동화 장면</dt><dd><a href="#scene-today">오늘 먼저 할 일을 시작화면에</a>, <a href="#scene-rfp">공고문에서 평가 항목과 배점을 표로</a>, <a href="#scene-plan">버튼 한 번으로 그 기관의 계획을 미리 파악</a></dd></div>
               </dl>
             </article>
 
             <!-- 묶음 2 -->
             <article class="ld-group" id="flow-2" aria-labelledby="flow-2-h">
-              <h3 id="flow-2-h" tabindex="-1">심의·이사회</h3>
-              <p class="ld-gdesc">분석 결과를 내부 심의와 이사회에 올리고, 부서별 확인을 차례로 기록합니다.</p>
-              <ol class="ld-chain">
-                <li><span class="ld-cell"><b>가결위(재무)</b><span class="ld-kind">체크</span></span></li>
-                <li><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>출심위(사업부)</b><span class="ld-kind">체크</span></span></li>
-                <li data-cells="3"><svg class="ld-chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span class="ld-cell"><b>이사회(사무국, 감사·감시, 준법)</b><span class="ld-kind">체크</span></span></li>
-              </ol>
-              <figure class="ld-mock ld-fm" data-scene="board" data-step="end">
-                <div class="ld-win" aria-hidden="true">
-                  <div class="ld-mock-bar"><b>이사회 자료 작성</b><span class="ld-fm-tags"><span class="ld-fm-v">예시 자료(가상)</span><span class="ld-now">지금 쓰는 화면</span></span></div>
-                  <div class="ld-mock-body ld-fadebox">
-                    <p class="ld-stk ld-bm-st">
-                      <span data-out="up">수익성 분석 엑셀을 올려 주세요</span>
-                      <span data-in="up" data-out="done">엑셀을 확인하고 양식에 값을 채우는 중입니다…</span>
-                      <span data-fade="done">값 3칸을 모두 채웠습니다. 원본과 맞춰 보고 ‘이 표 확인’을 눌러 주세요.</span>
-                    </p>
-                    <div class="ld-bm">
-                      <div class="ld-pnl">
-                        <div class="ld-pnl-head"><b>수익성 분석표(원본)</b><span class="ld-src" data-fade="up">수익성분석_가나시(가상).xlsx</span></div>
-                        <div class="ld-bm-sheet" data-fade="up">
-                          <table>
-                            <colgroup><col style="width:28px"><col style="width:152px"><col style="width:96px"></colgroup>
-                            <thead><tr><th></th><th>A</th><th>B</th></tr></thead>
-                            <tbody>
-                              <tr><th>3</th><td class="ld-bm-h">항목</td><td class="ld-bm-h ld-r">금액(억원)</td></tr>
-                              <tr><th>4</th><td>평균 잔액</td><td class="ld-r ld-bm-src" data-k="1">1,240</td></tr>
-                              <tr><th>5</th><td>예상 순이익</td><td class="ld-r ld-bm-src" data-k="2">38.6</td></tr>
-                              <tr><th>6</th><td>협력사업비</td><td class="ld-r ld-bm-src" data-k="3">12.0</td></tr>
-                              <tr><th>7</th><td></td><td></td></tr>
-                            </tbody>
-                          </table>
-                        </div>
-                        <div class="ld-bm-drop" data-out="up">
-                          <b>수익성 분석 엑셀을 올려 주세요</b>
-                          <p>엑셀(.xlsx) 파일 1개. 원본 파일은 저장되지 않습니다.</p>
-                          <span class="ld-btnlike ld-bm-pick">엑셀 파일 고르기</span>
-                        </div>
-                      </div>
-                      <div class="ld-pnl ld-bm-doc">
-                        <div class="ld-pnl-head"><b>수익성 요약</b><span class="ld-bm-ck"><i class="ld-bm-box"><svg viewBox="0 0 12 12"><path d="M2.5 6.4 5 8.9 9.6 3.2"/></svg></i>이 표 확인 <span class="ld-pgcount">3칸</span></span><span class="ld-chip" data-in="ck">확인함 · 14:32</span></div>
-                        <table class="ld-bm-tbl">
-                          <colgroup><col style="width:200px"><col style="width:160px"><col style="width:96px"></colgroup>
-                          <thead><tr><th>항목</th><th>값(억원)</th><th>원본</th></tr></thead>
-                          <tbody>
-                            <tr><td>평균 잔액</td><td class="ld-r ld-bm-to" data-k="1"><span class="ld-stk"><span class="ld-ph" data-out="m1">—</span><span class="ld-bm-v" data-k="1" style="--dx:-391px;--dy:20px">1,240</span></span></td><td class="ld-bm-ad"><span data-in="s1">B4</span></td></tr>
-                            <tr><td>예상 순이익</td><td class="ld-r ld-bm-to" data-k="2"><span class="ld-stk"><span class="ld-ph" data-out="m2">—</span><span class="ld-bm-v" data-k="2" style="--dx:-391px;--dy:12px">38.6</span></span></td><td class="ld-bm-ad"><span data-in="s2">B5</span></td></tr>
-                            <tr><td>협력사업비</td><td class="ld-r ld-bm-to" data-k="3"><span class="ld-stk"><span class="ld-ph" data-out="m3">—</span><span class="ld-bm-v" data-k="3" style="--dx:-391px;--dy:4px">12.0</span></span></td><td class="ld-bm-ad"><span data-in="s3">B6</span></td></tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                    <span class="ld-ptr"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M2 1.5V14.5L5.4 11.4 7.7 16.5 10 15.5 7.7 10.4H12.5Z" fill="#1e2124" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg></span>
-                  </div>
-                </div>
-                <figcaption>수익성 분석표의 수치를 이사회 자료의 정해진 자리에 채웁니다. 규칙으로 동작하며 AI 기능이 아닙니다.<span class="sr-only"> 이사회 자료 작성 예시 화면(가상 자료). [엑셀 파일 고르기]로 수익성 분석표를 올리자 원본 B4·B5·B6 칸의 값(평균 잔액 1,240, 예상 순이익 38.6, 협력사업비 12.0, 단위 억원)이 이사회 자료 '수익성 요약' 표의 정해진 칸으로 차례로 옮겨졌고, 담당자가 '이 표 확인'을 눌러 확인함으로 표시했다.</span></figcaption>
-              </figure>
-              <dl class="ld-gdl">
-                <div><dt>체크로 관리</dt><dd>가결위(재무), 출심위(사업부), 이사회 하위 3칸(사무국, 감사·감시, 준법)</dd></div>
-                <div><dt>AI 적용 예정</dt><dd><a href="#scene-script">이사회 자료 장마다 발표 대본 초안</a></dd></div>
-              </dl>
-            </article>
-
-            <!-- 묶음 3 -->
-            <article class="ld-group" id="flow-3" aria-labelledby="flow-3-h">
-              <h3 id="flow-3-h" tabindex="-1">제안·제출</h3>
+              <h3 id="flow-2-h" tabindex="-1">제안·제출</h3>
               <p class="ld-gdesc">제안서와 발표자료를 만들고, 공고가 요구하는 서류를 갖춰 제출 품의를 올립니다.</p>
               <ol class="ld-chain">
                 <li><span class="ld-cell"><b>제안서</b><span class="ld-kind">자동</span></span></li>
@@ -4543,13 +4655,13 @@ review, the verdict, and DESIGN.md
               </figure>
               <dl class="ld-gdl">
                 <div><dt>체크로 관리</dt><dd>발표자료, 제출서류, 제안서제출품의 하위 2칸(감시, 재산상이익)</dd></div>
-                <div><dt>AI 적용 예정</dt><dd><a href="#scene-rfp">공고문에서 평가 항목과 배점을 표로</a>, <a href="#scene-check">다른 기관 이름이 남아 있지 않은지 점검</a></dd></div>
+                <div><dt>AI·자동화 장면</dt><dd><a href="#scene-rfp">공고문에서 평가 항목과 배점을 표로</a>, <a href="#scene-check">다른 기관 이름이 남아 있지 않은지 점검</a></dd></div>
               </dl>
             </article>
 
-            <!-- 묶음 4 -->
-            <article class="ld-group" id="flow-4" aria-labelledby="flow-4-h">
-              <h3 id="flow-4-h" tabindex="-1">발표·선정</h3>
+            <!-- 묶음 3 -->
+            <article class="ld-group" id="flow-3" aria-labelledby="flow-3-h">
+              <h3 id="flow-3-h" tabindex="-1">발표·선정</h3>
               <p class="ld-gdesc">발표를 마치고 결과를 기록한 뒤, 선정되면 우선협상으로 이어 갑니다.</p>
               <ol class="ld-chain">
                 <li><span class="ld-cell"><b>PT</b><span class="ld-kind">체크</span></span></li>
@@ -4621,13 +4733,13 @@ review, the verdict, and DESIGN.md
               </figure>
               <dl class="ld-gdl">
                 <div><dt>체크로 관리</dt><dd>PT, 결과발표, 우선협상</dd></div>
-                <div><dt>AI 적용 예정</dt><dd><a href="#scene-minutes">회의는 핵심과 할 일로, 질문에는 근거 달린 답으로</a></dd></div>
+                <div><dt>AI·자동화 장면</dt><dd>—</dd></div>
               </dl>
             </article>
 
-            <!-- 묶음 5 -->
-            <article class="ld-group" id="flow-5" aria-labelledby="flow-5-h">
-              <h3 id="flow-5-h" tabindex="-1">협약·이행</h3>
+            <!-- 묶음 4 -->
+            <article class="ld-group" id="flow-4" aria-labelledby="flow-4-h">
+              <h3 id="flow-4-h" tabindex="-1">협약·이행</h3>
               <p class="ld-gdesc">협약서를 검토해 체결 품의를 올리고, 기기 설치·카드·전산 연결 같은 이행 준비를 거쳐 협약식까지 챙깁니다.</p>
               <ol class="ld-chain">
                 <li><span class="ld-cell"><b>협약서(법률)</b><span class="ld-kind">체크</span></span></li>
@@ -4677,7 +4789,7 @@ review, the verdict, and DESIGN.md
               </figure>
               <dl class="ld-gdl">
                 <div><dt>체크로 관리</dt><dd>이 묶음의 모든 칸</dd></div>
-                <div><dt>AI 적용 예정</dt><dd>없음</dd></div>
+                <div><dt>AI·자동화 장면</dt><dd>없음</dd></div>
               </dl>
             </article>
           </div>
@@ -4691,7 +4803,7 @@ review, the verdict, and DESIGN.md
         <h2 id="ld-end-h">오늘 확인할 기관부터 보세요.</h2>
         <p class="ld-end-sub">로그인하면 맡은 기관과 준비 현황이 바로 보입니다. 로그인과 화면 사용은 접근 이력에 남습니다.</p>
         <p class="ld-end-btn"><button class="ld-cta" type="button" data-go="login">로그인</button></p>
-        <p class="ld-end-note">AI 장면과 업무 흐름의 화면 그림은 예시이며, 화면 속 기관·사람·수치는 모두 가상입니다. 사내 시연용, 외부 배포 금지.</p>
+        <p class="ld-end-note">AI·자동화 장면과 업무 흐름의 화면 그림은 예시이며, 화면 속 기관·사람·수치는 모두 가상입니다. 사내 시연용, 외부 배포 금지.</p>
       </div>
     </section>
   </main>

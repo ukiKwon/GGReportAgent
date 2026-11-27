@@ -21,13 +21,16 @@
       [3000, 'done'], [3300, 'end']] },
     script: { hold: 3000, steps: [[0, 'hl'], [400, 'l1'], [700, 'l2'], [1700, 'chip'], [2000, 'end']] },
     draft: { hold: 3000, steps: [[0, 'hl'], [400, 'rv'], [1400, 'chip'], [1700, 'end']] },
-    minutes: { hold: 3000, steps: [[0, 'hl'], [400, 'todo'], [1300, 'q'], [2200, 'ans'], [2600, 'src'], [2900, 'end']] },
-    // 업무 흐름 5묶음: 지금 쓰는 화면을 가상 자료로 다시 그린 예시(커서·누름은 CSS [data-on~="토큰"])
+    // 사람이 [녹음 글 올리기](ptr·p1·pr1·up·pend) → 발언 줄 읽음(r) → 대응 대본 문단 읽음 + 보완할 곳 등장(g) ×3
+    minutes: { hold: 3000, steps: [[0, 'ptr'], [150, 'p1'], [600, 'pr1'], [800, 'up'], [1000, 'pend'], [1200, 'r1'], [1500, 'g1'],
+      [1900, 'r2'], [2200, 'g2'], [2600, 'r3'], [2900, 'g3'], [3300, 'end']] },
+    // 업무 흐름 4묶음: 지금 쓰는 화면을 가상 자료로 다시 그린 예시(커서·누름은 CSS [data-on~="토큰"])
     map: { hold: 4000, steps: [[200, 'paint'], [1000, 'ptr'], [1100, 'go'], [1750, 'pick'], [1900, 'r1'], [2100, 'r2'],
       [2300, 'r3'], [2500, 'r4'], [3100, 'pend'], [3300, 'end']] },
-    board: { hold: 4000, steps: [[0, 'ptr'], [200, 'p1'], [850, 'pr1'], [1050, 'up'], [1500, 'a1'], [1700, 'm1'], [2300, 's1'],
-      [2400, 'a2'], [2600, 'm2'], [3200, 's2'], [3300, 'a3'], [3500, 'm3'], [4100, 's3'], [4200, 'done'], [4400, 'p2'],
-      [5050, 'ck'], [5500, 'pend'], [5700, 'end']] },
+    // 수익성 분석표 → 이사회 자료. 사람이 엑셀을 올림(ptr·p1·pr1·up·pend) → 묶음마다 읽음(r) → 값이 날아감(m) → 칸에 채워짐(l) → 표 확인 대기(done)
+    boardmap: { hold: 3500, steps: [[0, 'ptr'], [120, 'p1'], [800, 'pr1'], [950, 'up'], [1350, 'pend'],
+      [1600, 'rA'], [2380, 'mA'], [3300, 'lA'], [3600, 'rC'], [4540, 'mC'], [5600, 'lC'],
+      [5900, 'rD'], [6840, 'mD'], [7900, 'lD'], [8200, 'done'], [8500, 'end']] },
     prop: { hold: 4000, steps: [[0, 'ptr'], [200, 'p1'], [850, 'pr1'], [1050, 'rf'], [2200, 'p2'], [2850, 'pr2'], [3000, 'flt'],
       [3800, 'pend'], [4000, 'end']] },
     prep: { hold: 4000, steps: [[0, 'ptr'], [200, 'p1'], [850, 'pr1'], [1000, 'mo1'], [1400, 'p2'], [2000, 'h1'], [2100, 'pk1'],
@@ -36,8 +39,8 @@
     perf: { hold: 4000, steps: [[0, 'bar'], [950, 'brace'], [1150, 'rate'], [1500, 'ptr'], [1600, 'p1'], [2250, 'pr1'], [2400, 'flt'],
       [3200, 'pend'], [3400, 'end']] }
   };
-  // 업무 흐름 5묶음의 칸 수(PrepBoardColumns.java 27칸). 마크업과의 대조는 landing.test.js.
-  var FLOW_CELLS = [3, 5, 5, 3, 11];
+  // 업무 흐름 4묶음의 칸 수(정본 27칸 중 심의·이사회 5칸은 랜딩에서 뺌). 마크업과의 대조는 landing.test.js.
+  var FLOW_CELLS = [3, 5, 3, 11];
 
   landing.SESSION_KEY = SESSION_KEY;
   landing.TIMELINES = TIMELINES;
@@ -84,6 +87,11 @@
     });
     return best;
   };
+  // 값이 가는 길: 출발 칸 묶음(a)·도착 칸 묶음(b)·무대(s)의 화면 사각형 → 무대 기준 출발 위치와 이동량(px)
+  landing.flightVars = function (a, b, s) {
+    return { fx: a.left - s.left, fy: a.top - s.top, fw: a.width, fh: a.height,
+      dx: b.left - a.left, dy: b.top - a.top, tw: b.width, th: b.height };
+  };
 
   if (typeof module !== 'undefined' && module.exports) { module.exports = landing; return; }
 
@@ -118,6 +126,26 @@
     fig.setAttribute('data-on', ((fig.getAttribute('data-on') || '') + ' ' + tok).trim());
     ATTRS.forEach(function (a) {
       $$('[data-' + a + '~="' + tok + '"]', fig).forEach(function (el) { el.classList.add('ld-' + a + '-on'); });
+    });
+  }
+  // 값이 나는 장면: [data-fly-from]·[data-fly-to] 선택자로 칸 위치를 재서 --fx 등을 둔다.
+  // 재생을 시작할 때마다 잰다(창 크기·글꼴이 달라도 맞는다). 해당 요소가 없는 장면에서는 아무 일도 안 한다.
+  function rectOf(list) {
+    var a = list[0].getBoundingClientRect(), b = list[list.length - 1].getBoundingClientRect();
+    return { left: a.left, top: a.top, width: b.right - a.left, height: a.height };
+  }
+  function measureFlights(fig) {
+    var toks = $$('[data-fly-from]', fig);
+    var stage = toks.length && fig.querySelector('.ld-mock-body');
+    if (!stage) return;
+    var s = stage.getBoundingClientRect();
+    toks.forEach(function (t) {
+      var from = $$(t.getAttribute('data-fly-from'), fig), to = $$(t.getAttribute('data-fly-to'), fig);
+      if (!from.length || !to.length) return;
+      var a = rectOf(from);
+      if (!a.width) return;
+      var v = landing.flightVars(a, rectOf(to), s);
+      Object.keys(v).forEach(function (k) { t.style.setProperty('--' + k, v[k] + 'px'); });
     });
   }
 
@@ -157,7 +185,7 @@
   function start(u) {
     clearUnit(u);
     u.active = true;
-    u.seq.forEach(function (s) { s.fig.classList.remove('ld-fading'); snap(s.fig, 'play'); });
+    u.seq.forEach(function (s) { s.fig.classList.remove('ld-fading'); snap(s.fig, 'play'); measureFlights(s.fig); });
     u.idx = 0;
     run(u, false);
   }
@@ -254,7 +282,7 @@
     }
   }
   function onScroll() { if (!raf) raf = requestAnimationFrame(updateFill); }
-  function onResize() { layoutRail(); onScroll(); }
+  function onResize() { layoutRail(); if (current) current.figs.forEach(measureFlights); onScroll(); }
 
   // ── 켜기·끄기 ─────────────────────────────────────────────
   function observe(targets, fn, opts) {

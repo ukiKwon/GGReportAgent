@@ -54,14 +54,14 @@ test('마크업: hidden 기본, 로그인 화면 앞, script가 바로 뒤, 시�
   assert.ok(/<p hidden><button type="button" class="link-btn" id="ld-open">서비스 소개<\/button><\/p>/.test(html.slice(html.indexOf('<div id="login-view"'), html.indexOf('<header>'))));
 });
 
-test('업무 흐름 칸 수 = 정본 27칸', function () {
+test('업무 흐름 칸 수: 4묶음 22칸(정본 27칸 중 심의·이사회 5칸은 랜딩에서 뺌)', function () {
   const got = landing.FLOW_CELLS.map(function (n, i) {
     const a = markup.indexOf('id="flow-' + (i + 1) + '"');
     const chain = /<ol class="ld-chain">([\s\S]*?)<\/ol>/.exec(markup.slice(a))[1];
     return (chain.match(/<li[^>]*>/g) || []).reduce(function (s, li) { const m = /data-cells="(\d+)"/.exec(li); return s + (m ? Number(m[1]) : 1); }, 0);
   });
   assert.deepStrictEqual(got, landing.FLOW_CELLS);
-  assert.strictEqual(got.reduce(function (a, b) { return a + b; }, 0), 27);
+  assert.strictEqual(got.reduce(function (a, b) { return a + b; }, 0), 22);
 });
 
 test('장면 토큰: 마크업의 data-* 값은 모두 시간표에 있다', function () {
@@ -76,18 +76,18 @@ test('장면 토큰: 마크업의 data-* 값은 모두 시간표에 있다', fun
   });
 });
 
-test('업무 흐름 예시 장면 5개: figure.ld-fm, 장면 이름, 가상 표기, 묶음 안 위치', function () {
+test('업무 흐름 예시 장면 4개: figure.ld-fm, 장면 이름, 가상 표기, 묶음 안 위치', function () {
   const figs = markup.match(/<figure class="ld-mock ld-fm"[\s\S]*?<\/figure>/g) || [];
-  assert.deepStrictEqual(figs.map(function (f) { return /data-scene="([^"]+)"/.exec(f)[1]; }), ['map', 'board', 'prop', 'prep', 'perf']);
+  assert.deepStrictEqual(figs.map(function (f) { return /data-scene="([^"]+)"/.exec(f)[1]; }), ['map', 'prop', 'prep', 'perf']);
   figs.forEach(function (f) {
     assert.ok(/data-step="end"/.test(f) && /aria-hidden="true"/.test(f), '끝 상태 기본 + aria-hidden');
     assert.ok(f.indexOf('예시 자료(가상)') > 0 && f.indexOf('지금 쓰는 화면') > 0 && f.indexOf('class="ld-ptr"') > 0);
     assert.ok(/<span class="sr-only">/.test(f.slice(f.indexOf('<figcaption'))), 'sr-only 끝 상태 설명');
   });
-  ['flow-1', 'flow-2', 'flow-3', 'flow-4', 'flow-5'].forEach(function (id, i) {
+  ['flow-1', 'flow-2', 'flow-3', 'flow-4'].forEach(function (id, i) {
     const a = markup.indexOf('id="' + id + '"');
-    const b = i < 4 ? markup.indexOf('id="flow-' + (i + 2) + '"') : markup.indexOf('id="ld-end"');
-    assert.ok(markup.slice(a, b).indexOf('data-scene="' + ['map', 'board', 'prop', 'prep', 'perf'][i] + '"') > 0, id);
+    const b = i < 3 ? markup.indexOf('id="flow-' + (i + 2) + '"') : markup.indexOf('id="ld-end"');
+    assert.ok(markup.slice(a, b).indexOf('data-scene="' + ['map', 'prop', 'prep', 'perf'][i] + '"') > 0, id);
   });
   assert.ok(markup.indexOf('<b>예상 공고현황</b>') > 0);
   assert.ok(markup.indexOf('가상 자료로 다시 그린 예시입니다.</p>') > 0);
@@ -110,7 +110,7 @@ test('CSS: 업무 흐름 장면의 [data-scene][data-on~=토큰]은 그 장면 �
     });
   });
   assert.ok(n > 40);
-  ['map', 'board', 'prop', 'prep', 'perf'].forEach(function (k) { assert.ok(landing.TIMELINES[k].steps[landing.TIMELINES[k].steps.length - 1][1] === 'end'); });
+  ['map', 'prop', 'prep', 'perf', 'boardmap', 'minutes'].forEach(function (k) { assert.ok(landing.TIMELINES[k].steps[landing.TIMELINES[k].steps.length - 1][1] === 'end'); });
 });
 
 test('currentGroup: 기준선을 품은 묶음, 없으면 가장 가까운 묶음', function () {
@@ -172,4 +172,88 @@ test('동작 소스: 스크롤 기준은 컨테이너, 숨길 때 타이머·관
   ['stop(u)', 'clearTimeout(enterTimer)', 'disconnect()', "removeEventListener('visibilitychange'", "removeEventListener('scroll'", "removeEventListener('resize'", 'cancelAnimationFrame']
     .forEach(function (k) { assert.ok(s.indexOf(k) > 0, k); });
   assert.ok(src.indexOf('loginNote') < 0);
+});
+
+test('상태 칩: 장면 8개마다 하나, 종류별 개수와 지금 되는 것 줄', function () {
+  const chips = markup.match(/<span class="ld-st is-(?:on|part|soon)">[^<]+<\/span>/g) || [];
+  assert.strictEqual(chips.length, 8);
+  const by = function (k) { return chips.filter(function (c) { return c.indexOf('is-' + k + '"') > 0; }); };
+  assert.deepStrictEqual([by('on').length, by('part').length, by('soon').length], [1, 6, 1]);
+  assert.ok(by('on')[0].indexOf('>지금 사용 중<') > 0 && by('soon')[0].indexOf('>준비 중<') > 0);
+  by('part').forEach(function (c) { assert.ok(c.indexOf('>일부 사용 중<') > 0); });
+  const arts = markup.match(/<article class="ld-(?:scene|trow)[^"]*"[\s\S]*?<\/article>/g) || [];
+  assert.deepStrictEqual(arts.map(function (a) { return /id="([^"]+)"/.exec(a)[1]; }),
+    ['scene-today', 'scene-rfp', 'scene-check', 'scene-plan', 'scene-boardmap', 'scene-script', 'scene-draft', 'scene-minutes']);
+  arts.forEach(function (a) {
+    assert.strictEqual((a.match(/class="ld-st is-/g) || []).length, 1);
+    assert.strictEqual(a.indexOf('class="ld-st-now"') > 0, a.indexOf('ld-st is-part') > 0, /id="([^"]+)"/.exec(a)[1]);
+  });
+});
+
+test('AI·자동화 구역 이름·설명, 작은 장면 구역 이름, 옛 문구 없음', function () {
+  assert.ok(markup.indexOf('class="ld-reveal-t">AI·자동화로 달라질 일</h2>') > 0);
+  assert.ok(markup.indexOf('장면마다 위에 지금 사용 중·일부 사용 중·준비 중을 표시합니다.') > 0);
+  assert.ok(markup.indexOf('앞으로 붙일 기능의 완성 모습') < 0 && markup.indexOf('그 밖에 붙일 기능') < 0);
+  assert.ok(markup.indexOf('<h3 class="ld-trio-h">그 밖의 기능</h3>') > 0);
+  assert.ok(markup.indexOf('대본 틀은 지금 됩니다. 초안은 시범 중입니다.') > 0);
+});
+
+test('큰 장면 boardmap: 큰 장면 4개 뒤·작은 장면 앞, 끝 상태 기본, 값 길 11개, 단추 없음', function () {
+  const a = markup.indexOf('id="scene-boardmap"');
+  assert.ok(markup.indexOf('id="scene-plan"') < a && a < markup.indexOf('id="ld-trio"'));
+  const art = markup.slice(a, markup.indexOf('</article>', a));
+  assert.ok(art.indexOf('수익성 분석표와 이사회 자료 연동</h3>') > 0);
+  assert.ok(art.indexOf('(백만원 단위는 억원으로 바뀝니다). 담당자가 표마다 확인합니다.') > 0);
+  assert.ok(/<figure class="ld-mock bx" data-scene="boardmap" data-step="end">/.test(art) && art.indexOf('aria-hidden="true"') > 0);
+  assert.ok(art.indexOf('<button') < 0 && art.indexOf('bx-replay') < 0 && art.indexOf('다시 보기') < 0);
+  const toks = art.match(/<span class="bx-tok"[^>]*>/g) || [];
+  assert.strictEqual(toks.length, 11);
+  toks.forEach(function (t) {
+    const f = /data-fly-from="\.bx-src\[data-f=(\w+)\]"/.exec(t)[1];
+    assert.strictEqual(/data-fly-to="\.bx-to\[data-f=(\w+)\]"/.exec(t)[1], f);
+    assert.ok(new RegExp('bx-src[^>]*data-f="' + f + '"').test(art) && new RegExp('bx-to[^>]*data-f="' + f + '"').test(art), f);
+  });
+  const n = function (re) { return (art.match(re) || []).length; };
+  assert.deepStrictEqual([n(/data-hl="rA"/g), n(/data-hl="rC"/g), n(/data-hl="rD"/g)], [3, 24, 4]);
+  assert.deepStrictEqual([n(/data-out="lA"/g), n(/data-out="lC"/g), n(/data-out="lD"/g)], [4, 24, 4]);
+  assert.deepStrictEqual([n(/data-in="lA"/g), n(/data-in="lC"/g), n(/data-in="lD"/g)], [5, 25, 5]);
+});
+
+test('boardmap 시간표: 묶음마다 읽음→옮김→채움, 끝에 확인 대기', function () {
+  const st = landing.TIMELINES.boardmap.steps, at = {};
+  st.forEach(function (s) { at[s[1]] = s[0]; });
+  ['A', 'C', 'D'].forEach(function (g) { assert.ok(at['r' + g] < at['m' + g] && at['m' + g] < at['l' + g], g); });
+  assert.ok(at.lA < at.rC && at.lC < at.rD && at.lD < at.done && at.done < at.end);
+  for (let i = 1; i < st.length; i++) assert.ok(st[i][0] >= st[i - 1][0]);
+  assert.strictEqual(st[st.length - 1][1], 'end');
+});
+
+test('flightVars: 무대 기준 출발 위치와 이동량', function () {
+  assert.deepStrictEqual(landing.flightVars({ left: 100, top: 50, width: 40, height: 22 }, { left: 300, top: 200, width: 44, height: 29 }, { left: 10, top: 20 }),
+    { fx: 90, fy: 30, fw: 40, fh: 22, dx: 200, dy: 150, tw: 44, th: 29 });
+  assert.ok(src.indexOf('measureFlights(s.fig)') > 0 && src.indexOf("'[data-fly-from]'") > 0);
+});
+
+test('minutes 새 장면: 이사회 녹음 글, 옛 회의록 장면·ld-s7 없음', function () {
+  const a = markup.indexOf('id="scene-minutes"');
+  const art = markup.slice(a, markup.indexOf('</article>', a));
+  assert.ok(art.indexOf('이사회 녹음을 올리면 보완할 곳을 요약</h4>') > 0 && /data-scene="minutes"/.test(art));
+  assert.ok(markup.indexOf('회의는 핵심과 할 일로') < 0 && markup.indexOf('ld-s7') < 0 && css.indexOf('ld-s7') < 0);
+  assert.strictEqual((art.match(/data-hl="g[123]"/g) || []).length, 3);
+});
+
+test('업무 흐름은 4묶음: 심의·이사회·board 없음, 진행 줄이 묶음과 맞음, 27단계 표현 없음, 끊어진 쪽 안 링크 없음', function () {
+  assert.deepStrictEqual(landing.FLOW_CELLS, [3, 5, 3, 11]);
+  assert.strictEqual((markup.match(/<article class="ld-group"/g) || []).length, 4);
+  ['flow-1', 'flow-2', 'flow-3', 'flow-4'].forEach(function (id) {
+    assert.ok(markup.indexOf('id="' + id + '"') > 0 && markup.indexOf('id="' + id + '-h"') > 0 && markup.indexOf('aria-labelledby="' + id + '-h"') > 0, id);
+  });
+  assert.ok(markup.indexOf('id="flow-5"') < 0);
+  const rail = markup.slice(markup.indexOf('<nav class="ld-rail"'), markup.indexOf('</nav>', markup.indexOf('<nav class="ld-rail"')));
+  assert.deepStrictEqual((rail.match(/<span class="ld-sq">\d+<\/span>/g) || []).map(function (s) { return /(\d+)/.exec(s)[1]; }), ['1', '2', '3', '4']);
+  assert.deepStrictEqual((rail.match(/href="#flow-\d"/g) || []), ['href="#flow-1"', 'href="#flow-2"', 'href="#flow-3"', 'href="#flow-4"']);
+  assert.deepStrictEqual((rail.match(/ld-rail-name">[^<]+/g) || []).map(function (s) { return s.split('>')[1]; }), ['분석', '제안·제출', '발표·선정', '협약·이행']);
+  assert.ok(markup.indexOf('심의·이사회') < 0 && markup.indexOf('data-scene="board"') < 0 && markup.indexOf('ld-bm') < 0);
+  assert.ok(markup.indexOf('27단계') < 0 && markup.indexOf('27칸') < 0);
+  (markup.match(/href="#[^"]+"/g) || []).forEach(function (h) { assert.ok(markup.indexOf(' id="' + h.slice(7, -1) + '"') > 0, h); });
 });
