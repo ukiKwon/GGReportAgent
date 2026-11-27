@@ -134,6 +134,12 @@ test('S3a 결과발표(RESULT): 선정·탈락을 고른다(DONE·IN_PROGRESS를
   assert.strictEqual(st('NONE').closed, false);
   assert.strictEqual(st('DONE').closed, false, '옛 완료는 끝난 것이 아니다');
   assert.ok(st('DONE').text.indexOf('추가 확인 필요') > 0 && st('IN_PROGRESS').text.indexOf('추가 확인 필요') > 0);
+  // 끝난 건(CANCELLED·row.ended)은 '추가 확인 필요' 문구 없이 옛 값 이름만
+  const stEnded = function (vv, rr) { return pt.stepState(s, vv, rr, RM); };
+  const rrow = function (extra) { return row(Object.assign({ cells: { RESULT: { mark_cd: 'DONE' } } }, extra)); };
+  assert.ok(stEnded(Object.assign({}, v, { state_cd: 'CANCELLED' }), rrow()).text.indexOf('추가 확인') < 0);
+  assert.ok(stEnded(v, rrow({ ended: true })).text.indexOf('추가 확인') < 0);
+  assert.strictEqual(stEnded(Object.assign({}, v, { state_cd: 'CANCELLED' }), rrow()).closed, false, '완료 판정은 그대로');
   assert.strictEqual(pt.cellState(row({ cells: { RESULT: { mark_cd: 'WON' } } }), 'RESULT', RM).mark, 'WON');
   // 체크할 수 없는 사람에게는 상태 글자만
   const ro = pt.bodyHtml(model(v, idxOf('RESULT'), { marks: RM, row: row({ can_check: false, cells: { RESULT: { mark_cd: 'LOST' } } }) }));

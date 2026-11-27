@@ -460,7 +460,8 @@
       out.glyph = c.glyph; out.text = c.name;
       // 결과발표: 옛 완료·진행 값은 '다시 고르기' 전이라 끝난 것으로 치지 않는다
       out.closed = cd === 'RESULT' ? c.mark === 'WON' || c.mark === 'LOST' || c.mark === 'NA' : c.mark === 'DONE' || c.mark === 'NA';
-      if (cd === 'RESULT' && (c.mark === 'DONE' || c.mark === 'IN_PROGRESS')) out.text = c.name + ' — ' + T.resultRecheck;
+      const endedCase = !!(row && row.ended) || str(v.state_cd) === 'CANCELLED';   // 끝난 건은 '추가 확인' 문구를 붙이지 않는다(사용자 11-27)
+      if (cd === 'RESULT' && !endedCase && (c.mark === 'DONE' || c.mark === 'IN_PROGRESS')) out.text = c.name + ' — ' + T.resultRecheck;
       return c;
     }
     if (s.kind === 'start') {

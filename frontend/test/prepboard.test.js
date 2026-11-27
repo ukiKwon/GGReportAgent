@@ -524,6 +524,17 @@ test('S3a result_recheck: 옛 완료·진행이 남은 결과발표 칸에만 \'
   assert.strictEqual(pb.cellModel(info28('RESULT'), row(), { mark_cd: 'DONE' }, '').recheck, false, '키가 없는 옛 서버');
   assert.strictEqual(pb.cellModel(info28('RESULT'), rc, { mark_cd: 'WON' }, '').recheck, false, '이미 다시 골랐으면 없다');
   assert.strictEqual(pb.cellModel(info28('RESULT'), rc, { mark_cd: 'NONE' }, '').recheck, false);
+  // 끝난 건은 띄우지 않고 옛 값(글리프)과 날짜만 남긴다(사용자 11-27 '가'안)
+  const re = row({ result_recheck: true, ended: true });
+  const em = pb.cellModel(info28('RESULT'), re, { mark_cd: 'DONE', marked_on: '2026-11-10' }, '2026-11-23');
+  assert.strictEqual(em.recheck, false);
+  assert.strictEqual(em.glyph, 'done');
+  assert.strictEqual(em.tint, '');
+  const eh = pb.cellHtml({ info: info28('RESULT'), row: re, cell: { mark_cd: 'DONE', marked_on: '2026-11-10' }, marks: merged, today: '2026-11-23', r: 0, c: 15 });
+  assert.ok(eh.indexOf('pb-rc') < 0 && eh.indexOf('추가확인') < 0 && eh.indexOf('title="추가 확인') < 0 && eh.indexOf('추가 확인 필요') < 0);
+  assert.ok(eh.indexOf('pb-d') > 0, '날짜는 남는다');
+  assert.ok(pb.cellAria(re, info28('RESULT'), { mark_cd: 'DONE' }, merged, '').indexOf('추가 확인 필요') < 0);
+  assert.ok(!pb.infoParts(re, info28('RESULT'), { mark_cd: 'DONE' }, merged).parts.some(function (p) { return p.l === '안내' && p.v.indexOf('추가 확인') >= 0; }));
   assert.strictEqual(pb.cellModel(info28('PT'), rc, { mark_cd: 'DONE' }, '').recheck, false, '다른 칸은 해당 없음');
   assert.ok(pb.cellHtml({ info: info28('PT'), row: rc, cell: { mark_cd: 'DONE' }, marks: merged, today: '', r: 0, c: 1 }).indexOf('추가확인') < 0);
   assert.ok(pb.cellAria(row(), info28('RESULT'), { mark_cd: 'DONE' }, merged, '').indexOf('추가 확인 필요') < 0);

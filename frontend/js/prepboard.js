@@ -132,8 +132,9 @@
     return sym || pb.markName(marks, cd);
   };
   // 결과발표 칸에 남은 옛 '완료·진행' 값 → 담당이 선정·탈락을 다시 골라야 한다(서버 result_recheck)
+  // 끝난 건(중단·취소)은 다시 고를 수 없으니 띄우지 않는다 — 옛 값의 표시와 날짜만 남는다(사용자 11-27 '가'안)
   pb.needRecheck = function (row, cd) {
-    return cd === 'RESULT' && !!row && row.result_recheck === true;
+    return cd === 'RESULT' && !!row && !row.ended && row.result_recheck === true;
   };
   pb.glyphKind = function (mark) {
     return mark === 'DONE' ? 'done' : mark === 'IN_PROGRESS' ? 'prog' : mark === 'NA' ? 'na' : '';
