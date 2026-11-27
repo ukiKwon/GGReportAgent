@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>시험 안내 — 내 작업 남의 담당 건 제외</title>
+<style>
+:root{--ink:#222;--sub:#666;--line:#ddd;--bg:#f6f6f4;--card:#fff;--ok:#1f7a3a;--warn:#a15c00;--acc:#545045}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 "맑은 고딕","Malgun Gothic",sans-serif}
+header{background:var(--acc);color:#fff;padding:14px 24px}header h1{margin:0;font-size:24px}header p{margin:4px 0 0;font-size:12px;opacity:.85}
+main{max-width:1100px;margin:0 auto;padding:16px 24px 40px}
+.how{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--sub)}
+h2.day{font-size:20px;margin:24px 0 8px;border-bottom:2px solid var(--acc);padding-bottom:4px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:4px;margin:0 0 12px;padding:12px 16px}
+.c h3{margin:0 0 6px;font-size:18px}.meta{font-size:12px;color:var(--sub);margin-bottom:8px}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:2px;margin-right:4px;border:1px solid}
+.t-r{color:var(--warn);border-color:var(--warn)}.t-f{color:var(--ok);border-color:var(--ok)}.t-n{color:var(--sub);border-color:var(--line)}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid var(--line);padding:6px 8px;vertical-align:top}
+th{background:#f0efeb;text-align:center;width:16%}td.chk{width:56px;text-align:center}
+code{background:#f0efeb;padding:0 4px;border-radius:2px}
+</style></head><body>
+<header><h1>시험 안내 — 내 작업 남의 담당 건 제외</h1><p>79 세션 · e3306f88 (2026-11-27 12:30경) · 계정: 김영업 3918264 · 이영업(팀장) 5047192 · 마스터 8203417</p></header>
+<main>
+<div class="how"><span class="tag t-f">Ctrl+F5</span> 화면만 · <span class="tag t-r">재기동</span> 서버 바뀜(main이 8080 재기동 뒤) · <span class="tag t-n">시험 없음</span></div>
+<div class="c"><h3>'내 작업'에서 다른 직원이 담당인 건 숨김</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>e3306f88 · 79 세션 · 서버는 이미 재기동됨(7e2fc7b1 이후 빌드) — 화면 새로고침만 하면 됨</div>
+<div class="meta">바뀐 규칙: '내 작업'에는 ①내가 지금 담당자인 건 ②아직 사전준비를 시작하지 않은 건 중 내가 확정한 건 ③끝난 건 중 내가 예전에 담당이었던 건만 나옴. 내가 확정만 하고 다른 사람이 담당을 맡은 건은 '내 작업'에 나오지 않고 '팀 작업'·'부서 작업'에서 봄. 그 건을 열어 보려면 지금 담당자가 나를 담당자로 추가해 주면 되고, 추가되면 바로 '내 작업'에 나옴.</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>김영업 로그인 → 메뉴 '제안 준비 현황' → 위쪽 [내 작업]</td><td>목록을 본다</td><td>사립학교교직원연금공단(김영업이 확정, 담당은 이영업)이 목록에 없어야 함</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>같은 계정(김영업) → 제안 준비 현황 → [팀 작업]</td><td>사립학교교직원연금공단을 찾는다</td><td>보여야 함(김영업과 이영업이 같은 팀일 때. 다른 팀이면 [부서 작업]에서 보임)</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>이영업 로그인 → 제안 준비 현황 → [내 작업]</td><td>사립학교교직원연금공단을 찾아 연다</td><td>목록에 보이고 평소처럼 열려야 함</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>(선택) 이영업 → 사립학교교직원연금공단 → 1단계 '담당자 지정'에서 김영업을 담당자로 추가. 실제 자료가 바뀌므로 시험 뒤 되돌릴지 먼저 정하고 할 것</td><td>추가한 뒤 김영업 로그인 → [내 작업]을 본다</td><td>김영업 [내 작업]에 그 건이 나타나고 열려야 함</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>김영업 로그인 → 제안 준비 현황 → [내 작업]</td><td>김영업이 확정만 하고 아직 사전준비를 시작하지 않은 건이 있으면 그 건을 찾는다(없으면 건너뜀)</td><td>그 건은 [내 작업]에 그대로 보여야 함</td><td class="chk"><input type="checkbox"></td></tr></table>
+<div class="meta">이상하면 알려 줄 것: 어느 계정으로, 어느 단추에서, 어느 기관이 보였는지/안 보였는지.</div></div>
+</main></body></html>
