@@ -924,6 +924,34 @@ test('8단계 이사회 개최 및 결과: 결과 등록·결과 문서 보관·
   assert.ok(/if \(curStep\.id === 'BOARD_DOC' \|\| curStep\.result\) model\.board = stepBoard\(\);/.test(PREP_SRC));
 });
 
+// ── 11-27: 선정 평가표 — cells 가 있으면 병합(rowspan)을 살려 그린다(rows 는 병합 칸이 빠져 당겨짐) ──
+test('3단계 선정 평가표: cells 의 rs·cs 를 rowspan·colspan 으로 싣는다', function () {
+  const cells = [
+    { r: 0, c: 0, rs: 1, cs: 1, text: '구분' }, { r: 0, c: 1, rs: 1, cs: 1, text: '평가\n항목' }, { r: 0, c: 2, rs: 1, cs: 1, text: '내용' },
+    { r: 0, c: 3, rs: 1, cs: 1, text: '비고' }, { r: 0, c: 4, rs: 1, cs: 1, text: '배점' },
+    { r: 1, c: 0, rs: 6, cs: 1, text: '경영\n건전성\n(12점)' }, { r: 1, c: 1, rs: 4, cs: 1, text: '재무\n지표' },
+    { r: 1, c: 2, rs: 1, cs: 1, text: '॰ 최근 3년간 평균 자기자본비율(BIS)' }, { r: 1, c: 3, rs: 1, cs: 1, text: '정량' }, { r: 1, c: 4, rs: 1, cs: 1, text: '2' },
+    { r: 2, c: 2, rs: 1, cs: 1, text: '॰ 최근 3년간 평균 고정이하여신 비율(NPL)<i>' }, { r: 2, c: 3, rs: 1, cs: 1, text: '정량' }, { r: 2, c: 4, rs: 1, cs: 1, text: '2' }];
+  const data = { found: true, files: 1, attach_id: 7, file: 'a.hwpx', kind: 'TABLE', total: 100, page: 0, row_count: 3, col_count: 5, cells: cells,
+    rows: [['구분', '평가\n항목', '내용', '비고', '배점'], ['경영\n건전성\n(12점)', '재무\n지표', '॰ BIS', '정량', '2'], ['॰ 고정이하여신', '정량', '2']] };
+  const h = pt.scoringHtml({ state: 'ok', data: data });
+  const trs = h.match(/<tr>.*?<\/tr>/g);
+  assert.strictEqual(trs.length, 3);
+  assert.ok(/^<tr><th scope="col">구분<\/th>/.test(trs[0]) && trs[0].indexOf('평가<br>항목') > 0);
+  assert.ok(trs[1].indexOf('rowspan="2"') > 0 && trs[1].indexOf('rowspan="6"') < 0 && trs[1].indexOf('경영<br>건전성<br>(12점)') > 0, 'row_count 3 이라 표 밖으로 나가는 rowspan 은 잘린다');
+  // 실제 응답 모양: row_count 가 충분하면 6·4 그대로
+  const big = pt.scoringHtml({ state: 'ok', data: Object.assign({}, data, { row_count: 7, col_count: 5 }) });
+  const bt = big.match(/<tr>.*?<\/tr>/g);
+  assert.strictEqual(bt.length, 7);
+  assert.ok(bt[1].indexOf('rowspan="6"') > 0 && bt[1].indexOf('rowspan="4"') > 0);
+  assert.strictEqual((bt[2].match(/<td/g) || []).length, 3);
+  assert.strictEqual((trs[2].match(/<td/g) || []).length, 3);
+  assert.ok(/^<tr><td[^>]*>॰ 최근 3년간 평균 고정이하여신 비율\(NPL\)&lt;i&gt;<\/td>/.test(trs[2]), '2행 첫 칸은 3열 값, 글자는 이스케이프');
+  // cells 없는 응답은 기존대로 rows 를 그린다
+  const old = pt.scoringHtml({ state: 'ok', data: Object.assign({}, data, { cells: undefined }) });
+  assert.ok(old.indexOf('rowspan') < 0 && (old.match(/<tr>/g) || []).length === 3);
+});
+
 // ── 11-25 추가(3): 사용자 답 반영 — 선정 평가표(LLM 없이 옮겨 옴)·샘플 필요 표시 ──
 test('3단계 선정 평가표: 공고 원본에서 옮겨 온 표를 그대로, 못 찾으면 무엇을 올릴지 안내', function () {
   const data = { found: true, files: 1, attach_id: 7, file: '금고 지정 공고<b>.hwpx', kind: 'TABLE', total: 100, page: 0,

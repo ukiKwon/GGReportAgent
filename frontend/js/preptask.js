@@ -741,6 +741,34 @@
   };
 
   // 3단계 선정 평가표: sc = { state: 'loading'|'ok'|'err'|'hidden', data: GET …/prep/notice-scoring 응답 }. 값은 모두 이스케이프한다.
+  // 응답 cells({r,c,rs,cs,text}) → <tr> 문자열 배열. cells가 없거나 TABLE이 아니면 null(rows로 그린다).
+  // 0행은 th(가운데), 병합 칸·짧은 값(배점 등)은 가운데·세로 가운데, 긴 글은 왼쪽·위.
+  pt.scoringGrid = function (d) {
+    if (!d || d.kind !== 'TABLE' || !Array.isArray(d.cells) || !d.cells.length) return null;
+    let cs = d.cells.filter(function (x) { return x && Number(x.r) >= 0 && Number(x.c) >= 0; });
+    if (!cs.length) return null;
+    // 행 수는 row_count(양수)가 정한다. 없을 때만 칸의 r+rs 최대값. rowspan·colspan 은 표 밖으로 나가지 않게 자른다.
+    const rc = Math.floor(Number(d.row_count)) || 0, cc = Math.floor(Number(d.col_count)) || 0;
+    let n = rc;
+    if (n <= 0) cs.forEach(function (x) { n = Math.max(n, Number(x.r) + Math.max(1, Number(x.rs) || 1)); });
+    cs = cs.filter(function (x) { return Number(x.r) < n; });
+    const out = [];
+    for (let r = 0; r < n; r += 1) {
+      const cells = cs.filter(function (x) { return Number(x.r) === r; }).sort(function (a, b) { return Number(a.c) - Number(b.c); });
+      out.push('<tr>' + cells.map(function (x) {
+        let rs = Math.max(1, Math.floor(Number(x.rs)) || 1), cl = Math.max(1, Math.floor(Number(x.cs)) || 1);
+        rs = Math.min(rs, n - r);
+        if (cc > 0) cl = Math.max(1, Math.min(cl, cc - Number(x.c)));
+        const t = str(x.text);
+        const sp = (rs > 1 ? ' rowspan="' + rs + '"' : '') + (cl > 1 ? ' colspan="' + cl + '"' : '');
+        const v = esc(t).replace(/\n/g, '<br>');
+        if (r === 0) return '<th scope="col"' + sp + '>' + v + '</th>';
+        const mid = rs > 1 || cl > 1 || t.replace(/\s/g, '').length <= 6;
+        return '<td' + sp + (mid ? ' style="text-align:center;vertical-align:middle"' : '') + '>' + v + '</td>';
+      }).join('') + '</tr>');
+    }
+    return out;
+  };
   pt.scoringHtml = function (sc) {
     const x = sc || {};
     if (x.state === 'hidden') return note(T.scHidden);
@@ -751,7 +779,8 @@
     const rows = (Array.isArray(d.rows) ? d.rows : []).filter(Array.isArray);
     const cell = function (v) { return esc(str(v)).replace(/\n/g, '<br>'); };
     const lines = d.kind !== 'TABLE';
-    const body = rows.map(function (r, i) {
+    const grid = pt.scoringGrid(d);   // 칸 정보(cells)가 있으면 병합(rowspan·colspan)을 살려 그린다. rows는 병합된 칸이 빠져 왼쪽으로 당겨진다.
+    const body = grid || rows.map(function (r, i) {
       const tag = !lines && i === 0 ? 'th scope="col"' : 'td';
       return '<tr>' + r.map(function (c) { return '<' + tag + '>' + cell(c) + '</' + tag.slice(0, 2) + '>'; }).join('') + '</tr>';
     });
