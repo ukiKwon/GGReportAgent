@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>시험 안내 — 변경별 사용자 확인</title>
+<style>
+:root{--ink:#222;--sub:#666;--line:#ddd;--bg:#f6f6f4;--card:#fff;--ok:#1f7a3a;--warn:#a15c00;--acc:#545045}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 "맑은 고딕","Malgun Gothic",sans-serif}
+header{background:var(--acc);color:#fff;padding:14px 24px}header h1{margin:0;font-size:18px}header p{margin:4px 0 0;font-size:12px;opacity:.85}
+main{max-width:1100px;margin:0 auto;padding:16px 24px 40px}
+.how{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--sub)}
+h2.day{font-size:15px;margin:24px 0 8px;border-bottom:2px solid var(--acc);padding-bottom:4px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:4px;margin:0 0 12px;padding:12px 16px}
+.c h3{margin:0 0 6px;font-size:15px}.meta{font-size:12px;color:var(--sub);margin-bottom:8px}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:2px;margin-right:4px;border:1px solid}
+.t-r{color:var(--warn);border-color:var(--warn)}.t-f{color:var(--ok);border-color:var(--ok)}.t-n{color:var(--sub);border-color:var(--line)}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid var(--line);padding:6px 8px;vertical-align:top}
+th{background:#f0efeb;text-align:center;width:16%}td.chk{width:56px;text-align:center}
+code{background:#f0efeb;padding:0 4px;border-radius:2px}
+</style></head><body>
+<header><h1>시험 안내 — 변경이 들어올 때마다 무엇을 보고 확인할지</h1>
+<p>main 세션이 다른 세션 커밋을 받을 때마다 맨 위에 추가합니다(사용자 11-27). 계정: 김영업 3918264 · 이영업(팀장) 5047192 · 마스터 8203417</p></header>
+<main>
+<div class="how">읽는 법 — <span class="tag t-f">Ctrl+F5</span> 화면만 바뀜(새로고침만) · <span class="tag t-r">재기동</span> 서버 바뀜(main이 8080을 다시 띄운 뒤 확인) · <span class="tag t-n">시험 없음</span> 문서·기록만. 확인 칸은 직접 표시해 두는 용도입니다(저장되지 않음).</div>
+
+<h2 class="day">2026-11-27 (금) — 8080 = 0100fd97 빌드, DB 068까지 적용</h2>
+
+<div class="c"><h3>선정 평가표 병합 칸</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>55b4620d · fb 세션</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>제안 준비 현황 → 기관 상세 3단계 '선정 평가표'</td><td>표를 본다</td><td>'경영 건전성(12점)'이 6줄, '재무 지표'가 4줄에 걸쳐 한 칸으로 합쳐짐</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>모서리 A안 · 팝업 머리 선</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>7a3c0840 · 디자인 검토 세션</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>입찰 현황판·아무 팝업</td><td>카드·팝업 모서리를 본다</td><td>작은 것 2px·보통 4px·큰 것 6px로 조금 둥글어짐, 팝업 제목 아래 선이 연해짐</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>결과발표 칸 옛 값 표시</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>3a767b81 · 6c781be5 · fb 세션</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>제안 준비 현황 표 결과발표 칸</td><td>옛 값 '완료'가 남은 건을 찾는다</td><td>진행 중인 건: △ + '추가확인' / 중단·취소된 건: 표시 없이 옛 값·날짜만 회색</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>hwpx 공고 원본 올리기</h3><div class="meta"><span class="tag t-r">재기동</span>742609a7 · fb 세션 (8080 반영됨)</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>이영업 로그인 → 사립학교교직원연금공단 상세 2단계 '공고 원본 파일'</td><td><code>Downloads\inout\rfp\3. 제안요청서(…).hwpx</code> 올리기</td><td>'파일 구조가 안전하지 않거나…' 거절 없이 올라감</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>'내 작업' = 실제 담당 건만</h3><div class="meta"><span class="tag t-r">재기동</span>e3306f88 · 79 세션 (8080 반영됨)</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>김영업 로그인 → 제안 준비 현황</td><td>[내 작업]·[팀 작업]을 번갈아 본다</td><td>사립학교교직원연금공단(이영업 담당)이 [내 작업]엔 없고 [팀 작업]엔 보임</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>화면별 주소</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>b2291c3a · a5 세션</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>localhost:8080</td><td>첫 화면 → [로그인] → 메뉴 이동 → F5 → 뒤로 가기 → 로그아웃</td><td>주소 끝이 <code>#/intro</code>→<code>#/login</code>→화면마다 <code>#/…</code>, F5·뒤로 가기에도 화면 유지, 로그아웃 시 <code>#/login</code>, 권한 없는 화면 주소는 안 열림</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>제안서 제출 칸 · 결과발표 선정/탈락 · 24단계</h3><div class="meta"><span class="tag t-r">재기동</span>af50db3f · 36e04b29 · 17431438 · fb 세션 (DB 065~067)</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>제안 준비 현황 표</td><td>칸 머리·결과발표 메뉴를 본다</td><td>'제안서 제출' 칸이 있음, 결과발표 메뉴 = 선정/탈락/대상 아님/비움, 선정 저장 가능</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>기관 상세</td><td>단계 목록·7단계 대본 창</td><td>24단계(제출서류 다음 '제안서 제출'), 대본 승인 금액 기본 = '표 합계', 합계 형식이 틀리면 '확인 필요'</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>입찰 현황판 하단 띠 · 준비 중 기관 막기</h3><div class="meta"><span class="tag t-r">재기동</span>c5698096 · ca 세션 (DB 066)</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>김영업 → 입찰 현황판 목표 기관 표</td><td>줄 고르기 → 준비 중 기관에서 [목표 기관에서 제외]·[관심 기관으로]</td><td>하단 띠가 부드럽게 올라옴, 준비 중 기관은 막히고 중단 안내 + [제안 준비 화면으로 →], 구분·금고 방식 같은 폭</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>빈 표 2차 · 표 정렬 마무리</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>a43fdc0f · 0bfaba4a · 디자인 검토 세션</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>값 없는 표·여러 줄 칸이 있는 표</td><td>본다</td><td>빈 표도 머리줄+빈 행 1줄, 여러 줄 행은 첫 줄 기준으로 정렬, 금액 칸 문구 오른쪽</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>데이터 반영(주간 수집·새 기관 4곳)</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>5066ee94 · e0503551 · 데이터 세션</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>입찰 공고 현황·기관 검색</td><td>용산구·마포구·하동군, 새 기관 4곳 검색</td><td>용산구 우리은행 유임(2027~2030), 마포 재공고(접수 11-26), 하동 약정 2028~2030, 영월의료원 등 4곳 보임(서버 저장 기능은 아직)</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+</main></body></html>
