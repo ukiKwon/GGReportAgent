@@ -4,12 +4,12 @@
 <style>
 :root{--ink:#222;--sub:#666;--line:#ddd;--bg:#f6f6f4;--card:#fff;--ok:#1f7a3a;--warn:#a15c00;--acc:#545045}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 "맑은 고딕","Malgun Gothic",sans-serif}
-header{background:var(--acc);color:#fff;padding:14px 24px}header h1{margin:0;font-size:18px}header p{margin:4px 0 0;font-size:12px;opacity:.85}
+header{background:var(--acc);color:#fff;padding:14px 24px}header h1{margin:0;font-size:24px}header p{margin:4px 0 0;font-size:12px;opacity:.85}
 main{max-width:1100px;margin:0 auto;padding:16px 24px 40px}
 .how{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--sub)}
-h2.day{font-size:15px;margin:24px 0 8px;border-bottom:2px solid var(--acc);padding-bottom:4px}
+h2.day{font-size:20px;margin:24px 0 8px;border-bottom:2px solid var(--acc);padding-bottom:4px}
 .c{background:var(--card);border:1px solid var(--line);border-radius:4px;margin:0 0 12px;padding:12px 16px}
-.c h3{margin:0 0 6px;font-size:15px}.meta{font-size:12px;color:var(--sub);margin-bottom:8px}
+.c h3{margin:0 0 6px;font-size:18px}.meta{font-size:12px;color:var(--sub);margin-bottom:8px}
 .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:2px;margin-right:4px;border:1px solid}
 .t-r{color:var(--warn);border-color:var(--warn)}.t-f{color:var(--ok);border-color:var(--ok)}.t-n{color:var(--sub);border-color:var(--line)}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid var(--line);padding:6px 8px;vertical-align:top}
@@ -21,7 +21,11 @@ code{background:#f0efeb;padding:0 4px;border-radius:2px}
 <main>
 <div class="how">읽는 법 — <span class="tag t-f">Ctrl+F5</span> 화면만 바뀜(새로고침만) · <span class="tag t-r">재기동</span> 서버 바뀜(main이 8080을 다시 띄운 뒤 확인) · <span class="tag t-n">시험 없음</span> 문서·기록만. 확인 칸은 직접 표시해 두는 용도입니다(저장되지 않음).</div>
 
-<h2 class="day">2026-11-27 (금) — 8080 = 0100fd97 빌드, DB 068까지 적용</h2>
+<h2 class="day">2026-11-27 (금) — 8080 = 9bc25f5c 빌드, DB 068까지 적용</h2>
+
+<div class="c"><h3>목표 = 입찰 건 (입찰 현황판 서버)</h3><div class="meta"><span class="tag t-r">재기동</span>9bc25f5c · ca 세션 (8080 반영됨)</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>김영업 → 입찰 현황판</td><td>평소처럼 목표 기관 표를 쓴다(서버만 바뀜, 화면 변화 거의 없음)</td><td>전과 같이 동작. <b>주의: 금고 방식 목록에 '기타'가 보여도 고르지 말 것</b> — 이름 칸이 아직 없어 저장이 거절됨(화면 작업 전 임시, ca가 숨김 조치 검토)</td><td class="chk"><input type="checkbox"></td></tr></table></div>
 
 <div class="c"><h3>선정 평가표 병합 칸</h3><div class="meta"><span class="tag t-f">Ctrl+F5</span>55b4620d · fb 세션</div>
 <table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
