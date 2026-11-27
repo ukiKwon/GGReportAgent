@@ -143,7 +143,7 @@
       const btn = document.querySelector('.tab-btn[data-tab="' + back + '"]');
       if (btn) btn.click();
     }
-    applyHome(!(serverMode && menus === null));   // 서버 모드에서 권한 응답을 못 받았으면(menus=null) 시작화면 판정을 미룬다 — 항목이 아직 없어 못 여는 것이라 pending을 소모하지 않는다
+    applyRoute(!(serverMode && menus === null));   // 서버 모드에서 권한 응답을 못 받았으면(menus=null) 시작화면 판정을 미룬다 — 항목이 아직 없어 못 여는 것이라 pending을 소모하지 않는다
   };
 
   // 모달 탈출구 — 배경 클릭 / Esc. 버튼이 화면 밖으로 밀리는 등 어떤 이유로든
@@ -689,6 +689,7 @@
     app.drawNav();
     drawTabs();
     recordScreen(navActiveId);
+    routeSync(navActiveId);   // 화면 주소·탭 제목을 지금 화면에 맞춘다(NEXT 135)
   };
 
   // 화면 열람을 접근 이력에 남긴다(서버 모드·로그인 상태·같은 화면 연속 호출 제외). 실패는 무시한다.
@@ -768,6 +769,10 @@
   }
 
   function closeNavTab(id) {
+    routeReplace = true;   // 닫고 옆 탭으로 가는 이동은 주소만 교체(기록 1칸을 쌓지 않는다)
+    try { closeNavTabBody(id); } finally { routeReplace = false; }
+  }
+  function closeNavTabBody(id) {
     const at = navTabs.findIndex(function (t) { return t.id === id; });
     const r = root.nav.closeTab(navTabs, id, navActiveId, pinId());
     navTabs = r.tabs;
@@ -1056,7 +1061,7 @@
   };
 
   app.enterApp = function (session, profile) {
-    pendingHome = true;   // 메뉴 권한이 도착하면 시작화면(포털)이 열린다(applyHome)
+    pendingHome = true; routeEnter();   // 메뉴 권한이 도착하면 시작화면(포털)이 열린다(applyHome)
     app.resetScreens();   // 앞 계정·둘러보기의 탭·팝업·거르기를 버리고 지도 한 장에서 시작. 세션을 저장하기 전에 불러야 지도 열람이 새 계정 접근 이력에 남지 않는다
     root.store.saveSession(session);
     root.store.saveProfile(profile);
@@ -1094,6 +1099,7 @@
     app.onProfileChanged();
     root.login.resetFields(byId('login-id'), byId('login-role'));   // 직전 사번·계정이 남아 있지 않게
     app.showLogin('');
+    routeLoggedOut();   // 주소를 #/login으로 교체하고 앞 사람의 되돌아갈 화면을 비운다(NEXT 135)
   };
 
   // 같은 출처 요청에 사번 헤더(X-Emp-No)를 붙인다. **자기신고 값**이라 서버는 '검증 안 됨'으로 기록한다.
@@ -1203,9 +1209,189 @@
     app.paintUserArea();
   };
 
+  // ── 화면 주소(#/…) — 규칙은 router.js, 여기는 연결(NEXT 135) ─────────────────────
+  // 화면 전환의 경유점은 syncNavActive 하나다. 전환 → 주소는 routeSync, 주소 → 전환은 onRouteHash가
+  // app.openNavItem(id)으로만 연다(그 항목이 메뉴에 보이는가가 권한 — 탭 버튼·admin.showView를 주소에서 직접 부르지 않는다).
+  // 주소는 화면 노출만 바꾼다. 서버 경계(문지기)는 그대로다.
+  let routeReady = false;    // 세션 확인 + /menus 응답 뒤(applyRoute)에야 true — 그 전에는 주소를 쓰지도 읽지도 않는다
+  let pendingRoute = false;  // 로그인·새로고침 뒤, 주소가 가리킨 화면을 한 번 연다(pendingHome과 같은 시점)
+  let routeNext = null;      // 로그인 전에 열려던 화면 이름 — 메모리에만 둔다(router.parse를 통과한 이름만)
+  let routeQuiet = 0;        // 주소 → 화면으로 여는 동안 화면 전환이 주소를 다시 쓰지 않게
+  let routeReplace = false;  // 탭 닫기처럼 기록을 쌓지 않고 주소만 바꿀 때
+  let routeTopPrev = null;   // 직전 맨 위 화면('intro'|'login'|null=앱)
+  let routeFromHash = false; // 새로고침·첫 진입일 때만 주소창 값을 목적지로 읽는다(로그인으로 들어올 때는 routeNext만 — 둘러보기에서 로그인하면 시작화면)
+  let routeLeft = false;     // 이 문서에서 로그아웃한 뒤 — 뒤로 가기로 나온 앞 사람 주소를 다음 사람 목적지로 받지 않는다
+
+  // 지금 맨 위에 덮인 화면: 소개(랜딩) → 로그인 → 없으면 앱.
+  function routeTop() {
+    const lv = byId('landing-view');
+    if (lv && !lv.hidden) return 'intro';
+    const login = byId('login-view');
+    return login && !login.classList.contains('hidden') ? 'login' : null;
+  }
+  function routeWrite(name, push) {   // push=true면 기록 1칸, 아니면 현재 칸을 교체
+    const h = root.router.format(name);
+    if (root.location.hash === h) return;
+    if (push) root.location.hash = h; else root.location.replace(h);
+  }
+  function routeSettleHash() {   // 주소를 지금 보는 화면에 맞춘다(기록 없이)
+    if (!root.router || routeTop() || !root.store.loadSession()) return;
+    const n = root.router.nameOf(navActiveId);
+    if (n) routeWrite(n, false);
+  }
+  function routeTitle() {   // 탭 제목 「화면 이름 - 기관영업지원 시스템」 — 메뉴 이름이 바뀌어도 따라가게 항목에서 읽는다
+    const r = root.router;
+    if (!r) return;
+    const top = routeTop();
+    let label = '';
+    if (top) label = r.labelOf(top);
+    else if (root.store.loadSession()) {
+      const item = navActiveId ? findNavItem(navActiveId) : null;
+      label = item ? item.label : r.labelOf(r.nameOf(navActiveId));
+    }
+    document.title = label ? label + ' - ' + r.TITLE_SUFFIX : r.TITLE_SUFFIX;
+  }
+  function routeSync(id) {   // 화면 전환 → 주소(syncNavActive가 부른다)
+    routeTitle();
+    const r = root.router;
+    if (!r || routeQuiet || !routeReady || routeTop() || !root.store.loadSession()) return;
+    const name = r.nameOf(id);
+    if (name) routeWrite(name, !routeReplace);
+  }
+  // 이 사람에게 그 화면이 있는가. 메뉴 항목은 findNavItem(보이는 항목만 담는 navBuilt), 내 정보는 메뉴 항목이 아니라 로그인 계정만(⚙ 단추가 둘러보기에 숨는 것과 같다).
+  function routeCanOpen(name) {
+    const id = root.router.idOf(name);
+    if (!id) return false;
+    if (id === 'myinfo') { const s = root.store.loadSession(); return !!(s && s.mode === 'account'); }
+    return !!findNavItem(id);
+  }
+  // 'ok'(열림·이미 그 화면) | 'denied'(그 사람에게 없는 화면) | 'full'(탭이 가득 차 못 엶 — 안내는 openNavItem이 띄웠다)
+  function routeOpen(name, skipSame) {
+    const r = root.router;
+    const real = r.resolve(name, routeCanOpen);   // 그룹(admin)은 열 수 있는 첫 하위 화면
+    if (!real) return 'denied';
+    const id = r.idOf(real);
+    if (skipSame && !routeTop() && id === navActiveId) return 'ok';   // 우리가 방금 쓴 주소의 hashchange — 같은 화면을 다시 마운트하지 않는다
+    routeQuiet += 1;
+    try {
+      if (id === 'myinfo') { byId('tab-btn-myinfo').click(); return 'ok'; }   // ⚙ 단추(wireLogin)와 같은 기존 경로
+      return app.openNavItem(id) ? 'ok' : 'full';
+    } finally { routeQuiet -= 1; }
+  }
+  // 기본 주소·권한 없음·없는 주소: 자기 시작 화면으로(주소 교체) + 필요하면 안내(기존 #tab-notice 재사용)
+  function routeFallback(msg) {
+    routeQuiet += 1;
+    try { app.goHome(); } finally { routeQuiet -= 1; }
+    routeSettleHash();
+    if (msg) showTabNotice(msg);
+  }
+  function routeEnter() { routeReady = false; pendingRoute = true; routeFromHash = false; }   // enterApp: 메뉴 권한이 오면 applyRoute가 연다
+  function routeLoggedOut() {
+    routeReady = false; pendingRoute = false; routeNext = null; routeFromHash = false; routeLeft = true;
+    if (root.router) { routeTopPrev = routeTop(); routeWrite('login', false); }
+    routeTitle();
+  }
+  // paintTabs(권한 응답) 뒤: 주소가 가리킨 화면이 있으면 시작화면보다 먼저 연다. 없거나 못 열면 시작화면(applyHome)이 그대로 맡는다.
+  function applyRoute(settled) {
+    const r = root.router;
+    if (!r) { applyHome(settled); return; }
+    let msg = null;
+    let held = false;
+    if (pendingRoute && settled !== false && root.store.loadSession()) {
+      pendingRoute = false;
+      const h = root.location.hash;
+      const p = routeNext ? { name: routeNext } : (routeFromHash ? r.parse(h) : { name: '' });
+      const typed = routeFromHash;
+      routeNext = null; routeFromHash = false;
+      if (!p) { if (typed && r.isRoute(h)) msg = '없는 화면 주소입니다'; }
+      else if (p.name === 'intro') { routeShowIntro(); }
+      else if (p.name && p.name !== 'login') {
+        const res = routeOpen(p.name, false);
+        if (res === 'ok') held = true;
+        else if (res === 'denied') msg = '이 화면을 볼 권한이 없습니다';
+      }
+    }
+    if (held) { pendingHome = false; flushOverdue(); } else applyHome(settled);   // 주소가 연 화면이 있으면 시작화면이 덮지 않는다(지도 주소도 그대로)
+    if (!routeReady && settled !== false && root.store.loadSession()) { routeReady = true; routeSettleHash(); }
+    if (msg) showTabNotice(msg);
+  }
+  function routeShowIntro() { const L = root.landing; if (L && routeTop() !== 'intro') L.show({ focus: true }); }
+  function routeHideIntro() { const L = root.landing; if (L && routeTop() === 'intro') L.hide(); }
+  // 소개·로그인 덮개가 바뀔 때(MutationObserver): 주소·제목을 맞춘다.
+  function routeTopChanged() {
+    const now = routeTop();
+    const prev = routeTopPrev;
+    routeTopPrev = now;
+    routeTitle();
+    if (now === prev) return;
+    if (!root.store.loadSession()) { if (now) routeWrite(now, prev !== null); return; }   // 로그인 전 소개↔로그인은 기록 1칸, 첫 화면·로그아웃은 교체
+    if (now === 'intro') { app.setBehindInert(true); return; }                              // 로그인한 채 연 소개 — 뒤 앱은 Tab·낭독에서 막는다
+    if (prev === 'intro' && !now) {                                                         // 소개의 [로그인] = 시작 화면으로 돌아가기
+      app.setBehindInert(false);
+      if (!pendingRoute && root.location.hash === '#/intro') {
+        routeReplace = true;
+        try { app.goHome(); } finally { routeReplace = false; }
+        routeSettleHash();
+      }
+    }
+  }
+  // 주소 → 화면(뒤로·앞으로·직접 입력·즐겨찾기). 처음에 세션부터 다시 확인한다(다른 탭 로그아웃·bfcache).
+  function onRouteHash() {
+    const r = root.router;
+    if (routeQuiet || !r) return;
+    const h = root.location.hash;
+    if (!root.store.loadSession()) {
+      const lg = byId('login-view');
+      if (lg && lg.classList.contains('hidden')) { routeHideIntro(); app.logout(); return; }   // (소개가 덮고 있어도) 세션이 없는데 앱이 보인다 — 정리하고 로그인 화면으로(logout이 주소를 #/login으로 교체)
+      const p = r.isRoute(h) ? r.parse(h) : { name: '' };   // 화면 주소가 아닌 값은 기본 주소로 본다
+      if (p && (p.name === '' || p.name === 'intro')) {
+        if (root.landing) { routeShowIntro(); routeWrite('intro', false); } else routeWrite('login', false);
+      } else {
+        if (p && p.name !== 'login' && !routeLeft) routeNext = p.name;   // 로그인 뒤 열 화면 — 메모리에만(로그아웃 뒤에는 받지 않는다)
+        routeHideIntro();
+        routeWrite('login', false);
+      }
+      routeTopPrev = routeTop();
+      routeTitle();
+      return;
+    }
+    if (!r.isRoute(h)) { if (h === '' || h === '#') routeSettleHash(); return; }
+    if (!routeReady) return;   // 권한 응답 전 — applyRoute가 그때의 주소를 읽는다
+    const p = r.parse(h);
+    if (!p) { routeHideIntro(); routeFallback('없는 화면 주소입니다'); return; }
+    if (p.name === 'intro') { routeShowIntro(); return; }
+    routeHideIntro();
+    if (p.name === '' || p.name === 'login') { routeFallback(null); return; }   // 기본 주소·로그인한 채 #/login = 시작 화면
+    const res = routeOpen(p.name, true);
+    if (res === 'denied') routeFallback('이 화면을 볼 권한이 없습니다');
+    else routeSettleHash();   // 열렸으면 주소를 맞추고, 탭이 가득 차 못 열었으면 지금 화면 주소로 되돌린다
+  }
+  app.wireRoute = function () {
+    const r = root.router;
+    if (!r) return;
+    if (root.store.loadSession()) { pendingRoute = true; routeFromHash = true; }
+    else {
+      const p = r.parse(root.location.hash);
+      if (p && p.name && p.name !== 'intro' && p.name !== 'login') routeNext = p.name;   // 로그인 전에 연 내부 주소 — 로그인 뒤 그 화면을 연다
+    }
+    routeTopPrev = routeTop();
+    if (!root.store.loadSession() && routeTopPrev) routeWrite(routeTopPrev, false);   // 소개·로그인 주소로 교체(기록 없이)
+    root.addEventListener('hashchange', onRouteHash);
+    root.addEventListener('pageshow', function (e) { if (e.persisted) onRouteHash(); });
+    if (typeof MutationObserver === 'function') {
+      const mo = new MutationObserver(routeTopChanged);
+      [['landing-view', ['hidden']], ['login-view', ['class']]].forEach(function (a) {
+        const el = byId(a[0]);
+        if (el) mo.observe(el, { attributes: true, attributeFilter: a[1] });
+      });
+    }
+    routeTitle();
+  };
+
   app.init = function () {
     app.wireLogin();
     app.wireNav();
+    app.wireRoute();
     // 서버 모드 부트스트랩 먼저 시도(성공/실패 무관하게 이어서 기존 초기화 순서 진행).
     return app.bootstrapServer().then(function () {
       if (window.__d3failed || typeof d3 === 'undefined') { if (root.render.renderFallback) root.render.renderFallback(); return; }

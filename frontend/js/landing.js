@@ -50,6 +50,12 @@
       return !!s && (s.mode === 'account' || s.mode === 'guest');
     } catch (e) { return false; }
   };
+  // 주소가 소개 화면을 가리키는가(NEXT 135) — 세션이 없을 때 첫 화면을 정하는 데만 쓴다.
+  // 빈 값·#/·#/intro·화면 주소가 아닌 값(#ld-ai 등)은 소개, 그 밖의 #/… 는 로그인 화면으로 바로 간다(주소로 연 사람은 소개를 다시 볼 필요가 없다).
+  landing.wantsIntro = function (hash) {
+    var h = String(hash || '');
+    return h.charAt(0) !== '#' || h.charAt(1) !== '/' || h === '#/' || h === '#/intro';
+  };
   // 써짐 시간 = 글자 수 × 30ms (400~1400)
   landing.writeMs = function (text) {
     var n = String(text).replace(/\s+/g, '').length;
@@ -422,7 +428,7 @@
   }
 
   function storage() { try { return root.localStorage; } catch (e) { return null; } }
-  if (!landing.hasSession(storage())) show();
+  if (!landing.hasSession(storage()) && landing.wantsIntro(root.location && root.location.hash)) show();
 
   function afterDom() {
     if (!view.hidden) setBehind(true);

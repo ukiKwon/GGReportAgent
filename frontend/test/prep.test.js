@@ -94,7 +94,7 @@ test('app.js: showSoon이 사전준비·현황판 분기를 처리하고, 시작
   // ① 시작화면: enterApp·세션이 있는 채로 연 첫 그림에서 켜고, paintTabs 끝에서 한 번 적용한다
   assert.ok(/app\.enterApp = function \(session, profile\) \{\s*pendingHome = true;/.test(APP_SRC));
   assert.ok(APP_SRC.indexOf('root.nav.homeItemId(navBuilt, navActiveId, navTabs, navContext())') > 0);
-  assert.ok(/applyHome\(!\(serverMode && menus === null\)\);[^\n]*\n\s*\};/.test(APP_SRC));   // 권한 응답 실패면 시작화면 판정을 미룬다(pending 보존)
+  assert.ok(/applyRoute\(!\(serverMode && menus === null\)\);[^\n]*\n\s*\};/.test(APP_SRC));   // 권한 응답 실패면 시작화면 판정을 미룬다(pending 보존)
   // ② 시작화면이 현황판이면(영업 계열 + 본체 있음) 경과 요약 팝업을 현황판이 열린 '뒤'에 띄운다
   // 현황판이 열릴 것으로 보면 팝업을 미루고(overduePending), applyHome이 화면을 연 다음 띄운다(flushOverdue, 11-16)
   assert.ok(/root\.nav\.expectsHome\(args\.ctx, !!\(root\.portal && root\.portal\.mount\)\)/.test(APP_SRC));
