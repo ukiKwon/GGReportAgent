@@ -1558,10 +1558,11 @@
     const mine = S.mat = { state: 'loading', d: null };
     const done = function (state, d) { if (S.mat !== mine || S.selected !== id) return; mine.state = state; mine.d = d || null; repaintKeep(); };
     if (!mat || !mat.loadList) { mine.state = 'err'; return; }
-    matOfCase(id).then(function (f) {
+    const VIA = ui('prep_detail', 'board_view');   // 7단계 이사회 자료 보기 — 감사에 '사전준비 상세 › 이사회 자료 보기'(NEXT 121 ②)
+    matOfCase(id, VIA).then(function (f) {
       if (!f.ok) { done('err'); return; }
       if (!f.item) { done('none'); return; }
-      return mat.loadMaterial(bfetch, f.item.material_id, mat.UI.REVIEW, mat.BTN.OPEN).then(function (r) { done(r.ok ? 'ok' : 'err', r.ok ? r.material : null); });
+      return mat.loadMaterial(bfetch, f.item.material_id, VIA.screen, VIA.button).then(function (r) { done(r.ok ? 'ok' : 'err', r.ok ? r.material : null); });
     }).catch(function () { done('err'); });
   }
   function stepBoard() {
@@ -1765,7 +1766,7 @@
       });
     })(0);
   }
-  // 칸 체크 — 제안 준비 현황 표와 같은 주소로 저장한다. 이름표 기본값 prep_dashboard/dash_check, 2단계 [다음] 확인은 via = prep_detail/notice_confirm(NEXT 121 N1).
+  // 칸 체크 — 제안 준비 현황 표와 같은 주소. 상세 안에서 누르면 prep_detail/dash_check(NEXT 121 ②), 2단계 [다음] 확인은 via = prep_detail/notice_confirm(N1).
   function onMark(cd, mark, via) {
     const c = stepCtx(), pbd = root.prepboard, bd = S.board;
     if (!c || !pbd || !bd || !bd.row || !S.selected || !cd || S.markBusy[cd]) return;
@@ -1779,7 +1780,7 @@
     row.cells = row.cells || {};
     row.cells[cd] = Object.assign({}, prev, { mark_cd: mark });   // 고른 값을 바로 그린다
     repaintKeep();
-    req('PUT', base(id) + '/board-checks/' + encodeURIComponent(cd), { mark_cd: mark, base_rev: cur.revNo }, via || ui('prep_dashboard', 'dash_check')).then(function (res) {
+    req('PUT', base(id) + '/board-checks/' + encodeURIComponent(cd), { mark_cd: mark, base_rev: cur.revNo }, via || ui('prep_detail', 'dash_check')).then(function (res) {
       if (s0 !== S || S.selected !== id || S.board !== bd) return;
       delete S.markBusy[cd];
       row.cells[cd] = Object.assign({}, prev, res && res.cell && typeof res.cell === 'object' ? res.cell : { mark_cd: mark });

@@ -340,7 +340,7 @@ test('배선: 칸 체크는 표와 같은 주소·화면 이름표, 같은 값·
   const f = PREP_SRC.slice(a, b);
   assert.ok(/S\.markBusy\[cd\]\) return;/.test(f));
   assert.ok(/if \(cur\.mark === mark\) return;/.test(f));
-  assert.ok(/req\('PUT', base\(id\) \+ '\/board-checks\/' \+ encodeURIComponent\(cd\), \{ mark_cd: mark, base_rev: cur\.revNo \}, via \|\| ui\('prep_dashboard', 'dash_check'\)\)/.test(f));
+  assert.ok(/req\('PUT', base\(id\) \+ '\/board-checks\/' \+ encodeURIComponent\(cd\), \{ mark_cd: mark, base_rev: cur\.revNo \}, via \|\| ui\('prep_detail', 'dash_check'\)\)/.test(f));
   assert.ok(/row\.cells\[cd\] = prev;/.test(f), '실패하면 되돌린다');
   assert.ok(PB_SRC.indexOf("'/prep/board-checks/'") > 0, '표의 주소와 같다');
 });
@@ -567,6 +567,11 @@ test('4·7단계 배선: 올린 뒤 자동 초안(자료 만들기 → 엑셀 �
   assert.ok(f.indexOf("if (str(d.status_cd) !== 'DRAFT' && str(d.status_cd) !== 'PREP') return { kind: 'locked' };") > 0);
   assert.ok(f.indexOf('bw.upload(bfetch,') > 0 && f.indexOf('bw.adoptManual(bw.buildState(') > 0 && f.indexOf('bw.saveBody(ws, baseVals, d.current_snap,') > 0 && f.indexOf('bw.postSnapshot(bfetch, mid, body, AUTO)') > 0);
   assert.ok(f.indexOf("const AUTO = ui('prep_detail', 'profit_upload');") > 0 && f.indexOf('matOfCase(id, AUTO)') > 0 && f.indexOf('mat.loadMaterial(bfetch, mid, AUTO.screen, AUTO.button)') > 0, '자동 초안의 네 호출은 모두 사전준비 상세 이름표');
+  const la = PREP_SRC.indexOf('function loadMat(id) {'), lb = PREP_SRC.indexOf('function stepBoard() {');
+  assert.ok(la > 0 && lb > la);
+  const lm = PREP_SRC.slice(la, lb);
+  assert.ok(lm.indexOf("const VIA = ui('prep_detail', 'board_view');") > 0 && lm.indexOf('matOfCase(id, VIA)') > 0
+    && lm.indexOf('mat.loadMaterial(bfetch, f.item.material_id, VIA.screen, VIA.button)') > 0, '7단계 이사회 자료 보기는 사전준비 상세 이름표');
   assert.ok(PREP_SRC.indexOf('autoBoardDraft(id, f).then(function (r) {') > 0, '파일 올리기 성공 뒤에 부른다');
   assert.ok(PREP_SRC.indexOf('root.board.openMaterial(Number(mid))') > 0);
   const BOARD_SRC = src('js/board.js'), MAT_SRC = src('js/board-material.js');
