@@ -762,12 +762,37 @@ body{margin:0;background:#fff}
   :where(#landing-view) .bx-body>*{min-width:760px}
 }
 
+/* 작은 장면 minutes(새 내용): 이사회 녹음 글(STT)을 올리면 보완할 곳을 근거와 함께 요약. 기존 ld-* 클래스·변수만 쓴다. */
+:where(#landing-view) .mn{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:10px;row-gap:3px;align-content:space-between;padding:4px 10px;overflow:hidden;font-size:12px;line-height:15px}
+:where(#landing-view) .mn-h{display:flex;align-items:center;justify-content:space-between;gap:8px;height:16px;border-bottom:1px solid var(--ld-line);font-size:12px;font-weight:700;line-height:15px;color:var(--ld-muted)}
+:where(#landing-view) .mn-h .ld-stk{justify-items:end}
+:where(#landing-view) .mn-btn{height:16px;padding:0 6px;font-size:12px;line-height:14px}
+:where(#landing-view) .mn-h .ld-chip{font-size:12px;line-height:13px;padding:0 6px}
+:where(#landing-view) .mn-col p{display:flex;gap:6px;margin:0;white-space:nowrap;overflow:hidden}
+:where(#landing-view) .mn-no{flex:none;font:12px/15px var(--ld-mono);font-style:normal;color:var(--ld-muted)}
+:where(#landing-view) .mn-who{flex:none;font-weight:700;color:var(--ld-muted)}
+:where(#landing-view) .mn-gaps{grid-column:1/-1}
+:where(#landing-view) .mn-gaps ul{margin:0;padding:0;list-style:none}
+:where(#landing-view) .mn-g{display:flex;align-items:center;gap:8px;white-space:nowrap}
+:where(#landing-view) .mn-g b{flex:none}
+:where(#landing-view) .mn-g>span:not(.ld-src){min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--ld-muted)}
+:where(#landing-view) .mn-g .ld-src{margin-left:auto;flex:none;line-height:15px}
+:where(#landing-view) [data-scene="minutes"] .ld-ptr{--px:560px;--py:96px}
+:where(#landing-view) [data-scene="minutes"][data-on~="p1"] .ld-ptr{--px:640px;--py:22px}
+:where(#landing-view).ld-anim [data-scene="minutes"][data-step="play"] .ld-ptr{transition:transform 450ms var(--ld-ease),opacity 200ms linear}
+:where(#landing-view).ld-anim [data-scene="minutes"][data-step="play"][data-on~="ptr"]:not([data-on~="pend"]) .ld-ptr{opacity:1}
+:where(#landing-view).ld-anim [data-scene="minutes"][data-on~="pr1"] .ld-ptr::after{animation:ld-tap-a 420ms ease-out}
+:where(#landing-view).ld-anim [data-scene="minutes"][data-on~="pr1"]:not([data-on~="up"]) .mn-btn{background:var(--ld-panel2);border-color:var(--ld-muted)}
+@media (max-width:1023px){:where(#landing-view) [data-scene="minutes"] .ld-ptr{display:none}}
+/* 시안 전용 안내 줄(랜딩 본문 아님) */
+#landing-view .sian-note{margin:0;padding:12px 16px;border:1px dashed #888;background:#f0f0f0;color:#555;font:13px/1.55 "Malgun Gothic",sans-serif}
+#landing-view[data-view="now"] .sian-note{display:none}
 </style></head><body>
 <div id="sian-bar">
   <div class="row"><span class="tag">시안(실제 화면 아님)</span>
     <button type="button" data-v="a" aria-pressed="true">확정안(A)</button>
     <button type="button" data-v="now" aria-pressed="false">지금</button></div>
-  <div class="desc" data-for="a" hidden><p>장면마다 상태 표시를 달았습니다: 지금 사용 중 / 일부 사용 중 / 준비 중. 일부만 되는 장면에는 지금 되는 것을 한 줄로 적습니다. 구역 이름은 "AI·자동화로 달라질 일"입니다.</p><p>새 큰 장면 "수익성 분석표와 이사회 자료 연동"이 AI 구역 큰 장면의 맨 끝에 들어갔습니다. 복잡한 엑셀이 이사회 자료 양식 세 표로 옮겨지는 모습이 자동 반복되며, 장면 아래 [다시 보기]로 처음부터 볼 수 있습니다(모션 줄이기 설정이면 끝 모습으로 정지).</p><p>AI 장면 7개(큰 장면 4 + 작은 장면 3)와 업무 흐름 묶음 2의 예시도 실제 랜딩처럼 화면에 보일 때 움직이고, 끝나면 완성 모습에서 잠시 머문 뒤 반복합니다. 화면 속 기관·수치는 모두 가상입니다.</p></div><div class="desc" data-for="now" hidden><p>지금 랜딩 그대로입니다. 구역 이름은 "AI로 달라질 일", 모든 장면이 앞으로 붙일 기능의 완성 모습으로 읽힙니다. 새 큰 장면은 보이지 않습니다.</p><p>장면은 이 보기에서도 똑같이 움직입니다. 업무 흐름 묶음 2의 이사회 자료 예시에는 "AI 기능이 아닙니다"라고 적혀 있습니다.</p></div>
+  <div class="desc" data-for="a" hidden><p>장면마다 상태 표시를 달았습니다: 지금 사용 중 / 일부 사용 중 / 준비 중. 일부만 되는 장면에는 지금 되는 것을 한 줄로 적습니다. 구역 이름은 "AI·자동화로 달라질 일"입니다.</p><p>새 큰 장면 "수익성 분석표와 이사회 자료 연동"이 AI 구역 큰 장면의 맨 끝에 들어갔습니다. 복잡한 엑셀이 이사회 자료 양식 세 표로 옮겨지는 모습이 자동 반복되며, 장면 아래 [다시 보기]로 처음부터 볼 수 있습니다(모션 줄이기 설정이면 끝 모습으로 정지).</p><p>AI 장면 7개(큰 장면 4 + 작은 장면 3)도 실제 랜딩처럼 화면에 보일 때 움직이고, 끝나면 완성 모습에서 잠시 머문 뒤 반복합니다. 화면 속 기관·수치는 모두 가상입니다.</p><p>변경 1: 맨 아래 업무 흐름의 "심의·이사회" 묶음을 뺐습니다. 위 "수익성 분석표와 이사회 자료 연동" 장면과 내용이 겹쳐서, 실제 랜딩의 업무 흐름은 5묶음에서 4묶음이 됩니다(그 자리에 회색 안내 한 줄만 둡니다).</p><p>변경 2: 작은 장면 셋째 칸을 "이사회 녹음을 올리면 보완할 곳을 요약"으로 바꿨습니다. 발표 대본과 회의 녹음 글(STT)이 나란히 놓이고, 보완할 곳이 대본·발언의 어느 부분에서 나왔는지 근거와 함께 하나씩 나타납니다.</p></div><div class="desc" data-for="now" hidden><p>지금 랜딩 그대로입니다. 구역 이름은 "AI로 달라질 일", 모든 장면이 앞으로 붙일 기능의 완성 모습으로 읽힙니다. 새 큰 장면은 보이지 않습니다.</p><p>장면은 이 보기에서도 똑같이 움직입니다. 작은 장면 셋째 칸은 원래의 "회의는 핵심과 할 일로…"이고, 업무 흐름 묶음 2("심의·이사회")도 그대로 보입니다. 그 예시에는 "AI 기능이 아닙니다"라고 적혀 있습니다.</p></div>
 </div>
 <div id="landing-view" data-view="a">
   <main>
@@ -1105,14 +1130,56 @@ body{margin:0;background:#fff}
             </figure>
           </article>
 
-          <article class="ld-trow" id="scene-minutes" aria-labelledby="scene-minutes-h">
+          <!-- 새 내용(확정안 A 탭에서만 보임) -->
+          <article class="ld-trow va" id="scene-minutes" aria-labelledby="scene-minutes-h">
+            <div class="ld-trow-text">
+              <p class="ld-st-row"><span class="ld-st is-part">일부 사용 중</span></p>
+              <h4 id="scene-minutes-h" tabindex="-1">이사회 녹음을 올리면 보완할 곳을 요약</h4>
+              <p>안건 발표 대본을 준비하고, 회의 뒤 녹음을 글로 옮긴 자료(STT)를 올리면 질의에서 답이 부족했던 곳과 자료에 더 채울 곳을 요약해 알려 줍니다. 무엇을 고칠지는 담당자가 정합니다.</p>
+              <p class="ld-st-now"><b>지금 되는 것</b> 대본 Word 만들기와 녹음 글(STT) 올리기·발언 나누기는 지금 됩니다. 보완할 곳 요약은 준비 중입니다.</p>
+            </div>
+            <figure class="ld-mock is-sm" data-scene="minutes" data-step="end">
+              <div class="ld-win" aria-hidden="true">
+                <div class="ld-mock-bar"><b>이사회 녹음 점검</b><span class="ld-ex">예시 화면</span></div>
+                <div class="ld-mock-body ld-fadebox">
+                  <div class="ld-pnl mn">
+                    <div class="mn-col">
+                      <div class="mn-h"><span>발표 대본 · 안건 2 출연금(가나군)</span></div>
+                      <p><i class="mn-no">1문단</i><span data-hl="g1">협약 4년간 출연금은 5억 원입니다.</span></p>
+                      <p><i class="mn-no">2문단</i><span data-hl="g2">예비비는 1억 원으로 둡니다.</span></p>
+                      <p><i class="mn-no">3문단</i><span data-hl="g3">수익률은 4%를 넘는 것으로 봅니다.</span></p>
+                    </div>
+                    <div class="mn-col">
+                      <div class="mn-h"><span>회의 녹음 글(STT)</span><span class="ld-stk"><span class="ld-btnlike mn-btn" data-out="up">녹음 글 올리기</span><span class="ld-chip" data-in="up">올림 · 발언 3건</span></span></div>
+                      <p data-in="up"><i class="mn-no">1</i><span class="mn-who">위원 A</span><span data-hl="r1">출연금 5억은 어떻게 정했나요?</span></p>
+                      <p data-in="up"><i class="mn-no">2</i><span class="mn-who">위원 B</span><span data-hl="r2">예비비 1억의 기준이 무엇인가요?</span></p>
+                      <p data-in="up"><i class="mn-no">3</i><span class="mn-who">위원 A</span><span data-hl="r3">수익률 4%는 어떤 가정인가요?</span></p>
+                    </div>
+                    <div class="mn-gaps">
+                      <div class="mn-h"><span>보완할 곳 3</span></div>
+                      <ul>
+                        <li class="mn-g" data-in="g1"><b>① 출연금 산정 근거</b><span>위원 질의에 수치 근거 답이 없었음</span><span class="ld-src">대본 1문단 · 발언 1</span></li>
+                        <li class="mn-g" data-in="g2"><b>② 예비비 기준</b><span>기준 설명이 대본에도 답변에도 없음</span><span class="ld-src">대본 2문단 · 발언 2</span></li>
+                        <li class="mn-g" data-in="g3"><b>③ 수익률 가정</b><span>가정의 근거 자료를 덧붙여야 함</span><span class="ld-src">대본 3문단 · 발언 3</span></li>
+                      </ul>
+                    </div>
+                  </div>
+                  <span class="ld-ptr"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M2 1.5V14.5L5.4 11.4 7.7 16.5 10 15.5 7.7 10.4H12.5Z" fill="#1e2124" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg></span>
+                </div>
+              </div>
+              <figcaption class="sr-only">이사회 녹음 글(STT)을 올리자 위원 질의 3건이 차례로 읽히고, 대응하는 발표 대본 문단과 함께 보완할 곳 3건(출연금 산정 근거, 예비비 기준, 수익률 가정)이 근거 위치와 함께 목록으로 나타난 예시 화면. 기관·수치는 가상.</figcaption>
+            </figure>
+          </article>
+
+          <!-- 원래 내용(지금 탭에서만 보임) -->
+          <article class="ld-trow vn" id="scene-minutes-old" aria-labelledby="scene-minutes-old-h">
             <div class="ld-trow-text">
               <p class="ld-st-row va"><span class="ld-st is-part">일부 사용 중</span></p>
-              <h4 id="scene-minutes-h" tabindex="-1">회의는 핵심과 할 일로, 질문에는 근거 달린 답으로</h4>
+              <h4 id="scene-minutes-old-h" tabindex="-1">회의는 핵심과 할 일로, 질문에는 근거 달린 답으로</h4>
               <p>회의 기록에서 결정과 할 일을 뽑고, 사내 자료에 물으면 출처와 함께 답합니다.</p>
               <p class="ld-st-now va"><b>지금 되는 것</b> 발언 나누기·가림은 지금 됩니다. 검색은 준비 중입니다.</p>
             </div>
-            <figure class="ld-mock is-sm" data-scene="minutes" data-step="end">
+            <figure class="ld-mock is-sm" data-scene="minutes-old" data-step="end">
               <div class="ld-win" aria-hidden="true">
                 <div class="ld-mock-bar"><b>회의록·지식 검색</b><span class="ld-ex">예시 화면</span></div>
                 <div class="ld-mock-body ld-fadebox">
@@ -1140,7 +1207,8 @@ body{margin:0;background:#fff}
 
     <section id="ld-flow" aria-label="업무 흐름 묶음 2(시안에서는 이 묶음만 가져옴)">
       <div class="ld-wrap">
-        <div class="ld-groups">
+        <p class="sian-note va">시안 안내(랜딩 본문 아님): 업무 흐름의 '심의·이사회' 묶음은 뺍니다(위 '수익성 분석표와 이사회 자료 연동' 장면과 겹침). 실제 랜딩의 업무 흐름은 4묶음이 됩니다.</p>
+        <div class="ld-groups vn">
             <article class="ld-group" id="flow-2" aria-labelledby="flow-2-h">
               <h3 id="flow-2-h" tabindex="-1">심의·이사회</h3>
               <p class="ld-gdesc">분석 결과를 내부 심의와 이사회에 올리고, 부서별 확인을 차례로 기록합니다.</p>
@@ -1211,7 +1279,7 @@ body{margin:0;background:#fff}
 <script>
 (function(){
   var lv=document.getElementById('landing-view'),bs=document.querySelectorAll('#sian-bar button'),ds=document.querySelectorAll('#sian-bar .desc');
-  function set(v){lv.setAttribute('data-view',v);bs.forEach(function(b){b.setAttribute('aria-pressed',b.dataset.v===v?'true':'false')});ds.forEach(function(d){d.hidden=d.dataset.for!==v});}
+  function set(v){lv.setAttribute('data-view',v);bs.forEach(function(b){b.setAttribute('aria-pressed',b.dataset.v===v?'true':'false')});ds.forEach(function(d){d.hidden=d.dataset.for!==v});try{document.dispatchEvent(new Event('sian-view'))}catch(e){}}
   bs.forEach(function(b){b.addEventListener('click',function(){set(b.dataset.v);try{history.replaceState(null,'','#'+b.dataset.v)}catch(e){}})});
   var h=(location.hash||'').slice(1);set(/^(now|a)$/.test(h)?h:'a');
 })();
@@ -1232,7 +1300,9 @@ body{margin:0;background:#fff}
     plan:{hold:4000,steps:[[600,'press'],[750,'read'],[950,'shl'],[1400,'i1'],[2000,'i2'],[2600,'i3'],[3000,'done'],[3300,'end']]},
     script:{hold:3000,steps:[[0,'hl'],[400,'l1'],[700,'l2'],[1700,'chip'],[2000,'end']]},
     draft:{hold:3000,steps:[[0,'hl'],[400,'rv'],[1400,'chip'],[1700,'end']]},
-    minutes:{hold:3000,steps:[[0,'hl'],[400,'todo'],[1300,'q'],[2200,'ans'],[2600,'src'],[2900,'end']]},
+    'minutes-old':{hold:3000,steps:[[0,'hl'],[400,'todo'],[1300,'q'],[2200,'ans'],[2600,'src'],[2900,'end']]},
+    // 새 minutes: 사람이 [녹음 글 올리기](ptr·p1·pr1·up·pend) → 발언 줄 읽음(r) → 대응 대본 문단 읽음 + 보완할 곳 등장(g) ×3
+    minutes:{hold:3000,steps:[[0,'ptr'],[150,'p1'],[600,'pr1'],[800,'up'],[1000,'pend'],[1200,'r1'],[1500,'g1'],[1900,'r2'],[2200,'g2'],[2600,'r3'],[2900,'g3'],[3300,'end']]},
     board:{hold:4000,steps:[[0,'ptr'],[200,'p1'],[850,'pr1'],[1050,'up'],[1500,'a1'],[1700,'m1'],[2300,'s1'],[2400,'a2'],[2600,'m2'],[3200,'s2'],[3300,'a3'],[3500,'m3'],[4100,'s3'],[4200,'done'],[4400,'p2'],[5050,'ck'],[5500,'pend'],[5700,'end']]}
   };
   var doc=document,reduced=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -1267,8 +1337,10 @@ body{margin:0;background:#fff}
   function start(u){
     clearUnit(u);u.active=true;
     u.seq.forEach(function(s){s.fig.classList.remove('ld-fading');snap(s.fig,'play');});
-    u.idx=0;run(u,false);
+    u.idx=nextVis(u,0);if(u.idx<0){u.active=false;return;}run(u,false);
   }
+  // 시안 전용: 탭으로 숨은 장면(display:none)은 건너뛴다 — 헛돌지 않게. 실제 랜딩에는 필요 없다.
+  function nextVis(u,from){for(var i=from;i<u.seq.length;i++){if(u.seq[i].fig.offsetParent!==null)return i;}return -1;}
   function run(u,loop){
     var s=u.seq[u.idx],off=loop&&s.tl.loopFrom?s.tl.loopFrom:0;
     s.tl.steps.forEach(function(st){later(u,Math.max(0,st[0]-off),function(){if(st[1]==='end')sceneDone(u);else apply(s.fig,st[1]);});});
@@ -1276,13 +1348,13 @@ body{margin:0;background:#fff}
   function sceneDone(u){u.waiting=true;if(!u.hovered)startHold(u);}   // 완성 장면에서 유지, 마우스가 위에 있으면 떠날 때까지
   function startHold(u){
     u.waiting=false;
-    u.holdTimer=later(u,u.seq[u.idx].tl.hold,function(){u.holdTimer=null;if(u.idx<u.seq.length-1){u.idx++;run(u,false);}else resetLoop(u);});
+    u.holdTimer=later(u,u.seq[u.idx].tl.hold,function(){u.holdTimer=null;var n=nextVis(u,u.idx+1);if(n>=0){u.idx=n;run(u,false);}else resetLoop(u);});
   }
   function resetLoop(u){
     u.seq.forEach(function(s){s.fig.classList.add('ld-fading');});
     later(u,200,function(){
       u.seq.forEach(function(s){snap(s.fig,'play');s.fig.classList.remove('ld-fading');});
-      later(u,200,function(){u.idx=0;run(u,true);});
+      later(u,200,function(){u.idx=Math.max(0,nextVis(u,0));run(u,true);});
     });
   }
   function stop(u){   // 멈춤: 반쯤 쓴 글이 남지 않게 즉시 끝 상태로
@@ -1291,7 +1363,7 @@ body{margin:0;background:#fff}
   }
   function evaluate(){
     if(reduced||doc.hidden){units.forEach(stop);current=null;return;}
-    var best=pickUnit(units);
+    var best=pickUnit(units.filter(function(u){return u.target.offsetParent!==null;}));   // 시안: 숨은 탭의 장면은 후보에서 뺀다
     if(best===current)return;
     if(current)stop(current);
     current=best;if(best)start(best);
@@ -1303,6 +1375,7 @@ body{margin:0;background:#fff}
   $$('.ld-group .ld-mock[data-scene]').forEach(function(f){makeUnit(f,[f],0.5);});
   var trio=view.querySelector('.ld-trio');if(trio)makeUnit(trio,$$('.ld-mock[data-scene]',trio),0.4);
 
+  doc.addEventListener('sian-view',function(){if(current){stop(current);current=null;}evaluate();});   // 시안 탭 전환 때 다시 고른다
   if(reduced)return;                                  // 동작 줄이기: ld-anim 을 붙이지 않아 끝 상태 그대로
   view.classList.add('ld-anim');
   if('IntersectionObserver' in window){
