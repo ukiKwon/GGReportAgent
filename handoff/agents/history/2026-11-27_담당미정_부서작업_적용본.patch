@@ -1,0 +1,276 @@
+diff --git a/frontend/index.html b/frontend/index.html
+index c3bb4578..5f3e0cef 100644
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -4988,7 +4988,7 @@ review, the verdict, and DESIGN.md
+         <span class="pb-meta"><span id="pb-count"></span><span>불러온 시각 <b id="pb-at"></b></span>
+           <button type="button" id="pb-refresh">새로 고침</button></span>
+       </div>
+-      <p id="pb-scope-note" class="pb-legend" hidden>팀 작업·부서 작업에는 개설 승인(팀장 결재)이 끝난 기관만 나옵니다. 개설 전 기관은 내 작업에서 봅니다.</p>
++      <p id="pb-scope-note" class="pb-legend" hidden>팀 작업에는 우리 팀이 담당인 기관만 나옵니다. 담당 미정인 기관은 부서 작업에서 봅니다.</p>
+       <p class="pb-legend" id="pb-legend"></p>
+       <p id="pb-ro" class="pb-legend" hidden>지금 계정이 담당한 기관이 없어 보기만 합니다. 체크는 각 기관의 담당 영업이 합니다.</p>
+       <div id="pb-err" class="ap-err" role="alert"></div>
+diff --git a/frontend/js/prepboard.js b/frontend/js/prepboard.js
+index 3aae79c1..193203a1 100644
+--- a/frontend/js/prepboard.js
++++ b/frontend/js/prepboard.js
+@@ -41,12 +41,13 @@
+     scopeMine: '내 작업',
+     scopeTeam: '팀 작업',
+     scopeDept: '부서 작업',
+-    scopeNote: '팀 작업·부서 작업에는 개설 승인(팀장 결재)이 끝난 기관만 나옵니다. 개설 전 기관은 내 작업에서 봅니다.',
++    scopeNote: '팀 작업에는 우리 팀이 담당인 기관만 나옵니다. 담당 미정인 기관은 부서 작업에서 봅니다.',
++    scopeNoteDept: '부서 작업에는 담당 미정인 기관도 함께 나옵니다.',
+     teamUnresolved: '상위 결재자(소속 팀장)가 지정되지 않아 팀 작업에 내가 담당한 기관만 나옵니다. 시스템 관리자에게 상위 결재자 지정을 요청하세요.',
+     emptyMine: '내가 제안 확정했거나 담당한 기관이 없습니다. 입찰 현황판에서 올해 목표 기관을 고르고 표 위 [제안 사전준비]를 누르면 여기에 나타납니다.',
+-    emptyTeam: '팀에 개설 승인이 끝난 기관이 없습니다. 개설 전 기관은 내 작업에서 봅니다.',
+-    emptyTeamSolo: '내가 담당한 기관 중 개설 승인이 끝난 곳이 없습니다. 개설 전 기관은 내 작업에서 봅니다.',
+-    emptyDept: '부서에 개설 승인이 끝난 기관이 없습니다. 개설 전 기관은 내 작업에서 봅니다.',
++    emptyTeam: '우리 팀이 담당인 기관이 없습니다. 담당 미정인 기관은 부서 작업에서 봅니다.',
++    emptyTeamSolo: '내가 담당한 기관이 없습니다. 담당 미정인 기관은 부서 작업에서 봅니다.',
++    emptyDept: '부서에 제안 사전준비를 시작한 기관이 없습니다. 입찰 현황판에서 목표 기관을 고르고 [제안 사전준비]를 누르면 여기에 나타납니다.',
+     seeMine: '내 작업 보기',
+     seeTeam: '팀 작업 보기',
+     clearQ: '검색 지우기',
+@@ -285,8 +286,9 @@
+   };
+   // 팀·부서일 때만 안내 줄. 팀인데 결재선이 없어 내 건만 오면(team_resolved:false) 그 사실을 앞에 붙인다.
+   pb.scopeNoteText = function (scope, teamResolved) {
+-    if (scope !== 'team' && scope !== 'dept') return '';
+-    return (scope === 'team' && teamResolved === false ? T.teamUnresolved + ' ' : '') + T.scopeNote;
++    if (scope === 'dept') return T.scopeNoteDept;   // 담당 미정 건은 부서 작업에(사용자 11-27)
++    if (scope !== 'team') return '';
++    return (teamResolved === false ? T.teamUnresolved + ' ' : '') + T.scopeNote;
+   };
+   pb.liveText = function (scope, n) { return pb.scopeLabel(scope) + ', 기관 ' + Number(n) + '곳'; };
+   // f: { q }. 범위는 서버가 거르므로 여기서는 이름만 거른다 — is_mine으로 다시 거르지 않는다. 서버 순서(입찰 예정일 빠른 순)를 그대로 둔다.
+@@ -308,7 +310,7 @@
+     const scope = f && pb.scopeValid(f.scope) ? f.scope : 'mine';
+     if (total === 0) {
+       if (scope === 'team') return { kind: 'none', text: f && f.teamResolved === false ? T.emptyTeamSolo : T.emptyTeam, actions: [{ act: 'scope-mine', label: T.seeMine }] };
+-      if (scope === 'dept') return { kind: 'none', text: T.emptyDept, actions: [{ act: 'scope-mine', label: T.seeMine }] };
++      if (scope === 'dept') return { kind: 'none', text: T.emptyDept, actions: [{ act: 'map', label: T.openMap }] };
+       return { kind: 'none', text: T.emptyMine, actions: [{ act: 'map', label: T.openMap }, { act: 'scope-team', label: T.seeTeam }] };
+     }
+     if (shown > 0) return null;
+diff --git a/frontend/test/prepboard.test.js b/frontend/test/prepboard.test.js
+index 7bda31bd..323e37d4 100644
+--- a/frontend/test/prepboard.test.js
++++ b/frontend/test/prepboard.test.js
+@@ -245,11 +245,11 @@ test('scopeNoteText·liveText: 팀·부서일 때만 안내, team_resolved:false
+   assert.strictEqual(pb.scopeNoteText('mine', true), '');
+   assert.strictEqual(pb.scopeNoteText('', true), '');
+   assert.strictEqual(pb.scopeNoteText('team', true), pb.T.scopeNote);
+-  assert.strictEqual(pb.scopeNoteText('dept', true), pb.T.scopeNote);
+-  assert.strictEqual(pb.scopeNoteText('dept', false), pb.T.scopeNote, '부서는 team_resolved와 무관');
++  assert.strictEqual(pb.scopeNoteText('dept', true), pb.T.scopeNoteDept);
++  assert.strictEqual(pb.scopeNoteText('dept', false), pb.T.scopeNoteDept, '부서는 team_resolved와 무관');
+   const t = pb.scopeNoteText('team', false);
+   assert.ok(t.indexOf('상위 결재자(소속 팀장)가 지정되지 않아 팀 작업에 내가 담당한 기관만 나옵니다. 시스템 관리자에게 상위 결재자 지정을 요청하세요.') === 0 && t.indexOf(pb.T.scopeNote) > 0);
+-  assert.ok(pb.T.scopeNote.indexOf('개설 승인(팀장 결재)이 끝난 기관만') > 0);
++  assert.ok(pb.T.scopeNote.indexOf('담당 미정인 기관은 부서 작업에서') > 0 && pb.T.scopeNote.indexOf('개설 승인') < 0 && pb.T.scopeNoteDept.indexOf('담당 미정') > 0);
+   assert.strictEqual(pb.liveText('team', 12), '팀 작업, 기관 12곳');
+   assert.strictEqual(pb.liveText('mine', 0), '내 작업, 기관 0곳');
+ });
+@@ -264,16 +264,16 @@ test('countHtml·emptyModel·readOnlyAll', function () {
+   assert.strictEqual(acts(m0), 'map:입찰 현황판 열기|scope-team:팀 작업 보기');
+   assert.deepStrictEqual(pb.emptyModel(0, 0, {}), m0, '범위를 모르면 내 작업');
+   const mt = pb.emptyModel(0, 0, { scope: 'team' });
+-  assert.strictEqual(mt.text, '팀에 개설 승인이 끝난 기관이 없습니다. 개설 전 기관은 내 작업에서 봅니다.');
++  assert.strictEqual(mt.text, '우리 팀이 담당인 기관이 없습니다. 담당 미정인 기관은 부서 작업에서 봅니다.');
+   assert.strictEqual(acts(mt), 'scope-mine:내 작업 보기');
+   const ms = pb.emptyModel(0, 0, { scope: 'team', teamResolved: false });
+-  assert.strictEqual(ms.text, '내가 담당한 기관 중 개설 승인이 끝난 곳이 없습니다. 개설 전 기관은 내 작업에서 봅니다.');
++  assert.strictEqual(ms.text, '내가 담당한 기관이 없습니다. 담당 미정인 기관은 부서 작업에서 봅니다.');
+   assert.strictEqual(acts(ms), 'scope-mine:내 작업 보기');
+   assert.strictEqual(pb.emptyModel(0, 0, { scope: 'team', teamResolved: true }).text, pb.T.emptyTeam, '결재선이 있으면 팀 문구');
+   assert.strictEqual(pb.emptyModel(0, 0, { scope: 'dept', teamResolved: false }).text, pb.T.emptyDept, '부서는 team_resolved와 무관');
+   const md = pb.emptyModel(0, 0, { scope: 'dept' });
+-  assert.strictEqual(md.text, '부서에 개설 승인이 끝난 기관이 없습니다. 개설 전 기관은 내 작업에서 봅니다.');
+-  assert.strictEqual(acts(md), 'scope-mine:내 작업 보기');
++  assert.strictEqual(md.text, '부서에 제안 사전준비를 시작한 기관이 없습니다. 입찰 현황판에서 목표 기관을 고르고 [제안 사전준비]를 누르면 여기에 나타납니다.');
++  assert.strictEqual(acts(md), 'map:입찰 현황판 열기');
+   assert.strictEqual(pb.emptyModel(5, 2, { scope: 'team' }), null);
+   assert.strictEqual(pb.emptyModel(5, 0, { scope: 'team' }), null, '검색어가 없으면 표를 그린다');
+   // 범위 안 검색 0건: 받침에 맞춰 과/와, 단추는 검색어만 지움
+@@ -653,7 +653,7 @@ test('조회 범위 세그먼트 마크업: 그룹 이름·단추 3개·aria-pre
+     '<button type="button" class="pb-sc" data-scope="dept" aria-pressed="false">부서 작업</button>']);
+   assert.ok(HTML.indexOf('id="pb-q"') > HTML.indexOf('id="pb-scope"'), '검색은 범위 뒤');
+   assert.ok(HTML.indexOf('id="pb-who"') < 0 && HTML.indexOf('담당자 <select') < 0);
+-  assert.ok(/<p id="pb-scope-note" class="pb-legend" hidden>[^<]*개설 승인\(팀장 결재\)이 끝난 기관만[^<]*<\/p>/.test(HTML));
++  assert.ok(/<p id="pb-scope-note" class="pb-legend" hidden>[^<]*담당 미정인 기관은 부서 작업에서[^<]*<\/p>/.test(HTML));
+   assert.ok(HTML.indexOf('id="pb-scope-note"') < HTML.indexOf('id="pb-legend"'), '안내 줄은 범례 앞');
+   assert.ok(/\.pb-sc\[aria-pressed="true"\] \{[^}]*font-weight:700;/.test(HTML) && /\.pb-sc:focus-visible \{/.test(HTML) && /\.pb-scope \{ display:inline-flex; \}/.test(HTML));
+   // JS 문구와 마크업이 같은 말
+@@ -802,7 +802,7 @@ test('범위 칩: 응답 scope가 눌림·안내 줄을 정하고, 칩을 누르
+   await flush();
+   assert.strictEqual(e.live.textContent, '부서 작업, 기관 3곳');
+   assert.strictEqual(e.note.hidden, false);
+-  assert.strictEqual(e.note.textContent, pb.T.scopeNote, '부서는 결재선 안내 없이 범위 안내만');
++  assert.strictEqual(e.note.textContent, pb.T.scopeNoteDept, '부서는 결재선 안내 없이 부서 안내만');
+ }));
+ 
+ test('범위 칩: 불러오기 실패는 칩 상태를 유지하고 [다시 시도]가 같은 범위로 다시 부른다', withScopeEls(async function (e) {
+@@ -832,7 +832,7 @@ test('빈 결과: 범위별 문구·단추가 그려지고, 단추로 범위를
+   assert.strictEqual(e.pressed.team, 'true');
+   h.pend[1].res(scopeData('team', []));
+   await flush();
+-  assert.ok(ENV.box.innerHTML.indexOf('팀에 개설 승인이 끝난 기관이 없습니다.') >= 0 && ENV.box.innerHTML.indexOf('data-pb="scope-mine"') > 0 && ENV.box.innerHTML.indexOf('data-pb="map"') < 0);
++  assert.ok(ENV.box.innerHTML.indexOf('우리 팀이 담당인 기관이 없습니다.') >= 0 && ENV.box.innerHTML.indexOf('data-pb="scope-mine"') > 0 && ENV.box.innerHTML.indexOf('data-pb="map"') < 0);
+   ENV.L.click({ target: btnOf({ 'data-pb': 'scope-mine' }) });
+   h.pend[2].res(scopeData('mine', ['청주시']));
+   await flush();
+diff --git a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/PrepBoardService.java b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/PrepBoardService.java
+index 59383c9d..9ecbc075 100644
+--- a/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/PrepBoardService.java
++++ b/kgi-ggreport-web/src/main/java/com/kbstar/kgi/ggreport/web/service/PrepBoardService.java
+@@ -42,6 +42,7 @@ import java.util.Set;
+  * 칸 값은 아이콘 4값(V 완료 DONE · △ 진행 IN_PROGRESS · - 대상 아님 NA · 빈칸 시작 전 NONE, 사용자 11-20 ③). 날짜는 입력받지 않고 서버가 체크한 날(KST)을 남긴다.
+  * 열람: 영업팀·영업팀장·영업부장(영업부서 전원, ⑥) — 디자이너·그 밖은 403. 체크: 그 건의 활성 담당자만(setTask 와 같은 규칙, 팀장·부장도 담당이 아니면 403).
+  * 조회 범위(사용자 11-24): scope=mine|team|dept(없으면 역할 기본값, 그 밖 400) — 편의 거르기이지 열람 경계가 아니다(상세는 canSee 그대로).
++ * 담당 미정(시작 전) 건은 부서 작업에 싣고 팀 작업에는 싣지 않는다(사용자 11-27 "개인 것도 팀 것도 아니면 부서에") — 목록 표시만 바뀐다.
+  * 입찰 예정일(⑤, 사용자 11-23): 공고가 나온 기관은 공고 제출 마감일(EXT_CHECK notice·found·DEADLINE_AT 최신 1건, 지났어도 그대로), 없으면 약정 만료일.
+  * 근거는 bid_expected_basis(notice|expiry). 행 순서: 입찰 예정일 오름차순(없으면 맨 뒤) → 확정 시각 → 기관 이름.
+  * 저장: 건 행 잠금 → 담당 검사(security 3·4) → … → 추가 전용 INSERT + 성공 감사(같은 트랜잭션). 감사·접근 이력에 아이콘 값·날짜·이름을 넣지 않는다.
+@@ -69,7 +70,8 @@ public class PrepBoardService {
+     public static final String SCOPE_MINE = "mine", SCOPE_TEAM = "team", SCOPE_DEPT = "dept";
+     static final List<String> SCOPES = Collections.unmodifiableList(Arrays.asList(SCOPE_MINE, SCOPE_TEAM, SCOPE_DEPT));
+     /**
+-     * 팀·부서 작업에 실리는 상태 — 사전준비가 시작된 건(옛 개설 승인 또는 11-25 결재 없는 시작, 사용자 11-24). 허용 목록이라 모르는 상태는 빠진다.
++     * 팀 작업에 실리는 상태 — 사전준비가 시작된 건(옛 개설 승인 또는 11-25 결재 없는 시작, 사용자 11-24). 허용 목록이라 모르는 상태는 빠진다.
++     * 부서 작업은 여기에 담당 미정(시작 전) 건을 더한다(사용자 11-27, inScope).
+      * CHECK_STATES 와 값은 같지만 뜻이 달라 따로 둔다(체크 허용 ≠ 열람 범위) — 한쪽을 바꿀 때 다른 쪽을 따라 바꾸지 말 것.
+      */
+     static final Set<String> SCOPE_OPENED_STATES = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+@@ -153,22 +155,25 @@ public class PrepBoardService {
+      * 범위 판정. active: 그 건의 활성 담당 사번, ever: 끝난 건의 배정 이력 사번, team: 팀 사번(null 이면 팀 제한 없음 — 부장의 team).
+      * mine = 활성 담당 + 시작 전 건(확정됨·개설 대기, 끝난 건이면 시작 전 확정 취소)의 확정자 + 끝난 건은 옛 담당도.
+      * 남이 담당을 맡은 건은 확정자의 내 작업이 아니다(사용자 11-27 Q-2026-11-27-01) — 보려면 팀·부서 작업, 열려면 담당 추가.
+-     * team/dept = 개설 승인 뒤(SCOPE_OPENED_STATES) + 끝난 건은 개설 뒤 중단(OPENED_AT 있음)만 — 확정 취소(개설 전)는 결재가 없어 빠진다.
++     * team = 사전준비 시작 뒤(SCOPE_OPENED_STATES) + 끝난 건은 시작 뒤 중단(OPENED_AT 있음) 중, 담당(끝난 건은 옛 담당)이 팀 사번에 드는 건.
++     * dept(와 팀 제한 없는 부장의 team) = 시작 뒤 건 전부 + 담당 미정 건(시작 전 = 확정됨·개설 대기, 끝난 건이면 시작 전 확정 취소) —
++     * 사용자 11-27 "'담당 미정'인 건은 '부서 작업'에 — 개인 것도 팀 것도 아니면 부서에 소속". 담당 미정 건은 팀 작업에 넣지 않는다.
++     * 모르는 상태는 어느 범위에도 싣지 않는다. 목록 거르기일 뿐 열람(canSee)은 그대로 — 못 여는 줄은 can_view=false.
+      */
+     static boolean inScope(String scope, BidPrep p, String meEmp, Set<String> active, Set<String> ever, Set<String> team) {
+         boolean ended = PrepService.CANCELLED.equals(p.getStateCd());
++        // 시작 전(=담당 미정) 판정은 활성 담당 수가 아니라 상태로 한다 — 끝난 건은 담당이 모두 풀려(중단 시 해제) 수로는 시작 전/뒤를 못 가르고,
++        // 모르는 상태는 넓히지 않는다(opened 판정·checkBlock PRE_OPEN 과 짝).
++        boolean preStart = ended ? p.getOpenedAt() == null
++                : PrepService.CONFIRMED.equals(p.getStateCd()) || PrepService.OPEN_PENDING.equals(p.getStateCd());
+         if (SCOPE_MINE.equals(scope)) {
+             if (active.contains(meEmp)) { return true; }
+-            // 시작 전 판정은 활성 담당 수가 아니라 상태로 한다 — 끝난 건은 담당이 모두 풀려(중단 시 해제) 수로는 시작 전/뒤를 못 가르고,
+-            // 모르는 상태는 확정자에게 넓히지 않는다(team/dept 의 opened 판정·checkBlock PRE_OPEN 과 짝).
+-            boolean preStart = ended ? p.getOpenedAt() == null
+-                    : PrepService.CONFIRMED.equals(p.getStateCd()) || PrepService.OPEN_PENDING.equals(p.getStateCd());
+             if (preStart) { return meEmp.equals(p.getConfirmedBy()); }
+             return ended && ever.contains(meEmp);
+         }
+         boolean opened = ended ? p.getOpenedAt() != null : SCOPE_OPENED_STATES.contains(p.getStateCd());
++        if (SCOPE_DEPT.equals(scope) || team == null) { return opened || preStart; }   // 부장의 team = dept(D52)
+         if (!opened) { return false; }
+-        if (SCOPE_DEPT.equals(scope) || team == null) { return true; }
+         for (String e : ended ? ever : active) {
+             if (team.contains(e)) { return true; }
+         }
+diff --git a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/PrepBoardServiceTest.java b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/PrepBoardServiceTest.java
+index bb0f63ec..49364c9d 100644
+--- a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/PrepBoardServiceTest.java
++++ b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/service/PrepBoardServiceTest.java
+@@ -304,7 +304,14 @@ public class PrepBoardServiceTest {
+         // team == null 이면 dept 와 같다
+         assertTrue(PrepBoardService.inScope("team", scoped("WRITING", "X", "t"), "A", set("Z"), none, null));
+         assertTrue(PrepBoardService.inScope("dept", scoped("WRITABLE", "X", "t"), "A", set("Z"), none, team));
+-        assertFalse(PrepBoardService.inScope("dept", scoped("CONFIRMED", "X", null), "A", none, none, null));
++        // 사용자 11-27: 담당 미정(시작 전) 건은 부서 작업에 싣고, 팀원·팀장의 팀 작업에는 싣지 않는다
++        assertTrue(PrepBoardService.inScope("dept", scoped("CONFIRMED", "X", null), "A", none, none, null));
++        assertTrue(PrepBoardService.inScope("dept", scoped("OPEN_PENDING", "X", null), "A", none, none, team));
++        assertTrue(PrepBoardService.inScope("dept", scoped("CANCELLED", "X", null), "A", none, none, null));    // 시작 전 확정 취소(안 B)
++        assertTrue(PrepBoardService.inScope("dept", scoped("CANCELLED", "X", "t"), "A", none, none, null));     // 시작 뒤 중단(기존)
++        assertTrue(PrepBoardService.inScope("team", scoped("CONFIRMED", "X", null), "A", none, none, null));    // 부장의 team(제한 없음) = dept
++        assertFalse(PrepBoardService.inScope("team", scoped("CONFIRMED", "A", null), "A", none, none, team));   // 확정자가 팀이어도 팀 작업에는 없다
++        assertFalse(PrepBoardService.inScope("dept", scoped("WEIRD", "X", null), "A", none, none, null));       // 모르는 상태는 시작 전으로 보지 않는다
+         assertFalse(PrepBoardService.inScope("dept", scoped("WEIRD", "X", "t"), "A", none, none, null));            // 모르는 상태
+         assertFalse(PrepBoardService.inScope("team", scoped("WEIRD", "X", "t"), "A", set("A"), none, team));
+     }
+diff --git a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/PrepBoardApiTest.java b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/PrepBoardApiTest.java
+index 8a5739d8..5e44ce56 100644
+--- a/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/PrepBoardApiTest.java
++++ b/kgi-ggreport-web/src/test/java/com/kbstar/kgi/ggreport/web/web/PrepBoardApiTest.java
+@@ -321,10 +321,16 @@ public class PrepBoardApiTest {
+         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST_ENDED' AND OUTCOME='OK' AND BID_CASE_ID='NONE'"
+                 + " AND ACTOR_EMP_NO=? AND SCREEN_ID='prep_dashboard' AND BUTTON_ID='refresh' AND UI_VALID=1", MEMBER));
+         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST' AND OUTCOME='OK'"));   // 앞의 기본 목록 한 줄은 그대로
+-        // 확정 취소(개설 전)는 결재가 없어 팀·부서 작업에 실리지 않고, 확정자 본인의 '내 작업'에만 남는다(사용자 11-24).
++        // 시작 전 확정 취소는 담당 미정 — 팀 작업에는 없고, 부서 작업과 확정자 본인의 '내 작업'에 실린다(사용자 11-27).
+         assertNull(row(json(list(MEMBER2, "include_ended=1", "refresh")), bid));
+         assertNull(row(json(list(LEAD, "include_ended=1", "refresh")), bid));
+-        assertNull(row(json(list(HEAD, "include_ended=1&scope=dept", "refresh")), bid));
++        JsonNode inDept = row(json(list(HEAD, "include_ended=1&scope=dept", "refresh")), bid);
++        assertNotNull(inDept);
++        assertTrue(inDept.path("can_view").asBoolean());                 // 부장은 모든 상태를 본다
++        JsonNode otherDept = row(json(list(MEMBER2, "include_ended=1&scope=dept", "refresh")), bid);
++        assertNotNull(otherDept);
++        assertFalse(otherDept.path("can_view").asBoolean());             // 확정자가 아닌 팀원은 못 연다 → 이름 가림(P3-4)
++        assertTrue(otherDept.path("confirmed_by_name").isNull());
+         assertFalse(with.path("confirmed_by_name").isNull());   // 확정자 본인은 상세를 볼 수 있다
+     }
+ 
+@@ -965,16 +971,29 @@ public class PrepBoardApiTest {
+     }
+ 
+     @Test
+-    public void D47_팀_부서_작업은_개설_승인_전_건을_싣지_않고_mine에는_싣는다() throws Exception {
++    public void D47_담당_미정_건은_부서_작업과_확정자_내_작업에_싣고_팀_작업에는_싣지_않는다() throws Exception {
+         String pre = confirm(MEMBER, "dobong");   // CONFIRMED
+         String pend = confirm(MEMBER, INST);
+         MvcResult r = postJson("/bidcases/" + pend + "/prep/open-requests", MEMBER, "{\"emp_nos\":[\"" + MEMBER2 + "\"]}");
+         assertEquals(r.getResponse().getContentAsString(), 201, r.getResponse().getStatus());   // OPEN_PENDING, 승인 안 함
+-        JsonNode[] views = {body(MEMBER, "scope=team"), body(LEAD, null), body(HEAD, null), body(HEAD, "scope=dept")};
+-        for (JsonNode v : views) {
++        for (JsonNode v : new JsonNode[]{body(MEMBER, "scope=team"), body(LEAD, null)}) {   // 팀 작업에는 없다(사용자 11-27 "팀 것도 아니")
+             assertNull(row(v, pre));
+             assertNull(row(v, pend));
+         }
++        for (JsonNode v : new JsonNode[]{body(HEAD, null), body(HEAD, "scope=dept"), body(HEAD, "scope=team"),
++                body(MEMBER2, "scope=dept"), body(LEAD2, "scope=dept")}) {   // 부서 작업(부장 기본·부장 team 포함)에는 있다
++            assertNotNull(row(v, pre));
++            assertNotNull(row(v, pend));
++        }
++        JsonNode d = body(MEMBER2, "scope=dept");
++        JsonNode dp = row(d, pre);
++        assertFalse(dp.path("is_mine").asBoolean());
++        assertFalse(dp.path("can_check").asBoolean());
++        assertEquals("PRE_OPEN", dp.path("check_block").asText());
++        assertEquals(0, dp.path("assignee_names").size());                 // 화면 '담당 미정'
++        assertTrue(dp.path("can_view").asBoolean());                         // 확정됨은 영업부서 전원이 연다(11-11)
++        assertFalse(row(d, pend).path("can_view").asBoolean());              // 개설 대기는 신청자·그 팀 팀장·부장만 — 눌리지 않는 글자
++        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE ACTION_CD='DASH_LIST_ROW' AND BID_CASE_ID IN (?, ?)", pre, pend));   // 시작 전 건은 건 줄 감사 대상 아님
+         JsonNode mine = body(MEMBER, null);
+         assertNotNull(row(mine, pre));
+         assertNotNull(row(mine, pend));
+@@ -1043,16 +1062,20 @@ public class PrepBoardApiTest {
+     }
+ 
+     @Test
+-    public void D49_끝난_건은_개설_뒤_중단만_팀_부서에_실리고_확정_취소는_확정자_mine에만_남는다() throws Exception {
++    public void D49_끝난_건은_개설_뒤_중단만_팀에_실리고_확정_취소는_부서와_확정자_mine에_실린다() throws Exception {
+         String stopped = opened(INST);
+         assertEquals(200, postJson("/bidcases/" + stopped + "/prep/cancel", LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
+         String unconfirmed = confirm(MEMBER, "dobong");
+         assertEquals(200, postJson("/bidcases/" + unconfirmed + "/prep/unconfirm", LEAD, "{\"reason\":\"가상 취소\"}").getResponse().getStatus());
+-        for (String emp : new String[]{LEAD, HEAD, MEMBER2}) {
++        for (String emp : new String[]{LEAD, MEMBER2}) {   // 기본 범위 team·mine — 시작 전 확정 취소(담당 미정)는 없다
+             JsonNode v = body(emp, "include_ended=true");
+             assertNotNull(emp, row(v, stopped));
+             assertNull(emp, row(v, unconfirmed));
+         }
++        JsonNode headDept = body(HEAD, "include_ended=true");   // 부장 기본 dept — 담당 미정 끝난 건도 싣는다(사용자 11-27)
++        assertNotNull(row(headDept, stopped));
++        assertNotNull(row(headDept, unconfirmed));
++        assertNotNull(row(body(LEAD2, "include_ended=true&scope=dept"), unconfirmed));
+         assertNotNull(row(body(MEMBER, "include_ended=true"), unconfirmed));
+         assertNull("시작 뒤 중단 건은 확정자만이면 내 작업에 없다(사용자 11-27)", row(body(MEMBER, "include_ended=true"), stopped));
+         assertNotNull(row(body(MEMBER, "include_ended=true&scope=team"), stopped));

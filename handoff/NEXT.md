@@ -676,3 +676,8 @@
 - **현재**: 요건·답 접수, 미구현. 정해진 것: 팝업은 원본을 먼저 보여 주고 마스킹할지 물은 뒤 수행, 마스킹하면 가린 파일로 바꾸고 원본은 지움, 개인정보가 남은 채로는 [다음 단계]·저장 불가(예외 사유를 적으면 통과 — 공개 정보도 예외 사유로), 메모는 시스템 밖 담당자 몫(안내만).
 - **다음 한 걸음**: fb가 backend-dev 설계 시작, 설계 단계에서 security 1회(업로드·원본 폐기·개인정보). 규칙 정본 docs/화면규칙/제안 준비 현황 - 기관 상세.md 2단계.
 - **자세히**: 기획 handoff/agents/planner/2026-11-27_1300_ad75c31b.md, 답 원문 handoff/questions.json Q-2026-11-27-18, 세션 기록 handoff/sessions/2026-11-27_1215_79.md.
+
+### 138. 제안 준비 현황 — '담당 미정' 건을 [부서 작업]에 보이게 (사용자 11-27 저녁) [담당: 79(제안 준비 현황 '내 작업' 세션) — 시험 → 커밋 → main 재기동 → qa]
+- **현재**: 설계 끝·적용본은 **미커밋**(별도 worktree `c:/github/_gg_79` = 63ed71ef + 6개 파일, 보관 사본 `handoff/agents/history/2026-11-27_담당미정_부서작업_적용본.patch`). 시험 결과는 **미확인**(적용 에이전트가 대상 mvn을 돌리던 중 마무리). 8080·주 폴더에는 아무 반영 없음.
+- **다음 한 걸음**: ① `git -C /c/github/_gg_79 status --short`로 6개 파일 확인(없으면 패치를 HEAD에서 `git apply`) ② worktree에서 `node --test "frontend/test/*.test.js"`, `mvn -q -o test -Dtest='PrepBoardServiceTest,PrepBoardApiTest,BidSubjectApiTest'` ③ 통과하면 임시 인덱스로 6개 파일 + 시험 안내(`docs/시험안내/_양식.html` 복사) 한 커밋, 주 폴더 작업본(prepboard.js·prepboard.test.js·index.html 한 줄 — 8080이 주 폴더 frontend를 서빙)에도 같은 변경 ④ main에 해시·재기동 요청 ⑤ 규칙집 `docs/화면규칙/제안 준비 현황.md`·`00_공통.md`에 설계 8절 문안 반영 ⑥ qa-verifier·security(PUSH-GATE).
+- **자세히**: 설계·적용 지시서 `handoff/agents/history/2026-11-27_담당미정_부서작업_설계.md`(결정 안 B, 9절 질문 후보·11절 이관 메모 포함), 세션 기록 `handoff/sessions/2026-11-27_1215_79.md` '18시 마무리'.
