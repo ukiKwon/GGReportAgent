@@ -219,6 +219,20 @@ test('추천(qa 11-19 P1-1): 서버 실제 모양 — 지금 국민은행 줄만
   assert.strictEqual(kbb.closedBasis('IL', null, TODAY, sum), null);
 });
 
+test('추천(11-27 신고): 관심 창(watchOnly)은 모든 줄이 관심 갈래 — 단추 "관심으로 고르기", "목표로 고르기" 없음', function () {
+  const m = { notice: [nIt(A, 12), nIt(B, 3), nIt(C, 7), nIt(D, 5), nIt(E, null)], upcoming: [uIt(F, 100), uIt(G, 40, '추정')] };
+  const o = { list: [A, B, C, D, E, F, G], sumById: { IA: sKB, IB: sOth('SINGLE', 2022), IC: sOth('SINGLE', 0), ID: sOth('FIRST', 0), IF: sOth('SINGLE', 2021) }, watchOnly: true };
+  const r = kbb.recommend(m, base(o));
+  const all = [];
+  r.stages.forEach(function (s) { s.items.forEach(function (x) { all.push(x); }); (s.next || []).forEach(function (x) { all.push(x); }); });
+  assert.ok(all.length > 0);
+  all.forEach(function (x) { assert.strictEqual(x.kind, 'WATCH'); assert.strictEqual(kbb.recBtnText(x), '관심으로 고르기'); });
+  assert.ok(kbb.recHtml(r, {}).indexOf('목표로 고르기') < 0);
+  // 목표 창(watchOnly 없음)은 그대로 GOAL
+  const r0 = kbb.recommend(m, base(Object.assign({}, o, { watchOnly: false })));
+  assert.strictEqual(r0.byId.IG.kind, 'GOAL');
+});
+
 test('추천(qa 11-19 P2-1): 미래 국민 줄이 만든 last_kb_year(오늘 연도 이후)는 되찾기가 아니고 noFormer에도 영향이 없다', function () {
   const M = rec('IM', '미래시');
   const sum = { kb_now: 'OTHER', last_kb_year: 2030, lines_now: [{ rank_cd: 'SINGLE', bank_name: '우리은행', term_from: '2024-01-01', term_to: '2026-12-31' }, { rank_cd: 'SINGLE', bank_name: '국민은행', term_from: '2027-01-01', term_to: '2030-12-31' }] };

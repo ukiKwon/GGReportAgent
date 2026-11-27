@@ -1352,10 +1352,12 @@
     });
     const ex = { goal: 0, watch: 0, closed: 0, other: 0 };
     const kb = [], nx = [], sim = [], due = [], plan = [], est = [], end = [], byId = {};
-    const pickYear = function (pref) { return years.indexOf(pref) >= 0 ? { kind: 'GOAL', year: pref } : (o.noWatch ? null : { kind: 'WATCH', year: 0 }); };
+    // 관심 창(watchOnly)에서는 모든 줄이 관심 갈래 — 연도 목표로 정하지 않는다(11-27 사용자 신고). noWatch면 watchOnly를 무시.
+    const wOnly = !!o.watchOnly && !o.noWatch;
+    const pickYear = function (pref) { return wOnly ? { kind: 'WATCH', year: 0 } : (years.indexOf(pref) >= 0 ? { kind: 'GOAL', year: pref } : (o.noWatch ? null : { kind: 'WATCH', year: 0 })); };
     // ⑤⑥ 연도(팀 결정 11-24): 고를 수 있는 연도에 없으면 가장 가까운 연도(같은 거리면 앞 연도). 연도를 모르면(0) pickYear 규칙.
     const nearYear = function (pref) {
-      if (!pref || !years.length || years.indexOf(pref) >= 0) return pickYear(pref);
+      if (wOnly || !pref || !years.length || years.indexOf(pref) >= 0) return pickYear(pref);
       let best = years[0];
       years.forEach(function (y) { if (Math.abs(y - pref) < Math.abs(best - pref)) best = y; });
       return { kind: 'GOAL', year: best };
@@ -2296,7 +2298,7 @@
   function isPastGoal(r) { return !!r && r.kind !== 'WATCH' && tc.isPastYear(r.targetYear, U.todayDate().getFullYear()); }   // 지난해 목표는 구분·메모를 고칠 수 없다(팀 결정, qa P2-1)
   function canValueEdit(r) { return r.kind === 'WATCH' || (!isPastGoal(r) && ((!!gs.data && gs.data.value_edit_mode === 'DIRECT') || goalMode() === 'DIRECT')); }
   // ── 금고 방식(NEXT 114): 고르면 구분처럼 저장 전 대기(gs.draft.aimCd)에 담고 띠 [수정하기]로 저장. 지난해 목표(서버 aim_mode APPROVAL)·권한 없음은 고를 수 없다.
-  function aimList() { const t = gs.data && gs.data.codes && Array.isArray(gs.data.codes.aim_ranks) ? gs.data.codes.aim_ranks : []; return t.filter(function (x) { return x && x.code; }); }
+  function aimList() { const t = gs.data && gs.data.codes && Array.isArray(gs.data.codes.aim_ranks) ? gs.data.codes.aim_ranks : []; return t.filter(function (x) { return x && x.code && x.code !== 'OTHER'; }); }   // 11-27 임시 — 기타 이름 칸(S2 화면) 전까지 숨김, NEXT 125
   function aimNow(r) { const a = tc.draftAim(gs.draft, r); return a !== undefined ? String(a) : String(r.aimCd || ''); }   // 대기 중이면 대기 값
   function canAimEdit(r) { return !!r && r.kind !== 'WATCH' && r.aimMode === 'DIRECT' && !isPastGoal(r) && canBulkEdit() && aimList().length > 0; }
   function changeAim(r, code) {
@@ -2453,7 +2455,7 @@
     const snap = root.noticerec && root.noticerec.snap ? root.noticerec.snap() : null;
     // 넣을 곳(m.kind) 기준 — 목표이면 목표만(연도는 추천이 줄마다 고르므로 0), 관심이면 내 관심만. 남의 관심 기관은 내 목록이 아니므로 후보에 다시 나온다(의도).
     return { taken: takenFor(0, m && m.kind === 'WATCH' ? 'WATCH' : 'GOAL'), closed: closedMapNow(), closedUnknown: !snap, sumById: gs.sum, lofin: root.LOFIN_2026, verified: KB(), direct: gs.direct,
-      today: U.todayDate(), list: LIST, years: years, noWatch: noWatchNow(), groups: G };   // groups = 협약 구획 묶음(⑥ 협약 종료 1년 안의 출처)
+      today: U.todayDate(), list: LIST, years: years, noWatch: noWatchNow(), watchOnly: !!m && m.kind === 'WATCH', groups: G };   // groups = 협약 구획 묶음(⑥ 협약 종료 1년 안의 출처)
   }
   // 고른 기관의 주의 상자(규격 6-9): 올해 목표로 넣으려 할 때만. 서버 근거(막음, 제안 진행 중이면 막지 않음) → 화면만 아는 근거(주의만).
   function computeWarn(m) {

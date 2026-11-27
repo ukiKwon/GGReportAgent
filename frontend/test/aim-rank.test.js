@@ -146,6 +146,8 @@ test('8 배선 소스 단언', function () {
   assert.ok(K.indexOf('kbb.aimMenuHtml(r, { aims: aimList(), cur: aimNow(r) })') > 0);
   assert.ok(K.indexOf("act === 'tag' || act === 'aim'") > 0);
   assert.ok(K.indexOf('canAim: canAimEdit') > 0);
+  const al = K.indexOf('function aimList('), alEnd = K.indexOf('\n', al);   // 11-27 임시: aimList 가 OTHER(기타)를 메뉴에서 거른다
+  assert.ok(al > 0 && K.slice(al, alEnd).indexOf("x.code !== 'OTHER'") > 0);
   const a = K.indexOf('function changeAim('), b = K.indexOf('\n  function ', a + 10), seg = K.slice(a, b);
   assert.ok(a > 0 && seg.indexOf('saveTarget') < 0 && seg.indexOf('loadGoals') < 0 && seg.indexOf('tc.setAimDraft(') > 0);
 });
