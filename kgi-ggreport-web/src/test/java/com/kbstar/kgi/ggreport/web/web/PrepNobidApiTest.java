@@ -40,6 +40,7 @@ public class PrepNobidApiTest {
     private static final String SALES = "3918264";
     private static final String SALES2 = "7742059";
     private static final String LEAD = "5047192";
+    private static final String LEAD2 = "5640327";   // 다른 팀 영업팀장(시드: 아래 팀원 없음)
     private static final String HEAD = "2674805";
     private static final String IT = "4482971";
     private static final String DESIGNER = "7130526";
@@ -197,6 +198,7 @@ public class PrepNobidApiTest {
     @Test
     public void 영업팀장은_개설_뒤_건에서_CANCEL() throws Exception {
         prep(BID, "WRITING", SALES);
+        assign(BID, SALES);   // 11-27: 팀장은 자기 팀 건만 본다 — 담당자(SALES, LEAD 팀)가 있어야 같은 팀 건
         noBidRound();
         JsonNode b = body(LEAD, BID);
         assertEquals("popup", b.path("nobid_notice").path("mode").asText());
@@ -280,12 +282,14 @@ public class PrepNobidApiTest {
     @Test
     public void 회차가_없으면_대상_아님() throws Exception {
         prep(BID, "IN_PROGRESS", SALES);
+        assign(BID, SALES);   // 11-27: 팀장 열람은 자기 팀 건만 — 담당자가 LEAD 팀이어야 상세가 열린다
         assertNone(notice(LEAD, BID));
     }
 
     @Test
     public void 열린_회차가_뒤에_있으면_대상_아님() throws Exception {
         prep(BID, "IN_PROGRESS", SALES);
+        assign(BID, SALES);   // 11-27: 팀장 열람은 자기 팀 건만
         noBidRound();
         round(2, null, null);
         log(2, 1, "DELAYED", "2026-11-19T11:00:00+09:00");
@@ -295,8 +299,28 @@ public class PrepNobidApiTest {
     @Test
     public void 취소된_건이면_대상_아님() throws Exception {
         prep(BID, "CANCELLED", SALES);
+        assign(BID, SALES);   // 11-27: 중단 건은 옛 담당의 팀장만 본다(담당 행은 남아 있다)
         noBidRound();
         assertNone(notice(LEAD, BID));
+    }
+
+    /** N6(사용자 11-27): 다른 팀 팀장은 같은 확정됨 건을 봐도 받는 사람이 아니다 — 사실 줄만, 확인·정리 없음. 개설 뒤 건은 그 팀 밖이라 404. */
+    @Test
+    public void 다른_팀_팀장은_사실줄만이고_ack_정리_판정이_없다() throws Exception {
+        prep(BID, "CONFIRMED", SALES);
+        prep(BID2, "WRITING", SALES);
+        assign(BID2, SALES);
+        noBidRound();
+        JsonNode n = notice(LEAD2, BID);
+        assertTrue(n.path("applicable").asBoolean());
+        assertEquals("fact_only", n.path("mode").asText());
+        assertFalse(n.path("can_ack").asBoolean());
+        assertEquals("NONE", n.path("tidy_action").asText());
+        assertEquals(403, ack(LEAD2, BID, ackBody(1, 2)).getResponse().getStatus());
+        assertEquals(0, ackRows());
+        assertEquals(404, detail(LEAD2, BID2).getResponse().getStatus());   // 개설 뒤 다른 팀 건은 상세부터 없다
+        assertEquals(404, ack(LEAD2, BID2, ackBody(1, 2)).getResponse().getStatus());
+        assertEquals("같은 팀 팀장은 받는다", "UNCONFIRM", notice(LEAD, BID).path("tidy_action").asText());
     }
 
     // ── map 권한 ──────────────────────────────────────────────────────

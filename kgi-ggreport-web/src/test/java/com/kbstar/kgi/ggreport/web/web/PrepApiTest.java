@@ -419,7 +419,7 @@ public class PrepApiTest {
     @Test
     public void 팀장을_지명하면_영업부장이_결재한다() throws Exception {
         String bid = confirm(MEMBER, INST);
-        long req = openReq(bid, MEMBER, MEMBER2, LEAD2);   // 지명자 중 영업팀장
+        long req = openReq(bid, MEMBER, MEMBER2, LEAD);   // 지명자 중 영업팀장(같은 팀 — 다른 팀 지명은 11-27 부터 400)
         assertTrue(inInbox(HEAD, req));
         assertFalse(inInbox(LEAD, req));
         assertEquals(200, decide(HEAD, req, "APPROVE", null).getResponse().getStatus());
@@ -571,16 +571,18 @@ public class PrepApiTest {
         assertEquals(403, postJson(path, HEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
         assertEquals(400, postJson(path, LEAD, "{\"reason\":\"\"}").getResponse().getStatus());
         assertEquals("IN_PROGRESS", state(bid));
-        assertEquals(200, postJson(path, LEAD2, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
+        assertEquals(404, postJson(path, LEAD2, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());   // 다른 팀 팀장 — 건부터 없다(사용자 11-27)
+        assertEquals("IN_PROGRESS", state(bid));
+        assertEquals(200, postJson(path, LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
         assertEquals("CANCELLED", state(bid));
         assertEquals(1, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='CANCEL' AND REASON IS NOT NULL", bid));
 
         // 담당 해제(사용자 결정 ③): 활성 배정 0, 해제자·시각 기록, 배정 이력 RELEASE, 변경 신청 무효화용 GROUP_VER 증가
         assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", bid));
         assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND EMP_NO=? AND ACTIVE_YN=0 AND RELEASED_BY=? AND RELEASED_AT IS NOT NULL",
-                bid, MEMBER2, LEAD2));
+                bid, MEMBER2, LEAD));
         assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGN_LOG WHERE BID_CASE_ID=? AND ACTION_CD='RELEASE' AND TARGET_EMP_NO=? AND ACTOR_EMP_NO=?",
-                bid, MEMBER2, LEAD2));
+                bid, MEMBER2, LEAD));
         assertEquals(2, count("SELECT GROUP_VER FROM BID_ASSIGN_CASE WHERE BID_CASE_ID=?", bid));
         // 쓰기 권한 회수 — 옛 담당자는 체크·작성하기 403, 읽기만 가능(표시명 '중단(미참여)'), 영업팀장·영업부장도 읽기, 확정자(비팀장)·디자이너는 404
         assertEquals(403, postJson("/bidcases/" + bid + "/prep/tasks/T1/check", MEMBER2, "").getResponse().getStatus());
@@ -856,7 +858,9 @@ public class PrepApiTest {
         assertEquals(200, decide(HEAD, r3, "APPROVE", null).getResponse().getStatus());
         assertEquals(200, postJson("/bidcases/" + b3 + "/prep/start-writing", MEMBER2, "").getResponse().getStatus());
         assertEquals("WRITING", state(b3));
-        assertEquals(200, postJson("/bidcases/" + b3 + "/prep/cancel", LEAD2, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
+        assertEquals(404, postJson("/bidcases/" + b3 + "/prep/cancel", LEAD2, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());   // 다른 팀 팀장(11-27)
+        assertEquals("WRITING", state(b3));
+        assertEquals(200, postJson("/bidcases/" + b3 + "/prep/cancel", LEAD, "{\"reason\":\"미참여 결정\"}").getResponse().getStatus());
         assertEquals("CANCELLED", state(b3));
         assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", b3));
         assertEquals(3, count("SELECT COUNT(*) FROM TASKS WHERE BID_CASE_ID=?", b3));   // 만든 작업은 기록으로 남는다
@@ -1127,14 +1131,57 @@ public class PrepApiTest {
         assertFalse(body(getAs("/bidcases/" + bid + "/prep/history", MEMBER2)).contains("가상 양식 취소 사유"));
     }
 
+    /** T3(사용자 11-27): 팀장은 자기 팀 건만 상세·이력·첨부·양식을 본다. 건의 팀 = 담당자의 팀(확정자가 아니다). 확정됨은 영업팀 전원 열람 유지. */
+    @Test
+    public void 팀장은_자기_팀_건만_상세_첨부_양식을_보고_건의_팀은_담당자의_팀이다() throws Exception {
+        String bid = opened(INST);   // 담당 MEMBER2 — 팀 LEAD
+        String[] tails = {"/prep", "/prep/history", "/prep/attachments", "/prep/forms/INST_SUMMARY"};
+        for (String t : tails) {
+            assertEquals(t, 200, getAs("/bidcases/" + bid + t, LEAD).getResponse().getStatus());
+            assertEquals(t, 404, getAs("/bidcases/" + bid + t, LEAD2).getResponse().getStatus());   // 다른 팀 팀장은 열람 자체가 없다
+        }
+        assertTrue(listItem(json(getAs("/preps", LEAD)), bid).path("can_view").asBoolean());
+        assertFalse(listItem(json(getAs("/preps", LEAD2)), bid).path("can_view").asBoolean());
+
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", LEAD2, MEMBER2);   // 담당자가 다른 팀으로 이동(수동 지정 유지)
+        flushCache();
+        for (String t : tails) {
+            assertEquals(t, 200, getAs("/bidcases/" + bid + t, LEAD2).getResponse().getStatus());
+            assertEquals(t, 404, getAs("/bidcases/" + bid + t, LEAD).getResponse().getStatus());   // 확정자 MEMBER 는 LEAD 팀이지만 건은 담당자의 팀
+        }
+        assertEquals(200, getAs("/bidcases/" + bid + "/prep", HEAD).getResponse().getStatus());
+
+        String c = confirm(MEMBER, "dobong");   // 확정됨 — 영업팀 전원 열람 유지
+        assertEquals(200, getAs("/bidcases/" + c + "/prep", LEAD2).getResponse().getStatus());
+        assertEquals(200, getAs("/bidcases/" + c + "/prep", LEAD).getResponse().getStatus());
+    }
+
+    /** N5(사용자 11-27): 팀장 자격 행위(확정 취소·중단·양식 확정 취소)는 자기 팀 건만 — 다른 팀 팀장은 확정 취소 403·중단 404·양식 확정 취소 403, 단추 값도 false. */
+    @Test
+    public void 다른_팀_팀장은_확정_취소_중단_양식_확정_취소를_못_한다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        MvcResult un = postJson("/bidcases/" + bid + "/prep/unconfirm", LEAD2, "{\"reason\":\"다른 팀 취소\"}");
+        assertEquals(body(un), 403, un.getResponse().getStatus());
+        assertEquals("CONFIRMED", state(bid));
+        assertFalse(json(getAs("/bidcases/" + bid + "/prep", LEAD2)).path("viewer").path("can_unconfirm").asBoolean());
+        assertTrue(json(getAs("/bidcases/" + bid + "/prep", LEAD)).path("viewer").path("can_unconfirm").asBoolean());
+
+        String b2 = opened("dobong");
+        assertEquals(404, postJson("/bidcases/" + b2 + "/prep/cancel", LEAD2, "{\"reason\":\"다른 팀 중단\"}").getResponse().getStatus());
+        assertEquals("IN_PROGRESS", state(b2));
+        assertEquals(403, postJson("/bidcases/" + b2 + "/prep/forms/INST_SUMMARY/unconfirm", LEAD2, "{\"reason\":\"다른 팀 취소\"}").getResponse().getStatus());
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_LOG WHERE BID_CASE_ID=? AND EVENT_CD='FORM_UNCONFIRM'", b2));
+    }
+
     @Test
     public void 중단_사유는_영업팀장_영업부장과_옛_담당자가_본다() throws Exception {
         String bid = opened(INST);
         assertEquals(200, postJson("/bidcases/" + bid + "/prep/cancel", LEAD, "{\"reason\":\"가상 중단 사유\"}").getResponse().getStatus());
         // 옛 담당자(MEMBER2)도 본다 — 사용자 답 2026-11-15 ⓐ 보여 주기(Q-2026-11-15-05)
-        for (String emp : new String[]{LEAD, LEAD2, HEAD, MEMBER2}) {
+        for (String emp : new String[]{LEAD, HEAD, MEMBER2}) {
             assertEquals(emp, "가상 중단 사유", eventRow(bid, emp, "CANCEL").path("reason").asText());
         }
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep/history", LEAD2).getResponse().getStatus());   // 다른 팀 팀장은 열람 자체가 없다(사용자 11-27)
         assertEquals(404, getAs("/bidcases/" + bid + "/prep/history", MEMBER).getResponse().getStatus());   // 담당이 아니었던 팀원은 열람 자체가 없다
     }
 
@@ -1149,9 +1196,10 @@ public class PrepApiTest {
         long plan = planReq(bid, MEMBER2);
         assertEquals(200, decide(HEAD, plan, "REJECT", "가상 보완 의견").getResponse().getStatus());
         assertEquals("IN_PROGRESS", state(bid));
-        for (String emp : new String[]{MEMBER2, LEAD, LEAD2, HEAD}) {   // 신청자·팀장·부장
+        for (String emp : new String[]{MEMBER2, LEAD, HEAD}) {   // 신청자·팀장·부장
             assertEquals(emp, "가상 보완 의견", eventRow(bid, emp, "PLAN_REJECT").path("reason").asText());
         }
+        assertEquals(404, getAs("/bidcases/" + bid + "/prep/history", LEAD2).getResponse().getStatus());   // 다른 팀 팀장은 열람 자체가 없다(사용자 11-27)
         JsonNode co = eventRow(bid, DESIGNER, "PLAN_REJECT");   // 공동 담당자(신청자 아님) — 열린 질문 1 답에 따라 바뀜
         assertNotNull(co);
         assertTrue(co.path("reason").isNull());
@@ -1317,37 +1365,53 @@ public class PrepApiTest {
     }
 
     @Test
-    public void 결재선의_팀장이_비활성이거나_결재선에_팀장이_없으면_다른_팀_팀장으로_넘기지_않고_400() throws Exception {
+    public void 결재선의_팀장이_비활성이거나_결재선에_팀장이_없으면_다른_팀_팀장으로_넘기지_않고_409_TEAM_NOT_RESOLVED() throws Exception {
         String bid = confirm(MEMBER, INST);
         String path = "/bidcases/" + bid + "/prep/open-requests";
+        int before = count("SELECT COUNT(*) FROM APPROVAL_REQUEST WHERE REQ_TYPE='BID_OPEN'");
         jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", LEAD);   // 남은 활성 영업팀장 = LEAD2 하나
         flushCache();
         MvcResult r = postJson(path, MEMBER, "{\"emp_nos\":" + arr(MEMBER2) + "}");
-        assertEquals(400, r.getResponse().getStatus());
-        assertEquals("APPROVER_NOT_RESOLVED", json(r).path("detail").path("code").asText());
+        // 11-27: 지명자 팀 검사(확정자의 팀을 못 정하면 409)가 결재자 계산보다 먼저다 — 예전 400 APPROVER_NOT_RESOLVED 가 이 코드로 앞당겨졌다
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("TEAM_NOT_RESOLVED", json(r).path("detail").path("code").asText());
         jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=NULL WHERE EMP_NO=?", MEMBER);
         flushCache();
         MvcResult none = postJson(path, MEMBER, "{\"emp_nos\":" + arr(MEMBER2) + "}");   // 결재선이 비어도 유일한 활성 팀장(LEAD2)으로 넘기지 않는다(security 11-23)
-        assertEquals(400, none.getResponse().getStatus());
-        assertEquals("APPROVER_NOT_RESOLVED", json(none).path("detail").path("code").asText());
+        assertEquals(409, none.getResponse().getStatus());
+        assertEquals("TEAM_NOT_RESOLVED", json(none).path("detail").path("code").asText());
+        assertEquals(before, count("SELECT COUNT(*) FROM APPROVAL_REQUEST WHERE REQ_TYPE='BID_OPEN'"));
+        assertEquals("CONFIRMED", state(bid));
     }
 
     @Test
-    public void 결재자가_자동_지정이면_같은_팀을_보장할_수_없어_400_APPROVER_NOT_RESOLVED() throws Exception {
+    public void 결재자가_자동_지정이면_같은_팀을_보장할_수_없어_409_TEAM_NOT_RESOLVED() throws Exception {
         String bid = confirm(MEMBER, INST);
         jdbc.update("UPDATE USERS SET APPROVER_MANUAL=0 WHERE EMP_NO=?", MEMBER);   // 결재선은 LEAD 그대로, 방식만 자동(사용자 11-23 밤 ⓐ)
         flushCache();
         MvcResult r = postJson("/bidcases/" + bid + "/prep/open-requests", MEMBER, "{\"emp_nos\":" + arr(MEMBER2) + "}");
-        assertEquals(400, r.getResponse().getStatus());
-        assertEquals("APPROVER_NOT_RESOLVED", json(r).path("detail").path("code").asText());
+        assertEquals(409, r.getResponse().getStatus());   // 11-27: 팀 검사가 결재자 계산보다 먼저라 400 APPROVER_NOT_RESOLVED 에서 앞당겨짐
+        assertEquals("TEAM_NOT_RESOLVED", json(r).path("detail").path("code").asText());
         assertEquals("CONFIRMED", state(bid));
+    }
+
+    @Test
+    public void 개설_신청_뒤_확정자가_다른_팀이_되면_승인하면_409_ASSIGNEE_TEAM_CHANGED이고_배정되지_않는다() throws Exception {   // security 하-2
+        String bid = confirm(MEMBER, INST);
+        long req = openReq(bid, MEMBER, MEMBER2);   // 같은 팀 지명
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", LEAD2, MEMBER);   // 신청 뒤 확정자만 다른 팀으로 — 지명자는 옛 팀
+        flushCache();
+        MvcResult r = decide(LEAD, req, "APPROVE", null);
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("ASSIGNEE_TEAM_CHANGED", json(r).path("detail").path("code").asText());
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=?", bid));
     }
 
     @Test
     public void 신청_뒤_팀장이_바뀐_대기_건은_승인하면_409_APPROVER_TEAM_MISMATCH() throws Exception {
         String bid = confirm(MEMBER, INST);
         long req = openReq(bid, MEMBER, MEMBER2);   // 결재 단계 = LEAD
-        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", LEAD2, MEMBER);   // 신청 뒤 팀 이동
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO IN (?, ?)", LEAD2, MEMBER, MEMBER2);   // 신청 뒤 확정자·지명자가 함께 팀 이동(지명자가 확정자 팀 밖이면 먼저 ASSIGNEE_TEAM_CHANGED)
         flushCache();
         assertEquals(403, decide(LEAD2, req, "APPROVE", null).getResponse().getStatus());   // 새 팀장도 결재 단계가 아니다
         MvcResult r = decide(LEAD, req, "APPROVE", null);   // 한 트랜잭션 시험이라 이 뒤로는 단언하지 않는다

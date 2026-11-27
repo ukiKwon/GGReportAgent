@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>시험 안내 — 팀 단위 권한 1차</title>
+<style>
+:root{--ink:#222;--sub:#666;--line:#ddd;--bg:#f6f6f4;--card:#fff;--ok:#1f7a3a;--warn:#a15c00;--acc:#545045}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 "맑은 고딕","Malgun Gothic",sans-serif}
+header{background:var(--acc);color:#fff;padding:14px 24px}header h1{margin:0;font-size:24px}header p{margin:4px 0 0;font-size:12px;opacity:.85}
+main{max-width:1100px;margin:0 auto;padding:16px 24px 40px}
+.how{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--sub)}
+h2.day{font-size:20px;margin:24px 0 8px;border-bottom:2px solid var(--acc);padding-bottom:4px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:4px;margin:0 0 12px;padding:12px 16px}
+.c h3{margin:0 0 6px;font-size:18px}.meta{font-size:12px;color:var(--sub);margin-bottom:8px}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:2px;margin-right:4px;border:1px solid}
+.t-r{color:var(--warn);border-color:var(--warn)}.t-f{color:var(--ok);border-color:var(--ok)}.t-n{color:var(--sub);border-color:var(--line)}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid var(--line);padding:6px 8px;vertical-align:top}
+th{background:#f0efeb;text-align:center;width:16%}td.chk{width:56px;text-align:center}
+code{background:#f0efeb;padding:0 4px;border-radius:2px}
+</style></head><body>
+<header><h1>시험 안내 — 팀 단위 권한 1차</h1><p>fb 세션(제안 준비 현황) · (이번 커밋) · 계정: 김영업 3918264 · 이영업(팀장) 5047192 · 다른 팀 영업팀장 5640327 · 영업부장 2674805 · 마스터 8203417</p></header>
+<main>
+<div class="how"><span class="tag t-f">Ctrl+F5</span> 화면만 · <span class="tag t-r">재기동</span> 서버 바뀜(main이 8080 재기동 뒤) · <span class="tag t-n">시험 없음</span></div>
+
+<div class="c"><h3>팀 단위 권한 1차 — 제안 준비 현황(사전준비 쪽) 보기·담당 지정</h3><div class="meta"><span class="tag t-r">재기동</span>(이번 커밋) · 서버 재기동 뒤 화면을 새로고침한 뒤 확인 · 쓰기 확인(중단·확정 취소)은 시험용 건에서만</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>5640327(다른 팀 영업팀장) → 영업 추진 준비 › 제안 준비 현황 → 진행 중 '사립학교교직원연금공단'(담당 이영업 팀) 줄</td><td>그 줄의 기관 이름을 눌러 상세를 연다</td><td>상세가 열리지 않고 '볼 수 없는 건' 안내가 보여야 함</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>이영업 5047192 → 같은 화면 → 같은 '사립학교교직원연금공단' 줄</td><td>같은 줄을 눌러 상세를 연다</td><td>상세·첨부·요약 양식이 그대로 보여야 함</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>영업부장 2674805 → 같은 화면 → 같은 건과 다른 팀 건</td><td>아무 진행 중 건이나 눌러 상세를 연다</td><td>모든 건의 상세가 열려야 함</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>5640327 → 제안 준비 현황 → 담당자 없는 '확정됨' 건 '영천시청' 줄</td><td>그 줄을 눌러 상세를 연다</td><td>영업부서 누구나 상세가 열려야 함(예전과 같음, 바뀌지 않음)</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>김영업 3918264 → 제안 준비 현황 → '영천시청'(확정됨) 상세 → 1단계 담당자 고르기 창</td><td>담당자 후보 목록을 본다</td><td>같은 팀 사람만 보여야 함. 다른 팀 사람은 후보에 나오지 않음(확인만, 지정 누르지 않음)</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>담당자 변경(추가) — 같은 팀 후보만</h3><div class="meta"><span class="tag t-r">재기동</span>(이번 커밋) · 실제 추가 누르기는 시험용 건에서만</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>이영업 5047192 → 제안 준비 현황 → 진행 중 '사립학교교직원연금공단' 상세 → 담당자 변경 창</td><td>추가 후보 목록을 본다</td><td>이영업 팀 사람만 후보로 보여야 함</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>같은 담당자 변경 창 → 후보를 열어 본 뒤 닫기</td><td>다른 팀 사람이 있는지 본다</td><td>다른 팀 사람은 보이지 않아야 함</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>중단·확정 취소 단추 — 다른 팀 건에서는 안 보임</h3><div class="meta"><span class="tag t-r">재기동</span>(이번 커밋) · 단추를 실제로 누르는 확인은 시험용 건에서만</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>5640327 → 제안 준비 현황 → 남의 팀 진행 중 건 상세</td><td>단추 줄을 본다</td><td>[중단…]·[확정 취소] 단추가 보이지 않아야 함(서버도 거절)</td><td class="chk"><input type="checkbox"></td></tr>
+<tr><td>이영업 5047192 → 같은 팀 진행 중 건 상세</td><td>단추 줄을 본다</td><td>[중단…]·[확정 취소] 단추가 예전처럼 보여야 함</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>참고: 결재선 미지정 안내</h3><div class="meta"><span class="tag t-n">시험 없음</span>이 PC 시드 계정은 모두 상위 결재자가 지정돼 있어 보통은 보이지 않음 — 참고용</div>
+<table><tr><th>어디서</th><th>해 볼 것</th><th>기대 결과</th><th>확인</th></tr>
+<tr><td>(결재자가 없는 사람이 확정한 건이 있을 때만) 담당자 지정 시도</td><td>담당자 지정 창을 연다</td><td>'오른쪽 위 설정에서 결재선을 지정한 뒤 다시 해 주세요' 안내가 보여야 함. 보이면 알려 줄 것</td><td class="chk"><input type="checkbox"></td></tr></table></div>
+
+<div class="c"><h3>아직 안 된 것 (시험 대상 아님)</h3><div class="meta"><span class="tag t-n">시험 없음</span>다음 차례로 남은 권한 항목. 확인 칸은 적용 뒤 채움</div>
+<table><tr><th>항목</th><th>지금 상태</th><th>볼 곳</th><th>확인</th></tr>
+<tr><td>이사회 자료를 같은 팀 팀장이 읽기</td><td>다음 차례 — 아직 적용되지 않음</td><td>—</td><td class="chk">—</td></tr>
+<tr><td>회의록 기본 열람을 자기 팀 팀장으로</td><td>다음 차례 — 아직 적용되지 않음</td><td>—</td><td class="chk">—</td></tr>
+<tr><td>디자인 검토·영업 작업물 1차 결재를 자기 팀 팀장으로</td><td>다음 차례 — 아직 적용되지 않음</td><td>—</td><td class="chk">—</td></tr>
+<tr><td>팀장 단독 담당 금지</td><td>다음 차례 — 아직 적용되지 않음</td><td>—</td><td class="chk">—</td></tr>
+<tr><td>중단 요청 결재</td><td>다음 차례 — 아직 적용되지 않음</td><td>—</td><td class="chk">—</td></tr></table></div>
+
+<div class="meta">이상하면 알려 줄 것: 어느 계정으로, 어느 단추에서, 어느 기관·건이 보였는지/안 보였는지.</div>
+</main></body></html>

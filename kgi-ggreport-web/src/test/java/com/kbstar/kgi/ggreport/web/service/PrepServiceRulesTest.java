@@ -35,34 +35,37 @@ public class PrepServiceRulesTest {
         for (String role : new String[]{BidAssignmentService.HEAD_ROLE, Teams.DESIGNER_TEAM}) {
             SysUser u = user("1000001", role);
             for (String st : STATES) {
-                assertFalse(role + "/" + st, PrepService.canUnconfirm(u, prep(st, "1000001")));
-                assertFalse(role + "/" + st, PrepService.canCancel(u, prep(st, "1000001")));
+                assertFalse(role + "/" + st, PrepService.canUnconfirm(u, prep(st, "1000001"), true));   // 팀장 자격이 참이어도 부장·디자이너는 없다
+                assertFalse(role + "/" + st, PrepService.canCancel(u, prep(st, "1000001"), true));
             }
-            assertFalse(PrepService.hasUnconfirmAuthority(u, prep(PrepService.CONFIRMED, "1000001")));
-            assertFalse(PrepService.hasCancelAuthority(u));
+            assertFalse(PrepService.hasUnconfirmAuthority(u, prep(PrepService.CONFIRMED, "1000001"), true));
+            assertFalse(PrepService.hasCancelAuthority(u, true));
         }
     }
 
     @Test
-    public void 확정취소는_CONFIRMED에서_확정한_영업팀이나_영업팀장만() {
+    public void 확정취소는_CONFIRMED에서_확정한_영업팀이나_그_팀의_영업팀장만() {
         SysUser member = user("1000002", BidAssignmentService.MEMBER_ROLE);
         SysUser lead = user("1000003", BidAssignmentService.LEAD_ROLE);
         for (String st : STATES) {
             boolean confirmed = PrepService.CONFIRMED.equals(st);
-            assertEquals(st, confirmed, PrepService.canUnconfirm(member, prep(st, "1000002")));
-            assertFalse(st, PrepService.canUnconfirm(member, prep(st, "9999999")));
-            assertEquals(st, confirmed, PrepService.canUnconfirm(lead, prep(st, "9999999")));
+            assertEquals(st, confirmed, PrepService.canUnconfirm(member, prep(st, "1000002"), false));
+            assertFalse(st, PrepService.canUnconfirm(member, prep(st, "9999999"), false));
+            assertFalse(st, PrepService.canUnconfirm(member, prep(st, "9999999"), true));   // 팀원은 팀장 자격이 참이어도 남의 확정을 못 취소한다
+            assertEquals(st, confirmed, PrepService.canUnconfirm(lead, prep(st, "9999999"), true));
+            assertFalse(st, PrepService.canUnconfirm(lead, prep(st, "9999999"), false));   // 다른 팀 팀장(11-27)
         }
     }
 
     @Test
-    public void 중단은_개설_뒤_세_상태에서_영업팀장만() {
+    public void 중단은_개설_뒤_세_상태에서_그_팀의_영업팀장만() {
         SysUser member = user("1000002", BidAssignmentService.MEMBER_ROLE);
         SysUser lead = user("1000003", BidAssignmentService.LEAD_ROLE);
         for (String st : STATES) {
             boolean open = PrepService.IN_PROGRESS.equals(st) || PrepService.WRITABLE.equals(st) || PrepService.WRITING.equals(st);
-            assertEquals(st, open, PrepService.canCancel(lead, prep(st, "1000002")));
-            assertFalse(st, PrepService.canCancel(member, prep(st, "1000002")));
+            assertEquals(st, open, PrepService.canCancel(lead, prep(st, "1000002"), true));
+            assertFalse(st, PrepService.canCancel(lead, prep(st, "1000002"), false));   // 다른 팀 팀장은 중단 못 함(11-27)
+            assertFalse(st, PrepService.canCancel(member, prep(st, "1000002"), true));
         }
     }
 }

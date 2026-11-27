@@ -300,6 +300,7 @@ public class AssigneeChangeApiTest {
             jdbc.update("INSERT INTO USERS (EMP_NO, NAME, ROLE, POSITION_TITLE, APPROVAL_GRADE, STATUS, FAILED_LOGINS, "
                     + "CREATED_AT, UPDATED_AT) VALUES (?, ?, '영업팀', '사원', 'NONE', 'ACTIVE', 0, 'x', 'x')", "910000" + i, "가상" + i);
         }
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=?, APPROVER_MANUAL=1 WHERE EMP_NO LIKE '910000%'", LEAD);   // 11-27: 같은 팀(결재자 LEAD 지정)이어야 추가 대상이 된다 — 팀 검사가 인원 검사보다 먼저
         String bc = newCase();
         initial(bc, MEMBER, MEMBER2, M3, M4, M5, M6, "9100001", "9100002", "9100003", "9100004");   // 10명
         MvcResult r = change(LEAD, bc, a("9100005"), a(), "사유");
@@ -438,6 +439,8 @@ public class AssigneeChangeApiTest {
     public void 영업팀장이_추가_대상이면_영업부장_결재_다른_팀장도_승인_못_한다() throws Exception {
         String bc = newCase();
         initial(bc, MEMBER);
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", LEAD2, MEMBER);   // 담당을 LEAD2 팀으로 — 같은 팀 팀장만 추가할 수 있다(사용자 11-27)
+        flushCache();
         MvcResult r = change(MEMBER, bc, a(LEAD2), a(), "사유");
         assertEquals(201, r.getResponse().getStatus());
         long id = json(r).path("req_id").asLong();
@@ -449,21 +452,57 @@ public class AssigneeChangeApiTest {
     }
 
     @Test
-    public void 체인이_없고_영업팀장이_둘이면_400_APPROVER_NOT_RESOLVED_하나뿐이면_그_사람() throws Exception {
+    public void 결재선이_비어_팀을_못_정하면_409_TEAM_NOT_RESOLVED이고_유일한_팀장으로도_넘기지_않는다() throws Exception {
+        // 11-27: 추가 대상의 팀 검사(기준 팀 = 지금 담당들의 팀)가 결재자 계산보다 먼저다 — 예전 400 APPROVER_NOT_RESOLVED / 유일한 활성 팀장 대체(201)가 이 코드로 대체됨.
+        // '유일한 활성 팀장 대체' 자체(resolveApprover)는 담당자 변경 경로에서는 닿지 않게 됐다 — 다른 유형은 ApprovalLineApiTest·BoardMaterial 쪽 시험이 본다(메인이 전체 시험으로 확인).
         String bc = newCase();
         initial(bc, MEMBER);
         jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=NULL WHERE EMP_NO=?", MEMBER);
         flushCache();
         MvcResult r = change(MEMBER, bc, a(MEMBER2), a(), "사유");
-        assertEquals(400, r.getResponse().getStatus());
-        assertEquals("APPROVER_NOT_RESOLVED", json(r).path("detail").path("code").asText());
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("TEAM_NOT_RESOLVED", json(r).path("detail").path("code").asText());
         assertEquals(0, changeRequests());
 
-        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", LEAD2);
+        jdbc.update("UPDATE USERS SET STATUS='LOCKED' WHERE EMP_NO=?", LEAD2);   // 활성 영업팀장이 LEAD 하나 — 그래도 그 사람으로 넘기지 않는다
         flushCache();
         MvcResult ok = change(MEMBER, bc, a(MEMBER2), a(), "사유");
-        assertEquals(201, ok.getResponse().getStatus());
-        assertEquals(LEAD, json(ok).path("steps").get(0).path("approver_emp_no").asText());
+        assertEquals(409, ok.getResponse().getStatus());
+        assertEquals("TEAM_NOT_RESOLVED", json(ok).path("detail").path("code").asText());
+        assertEquals(0, changeRequests());
+    }
+
+    /** 하-1(security 11-27): 신청 뒤 추가 대상의 결재자가 바뀌어 다른 팀 사람이 되면 승인은 409 ASSIGNEE_TEAM_CHANGED 이고 배정은 그대로다. */
+    @Test
+    public void 신청_뒤_추가_대상이_다른_팀이_되면_승인은_409_ASSIGNEE_TEAM_CHANGED_배정_불변() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        long id = submitOk(MEMBER, bc, a(MEMBER2), a());   // 같은 팀 신청 — 결재자 LEAD
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", LEAD2, MEMBER2);   // 신청 뒤 대상이 LEAD2 팀으로 이동
+        flushCache();
+        MvcResult r = decide(LEAD, id, "APPROVE", null);
+        assertEquals(409, r.getResponse().getStatus());
+        assertEquals("ASSIGNEE_TEAM_CHANGED", json(r).path("detail").path("code").asText());
+        assertFalse(r.getResponse().getContentAsString(StandardCharsets.UTF_8).contains(MEMBER2));   // 오류에 사번 없음
+        assertEquals(1, active(bc));
+        assertFalse(service.isActiveAssignee(bc, MEMBER2));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGN_LOG WHERE BID_CASE_ID=? AND ACTION_CD='ADD'", bc));
+    }
+
+    /** N-변경 신청 팀 검사(사용자 11-27): 추가 대상이 담당들의 팀 밖이면 신청이 400 ASSIGNEE_OTHER_TEAM 이고 요청이 생기지 않는다. 같은 팀 팀장도 다른 팀 사람은 못 넣는다. */
+    @Test
+    public void 신청에서도_담당들의_팀_밖_대상은_400_ASSIGNEE_OTHER_TEAM() throws Exception {
+        String bc = newCase();
+        initial(bc, MEMBER);
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", LEAD2, MEMBER2);   // MEMBER2 는 LEAD2 팀
+        flushCache();
+        for (String emp : new String[]{MEMBER, LEAD}) {
+            MvcResult r = change(emp, bc, a(MEMBER2), a(), "사유");
+            assertEquals(emp, 400, r.getResponse().getStatus());
+            assertEquals(emp, "ASSIGNEE_OTHER_TEAM", json(r).path("detail").path("code").asText());
+        }
+        assertEquals(0, changeRequests());
+        assertNull(pending(bc));
     }
 
     @Test
@@ -640,6 +679,8 @@ public class AssigneeChangeApiTest {
     public void 승인_때_영업팀장이_추가_대상인데_결재자가_영업팀장이면_409_배정_불변() throws Exception {
         String bc = newCase();
         initial(bc, MEMBER);
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", LEAD2, MEMBER);   // 담당을 LEAD2 팀으로 — 같은 팀 팀장만 추가할 수 있다(사용자 11-27)
+        flushCache();
         long id = submitOk(MEMBER, bc, a(LEAD2), a());
         jdbc.update("UPDATE APPROVAL_STEP SET APPROVER_EMP_NO=? WHERE REQ_ID=?", LEAD, id);
         flushCache();

@@ -378,6 +378,45 @@ public class PrepStartApiTest {
         assertEquals(1, act(bid, "BLOCKED", MEMBER, "prep_detail", "open_start", 1, "CONFIRMED"));
     }
 
+    /** N1(사용자 11-27 '다른 팀 사람을 담당자로 지정하는 건 막아'): 확정자의 팀 밖 지명은 400 ASSIGNEE_OTHER_TEAM이고 시작되지 않는다. */
+    @Test
+    public void S16_다른_팀_사람을_지정하면_400_ASSIGNEE_OTHER_TEAM이고_시작되지_않는다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        MvcResult r = start(bid, MEMBER, LEAD2);   // 다른 팀 팀장
+        assertCode(r, 400, "ASSIGNEE_OTHER_TEAM");
+        String text = r.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertFalse(text, text.contains(MEMBER) || text.contains(LEAD2));   // 사번 없음
+        assertEquals("CONFIRMED", state(bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=?", bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_TASK WHERE BID_CASE_ID=?", bid));
+        // 결재선이 팀장 없이 부장으로 가 있어 팀이 정해지지 않은 팀원도 팀 밖이다(fail-closed)
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", HEAD, MEMBER2);
+        flushMyBatisCache();
+        assertCode(start(bid, MEMBER, MEMBER2), 400, "ASSIGNEE_OTHER_TEAM");
+        assertEquals("CONFIRMED", state(bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=?", bid));
+        // 대조군: 같은 팀 팀장이 자기와 팀원을 지정하면 시작된다
+        MvcResult ok = start(bid, LEAD, MEMBER, LEAD);
+        assertEquals(ok.getResponse().getContentAsString(), 200, ok.getResponse().getStatus());
+        assertEquals("IN_PROGRESS", state(bid));
+        assertEquals(2, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", bid));
+    }
+
+    /** N2: 확정자의 팀을 못 정하면(결재선에 팀장이 없음) 409 TEAM_NOT_RESOLVED — 팀장 지명으로 알림 대상은 잡히게 해 이 검사에 닿게 한다. */
+    @Test
+    public void S17_확정자의_팀을_못_정하면_409_TEAM_NOT_RESOLVED이고_시작되지_않는다() throws Exception {
+        String bid = confirm(MEMBER, INST);
+        jdbc.update("UPDATE USERS SET APPROVER_EMP_NO=? WHERE EMP_NO=?", HEAD, MEMBER);   // 수동 지정은 유지, 결재선에 영업팀장 없음
+        flushMyBatisCache();
+        MvcResult r = start(bid, MEMBER, LEAD);   // 팀장 지명 → 알림은 영업부장에게(NOTIFY 검사 통과)
+        assertCode(r, 409, "TEAM_NOT_RESOLVED");
+        String text = r.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertFalse(text, text.contains(MEMBER) || text.contains(LEAD));   // 사번 없음
+        assertEquals("CONFIRMED", state(bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=?", bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_TASK WHERE BID_CASE_ID=?", bid));
+    }
+
     @Test
     public void S15_시작의_화면_값은_prep_detail_open_start만_유효하고_그_밖은_UNKNOWN으로_남는다() throws Exception {
         String bid = confirm(MEMBER, INST);

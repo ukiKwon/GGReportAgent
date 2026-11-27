@@ -96,7 +96,7 @@ public class PrepNobidService {
         m.put("can_view_notice", seeNotice);
         m.put("acked", acked);
         m.put("can_ack", recipient);
-        m.put("tidy_action", applicable ? tidyAction(me, p) : TIDY_NONE);
+        m.put("tidy_action", applicable ? tidyAction(me, p, prep.ownTeamLead(me, p)) : TIDY_NONE);
         return m;
     }
 
@@ -152,12 +152,13 @@ public class PrepNobidService {
         return NoticeRoundRules.advanced(base, v.getCurLastBid()) ? null : v;
     }
 
-    /** 팝업 받는 사람 — 영업 계열(디자이너 제외) 중 팀장·부장, 활성 담당자, 개설 전 건의 확정 취소 권한자(design 11-19 권장). */
+    /** 팝업 받는 사람 — 영업 계열(디자이너 제외) 중 이 건 팀의 팀장(11-27)·부장, 활성 담당자, 개설 전 건의 확정 취소 권한자(design 11-19 권장). */
     private boolean isRecipient(SysUser me, BidPrep p) {
         if (!PrepService.isSalesOrHead(me)) {
             return false;
         }
-        if (PrepService.isLeadOrHead(me)) {
+        boolean teamLead = prep.ownTeamLead(me, p);
+        if (PrepService.isHeadRole(me) || teamLead) {   // 영업부장, 또는 이 건 팀의 영업팀장(사용자 11-27)
             return true;
         }
         if (assignments.isActiveAssignee(p.getBidCaseId(), me.getEmpNo())) {
@@ -165,21 +166,21 @@ public class PrepNobidService {
         }
         String st = p.getStateCd();
         return (PrepService.CONFIRMED.equals(st) || PrepService.OPEN_PENDING.equals(st))
-                && PrepService.hasUnconfirmAuthority(me, p);
+                && PrepService.hasUnconfirmAuthority(me, p, teamLead);
     }
 
     /** [제안 진행 정리하기] 버튼 판정 — 실행은 기존 unconfirm·cancel API 가 다시 판정한다. 막힌 상태 코드는 언젠가 정리할 권한이 있는 사람에게만. */
-    private static String tidyAction(SysUser me, BidPrep p) {
-        if (PrepService.canUnconfirm(me, p)) {
+    private static String tidyAction(SysUser me, BidPrep p, boolean teamLead) {
+        if (PrepService.canUnconfirm(me, p, teamLead)) {
             return TIDY_UNCONFIRM;
         }
-        if (PrepService.canCancel(me, p)) {
+        if (PrepService.canCancel(me, p, teamLead)) {
             return TIDY_CANCEL;
         }
-        if (PrepService.OPEN_PENDING.equals(p.getStateCd()) && PrepService.hasUnconfirmAuthority(me, p)) {
+        if (PrepService.OPEN_PENDING.equals(p.getStateCd()) && PrepService.hasUnconfirmAuthority(me, p, teamLead)) {
             return TIDY_OPEN_PENDING;   // 개설 신청을 먼저 회수·반려
         }
-        if (PrepService.APPROVAL_PENDING.equals(p.getStateCd()) && PrepService.hasCancelAuthority(me)) {
+        if (PrepService.APPROVAL_PENDING.equals(p.getStateCd()) && PrepService.hasCancelAuthority(me, teamLead)) {
             return TIDY_PLAN_PENDING;   // 사전준비 승인 요청을 먼저 회수·반려
         }
         return TIDY_NONE;

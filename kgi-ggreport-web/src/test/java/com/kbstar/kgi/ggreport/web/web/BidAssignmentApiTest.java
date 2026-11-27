@@ -337,19 +337,36 @@ public class BidAssignmentApiTest {
             }
             assertTrue(emps.contains(MEMBER));
             assertTrue(emps.contains(LEAD));
-            assertTrue(emps.contains("5640327"));
+            assertEquals(emp, HEAD.equals(emp), emps.contains("5640327"));   // 다른 팀 팀장은 영업부장 목록에만(사용자 11-27 — 영업팀·영업팀장은 같은 팀만)
             assertFalse(emps.contains(MEMBER2));
             assertFalse(emps.contains(HEAD));
             assertFalse(emps.contains(DESIGNER));
             assertFalse(emps.contains(ADMIN));
             assertFalse(emps.contains(IT));
-            assertEquals(count("SELECT COUNT(*) FROM USERS WHERE STATUS='ACTIVE' AND ROLE IN ('영업팀','영업팀장')"), arr.size());
+            int expected = HEAD.equals(emp)
+                    ? count("SELECT COUNT(*) FROM USERS WHERE STATUS='ACTIVE' AND ROLE IN ('영업팀','영업팀장')")
+                    : count("SELECT COUNT(*) FROM USERS WHERE STATUS='ACTIVE' AND (EMP_NO=? OR (ROLE='영업팀' AND APPROVER_MANUAL=1 AND APPROVER_EMP_NO=?))", LEAD, LEAD);   // 시드: 영업팀 전원의 결재자 = LEAD(수동, 011)
+            assertEquals(emp, expected, arr.size());
         }
+    }
+
+    /** N4(사용자 11-27): 영업팀·영업팀장의 후보는 같은 팀만, 팀을 못 정하면(결재자 자동 지정) 빈 목록(200) — 넓히지 않는다. */
+    @Test
+    public void 후보는_같은_팀만이고_팀을_못_정하면_빈_목록이다() throws Exception {
+        JsonNode lead2 = json(getAs("/assignment-candidates", "5640327"));   // 다른 팀 팀장 — 아래 팀원 없음
+        assertEquals(1, lead2.size());
+        assertEquals("5640327", lead2.get(0).path("emp_no").asText());
+        jdbc.update("UPDATE USERS SET APPROVER_MANUAL=0 WHERE EMP_NO=?", MEMBER);
+        newCase();   // MyBatis 쓰기로 1차 캐시를 비운다
+        MvcResult r = getAs("/assignment-candidates", MEMBER);
+        assertEquals(200, r.getResponse().getStatus());
+        assertEquals(0, json(r).size());
+        assertTrue("영업부장은 전원", json(getAs("/assignment-candidates", HEAD)).size() > 2);
     }
 
     @Test
     public void 후보_목록은_DB_이름순과_같고_키는_네_개다() throws Exception {
-        JsonNode arr = json(getAs("/assignment-candidates", LEAD));
+        JsonNode arr = json(getAs("/assignment-candidates", HEAD));   // 전원 목록(영업부장)으로 정렬·키를 본다 — 영업팀·팀장은 같은 팀만 받는다(11-27)
         List<String> expected = jdbc.queryForList(
                 "SELECT EMP_NO FROM USERS WHERE STATUS='ACTIVE' AND ROLE IN ('영업팀','영업팀장') ORDER BY NAME, EMP_NO", String.class);
         assertEquals(expected.size(), arr.size());

@@ -395,7 +395,7 @@ public class PrepService {
         log(bid, "CONFIRM", CANCELLED, CONFIRMED, null, null, null, me, actor);
     }
 
-    /** 확정 취소(3) — 확정한 사람 또는 영업팀장, CONFIRMED 에서만. 개설 대기면 409 OPEN_PENDING(먼저 회수). 사유 1~200자. */
+    /** 확정 취소(3) — 확정한 사람 또는 그 팀의 영업팀장, CONFIRMED 에서만. 개설 대기면 409 OPEN_PENDING(먼저 회수). 사유 1~200자. */
     @Transactional
     public Map<String, Object> unconfirm(SysUser me, Actor actor, String bidCaseId, PrepIn.Reason in) {
         requireSales(me);
@@ -406,8 +406,8 @@ public class PrepService {
         if (!CONFIRMED.equals(p.getStateCd())) {
             throw stateChanged();
         }
-        if (!me.getEmpNo().equals(p.getConfirmedBy()) && !isLead(me)) {
-            throw new ApiException(403, "확정한 사람 또는 영업팀장만 확정을 취소할 수 있습니다.");
+        if (!hasUnconfirmAuthority(me, p, ownTeamLead(me, p))) {   // 팀장은 자기 팀 건만(사용자 11-27) — 확정됨 건의 팀 = 확정자의 팀
+            throw new ApiException(403, "확정한 사람 또는 그 팀의 영업팀장만 확정을 취소할 수 있습니다.");
         }
         String reason = BoardMaterialService.checkedText(in == null ? null : in.getReason(), 200, "사유", true);
         requireTransit(mapper.transit(bidCaseId, CONFIRMED, CANCELLED, me.getEmpNo(), Times.nowIso()));
@@ -416,7 +416,7 @@ public class PrepService {
     }
 
     /**
-     * 중단(미참여) — 개설 뒤(IN_PROGRESS·WRITABLE·WRITING) 영업팀장만, 사유 필수, 결재 없음(사용자 결정 2026-11-10). 사전준비 승인 중이면 409 PLAN_PENDING.
+     * 중단(미참여) — 개설 뒤(IN_PROGRESS·WRITABLE·WRITING) 이 건 팀의 영업팀장만(11-27), 사유 필수, 결재 없음(사용자 결정 2026-11-10). 사전준비 승인 중이면 409 PLAN_PENDING.
      * 활성 담당 배정은 전부 해제한다(ACTIVE_YN=0, RELEASED_BY/AT, 배정 이력 RELEASE 행 — 쓰기 권한 회수, 사용자 결정 2026-11-11). 행은 지우지 않는다.
      * 대기 중이던 담당자 변경 신청은 GROUP_VER 증가로 무효가 된다(승인하면 409 GROUP_VER_CHANGED). 과제 행·작업(TASKS)은 그대로 둔다(기록 보존).
      * TODO: 작성 중(WRITING)에 만든 세 팀 작업·이사회 제출 대기 신청의 정리는 후속.
@@ -426,7 +426,10 @@ public class PrepService {
         if (!isLead(me)) {
             throw new ApiException(403, "중단은 영업팀장만 할 수 있습니다.");
         }
-        BidPrep p = require(bidCaseId);
+        BidPrep p = visible(me, bidCaseId);   // 다른 팀 진행 중 건은 없는 건과 같은 404(열람 규칙 11-27)
+        if (!assignments.leadsCaseTeam(me, p)) {   // 사용자 11-27 — 중단은 이 건 팀의 영업팀장만(확정됨처럼 볼 수는 있는 건은 403)
+            throw new ApiException(403, "중단은 이 건 팀의 영업팀장만 할 수 있습니다.");
+        }
         if (APPROVAL_PENDING.equals(p.getStateCd())) {
             throw coded(409, "PLAN_PENDING", "사전준비 승인 요청이 진행 중입니다. 먼저 회수하거나 반려된 뒤 중단하세요.");
         }
@@ -501,6 +504,7 @@ public class PrepService {
             throw stateChanged();
         }
         List<String> targets = assignments.validateTargets(empNos);
+        assignments.requireSameTeam(assignments.teamOfConfirmer(p.getConfirmedBy()), targets);   // 확정자의 팀만(사용자 11-27, security 하-2) — 스위치를 켜도 다른 팀 지명 우회 없음
         String note = BoardMaterialService.checkedText(comment, 200, "의견", false);
         boolean leadInvolved = isLead(me);
         for (String e : targets) {
@@ -538,6 +542,7 @@ public class PrepService {
      * 순서: 역할(403) → 스위치(409) → 건 잠금(404) → 상태(409 OPEN_PENDING·STATE_CHANGED) → 권한(403 확정자·확정자의 같은 팀 팀장) → 기관 잠금 →
      * 목표 조건(409 NOT_GOAL_TARGET·GOAL_CHANGE_PENDING — 소급하지 않은 목표 밖 옛 확정 건이 결재 없이 시작되지 않게) → 지명(400) → 의견(400/422)
      * → 알림 받을 사람(409 NOTIFY_TARGET_NOT_RESOLVED, fail-closed — 결재를 대신하는 감독 장치가 소리 없이 빠지지 않게)
+     * → 같은 팀(400 ASSIGNEE_OTHER_TEAM·409 TEAM_NOT_RESOLVED, 확정자의 팀만 — 사용자 11-27)
      * → 전이·배정·과제·이력·알림·성공 감사 줄(한 트랜잭션, 하나라도 실패하면 모두 되돌아간다).
      * ⚠️ 첫 DB 읽기는 잠금 읽기(lockPrep)다 — 이 위에 일반 SELECT 를 끼우지 않는다(MySQL RR 첫 일관 읽기, confirm 의 qa P3-8 과 같은 이유).
      * ⚠️ X-Emp-No 자기신고 위의 업무 규칙이다(사칭 방지 아님). 오류 문구에 사번·이름·기관명을 싣지 않는다.
@@ -569,6 +574,7 @@ public class PrepService {
         List<String> targets = assignments.validateTargets(in == null ? null : in.getEmpNos());
         String note = BoardMaterialService.checkedText(in == null ? null : in.getComment(), 200, "의견", false);
         Set<String> notifyTo = startNotifyTargets(me, p, targets);   // 못 정하면 409 — 쓰기 전에 끝낸다
+        assignments.requireSameTeam(assignments.teamOfConfirmer(p.getConfirmedBy()), targets);   // 확정자의 팀만(사용자 11-27) — 400 ASSIGNEE_OTHER_TEAM·409 TEAM_NOT_RESOLVED, 쓰기 전
         String now = Times.nowIso();
         requireTransit(mapper.markStarted(bidCaseId, me.getEmpNo(), now));
         int verified = BoardMaterialService.verified(actor);
@@ -582,7 +588,7 @@ public class PrepService {
         Map<String, Object> out = stateOut(bidCaseId, IN_PROGRESS);
         out.put("assignee_count", targets.size());
         out.put("notified_count", notifyTo.size());
-        out.put("can_view", isLead(me) || targets.contains(me.getEmpNo()));   // 시작한 영업팀원이 담당이 아니면 상세는 404(기존 열람 규칙)
+        out.put("can_view", canSee(me, mapper.selectPrep(bidCaseId)));   // 같은 트랜잭션의 새 상태·배정으로 판정 — 시작한 영업팀원이 담당이 아니면 false(11-27)
         return out;
     }
 
@@ -693,7 +699,7 @@ public class PrepService {
         out.put("removed_count", removed.size());
         out.put("assignee_count", remaining.size());
         out.put("notified_count", to.size());
-        out.put("can_view", isLead(me) || isHead(me) || remaining.contains(me.getEmpNo()));   // 스스로 빠졌으면 상세는 더 못 본다
+        out.put("can_view", canSee(me, mapper.selectPrep(bidCaseId)));   // 스스로 빠졌거나 담당이 모두 다른 팀이 되면 상세는 더 못 본다(11-27)
         audit.record(bidCaseId, "ASSIGNEE_CHANGE", "OK", before, null, actor, ui);   // 같은 트랜잭션 — 감사 줄이 실패하면 변경 전체가 되돌아간다
         return out;
     }
@@ -787,6 +793,10 @@ public class PrepService {
             targets = assignments.validateTargets(nominees);   // 상신 뒤 비활성·역할 변경 재검사
         } catch (ApiException e) {
             throw coded(409, "NOMINEE_CHANGED", "지명한 담당자의 상태가 신청 이후 바뀌어 승인할 수 없습니다. 반려하거나 회수하고 다시 신청하세요.");
+        }
+        Set<String> confirmerTeam = assignments.teamOfConfirmer(prep.getConfirmedBy());   // 승인 시점 재검사(security 11-27 하-2) — 신청 뒤 결재선이 바뀌어 다른 팀이 되면 승인째 되돌린다
+        if (confirmerTeam == null || !confirmerTeam.containsAll(targets)) {
+            throw coded(409, BidAssignmentService.ASSIGNEE_TEAM_CHANGED, BidAssignmentService.TEAM_CHANGED_MSG);
         }
         boolean leadInvolved = requester == null || isLead(requester);   // 알 수 없으면 보수적으로 부장만
         for (String e : targets) {
@@ -1121,7 +1131,7 @@ public class PrepService {
     }
 
     private boolean canSee(SysUser me, BidPrep p) {
-        if (isHead(me) || isLead(me)) {   // 영업부장·영업팀장은 모든 상태의 상세·이력을 읽기 전용으로 본다(사용자 결정 2026-11-11, 개설 대기 승인 판단용)
+        if (isHead(me)) {   // 영업부장은 모든 상태의 상세·이력을 읽기 전용으로 본다(사용자 결정 2026-11-11)
             return true;
         }
         if (assignments.isActiveAssignee(p.getBidCaseId(), me.getEmpNo())) {
@@ -1130,7 +1140,11 @@ public class PrepService {
         if (!isSales(me)) {
             return false;
         }
-        if (CONFIRMED.equals(p.getStateCd())) {   // 확정됨 — 영업팀 전원이 읽는다(사용자 결정 2026-11-11)
+        if (CONFIRMED.equals(p.getStateCd())) {   // 확정됨 — 영업팀 전원(팀장 포함)이 읽는다(사용자 결정 2026-11-11, 11-27 에도 유지)
+            return true;
+        }
+        // 영업팀장 = 자기 팀 건 모두(사용자 11-27 — 11-11 '전 팀'을 좁힘). 건의 팀 = 담당자의 팀, 시작 전은 확정자·개설 신청자(승인자 열람 유지)
+        if (isLead(me) && assignments.leadsCaseTeam(me, p)) {
             return true;
         }
         if (OPEN_PENDING.equals(p.getStateCd())) {   // 개설 대기 — 신청자는 읽기 전용으로 본다(신청 회수 버튼용)
@@ -1141,7 +1155,7 @@ public class PrepService {
         if (beforeOpen) {
             return me.getEmpNo().equals(p.getConfirmedBy());
         }
-        if (cancelled) {   // 개설 뒤 중단 건 — 읽기 전용: 영업팀장(부장은 위에서 통과)과 옛 담당자(사용자 결정 2026-11-11)
+        if (cancelled) {   // 개설 뒤 중단 건 — 읽기 전용: 자기 팀 영업팀장(부장은 위에서 통과)과 옛 담당자(사용자 결정 2026-11-11, 11-27)
             return mapper.countEverAssigned(p.getBidCaseId(), me.getEmpNo()) > 0;
         }
         return false;
@@ -1415,7 +1429,8 @@ public class PrepService {
         viewer.put("is_assignee", assignee);
         viewer.put("is_head", head);
         viewer.put("can_confirm", false);   // 이미 확정된 건이다
-        viewer.put("can_unconfirm", canUnconfirm(me, p));   // 입찰 없음 알림(PrepNobidService)과 같은 함수(security 11-19 중-1)
+        boolean teamLead = ownTeamLead(me, p);   // 팀장 자격 행위는 자기 팀 건만(사용자 11-27)
+        viewer.put("can_unconfirm", canUnconfirm(me, p, teamLead));   // 입찰 없음 알림(PrepNobidService)과 같은 함수(security 11-19 중-1)
         viewer.put("can_request_open", CONFIRMED.equals(p.getStateCd()) && isSales(me) && openApproval.isOn());   // 옛 흐름(스위치 켬)만
         boolean startBase = CONFIRMED.equals(p.getStateCd()) && !openApproval.isOn() && hasStartAuthority(me, p);   // 사용자 11-25
         String startBlocked = startBase ? goalStatus(p.getInstitutionId()) : null;   // 상태·스위치·권한은 맞는데 목표 조건만 막을 때만 값
@@ -1424,7 +1439,7 @@ public class PrepService {
         viewer.put("can_withdraw_open", openRequester);
         viewer.put("can_request_plan_approval", assignee && IN_PROGRESS.equals(p.getStateCd()) && ev.ready);
         viewer.put("can_start_writing", assignee && WRITABLE.equals(p.getStateCd()) && ev.ready);
-        viewer.put("can_cancel", canCancel(me, p));
+        viewer.put("can_cancel", canCancel(me, p, teamLead));
         viewer.put("can_upload", assignee && taskState);   // 첨부 올리기(71) — 활성 담당자, 과제 행이 있는 상태
         m.put("viewer", viewer);
         return m;
@@ -1594,25 +1609,33 @@ public class PrepService {
     // ── 판정 함수(같은 패키지 재사용: PrepNobidService) ──────────────────────
     // 주의: 여기의 isSales = 영업팀·영업팀장, isLead = 영업팀장만이다. HeadRules.isSales/isLead(부장 포함)와 뜻이 다르다 — 섞지 않는다(security 11-19 중-1).
 
-    /** 확정 취소 권한(상태 무관) — 영업팀·영업팀장 중 확정한 사람, 또는 영업팀장. 영업부장·디자이너는 없다. */
-    static boolean hasUnconfirmAuthority(SysUser me, BidPrep p) {
-        return isSales(me) && (me.getEmpNo().equals(p.getConfirmedBy()) || isLead(me));
+    /**
+     * 팀장 자격 입력 — 영업팀장이고 그 건이 자기 팀 건인가(사용자 11-27 '팀장은 자기 팀에 대해서만 중단·확정 취소').
+     * 아래 판정 함수는 이 값을 받아 순수 함수로 남는다(PrepServiceRulesTest).
+     */
+    boolean ownTeamLead(SysUser me, BidPrep p) {
+        return isLead(me) && assignments.leadsCaseTeam(me, p);
+    }
+
+    /** 확정 취소 권한(상태 무관) — 영업팀·영업팀장 중 확정한 사람, 또는 그 건 팀의 영업팀장(teamLead). 영업부장·디자이너는 없다. */
+    static boolean hasUnconfirmAuthority(SysUser me, BidPrep p, boolean teamLead) {
+        return isSales(me) && (me.getEmpNo().equals(p.getConfirmedBy()) || (isLead(me) && teamLead));
     }
 
     /** viewer.can_unconfirm — CONFIRMED 에서 확정 취소 권한이 있을 때. unconfirm() 의 서버 판정과 같은 식. */
-    static boolean canUnconfirm(SysUser me, BidPrep p) {
-        return CONFIRMED.equals(p.getStateCd()) && hasUnconfirmAuthority(me, p);
+    static boolean canUnconfirm(SysUser me, BidPrep p, boolean teamLead) {
+        return CONFIRMED.equals(p.getStateCd()) && hasUnconfirmAuthority(me, p, teamLead);
     }
 
-    /** 중단 권한(상태 무관) — 영업팀장만. */
-    static boolean hasCancelAuthority(SysUser me) {
-        return isLead(me);
+    /** 중단 권한(상태 무관) — 그 건 팀의 영업팀장만(11-27). */
+    static boolean hasCancelAuthority(SysUser me, boolean teamLead) {
+        return isLead(me) && teamLead;
     }
 
-    /** viewer.can_cancel — 개설 뒤(IN_PROGRESS·WRITABLE·WRITING) 영업팀장. abort() 의 서버 판정과 같은 식. */
-    static boolean canCancel(SysUser me, BidPrep p) {
+    /** viewer.can_cancel — 개설 뒤(IN_PROGRESS·WRITABLE·WRITING) 그 건 팀의 영업팀장. abort() 의 서버 판정과 같은 식. */
+    static boolean canCancel(SysUser me, BidPrep p, boolean teamLead) {
         String st = p.getStateCd();
-        return hasCancelAuthority(me) && (IN_PROGRESS.equals(st) || WRITABLE.equals(st) || WRITING.equals(st));
+        return hasCancelAuthority(me, teamLead) && (IN_PROGRESS.equals(st) || WRITABLE.equals(st) || WRITING.equals(st));
     }
 
     /** 영업팀·영업팀장·영업부장(디자이너 제외). */
@@ -1620,9 +1643,9 @@ public class PrepService {
         return isSales(me) || isHead(me);
     }
 
-    /** 영업팀장·영업부장. */
-    static boolean isLeadOrHead(SysUser me) {
-        return isLead(me) || isHead(me);
+    /** 영업부장(이 파일의 isHead — HeadRules 와 섞지 않는다). */
+    static boolean isHeadRole(SysUser me) {
+        return isHead(me);
     }
 
     /** 이력 사유 칸(200자) 맞춤 — 결재 의견은 500자까지 받으므로 잘라 쓴다. 비면 null. */

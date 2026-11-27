@@ -7,6 +7,7 @@ import com.kbstar.kgi.ggreport.web.domain.BidAssignCase;
 import com.kbstar.kgi.ggreport.web.domain.BidAssignLogView;
 import com.kbstar.kgi.ggreport.web.domain.BidAssignMine;
 import com.kbstar.kgi.ggreport.web.domain.BidAssigneeView;
+import com.kbstar.kgi.ggreport.web.domain.BidPrep;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.mapper.ApprovalRequestMapper;
 import com.kbstar.kgi.ggreport.web.mapper.BidAssignmentMapper;
@@ -112,7 +113,7 @@ public class BidAssignmentService {
         Map<String, Object> viewer = new LinkedHashMap<>();
         viewer.put("is_assignee", isAssignee);
         viewer.put("can_assign", lead && !assigned);
-        viewer.put("can_request_change", assigned && (isAssignee || lead) && pending == null);
+        viewer.put("can_request_change", assigned && (isAssignee || (lead && activeInTeam(bidCaseId, me))) && pending == null);   // 팀장은 자기 팀 건만(11-27)
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("bid_case_id", bidCaseId);
         m.put("assigned", assigned);
@@ -183,10 +184,10 @@ public class BidAssignmentService {
         requireSalesTeam(me);
         requireBidCase(bidCaseId);
         // '작성본 인계'(HANDOVER) 행은 그 건에 이사회 자료가 있었다는 사실과 인수자 이름을 드러낸다(security 하-3, 사용자 확정 2026-11-10).
-        // 그 건의 현재 담당자·영업팀장·영업부장에게만 보이고 그 외에게는 응답에서 뺀다. 다른 행은 그대로. 호출자 활성 여부는 컨트롤러가 이미 확인했다.
+        // 그 건의 현재 담당자·이 건 팀의 영업팀장·영업부장에게만 보이고 그 외에게는 응답에서 뺀다. 다른 행은 그대로. 호출자 활성 여부는 컨트롤러가 이미 확인했다.
         String myRole = roleOf(me);
-        boolean seesHandover = LEAD_ROLE.equals(myRole) || HEAD_ROLE.equals(myRole)
-                || isActiveAssignee(bidCaseId, me.getEmpNo());
+        boolean seesHandover = HEAD_ROLE.equals(myRole) || isActiveAssignee(bidCaseId, me.getEmpNo())
+                || (LEAD_ROLE.equals(myRole) && leadsCaseOrAssignTeam(me, bidCaseId));   // 팀장은 자기 팀 건만(사용자 11-27)
         List<Map<String, Object>> out = new ArrayList<>();
         for (BidAssignLogView l : mapper.selectLog(bidCaseId)) {
             if (!seesHandover && ACTION_HANDOVER.equals(l.getActionCd())) {
@@ -223,12 +224,18 @@ public class BidAssignmentService {
         return out;
     }
 
-    /** 담당자 후보 — 열람자 규칙은 배정 조회와 같다(영업팀·영업팀장·영업부장, 그 외 403). 본인 포함, 이름순. */
+    /** 담당자 후보 — 열람자 규칙은 배정 조회와 같다(영업팀·영업팀장·영업부장, 그 외 403). 본인 포함, 이름순. 영업팀·영업팀장은 같은 팀만(11-27). */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> candidates(SysUser me) {
         requireSalesTeam(me);
+        // 사용자 11-27 — 영업팀·영업팀장에게는 같은 팀만(팀을 못 정하면 빈 목록, 넓히지 않음). 영업부장은 지정 권한이 없어 전원(보기만).
+        boolean all = HEAD_ROLE.equals(roleOf(me));
+        Set<String> team = all ? null : salesTeamEmpNos(me);
         List<Map<String, Object>> out = new ArrayList<>();
         for (SysUser u : mapper.selectCandidates(MEMBER_ROLE, LEAD_ROLE)) {
+            if (!all && (team == null || !team.contains(u.getEmpNo()))) {
+                continue;
+            }
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("emp_no", u.getEmpNo());
             m.put("name", u.getName());
@@ -305,8 +312,9 @@ public class BidAssignmentService {
         requireBidCase(bidCaseId);
         BidAssignCase head = mapper.selectCase(bidCaseId);
         List<BidAssigneeView> cur = head == null ? new ArrayList<BidAssigneeView>() : mapper.selectActiveAssignees(bidCaseId);
-        if (!lead && !containsEmp(cur, me.getEmpNo())) {
-            throw new ApiException(403, "담당자 변경은 현재 담당자 또는 영업팀장만 신청할 수 있습니다.");
+        // 팀장 자격은 자기 팀 건만(사용자 11-27). 담당이 아직 없는 건은 아래 409 NOT_ASSIGNED 가 그대로 나도록 통과시킨다.
+        if (!containsEmp(cur, me.getEmpNo()) && !(lead && (cur.isEmpty() || activeInTeam(bidCaseId, me)))) {
+            throw new ApiException(403, "담당자 변경은 현재 담당자 또는 이 건 팀의 영업팀장만 신청할 수 있습니다.");
         }
         if (head == null || cur.isEmpty()) {
             throw coded(409, "NOT_ASSIGNED", "아직 담당자가 배정되지 않은 입찰 건입니다. 먼저 최초 배정을 하세요.");
@@ -344,6 +352,9 @@ public class BidAssignmentService {
             if (u != null && LEAD_ROLE.equals(roleOf(u))) {
                 leadInvolved = true;
             }
+        }
+        if (!add.isEmpty()) {   // 사용자 11-27 — 새로 넣는 사람은 지금 담당들의 팀 안에서만(기존 다른 팀 담당은 그대로·빼기는 막지 않음)
+            requireSameTeam(teamOfAssignees(active), add);
         }
         checkResultSize(active.size() - remove.size() + add.size());
         if (add.isEmpty() && !hasUsableRemaining(active, remove)) {
@@ -479,6 +490,12 @@ public class BidAssignmentService {
             }
             if (LEAD_ROLE.equals(roleOf(requireAssignable(e)))) {   // 상신 뒤 비활성·역할 변경 재검사
                 leadInvolved = true;
+            }
+        }
+        if (!add.isEmpty()) {   // 승인 시점 재검사(security 11-27 하-1) — 신청 뒤 대상의 결재선이 바뀌어 다른 팀 사람이 되면 승인째 되돌린다. 오류에 사번·이름 없음
+            Set<String> baseTeam = teamOfAssignees(active);
+            if (baseTeam == null || !baseTeam.containsAll(add)) {
+                throw coded(409, ASSIGNEE_TEAM_CHANGED, TEAM_CHANGED_MSG);
             }
         }
         if (leadInvolved && !HEAD_ROLE.equals(dRole)) {   // 팀장 관련 건은 영업부장만 승인(결재선이 어긋나도 마지막에 한 번 더 막는다)
@@ -754,6 +771,123 @@ public class BidAssignmentService {
         return ApproverRules.firstInChain(u, byEmp, LEAD_ROLE);
     }
 
+    static final String ASSIGNEE_OTHER_TEAM = "ASSIGNEE_OTHER_TEAM";
+    static final String TEAM_NOT_RESOLVED = "TEAM_NOT_RESOLVED";
+    static final String OTHER_TEAM_MSG = "다른 팀 직원이나 소속 팀(상위 결재자 팀장)이 정해지지 않은 직원은 담당자로 지정할 수 없습니다. 그 직원이 오른쪽 위 '설정'에서 결재선을 지정하면 고를 수 있습니다.";
+    static final String TEAM_NOT_RESOLVED_MSG = "이 건이 어느 팀 건인지 정할 수 없어 담당자를 지정하지 못했습니다. 화면 오른쪽 위 '설정'에서 결재선(상위 결재자)을 지정한 뒤 다시 해 주세요.";
+    static final String ASSIGNEE_TEAM_CHANGED = "ASSIGNEE_TEAM_CHANGED";
+    static final String TEAM_CHANGED_MSG = "신청 뒤 담당자의 소속 팀이 바뀌어 승인할 수 없습니다. 반려하거나 취소하고 다시 신청하세요.";
+
+    /** 사전준비 시작의 기준 팀 = 확정자의 팀(시작하는 사람은 확정자 본인 또는 그 같은 팀 팀장이라 팀이 같다, 사용자 11-27). 못 정하면 null. */
+    Set<String> teamOfConfirmer(String confirmerEmpNo) {
+        SysUser u = confirmerEmpNo == null ? null : users.selectByEmpNo(confirmerEmpNo);
+        return u == null ? null : salesTeamEmpNos(u);
+    }
+
+    /** 담당자 변경의 기준 팀 = 지금 활성 담당들의 팀을 합친 것(건은 담당자의 팀 — 기존 혼합 건도 새 팀은 못 끌어들인다). 한 명도 못 정하면 null. */
+    Set<String> teamOfAssignees(java.util.Collection<String> empNos) {
+        List<SysUser> all = users.selectAll();
+        Map<String, SysUser> byEmp = new HashMap<>();
+        for (SysUser u : all) {
+            byEmp.put(u.getEmpNo(), u);
+        }
+        Set<String> out = null;
+        for (String e : empNos) {
+            SysUser u = byEmp.get(e);
+            Set<String> t = u == null ? null : salesTeamEmpNos(u, all, byEmp);
+            if (t != null) {
+                if (out == null) {
+                    out = new HashSet<>();
+                }
+                out.addAll(t);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 다른 팀 담당 지정 금지(사용자 11-27 '다른 팀 사람을 담당자로 지정하는 건 막아'). 기준 팀을 못 정하면 409 TEAM_NOT_RESOLVED,
+     * 기준 팀 밖(팀 미지정 포함)이 하나라도 있으면 400 ASSIGNEE_OTHER_TEAM. 오류에 사번·이름·인원을 싣지 않는다.
+     */
+    void requireSameTeam(Set<String> base, java.util.Collection<String> targets) {
+        if (base == null || base.isEmpty()) {
+            throw coded(409, TEAM_NOT_RESOLVED, TEAM_NOT_RESOLVED_MSG);
+        }
+        for (String e : targets) {
+            if (!base.contains(e)) {
+                throw coded(400, ASSIGNEE_OTHER_TEAM, OTHER_TEAM_MSG);
+            }
+        }
+    }
+
+    /** 인계 행 공개용 — 사전준비 행이 있으면 leadsCaseTeam, 옛 직접 배정 건이면 활성 담당의 팀. */
+    boolean leadsCaseOrAssignTeam(SysUser me, String bidCaseId) {
+        BidPrep p = bidCaseId == null || bidCaseId.isEmpty() || bidCaseId.length() > 64 ? null : prepMapper.selectPrep(bidCaseId);
+        return p != null ? leadsCaseTeam(me, p) : activeInTeam(bidCaseId, me);
+    }
+
+    /**
+     * 그 사전준비 건이 영업팀장 me 의 팀 건인가 — 열람 판정 전용(쓰기·결재 권한 아님, 사용자 11-27 '팀장은 본인 팀의 모든 건',
+     * '다른 팀 사람을 담당자로 지정했다면 다른 팀에서만'). 건의 팀 = 담당자의 팀. 팀 = {@link #salesTeamEmpNos}(결재선 구조 — /prep-board team 과 같은 함수).
+     * 진행 중 = 활성 담당 / 확정됨·시작 전 확정 취소 = 확정자 / 개설 대기 = 확정자·개설 신청자(승인자 = 신청자의 같은 팀 팀장이라 승인 판단 열람 유지, 11-11)
+     * / 시작 뒤 중단 = 옛 담당. 모르는 상태·영업팀장 아님은 false. 결재자가 자동 지정인 팀원은 어느 팀장의 팀에도 들지 않는다(fail-closed, 부장은 본다).
+     * ⚠️ X-Emp-No 자기신고 위의 업무 규칙이다(사칭 방지 아님).
+     */
+    boolean leadsCaseTeam(SysUser me, BidPrep p) {
+        if (me == null || p == null || !LEAD_ROLE.equals(roleOf(me))) {
+            return false;
+        }
+        Set<String> team = salesTeamEmpNos(me);
+        if (team == null) {
+            return false;
+        }
+        String st = p.getStateCd();
+        String bid = p.getBidCaseId();
+        if (PrepService.CONFIRMED.equals(st)) {
+            return p.getConfirmedBy() != null && team.contains(p.getConfirmedBy());
+        }
+        if (PrepService.OPEN_PENDING.equals(st)) {
+            if (p.getConfirmedBy() != null && team.contains(p.getConfirmedBy())) {
+                return true;
+            }
+            ApprovalRequest r = p.getOpenReqId() == null ? null : requests.selectById(p.getOpenReqId());
+            return r != null && r.getRequesterEmpNo() != null && team.contains(r.getRequesterEmpNo());
+        }
+        if (PrepService.CANCELLED.equals(st)) {
+            if (p.getOpenedAt() == null) {
+                return p.getConfirmedBy() != null && team.contains(p.getConfirmedBy());
+            }
+            for (String e : team) {   // 팀은 수 명 — 옛 담당 묶음 질의 대신 사람별 count
+                if (prepMapper.countEverAssigned(bid, e) > 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (PrepService.TASK_STATES.contains(st)) {
+            return activeInTeam(bid, team);
+        }
+        return false;
+    }
+
+    /** 이사회 자료 같은 팀 열람(11-27) — 그 건의 활성 담당 중 한 명이라도 me 의 팀에 드는가. 팀을 못 정하면 false(넓히지 않음). */
+    boolean activeInTeam(String bidCaseId, SysUser me) {
+        Set<String> team = me == null ? null : salesTeamEmpNos(me);
+        return team != null && activeInTeam(bidCaseId, team);
+    }
+
+    private boolean activeInTeam(String bidCaseId, Set<String> team) {
+        if (bidCaseId == null || bidCaseId.isEmpty() || bidCaseId.length() > 64) {
+            return false;
+        }
+        for (BidAssigneeView v : mapper.selectActiveAssignees(bidCaseId)) {
+            if (team.contains(v.getEmpNo())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 대시보드 '팀 작업'(NEXT 102 scope=team)의 팀 사번. 영업팀장 = 나 + 구조상 팀장이 나인 영업팀원.
      * 영업팀원 = 내 구조상 팀장 + 그 팀장 아래 영업팀원 + 나. 팀장을 못 정하거나 영업팀·영업팀장이 아니면 null(호출한 쪽이 '나 혼자'로 좁힌다 — 넓히지 않음).
@@ -768,6 +902,15 @@ public class BidAssignmentService {
         Map<String, SysUser> byEmp = new HashMap<>();
         for (SysUser u : all) {
             byEmp.put(u.getEmpNo(), u);
+        }
+        return salesTeamEmpNos(me, all, byEmp);
+    }
+
+    /** 사람 목록을 한 번 읽고 여러 사람의 팀을 셀 때 — 판정은 위와 같다. */
+    private static Set<String> salesTeamEmpNos(SysUser me, List<SysUser> all, Map<String, SysUser> byEmp) {
+        String r = roleOf(me);
+        if (!LEAD_ROLE.equals(r) && !MEMBER_ROLE.equals(r)) {
+            return null;
         }
         String leadEmp;
         if (LEAD_ROLE.equals(r)) {

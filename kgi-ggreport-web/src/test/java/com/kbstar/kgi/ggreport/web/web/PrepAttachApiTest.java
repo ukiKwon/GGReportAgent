@@ -549,17 +549,54 @@ public class PrepAttachApiTest {
         assertEquals(1, count("SELECT COUNT(*) FROM NOTIFICATIONS WHERE KIND='사전준비알림' AND RECIPIENT=? AND CONTENT LIKE '[담당자 변경]%'", HEAD));       // 팀장이 바꿨으니 영업부장에게도
     }
 
-    /** security 재검토(cb705c6e) 권고: 다른 팀 영업팀장(안재원 5640327, 이 건 담당자의 결재선 밖)의 자기 추가는 403이고 담당은 그대로. */
+    /** security 재검토(cb705c6e) 권고 + 사용자 11-27: 다른 팀 영업팀장(안재원 5640327, 이 건 담당자의 결재선 밖)의 자기 추가는 404(열람부터 없다, canSee 가 403 보다 먼저)이고 담당은 그대로. */
     @Test
-    public void 다른_팀_팀장의_자기_추가는_403() throws Exception {
+    public void 다른_팀_팀장의_자기_추가는_404_존재_은닉() throws Exception {
         String lead2 = "5640327";
         String bid = opened();   // 담당자 = 윤서준(MEMBER2), 팀장 = 이영업(LEAD)
         String path = "/bidcases/" + bid + "/prep/assignees/change";
         MvcResult r = postJson(path, lead2, "{\"add_emp_nos\":" + arr(lead2) + ",\"reason\":\"다른 팀 팀장\"}");
-        assertEquals(text(r), 403, r.getResponse().getStatus());
+        assertEquals(text(r), 404, r.getResponse().getStatus());   // 11-27: 다른 팀 건은 열람부터 없다
         assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", bid));
         assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1 AND EMP_NO=?", bid, lead2));
         assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ASSIGNEE_CHANGE' AND OUTCOME='OK'", bid));
+    }
+
+    /** N3(사용자 11-27 '다른 팀 사람을 담당자로 지정하는 건 막아'): 추가 대상은 지금 담당들의 팀 안에서만 — 밖이면 400 ASSIGNEE_OTHER_TEAM, 이미 섞인 건에서 빼기는 막지 않는다. */
+    @Test
+    public void 담당자_추가는_지금_담당들의_팀_밖이면_400이고_빼기는_막지_않는다() throws Exception {
+        String lead2 = "5640327";
+        String bid = opened();   // 담당자 = 윤서준(MEMBER2), 팀 = LEAD
+        String path = "/bidcases/" + bid + "/prep/assignees/change";
+        MvcResult r = postJson(path, MEMBER2, "{\"add_emp_nos\":" + arr(lead2) + ",\"reason\":\"다른 팀 팀장 추가\"}");
+        assertEquals(text(r), 400, r.getResponse().getStatus());
+        assertEquals("ASSIGNEE_OTHER_TEAM", code(json(r)));
+        assertFalse(text(r), text(r).contains(lead2));   // 오류에 사번을 싣지 않는다
+        assertEquals(1, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1", bid));
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_PREP_ACT WHERE BID_CASE_ID=? AND ACTION_CD='ASSIGNEE_CHANGE' AND OUTCOME='OK'", bid));
+        // 이미 다른 팀 사람이 담당으로 섞인 건(옛 자료) — 그 사람을 빼는 변경은 허용
+        jdbc.update("INSERT INTO BID_ASSIGNMENT (BID_CASE_ID, EMP_NO, ACTIVE_YN, ASSIGNED_BY, ASSIGNED_AT) VALUES (?,?,1,?,?)", bid, lead2, LEAD, Times.nowIso());
+        flushCache();
+        MvcResult rm = postJson(path, MEMBER2, "{\"remove_emp_nos\":" + arr(lead2) + ",\"reason\":\"다른 팀 정리\"}");
+        assertEquals(text(rm), 200, rm.getResponse().getStatus());
+        assertEquals(0, count("SELECT COUNT(*) FROM BID_ASSIGNMENT WHERE BID_CASE_ID=? AND ACTIVE_YN=1 AND EMP_NO=?", bid, lead2));
+    }
+
+    /** security 하-3(사용자 11-27): 다른 팀 팀장의 첨부 삭제는 404(없는 건과 같은 응답) — 건이 있다는 것도 알리지 않는다. 같은 팀 팀장은 200. */
+    @Test
+    public void 다른_팀_팀장의_첨부_삭제는_404이고_첨부는_그대로다() throws Exception {
+        String lead2 = "5640327";
+        String bid = opened();
+        long a1 = uploaded(bid, MEMBER2, "T4", "붙임1.pdf", pdf("First attached document pages", false));
+        String base = "/bidcases/" + bid + "/prep/attachments/";
+        MvcResult other = postJson(base + a1 + "/void", lead2, "{\"reason\":\"다른 팀 정리\"}");
+        assertEquals(text(other), 404, other.getResponse().getStatus());
+        assertEquals(1, count("SELECT VALID_YN FROM BID_PREP_ATTACH WHERE ATTACH_ID=?", a1));
+        MvcResult none = postJson("/bidcases/no-such-case/prep/attachments/" + a1 + "/void", lead2, "{\"reason\":\"다른 팀 정리\"}");
+        assertEquals(404, none.getResponse().getStatus());
+        assertEquals(text(none), text(other));   // 없는 건과 같은 응답 바이트
+        assertEquals(200, postJson(base + a1 + "/void", LEAD, "{\"reason\":\"같은 팀 정리\"}").getResponse().getStatus());
+        assertEquals(0, count("SELECT VALID_YN FROM BID_PREP_ATTACH WHERE ATTACH_ID=?", a1));
     }
 
     @Test

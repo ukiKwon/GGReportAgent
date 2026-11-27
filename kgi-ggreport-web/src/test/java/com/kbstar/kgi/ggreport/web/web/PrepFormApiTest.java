@@ -181,6 +181,19 @@ public class PrepFormApiTest {
         assertEquals(404, call(HttpMethod.GET, "/bidcases/" + bid + "/prep/forms/OTHER", ASSIGNEE, null, null).getResponse().getStatus());
     }
 
+    /** 사용자 11-27: 팀장은 자기 팀 건만 — 다른 팀 팀장은 양식 열람 404, 양식 확정 취소 403(담당도 이 건 팀 팀장도 아님), 같은 팀 팀장은 권한 검사를 통과해 409 NOT_CONFIRMED. */
+    @Test
+    public void 다른_팀_팀장은_양식을_못_보고_확정_취소도_못_한다() throws Exception {
+        String lead2 = "5640327";
+        String bid = opened();
+        assertEquals(404, call(HttpMethod.GET, url(bid, ""), lead2, null, null).getResponse().getStatus());
+        assertEquals(1, acts(bid, "FORM_VIEW", "HIDDEN"));
+        assertEquals(403, call(HttpMethod.POST, url(bid, "/unconfirm"), lead2, "{'reason':'다른 팀 취소'}", "form_unconfirm").getResponse().getStatus());
+        assertEquals(1, acts(bid, "FORM_UNCONFIRM", "DENIED"));
+        assertEquals("같은 팀 팀장은 권한을 통과한다", 409,
+                call(HttpMethod.POST, url(bid, "/unconfirm"), LEAD, "{'reason':'팀장 취소'}", "form_unconfirm").getResponse().getStatus());
+    }
+
     @Test
     public void 디자이너는_그_건_디자이너_작업이_본인에게_배정됐을_때만_열람한다_빈_담당_선점은_쓰지_않는다() throws Exception {
         String bid = opened();

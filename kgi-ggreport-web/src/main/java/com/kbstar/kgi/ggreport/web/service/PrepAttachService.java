@@ -198,7 +198,7 @@ public class PrepAttachService {
 
     // ── 목록(10)·내려받기(11) ────────────────────────────────────────────
 
-    /** 목록 — 활성 담당자·영업팀장·영업부장.그 밖은 404(건이 없는 것과 같은 응답). 메타만(파일 본체 없음). */
+    /** 목록 — 활성 담당자·자기 팀 영업팀장·영업부장.그 밖은 404(건이 없는 것과 같은 응답). 메타만(파일 본체 없음). */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list(SysUser me, String bidCaseId) {
         requireViewer(me, bidCaseId);
@@ -245,7 +245,7 @@ public class PrepAttachService {
 
     /**
      * 올려 둔 공고 원본(NOTICE)·RFP 붙임서류(T4)에서 '선정 평가표'(배점 표)를 글자 그대로 옮겨 온다 — LLM 없이 {@link ScoringTable}.
-     * 열람 규칙은 첨부 목록과 같다(담당자·영업팀장·영업부장, 그 밖은 404). 최근에 올린 파일부터 보고 처음 찾은 표를 돌려준다.
+     * 열람 규칙은 첨부 목록과 같다(담당자·자기 팀 영업팀장·영업부장, 그 밖은 404). 최근에 올린 파일부터 보고 처음 찾은 표를 돌려준다.
      * 응답: found, reason(NO_FILE 올린 파일 없음 · NOT_FOUND 읽을 수 있는 파일에 표가 없음), files(살펴본 파일 수),
      * 찾았으면 attach_id·file·kind(TABLE 행·칸 그대로 / LINES 줄 단위)·rows·total('계' 줄의 숫자)·page(PDF 쪽).
      * 값은 고치지 않는다 — 화면이 '원문 대조 필요'로 보인다. 파일을 읽지 못하면(없음·무결성) 그 파일은 건너뛴다.
@@ -366,16 +366,21 @@ public class PrepAttachService {
     // ── 무효 처리(12) ────────────────────────────────────────────────────
 
     /**
-     * 무효 처리(논리 삭제) — 올린 사람이면서 지금 활성 담당자이거나 영업팀장일 때만(사용자 결정 2026-11-11). 이미 무효면 409 STATE_CHANGED, 확정본이면 409 ATTACH_IN_USE.
+     * 무효 처리(논리 삭제) — 올린 사람이면서 지금 활성 담당자이거나 이 건 팀의 영업팀장일 때만(사용자 결정 2026-11-11, 11-27). 이미 무효면 409 STATE_CHANGED, 확정본이면 409 ATTACH_IN_USE.
      * 사유는 선택(비면 이력에 '(사유 없음)', 있으면 1~200자·개인정보 422). 파일은 지우지 않는다. 화면 문구는 '삭제'.
      */
     @Transactional
     public Map<String, Object> voidAttach(SysUser me, Actor actor, String bidCaseId, String attachIdRaw, PrepIn.Reason in) {
-        boolean lead = BidAssignmentService.LEAD_ROLE.equals(me.getRole() == null ? "" : me.getRole().trim());
-        if (!lead && !assignments.isActiveAssignee(bidCaseId, me.getEmpNo())) {
-            throw new ApiException(403, "첨부를 올린 담당자 또는 영업팀장만 삭제할 수 있습니다.");
+        boolean leadRole = BidAssignmentService.LEAD_ROLE.equals(me.getRole() == null ? "" : me.getRole().trim());
+        boolean assignee = assignments.isActiveAssignee(bidCaseId, me.getEmpNo());
+        if (!leadRole && !assignee) {
+            throw new ApiException(403, "첨부를 올린 담당자 또는 이 건 팀의 영업팀장만 삭제할 수 있습니다.");
         }
-        requirePrep(bidCaseId);
+        BidPrep prepRow = requirePrep(bidCaseId);
+        boolean lead = leadRole && assignments.leadsCaseTeam(me, prepRow);   // 팀장 자격은 자기 팀 건만(사용자 11-27)
+        if (leadRole && !lead && !assignee) {
+            throw ApiException.notFound("prep not found");   // 다른 팀 팀장 — 열람과 같은 404(존재 은닉, security 11-27 하-3)
+        }
         String state = mapper.selectStateForUpdate(bidCaseId);
         if (state == null) {
             throw ApiException.notFound("prep not found");
@@ -389,7 +394,7 @@ public class PrepAttachService {
             throw ApiException.notFound("attachment not found");
         }
         if (!lead && !me.getEmpNo().equals(a.getUploadedBy())) {
-            throw new ApiException(403, "첨부를 올린 담당자 또는 영업팀장만 삭제할 수 있습니다.");
+            throw new ApiException(403, "첨부를 올린 담당자 또는 이 건 팀의 영업팀장만 삭제할 수 있습니다.");
         }
         if (a.getValidYn() != 1) {
             throw stateChanged();
@@ -423,11 +428,13 @@ public class PrepAttachService {
     }
 
     private void requireViewer(SysUser me, String bidCaseId) {
-        boolean ok = bidCaseId != null && !bidCaseId.isEmpty() && bidCaseId.length() <= 64
-                && (BidAssignmentService.HEAD_ROLE.equals(me.getRole() == null ? "" : me.getRole().trim())
-                || BidAssignmentService.LEAD_ROLE.equals(me.getRole() == null ? "" : me.getRole().trim())   // 영업팀장도 열람(사용자 결정 2026-11-11)
-                || assignments.isActiveAssignee(bidCaseId, me.getEmpNo()));
-        if (!ok || mapper.selectPrep(bidCaseId) == null) {
+        BidPrep p = bidCaseId == null || bidCaseId.isEmpty() || bidCaseId.length() > 64 ? null : mapper.selectPrep(bidCaseId);
+        String role = me.getRole() == null ? "" : me.getRole().trim();
+        boolean ok = p != null
+                && (BidAssignmentService.HEAD_ROLE.equals(role)
+                || assignments.isActiveAssignee(bidCaseId, me.getEmpNo())
+                || (BidAssignmentService.LEAD_ROLE.equals(role) && assignments.leadsCaseTeam(me, p)));   // 자기 팀 영업팀장만 열람(사용자 11-27, 11-11 '전 팀'을 좁힘)
+        if (!ok) {
             throw ApiException.notFound("prep not found");   // 없는 건과 열람 불가는 같은 응답
         }
     }

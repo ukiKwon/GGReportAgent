@@ -87,14 +87,16 @@ public class PrepFormService {
     private final InstSummaryPrefill prefill;
     private final PrepFormAudit audit;
     private final DesignReviewService design;
+    private final BidAssignmentService assignments;
 
     public PrepFormService(PrepFormMapper forms, PrepMapper prepMapper, InstSummaryPrefill prefill, PrepFormAudit audit,
-                           DesignReviewService design) {
+                           DesignReviewService design, BidAssignmentService assignments) {
         this.forms = forms;
         this.prepMapper = prepMapper;
         this.prefill = prefill;
         this.audit = audit;
         this.design = design;
+        this.assignments = assignments;
     }
 
     /** 내려받기 결과 — 파일 바이트·기관명(파일 이름용)·판 번호(감사용). */
@@ -280,7 +282,7 @@ public class PrepFormService {
     }
 
     /**
-     * 확정 취소(사유 1~200자) — 영업 활성 담당 또는 영업팀장(비담당 포함). 확정이 없으면 409 NOT_CONFIRMED. 사유는 확정 취소 이력에만 남고
+     * 확정 취소(사유 1~200자) — 영업 활성 담당 또는 이 건 팀의 영업팀장(비담당 포함, 11-27). 확정이 없으면 409 NOT_CONFIRMED. 사유는 확정 취소 이력에만 남고
      * 공개 범위는 사전준비 이력의 확정 취소 사유와 같다(PrepService.ACT_REASON_EVENTS). 응답에 unconfirmed_ver(취소한 판 번호)를 싣는다.
      */
     @Transactional
@@ -349,10 +351,13 @@ public class PrepFormService {
         return p;
     }
 
-    /** 영업 활성 담당 ∨ 영업팀장 ∨ 영업부장 ∨ (디자이너 ∧ 그 건 디자이너 작업의 담당이 비어 있지 않고 본인). 선점 분기는 쓰지 않는다. */
+    /** 영업 활성 담당 ∨ 자기 팀 영업팀장(11-27) ∨ 영업부장 ∨ (디자이너 ∧ 그 건 디자이너 작업의 담당이 비어 있지 않고 본인). 선점 분기는 쓰지 않는다. */
     private boolean canRead(SysUser me, BidPrep p) {
-        if (isLead(me) || isHead(me)) {
+        if (isHead(me)) {
             return true;
+        }
+        if (isLead(me)) {
+            return activeAssignee(p.getBidCaseId(), me) || assignments.leadsCaseTeam(me, p);
         }
         if (isMember(me)) {
             return activeAssignee(p.getBidCaseId(), me);
@@ -381,13 +386,16 @@ public class PrepFormService {
         return (isMember(me) || isLead(me)) && activeAssignee(bid, me);
     }
 
-    /** 쓰기 역할 403 — 건 조회보다 먼저(비담당이면 건이 있든 없든 같은 응답). allowLead 면 영업팀장은 담당이 아니어도 통과(확정 취소). */
+    /** 쓰기 역할 403 — 건 조회보다 먼저(비담당이면 건이 있든 없든 같은 응답). allowLead 면 영업팀장은 담당이 아니어도 통과(확정 취소) — 자기 팀 건만. */
     private void requireWriterRole(SysUser me, String bid, boolean allowLead) {
         if (!isMember(me) && !isLead(me)) {
             throw new ApiException(403, DENIED);
         }
-        if (allowLead && isLead(me)) {
-            return;
+        if (allowLead && isLead(me)) {   // 영업팀장은 담당이 아니어도 — 단 자기 팀 건만(사용자 11-27). 아니면 아래 담당 검사로 403
+            BidPrep p = validBid(bid) ? prepMapper.selectPrep(bid) : null;
+            if (p != null && assignments.leadsCaseTeam(me, p)) {
+                return;
+            }
         }
         if (!activeAssignee(bid, me)) {
             throw new ApiException(403, DENIED);
@@ -646,7 +654,7 @@ public class PrepFormService {
         Map<String, Object> viewer = new LinkedHashMap<String, Object>();
         viewer.put("can_edit", canEdit);
         viewer.put("can_confirm", canEdit && cur > 0);
-        viewer.put("can_unconfirm", (writer || isLead(me)) && (isMember(me) || isLead(me)) && inProgress && confirmed);
+        viewer.put("can_unconfirm", (writer || (isLead(me) && assignments.leadsCaseTeam(me, p))) && (isMember(me) || isLead(me)) && inProgress && confirmed);   // 팀장은 자기 팀 건만(11-27)
         viewer.put("can_download", true);
         viewer.put("lock_reason", !inProgress ? "STATE" : confirmed ? "CONFIRMED" : null);
 
