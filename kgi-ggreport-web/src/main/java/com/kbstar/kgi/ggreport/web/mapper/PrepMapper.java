@@ -4,6 +4,7 @@ import com.kbstar.kgi.ggreport.web.domain.BidPrep;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepAttach;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepLogView;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepTask;
+import com.kbstar.kgi.ggreport.web.domain.PrepBoardCheck;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -22,6 +23,12 @@ public interface PrepMapper {
 
     /** 목록용 — 기관명·상태명을 채운다. 최근 확정 순. */
     List<BidPrep> selectList();
+
+    /** NEXT 120 ①·125 — 띠 칸·건 상태 판정 입력: 제안서 제출·결과발표·협약식·협약서 4칸의 현재 값(전체 건, 칸마다 최대 REV). PrepStage5 가 쓴다. */
+    List<PrepBoardCheck> selectStageMarks();
+
+    /** selectStageMarks 의 건 하나 판. */
+    List<PrepBoardCheck> selectStageMarksOf(@Param("bidCaseId") String bidCaseId);
 
     /** 기관 행 잠금(기관당 활성 건 1개를 직렬화). 기관이 없으면 null. */
     String lockInstitution(@Param("institutionId") String institutionId);

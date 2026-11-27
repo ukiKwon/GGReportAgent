@@ -147,12 +147,30 @@ public class PrepBoardApiTest {
     // ── 목록 ─────────────────────────────────────────────────────────
 
     @Test
-    public void D1_목록은_엑셀_27칸과_아이콘_4값을_주고_행에_가결_부결_키가_없다() throws Exception {
+    public void D1_목록은_엑셀_27칸에_제안서_제출을_더한_28칸과_아이콘_4값을_주고_행에_가결_부결_키가_없다() throws Exception {
         String bid = opened(INST);
         MvcResult r = list(MEMBER, null, "open");
         assertEquals(200, r.getResponse().getStatus());
         JsonNode b = json(r);
-        assertEquals(27, b.path("columns").size());
+        assertEquals(28, b.path("columns").size());
+        boolean hasSubmit = false;
+        for (JsonNode c : b.path("columns")) {
+            if ("PROPOSAL_SUBMIT".equals(c.path("col_cd").asText())) {
+                hasSubmit = true;
+                assertEquals("제안서 제출", c.path("label").asText());
+                assertTrue(c.path("editable").asBoolean());
+                assertEquals(4, c.path("marks").size());
+            }
+            if ("RESULT".equals(c.path("col_cd").asText())) {
+                assertEquals("WON", c.path("marks").get(0).asText());
+                assertEquals("LOST", c.path("marks").get(1).asText());
+            }
+        }
+        assertTrue(hasSubmit);
+        assertEquals(4, b.path("result_marks").size());
+        assertEquals("WON", b.path("result_marks").get(0).path("mark_cd").asText());
+        assertEquals("선정", b.path("result_marks").get(0).path("name").asText());
+        assertEquals("탈락", b.path("result_marks").get(1).path("name").asText());
         JsonNode first = b.path("columns").get(0);
         assertEquals("NOTICE_CHECK", first.path("col_cd").asText());
         assertEquals("NOTICE", first.path("kind").asText());
@@ -178,12 +196,55 @@ public class PrepBoardApiTest {
         assertTrue(row.path("assignee_names").size() == 1);
         assertFalse(row.has("board_result"));
         assertFalse(row.has("detail_cd"));
-        assertEquals(27, row.path("cells").size());
+        assertEquals(28, row.path("cells").size());
+        assertEquals("ACTIVE", row.path("case_status").asText());
+        assertTrue(row.path("result_cd").isNull());
+        assertFalse(row.path("result_recheck").asBoolean());
         JsonNode fin = row.path("cells").path(COL);
         assertEquals("NONE", fin.path("mark_cd").asText());
         assertTrue(fin.path("marked_on").isNull());
         assertEquals(0, fin.path("rev_no").asInt());
         assertEquals("NOTICE", row.path("cells").path("NOTICE_CHECK").path("source").asText());
+    }
+
+    @Test
+    public void S3a_결과발표_칸만_선정_탈락을_받고_제안서_제출_칸은_체크되며_건_상태_키가_목록에_실린다() throws Exception {
+        String bid = opened(INST);
+        assertEquals(200, check(MEMBER2, bid, "RESULT", mark("WON", 0)).getResponse().getStatus());
+        MvcResult bad = check(MEMBER2, bid, "RESULT", mark("DONE", 1));   // 새 저장은 옛 완료를 받지 않는다
+        assertEquals(400, bad.getResponse().getStatus());
+        assertEquals("BAD_MARK", json(bad).path("detail").path("code").asText());
+        assertEquals(400, check(MEMBER2, bid, "PT", mark("WON", 0)).getResponse().getStatus());   // 다른 칸은 선정·탈락 불가
+        assertEquals(400, check(MEMBER2, bid, "ATM", mark("LOST", 0)).getResponse().getStatus());
+        assertEquals(200, check(MEMBER2, bid, "PROPOSAL_SUBMIT", mark("DONE", 0)).getResponse().getStatus());
+        assertEquals(1, actByCol(bid, "DASH_CHECK", "OK", "CK_PROPOSAL_SUBMIT"));
+
+        JsonNode p = preps(MEMBER, bid);
+        assertEquals("CONTRACT_PLANNED", p.path("stage5_cd").asText());      // 선정 + 협약 전
+        assertEquals("ACTIVE", p.path("case_status").asText());
+        assertEquals("WON", p.path("result_cd").asText());
+        assertFalse(p.path("result_recheck").asBoolean());
+        assertEquals("DONE", p.path("marks").path("submit").path("mark_cd").asText());
+        assertEquals("WON", p.path("marks").path("result").path("mark_cd").asText());
+        assertEquals("NONE", p.path("marks").path("ceremony").path("mark_cd").asText());
+        assertFalse(p.path("opened_at").isNull());
+        assertTrue(p.path("case_year").asInt() >= 2026);
+        assertFalse("목록에는 사람 이름 키가 없다", p.has("by_name"));
+
+        assertEquals(200, check(MEMBER2, bid, "RESULT", mark("LOST", 1)).getResponse().getStatus());
+        JsonNode lost = preps(MEMBER, bid);
+        assertEquals("ENDED", lost.path("stage5_cd").asText());
+        assertEquals("DROP", lost.path("end_kind").asText());
+        assertEquals("DROPPED", lost.path("case_status").asText());
+        JsonNode br = row(json(list(MEMBER, null, "open")), bid);
+        assertEquals("DROPPED", br.path("case_status").asText());
+        assertEquals("LOST", br.path("result_cd").asText());
+    }
+
+    private JsonNode preps(String emp, String bid) throws Exception {
+        JsonNode all = json(mockMvc.perform(get("/preps").header("X-Emp-No", emp)).andReturn());
+        for (JsonNode r : all) { if (bid.equals(r.path("bid_case_id").asText())) { return r; } }
+        throw new AssertionError("목록에 건이 없다: " + bid);
     }
 
     @Test

@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 대시보드 열 정의(NEXT 102) — 엑셀 칸 그대로 27칸(사용자 11-20 ①, 11-23 F7).
+ * 대시보드 열 정의(NEXT 102) — 엑셀 칸 27칸 + 제안서 제출(PROPOSAL_SUBMIT, NEXT 120 ①) = 28칸(사용자 11-20 ①, 11-23 F7, 11-26).
  * 묶음 머리(BOARD 이사회·SUBMIT_APPR 제안서제출품의·CONTRACT_APPR 협약체결품의)는 GROUPS 의 표시용이다 — 칸이 아니라서 ALL 에 없고 PUT 도 404 다.
  * NOTICE = 공고 상태 기록(037) 값 그대로·읽기 전용(②), AUTO = 시스템 기록 → 아이콘(고칠 수 없음), MANUAL = 담당 영업 체크(③④⑥).
  * 이사회 진행(T5)은 대시보드에 내지 않는다(security F7 — 노출 축소). SUBMIT_DOCS 는 조건부 수동 체크 — RFP 서류 자동 추출·대조와 [확인]=V 는 다음 단계(⑤).
@@ -60,6 +60,7 @@ final class PrepBoardColumns {
                 new Col("SUBMIT_DOCS", "제출서류", null, MANUAL),               // 조건부 수동 — 다음 단계에 상세 [확인]
                 new Col("SUBMIT_MONITOR", "감시", "SUBMIT_APPR", MANUAL),
                 new Col("SUBMIT_PROPERTY", "재산상이익", "SUBMIT_APPR", MANUAL),
+                new Col("PROPOSAL_SUBMIT", "제안서 제출", null, MANUAL),         // NEXT 120 ① — 담당 영업 체크(이름·날짜 자동, 사용자 11-26)
                 new Col("PT", "PT", null, MANUAL),
                 new Col("RESULT", "결과발표", null, MANUAL),
                 new Col("PRIORITY_NEGO", "우선협상", null, MANUAL),

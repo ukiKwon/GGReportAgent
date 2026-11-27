@@ -15,13 +15,29 @@
            p.OPENED_BY, p.OPENED_AT, p.WRITE_BY, p.WRITE_AT, p.UPDATED_BY, p.UPDATED_AT,
            i.NAME_KO AS INSTITUTION_NAME, c.CODE_NAME AS STATE_NAME, i.CONTRACT_END AS CONTRACT_END,
            bc.BID_SUBJECT_CD AS BID_SUBJECT_CD, bc.BID_SUBJECT_ETC AS BID_SUBJECT_ETC, sc.CODE_NAME AS BID_SUBJECT_CODE_NAME,
-           bc.TITLE AS BID_TITLE
+           bc.TITLE AS BID_TITLE,
+           bc.BID_RANK_CD AS BID_RANK_CD, rc.CODE_NAME AS BID_RANK_NAME
       FROM BID_PREP p
       LEFT JOIN INSTITUTIONS i ON i.INSTITUTION_ID = p.INSTITUTION_ID
       LEFT JOIN COMMON_CODE c ON c.CODE_GROUP = 'PREP_STATE' AND c.CODE = p.STATE_CD
       LEFT JOIN BID_CASES bc ON bc.BID_CASE_ID = p.BID_CASE_ID
       LEFT JOIN COMMON_CODE sc ON sc.CODE_GROUP = 'BID_SUBJECT' AND sc.CODE = bc.BID_SUBJECT_CD
+      LEFT JOIN COMMON_CODE rc ON rc.CODE_GROUP = 'TARGET_AIM_RANK' AND rc.CODE = bc.BID_RANK_CD
      ORDER BY p.CONFIRMED_AT DESC, p.BID_CASE_ID
+  </select>
+
+  <!-- NEXT 120 ①·125 S3a — 띠 칸·건 상태 판정 입력: 4칸(제안서 제출·결과발표·협약식·협약서)의 현재 값(칸마다 최대 REV). 목록 1회. 양쪽 방언 같은 문장. -->
+  <select id="selectStageMarks" resultType="PrepBoardCheck" flushCache="true">
+    SELECT k.BID_CASE_ID, k.COL_CD, k.REV_NO, k.MARK_CD, k.MARK_DATE FROM BID_PREP_CHECK k
+     WHERE k.COL_CD IN ('PROPOSAL_SUBMIT', 'RESULT', 'CEREMONY', 'AGREE_LEGAL')
+       AND NOT EXISTS (SELECT 1 FROM BID_PREP_CHECK n WHERE n.BID_CASE_ID = k.BID_CASE_ID AND n.COL_CD = k.COL_CD AND n.REV_NO &gt; k.REV_NO)
+  </select>
+
+  <!-- 위 질의의 건 하나 판(결재 중 건 잠금·순위 잠금 등이 쓴다). -->
+  <select id="selectStageMarksOf" resultType="PrepBoardCheck" flushCache="true">
+    SELECT k.BID_CASE_ID, k.COL_CD, k.REV_NO, k.MARK_CD, k.MARK_DATE FROM BID_PREP_CHECK k
+     WHERE k.BID_CASE_ID = #{bidCaseId} AND k.COL_CD IN ('PROPOSAL_SUBMIT', 'RESULT', 'CEREMONY', 'AGREE_LEGAL')
+       AND NOT EXISTS (SELECT 1 FROM BID_PREP_CHECK n WHERE n.BID_CASE_ID = k.BID_CASE_ID AND n.COL_CD = k.COL_CD AND n.REV_NO &gt; k.REV_NO)
   </select>
 
   <select id="lockInstitution" resultType="string">

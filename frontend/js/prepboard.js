@@ -25,7 +25,9 @@
   pb.preOpen = function (row) {
     return !!row && !row.ended && pb.PRE_OPEN_STATES.indexOf(str(row.state_cd)) >= 0;
   };
-  const MARK_NAMES = { DONE: '완료', IN_PROGRESS: '진행', NA: '대상 아님', NONE: '시작 전' };
+  // WON·LOST = 결과발표(RESULT) 칸 전용 값(NEXT 125 S3a, 서버 067 코드표 '선정'·'탈락')
+  const MARK_NAMES = { DONE: '완료', IN_PROGRESS: '진행', NA: '대상 아님', NONE: '시작 전', WON: '선정', LOST: '탈락' };
+  const RESULT_ONLY = ['WON', 'LOST'];
 
   // ── 문구 (규격 5-1) ───────────────────────────────────────────────
   const T = {
@@ -64,6 +66,8 @@
     infoNoCheck: '아직 체크하지 않았습니다.',
     chipPre: '개설 전',
     ariaPre: ', 개설 승인 뒤 담당 영업이 체크',
+    recheck: '선정·탈락을 다시 골라야 함',
+    recheckShort: '재선택',
     infoPre: '개설 승인 뒤 정해지는 담당 영업이 체크합니다.',
     legendPre: '개설 승인 전 — 담당이 정해지면 체크합니다',
     readOnlyPre: '아직 개설 승인된 기관이 없어 체크할 칸이 없습니다. 담당 영업은 개설 승인 때 정해집니다.',
@@ -111,6 +115,25 @@
     const hit = (Array.isArray(marks) ? marks : []).filter(function (m) { return m && m.mark_cd === cd; })[0];
     const n = hit ? str(hit.name).trim() : '';
     return n || MARK_NAMES[cd] || '';
+  };
+  // 이름표 목록(marks)에 결과 전용 값(result_marks의 WON·LOST — name·symbol)을 덧붙인다. 없으면 기존 목록 그대로.
+  pb.mergeResultMarks = function (marks, resultMarks) {
+    const base = Array.isArray(marks) ? marks : [];
+    const extra = (Array.isArray(resultMarks) ? resultMarks : []).filter(function (m) {
+      return m && RESULT_ONLY.indexOf(m.mark_cd) >= 0 && !base.some(function (b) { return b && b.mark_cd === m.mark_cd; });
+    });
+    return extra.length ? base.concat(extra) : base;
+  };
+  // 칸 안에 글리프 대신 보일 글자: WON·LOST는 서버 기호(symbol)가 있으면 그것, 없으면 이름('선정'·'탈락'). 그 밖은 ''.
+  pb.markText = function (marks, cd) {
+    if (RESULT_ONLY.indexOf(cd) < 0) return '';
+    const hit = (Array.isArray(marks) ? marks : []).filter(function (m) { return m && m.mark_cd === cd; })[0];
+    const sym = hit ? str(hit.symbol).trim() : '';
+    return sym || pb.markName(marks, cd);
+  };
+  // 결과발표 칸에 남은 옛 '완료·진행' 값 → 담당이 선정·탈락을 다시 골라야 한다(서버 result_recheck)
+  pb.needRecheck = function (row, cd) {
+    return cd === 'RESULT' && !!row && row.result_recheck === true;
   };
   pb.glyphKind = function (mark) {
     return mark === 'DONE' ? 'done' : mark === 'IN_PROGRESS' ? 'prog' : mark === 'NA' ? 'na' : '';
@@ -160,6 +183,7 @@
       const label = str(c.label);
       return {
         cd: str(c.col_cd), label: label, kind: str(c.kind), editable: c.editable === true, auto: c.kind === 'AUTO',
+        marks: Array.isArray(c.marks) ? c.marks.filter(function (k) { return has(MARK_NAMES, k); }) : [],   // 이 칸이 받는 값(옛 서버는 없음 → 기존 4개)
         gs: !!c.group && (!prev || prev.group !== c.group),
         fullLabel: gl && gl !== label ? gl + ' › ' + label : label,
       };
@@ -175,11 +199,12 @@
     const kind = info.kind;
     const ended = !!r.ended;
     const mark = kind === 'NOTICE' ? '' : has(MARK_NAMES, c.mark_cd) ? c.mark_cd : 'NONE';
+    const recheck = kind === 'MANUAL' && pb.needRecheck(r, info.cd) && (mark === 'DONE' || mark === 'IN_PROGRESS');
     return {
-      cd: info.cd, kind: kind, mark: mark, glyph: pb.glyphKind(mark),
+      cd: info.cd, kind: kind, mark: mark, glyph: recheck ? 'prog' : pb.glyphKind(mark), recheck: recheck,
       date: mark && mark !== 'NONE' ? pb.dateText(c.marked_on, today) : '',
       button: kind === 'MANUAL' && info.editable && r.can_check === true && !ended,
-      tint: !ended && (mark === 'DONE' || mark === 'IN_PROGRESS') ? mark : '',
+      tint: !ended && !recheck && (mark === 'DONE' || mark === 'IN_PROGRESS') ? mark : '',
       pre: kind === 'MANUAL' && pb.preOpen(r),
       revNo: Number(c.rev_no) || 0,
       noticeText: kind === 'NOTICE' ? str(c.notice_status_name).trim() : '',
@@ -199,7 +224,7 @@
     const name = pb.markName(marks, m);
     const d = pb.fullDate(c.marked_on);
     if (info.kind === 'AUTO') return head + name + (d ? ', ' + d : '') + ', 자동, 시스템이 채움';
-    const tail = pb.preOpen(row) ? T.ariaPre : '';
+    const tail = (pb.preOpen(row) ? T.ariaPre : '') + (pb.needRecheck(row, info.cd) && (m === 'DONE' || m === 'IN_PROGRESS') ? ', ' + T.recheck : '');
     if (m === 'NONE') return head + name + tail;
     const by = str(c.by_name).trim();
     return head + name + (d ? ', ' + d + (by ? ' ' + by + ' 체크' : '') : '') + tail;
@@ -226,6 +251,7 @@
     }
     const m = has(MARK_NAMES, c.mark_cd) ? c.mark_cd : 'NONE';
     parts.push({ l: '표시', v: pb.markName(marks, m) });
+    if (pb.needRecheck(r, info.cd) && (m === 'DONE' || m === 'IN_PROGRESS')) parts.push({ l: '안내', v: T.recheck });
     if (info.kind === 'AUTO') {
       const d = pb.fullDate(c.marked_on);
       if (m !== 'NONE' && d) parts.push({ l: '기록한 날', v: d, mono: true });
@@ -382,12 +408,15 @@
       return '<td role="gridcell" aria-readonly="true" tabindex="-1" aria-label="' + label + '"' + at + '>' +
         (m.noticeText ? '<span class="wf-badge pp-neutral pb-notice">' + esc(m.noticeText) + '</span>' : '') + '</td>';
     }
-    const inner = pb.glyphSvg(m.glyph) + (m.date ? '<span class="pb-d">' + esc(m.date) + '</span>' : '');
+    const txt = pb.markText(o.marks, m.mark);   // 선정·탈락은 글리프 대신 글자
+    const inner = (txt ? '<span class="pb-tx pb-' + (m.mark === 'WON' ? 'won' : 'lost') + '">' + esc(txt) + '</span>' : pb.glyphSvg(m.glyph)) +
+      (m.recheck ? '<span class="pb-rc">' + esc(T.recheckShort) + '</span>' : m.date ? '<span class="pb-d">' + esc(m.date) + '</span>' : '');
+    const ttl = m.recheck ? ' title="' + esc(T.recheck) + '"' : '';
     if (m.button) {
       return '<td role="gridcell"' + (o.saving ? ' aria-busy="true"' : '') + at + '><button type="button" class="pb-mk" tabindex="-1" aria-haspopup="menu" aria-expanded="false"' +
-        (o.saving ? ' aria-disabled="true"' : '') + ' aria-label="' + label + '">' + inner + '</button></td>';
+        (o.saving ? ' aria-disabled="true"' : '') + ttl + ' aria-label="' + label + '">' + inner + '</button></td>';
     }
-    return '<td role="gridcell" aria-readonly="true" tabindex="-1" aria-label="' + label + '"' + at + '><span class="pb-in">' + inner + '</span></td>';
+    return '<td role="gridcell" aria-readonly="true" tabindex="-1" aria-label="' + label + '"' + ttl + at + '><span class="pb-in">' + inner + '</span></td>';
   };
 
   pb.rowHtml = function (o) {
@@ -427,7 +456,10 @@
     const cur = has(MARK_NAMES, c.mark_cd) ? c.mark_cd : 'NONE';
     const by = str(c.by_name).trim(), d = pb.fullDate(c.marked_on);
     const last = d && by ? '마지막 체크 ' + d + ' ' + by : T.infoNoCheck;
-    const order = (Array.isArray(marks) && marks.length ? marks.map(function (x) { return x.mark_cd; }) : pb.MARK_ORDER).filter(function (k) { return has(MARK_NAMES, k); });
+    // 이 칸이 받는 값(info.marks)이 먼저, 없으면(옛 서버) 전체 목록·기존 4개. 결과 전용 WON·LOST는 칸 목록에 있을 때만 쓴다.
+    const own = Array.isArray(info.marks) ? info.marks : [];
+    const order = (own.length ? own : (Array.isArray(marks) && marks.length ? marks.map(function (x) { return x.mark_cd; }) : pb.MARK_ORDER)
+      .filter(function (k) { return RESULT_ONLY.indexOf(k) < 0; })).filter(function (k) { return has(MARK_NAMES, k); });
     return '<div class="mh"><b>' + esc(info.fullLabel + ' — ' + str(row.institution_name)) + '</b>' + esc(last) + '</div>' +
       order.map(function (k, i) {
         const g = pb.glyphSvg(pb.glyphKind(k)) || '<span class="pb-g"></span>';
@@ -459,7 +491,7 @@
   function normalize(d) {
     const x = d && typeof d === 'object' ? d : {};
     return { columns: Array.isArray(x.columns) ? x.columns : [], groups: x.groups && typeof x.groups === 'object' ? x.groups : {},
-             marks: Array.isArray(x.marks) ? x.marks : [], today: str(x.today), rows: Array.isArray(x.rows) ? x.rows : [],
+             marks: pb.mergeResultMarks(x.marks, x.result_marks), today: str(x.today), rows: Array.isArray(x.rows) ? x.rows : [],
              scope: pb.scopeValid(x.scope) ? x.scope : '', teamResolved: x.team_resolved !== false };
   }
 
@@ -727,6 +759,8 @@
     setErr('');
     row.cells = row.cells || {};
     row.cells[cd] = Object.assign({}, prev, { mark_cd: mark, marked_on: mark === 'NONE' ? null : B.data.today });   // 고른 값을 바로 그린다
+    const prevRecheck = row.result_recheck;
+    if (cd === 'RESULT') row.result_recheck = false;   // 새로 고른 값이 '다시 고르기'를 푼다
     paintCell(bid, cd, true);
     const b = B;
     B.hooks.req('PUT', '/bidcases/' + encodeURIComponent(bid) + '/prep/board-checks/' + encodeURIComponent(cd), { mark_cd: mark, base_rev: base }, ui('dash_check')).then(function (res) {
@@ -734,7 +768,7 @@
       delete B.pending[key];
       if (!B.data) return;   // 범위 전환 중(setScope가 표를 비움): 표 갱신 없이 끝낸다 — 새 목록 응답이 칸을 다시 그린다
       const cur = rowById(bid);   // 새로 고침으로 행 객체가 바뀌었을 수 있다
-      if (cur) { cur.cells = cur.cells || {}; cur.cells[cd] = Object.assign({}, prev, res && res.cell && typeof res.cell === 'object' ? res.cell : { mark_cd: mark }); }
+      if (cur) { cur.cells = cur.cells || {}; cur.cells[cd] = Object.assign({}, prev, res && res.cell && typeof res.cell === 'object' ? res.cell : { mark_cd: mark }); if (cd === 'RESULT') cur.result_recheck = false; }
       const oldFailed = Object.keys(B.failed);
       B.failed = {};
       paintCell(bid, cd, false);
@@ -745,7 +779,7 @@
       if (b !== B) return;
       delete B.pending[key];
       if (!B.data) return;   // 범위 전환 중: 실패 표시를 하지 않는다(새 목록 응답이 서버 값으로 다시 그린다)
-      if (rowById(bid) === row) row.cells[cd] = prev;   // 새로 고침으로 바뀐 행은 서버 값이 맞으니 되돌리지 않는다
+      if (rowById(bid) === row) { row.cells[cd] = prev; if (cd === 'RESULT') row.result_recheck = prevRecheck; }   // 새로 고침으로 바뀐 행은 서버 값이 맞으니 되돌리지 않는다
       B.failed[key] = true;
       setErr(pb.saveError(e && e.status, e && e.detail ? (typeof e.detail === 'object' ? str(e.detail.code) : '') : '', { inst: str(row.institution_name), col: info.fullLabel }));
       paintCell(bid, cd, false);

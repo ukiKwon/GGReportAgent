@@ -57,12 +57,12 @@ function noCond(h) {
 }
 
 // ── 구간·단계 정본 ──
-test('PHASES·STEPS: 구간 3개, 23단계(담당자 지정 + 현업 단계 — 이사회 자료·발표 대본은 이사회 준비 한 단계), id 유일, 구간은 이어진 덩어리', function () {
+test('PHASES·STEPS: 구간 3개, 24단계(담당자 지정 + 현업 단계 — 이사회 자료·발표 대본은 이사회 준비 한 단계), id 유일, 구간은 이어진 덩어리', function () {
   assert.deepStrictEqual(pt.PHASES.map(function (p) { return p.label; }), ['입찰 자료확인', '제안 준비', '협약 이행 준비']);
-  assert.strictEqual(pt.STEPS.length, 23);
+  assert.strictEqual(pt.STEPS.length, 24);
   assert.strictEqual(pt.STEPS[0].id, 'START');
   assert.strictEqual(pt.STEPS[0].label, '담당자 지정');
-  assert.strictEqual(new Set(pt.STEPS.map(function (s) { return s.id; })).size, 23, 'id 유일');
+  assert.strictEqual(new Set(pt.STEPS.map(function (s) { return s.id; })).size, 24, 'id 유일');
   const keys = pt.PHASES.map(function (p) { return p.key; });
   let last = 0;
   pt.STEPS.forEach(function (s) {
@@ -73,28 +73,71 @@ test('PHASES·STEPS: 구간 3개, 23단계(담당자 지정 + 현업 단계 — 
   assert.deepStrictEqual(pt.phaseIdxs('bid').map(function (i) { return pt.STEPS[i].label; }), ['담당자 지정', '입찰공고확인', '기관 정보 분석', '수익성분석', '가결위(재무)', '출심위(사업부)', '이사회 준비', '이사회 개최 및 결과']);
   assert.deepStrictEqual(pt.phaseIdxs('agree').map(function (i) { return pt.STEPS[i].label; }), ['결과발표', '우선협상', '협약서(법률)', '협약체결품의', 'ATM', 'KB카드', '전산구축', 'VIP 지정', '금리승인', '협약식']);
   assert.strictEqual(pt.STEPS[pt.STEPS.length - 1].label, '협약식', '엑셀 칸 순서 그대로 협약식이 마지막');
-  assert.strictEqual(pt.phaseIdxs('prep').length, 5);
-  assert.deepStrictEqual(pt.phaseIdxs('prep').map(function (i) { return pt.STEPS[i].label; }), ['제안서', '발표자료', '제출서류', '제안서제출품의', 'PT']);
+  assert.strictEqual(pt.phaseIdxs('prep').length, 6);
+  assert.deepStrictEqual(pt.phaseIdxs('prep').map(function (i) { return pt.STEPS[i].label; }), ['제안서', '발표자료', '제출서류', '제안서제출품의', '제안서 제출', 'PT']);
 });
 
-test('STEPS ↔ 서버 PrepBoardColumns: 칸 코드 27개가 빠짐없이 한 번씩, 이름도 같다', function () {
+test('STEPS ↔ 서버 PrepBoardColumns: 칸 코드 28개가 빠짐없이 한 번씩, 이름도 같다', function () {
   const java = fs.readFileSync(JAVA, 'utf8');
   const cols = [];
   const re = /new Col\("([A-Z0-9_]+)",\s*"([^"]+)",\s*(null|"[A-Z_]+"),/g;
   let m;
   while ((m = re.exec(java))) cols.push({ cd: m[1], label: m[2], group: m[3] === 'null' ? '' : m[3].replace(/"/g, '') });
-  assert.strictEqual(cols.length, 27);
+  assert.strictEqual(cols.length, 28);
   const mine = {};
   pt.STEPS.forEach(function (s) {
     if (s.subs) s.subs.forEach(function (x) { mine[x.cd] = { label: x.label, group: s.cd }; });
     else if (s.cd) mine[s.cd] = { label: s.label, group: '' };
   });
-  assert.strictEqual(Object.keys(mine).length, 27);
+  assert.strictEqual(Object.keys(mine).length, 28);
+  // 순서도 서버와 같다: 제안서 제출은 재산상이익 바로 뒤·PT 앞
+  const order = pt.STEPS.reduce(function (a, s) { return a.concat(s.subs ? s.subs.map(function (x) { return x.cd; }) : s.cd ? [s.cd] : []); }, []);
+  assert.ok(order.indexOf('PROPOSAL_SUBMIT') === order.indexOf('SUBMIT_PROPERTY') + 1 && order[order.indexOf('PROPOSAL_SUBMIT') + 1] === 'PT');
+  const srv = cols.map(function (c) { return c.cd; });
+  assert.ok(srv.indexOf('PROPOSAL_SUBMIT') === srv.indexOf('SUBMIT_PROPERTY') + 1 && srv[srv.indexOf('PROPOSAL_SUBMIT') + 1] === 'PT', '서버 순서도 같다');
   cols.forEach(function (c) {
     assert.ok(mine[c.cd], c.cd + ' 단계에 있음');
     assert.strictEqual(mine[c.cd].label, c.label, c.cd + ' 이름');
     assert.strictEqual(mine[c.cd].group, c.group, c.cd + ' 묶음');
   });
+});
+
+test('S3a 제안서 제출 단계(PROPOSAL_SUBMIT): 제안 준비 구간의 수동 체크 단계, 제안서제출품의 뒤·PT 앞', function () {
+  const i = idxOf('PROPOSAL_SUBMIT');
+  assert.ok(i > idxOf('SUBMIT_APPR') && i + 1 === idxOf('PT'));
+  assert.deepStrictEqual([pt.STEPS[i].kind, pt.STEPS[i].ph, pt.STEPS[i].label, pt.STEPS[i].cd], ['manual', 'prep', '제안서 제출', 'PROPOSAL_SUBMIT']);
+  assert.strictEqual(pt.colLabel('PROPOSAL_SUBMIT'), '제안서 제출');
+  const v = view('IN_PROGRESS');
+  assert.strictEqual(pt.condText(pt.STEPS[i], v), pt.T.cond.manual, '다른 수동 단계와 같은 완료 조건');
+  assert.strictEqual(pt.stepState(pt.STEPS[i], v, row({ cells: { PROPOSAL_SUBMIT: { mark_cd: 'DONE' } } }), MARKS).closed, true);
+  assert.strictEqual(pt.stepState(pt.STEPS[i], v, row(), MARKS).closed, false);
+  const body = pt.bodyHtml(model(v, i));
+  assert.deepStrictEqual((body.match(/data-mk="([A-Z_]+)"/g) || []).map(function (s) { return s.slice(9, -1); }), ['DONE', 'IN_PROGRESS', 'NA', 'NONE'], '기존 4개 값');
+});
+
+test('S3a 결과발표(RESULT): 선정·탈락을 고른다(DONE·IN_PROGRESS를 보내지 않는다), 옛 완료·진행은 다시 고르기', function () {
+  const RM = MARKS.concat([{ mark_cd: 'WON', symbol: null, name: '선정' }, { mark_cd: 'LOST', symbol: null, name: '탈락' }]);
+  const s = pt.STEPS[idxOf('RESULT')];
+  const v = view('IN_PROGRESS');
+  const body = pt.bodyHtml(model(v, idxOf('RESULT'), { marks: RM }));
+  assert.deepStrictEqual((body.match(/data-act="mark" data-col="RESULT" data-mk="([A-Z_]+)"/g) || []).map(function (x) { return x.split('data-mk="')[1].slice(0, -1); }), ['WON', 'LOST', 'NA', 'NONE']);
+  assert.ok(body.indexOf('data-mk="DONE"') < 0 && body.indexOf('data-mk="IN_PROGRESS"') < 0);
+  assert.ok(body.indexOf('<span>선정</span>') > 0 && body.indexOf('<span>탈락</span>') > 0);
+  // marks에 WON이 없는 옛 서버여도 이름은 기본값
+  assert.ok(pt.bodyHtml(model(v, idxOf('RESULT'), { marks: MARKS })).indexOf('<span>선정</span>') > 0);
+  // 다른 칸에는 WON·LOST가 없다
+  assert.ok(pt.bodyHtml(model(v, idxOf('PT'), { marks: RM })).indexOf('data-mk="WON"') < 0);
+  const st = function (mk) { return pt.stepState(s, v, row({ cells: { RESULT: { mark_cd: mk } } }), RM); };
+  assert.deepStrictEqual([st('WON').closed, st('WON').text], [true, '선정']);
+  assert.deepStrictEqual([st('LOST').closed, st('LOST').text], [true, '탈락']);
+  assert.strictEqual(st('NA').closed, true);
+  assert.strictEqual(st('NONE').closed, false);
+  assert.strictEqual(st('DONE').closed, false, '옛 완료는 끝난 것이 아니다');
+  assert.ok(st('DONE').text.indexOf('다시 골라') > 0 && st('IN_PROGRESS').text.indexOf('다시 골라') > 0);
+  assert.strictEqual(pt.cellState(row({ cells: { RESULT: { mark_cd: 'WON' } } }), 'RESULT', RM).mark, 'WON');
+  // 체크할 수 없는 사람에게는 상태 글자만
+  const ro = pt.bodyHtml(model(v, idxOf('RESULT'), { marks: RM, row: row({ can_check: false, cells: { RESULT: { mark_cd: 'LOST' } } }) }));
+  assert.ok(ro.indexOf('data-mk=') < 0 && ro.indexOf('탈락') > 0);
 });
 
 test('STEPS.tasks: 준비 과제 T1~T6가 단계에 한 번씩 걸린다', function () {
@@ -155,12 +198,14 @@ test('phaseModel·phaseEntryIdx: 구간 숫자와 구간 단추가 데려갈 단
   const v = view('IN_PROGRESS');
   const pm = pt.phaseModel(v, row(), MARKS, idxOf('FIN_COMMITTEE'));
   assert.deepStrictEqual(pm.map(function (p) { return [p.key, p.no, p.done, p.total, p.current]; }),
-    [['bid', 1, 2, 8, true], ['prep', 2, 0, 5, false], ['agree', 3, 0, 10, false]]);   // bid 8단계, 끝난 것 = 담당자 지정·입찰공고확인
+    [['bid', 1, 2, 8, true], ['prep', 2, 0, 6, false], ['agree', 3, 0, 10, false]]);   // bid 8단계, 끝난 것 = 담당자 지정·입찰공고확인
   assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('agree', v, row(), MARKS)].id, 'RESULT');
   assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('bid', v, row(), MARKS)].id, 'INST_ANALYSIS');
   assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('prep', v, row(), MARKS)].id, 'PROPOSAL');
-  const r = row({ cells: { RESULT: { mark_cd: 'DONE' } } });
+  const r = row({ cells: { RESULT: { mark_cd: 'WON' } } });
   assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('agree', v, r, MARKS)].id, 'PRIORITY_NEGO');
+  const old = row({ cells: { RESULT: { mark_cd: 'DONE' } } });
+  assert.strictEqual(pt.STEPS[pt.phaseEntryIdx('agree', v, old, MARKS)].id, 'RESULT', '옛 완료 값은 끝난 것으로 치지 않는다(다시 고르기)');
   const h = pt.phasesHtml(pm);
   assert.ok(/role="group" aria-label="진행 구간"/.test(h));
   assert.strictEqual((h.match(/data-act="ts-phase"/g) || []).length, 3);
@@ -171,11 +216,11 @@ test('stepsModel·stepsHtml: 지금 구간의 단계만, 번호는 전체 순번
   const v = view('IN_PROGRESS');
   const m = pt.stepsModel(v, row(), MARKS, idxOf('AGREE_LEGAL'));
   assert.deepStrictEqual(m.map(function (x) { return x.label; }), ['결과발표', '우선협상', '협약서(법률)', '협약체결품의', 'ATM', 'KB카드', '전산구축', 'VIP 지정', '금리승인', '협약식']);
-  assert.deepStrictEqual(m.map(function (x) { return x.no; }), [14, 15, 16, 17, 18, 19, 20, 21, 22, 23]);
+  assert.deepStrictEqual(m.map(function (x) { return x.no; }), [15, 16, 17, 18, 19, 20, 21, 22, 23, 24]);
   const h = pt.stepsHtml(m);
   assert.strictEqual((h.match(/tabindex="0"/g) || []).length, 1);
   assert.strictEqual((h.match(/aria-current="step"/g) || []).length, 1);
-  assert.ok(/data-i="15" tabindex="0" aria-current="step"/.test(h));
+  assert.ok(/data-i="16" tabindex="0" aria-current="step"/.test(h));
   const first = pt.stepsHtml(pt.stepsModel(v, row(), MARKS, 0));
   assert.ok(/class="ts-step is-ro" data-i="1"/.test(first), '입찰공고확인은 읽기만');
 });
@@ -209,7 +254,7 @@ test('markGate: 줄 없음·끝난 건·개설 전·담당 아님은 보기만',
 // ── 본문 ──
 test('bodyHtml 손 칸: 상태 단추 4개(눌린 값 하나)·마지막 체크·이전/다음', function () {
   const h = pt.bodyHtml(model(view('IN_PROGRESS'), idxOf('FIN_COMMITTEE')));
-  assert.ok(/입찰 자료확인 · 5 \/ 23/.test(h));
+  assert.ok(/입찰 자료확인 · 5 \/ 24/.test(h));
   assert.ok(/<h3 class="ts-step-title" id="ts-step-title" tabindex="-1">가결위\(재무\)<\/h3>/.test(h));
   assert.strictEqual((h.match(/data-act="mark" data-col="FIN_COMMITTEE"/g) || []).length, 4);
   assert.strictEqual((h.match(/aria-pressed="true"/g) || []).length, 1);
@@ -234,7 +279,7 @@ test('bodyHtml 묶음: 하위 칸마다 한 줄씩 상태 단추', function () {
   assert.strictEqual((h.match(/<li data-col="CONTRACT_/g) || []).length, 4);
   assert.strictEqual((h.match(/data-act="mark"/g) || []).length, 16);
   assert.ok(/aria-label="협약체결품의 › 영업점안내 상태"/.test(h));
-  assert.ok(/협약 이행 준비 · 17 \/ 23/.test(h));
+  assert.ok(/협약 이행 준비 · 18 \/ 24/.test(h));
 });
 
 test('bodyHtml 담당자 지정: 확정 단계면 [개설 신청], 승인 대기면 대기 안내, 뒤에는 담당 이름', function () {
@@ -757,7 +802,7 @@ test('대본 입력 창: 마크업·접근성·칸 id·기본 선택·필수 표
   assert.ok(h.indexOf('모든 칸은 선택입니다') > 0 && h.indexOf('적은 내용은 저장되지 않습니다') > 0);
   assert.ok(h.indexOf('bs-meeting') < 0 && h.indexOf('COMMITTEE') < 0 && h.indexOf('회의 이름') < 0, '회의 이름은 이사회 고정 — 고르는 칸이 없다(사용자 11-26)');
   assert.ok(/<legend>회의<\/legend>/.test(h) && h.indexOf('id="bs-round"') > 0 && h.indexOf('id="bs-agenda"') > 0, '차수·의안번호는 그대로');
-  assert.ok(/<input type="radio" name="bs-amt" value="EXCL_IT" checked>/.test(h) && !/value="TOTAL" checked/.test(h));
+  assert.ok(/<input type="radio" name="bs-amt" value="TOTAL" checked>/.test(h) && !/value="EXCL_IT" checked/.test(h));
   assert.strictEqual((h.match(/dlg-req/g) || []).length, 0, '빨간 * 없음');
   assert.ok(!/<form/.test(h), 'Enter로 제출되지 않는다');
   ['bs-cancel', 'bs-go', 'bs-hint', 'bs-busy', 'bs-err', 'bs-t'].forEach(function (id) { assert.ok(h.indexOf('id="' + id + '"') > 0, id); });
@@ -821,8 +866,8 @@ test('대본: 여러 줄 칸 사전 검사(13줄·301자·합계 1,000자) — �
 });
 
 test('대본: 요청 본문 — 비운 칸은 키를 뺀다, 라디오는 늘 값이 있다, 숫자 칸은 숫자로', function () {
-  assert.deepStrictEqual(pt.scriptBody({}), { amount_mode: 'EXCL_IT' }, '회의 이름(meeting)은 보내지 않는다 — 서버 기본값 BOARD');
-  assert.deepStrictEqual(pt.scriptBody({ round: '  ', agenda_no: '', intro: '   ', speaker_name: '' }), { amount_mode: 'EXCL_IT' });
+  assert.deepStrictEqual(pt.scriptBody({}), { amount_mode: 'TOTAL' }, '회의 이름(meeting)은 보내지 않는다 — 서버 기본값 BOARD');
+  assert.deepStrictEqual(pt.scriptBody({ round: '  ', agenda_no: '', intro: '   ', speaker_name: '' }), { amount_mode: 'TOTAL' });
   assert.deepStrictEqual(pt.scriptBody({ meeting: 'COMMITTEE', amount_mode: 'TOTAL', round: '12', term_years: '4', agenda_no: ' 제 1호 ', intro: '가\n나', effect: '' }),
     { amount_mode: 'TOTAL', round: 12, term_years: 4, agenda_no: '제 1호', intro: '가\n나' }, '남아 있던 meeting 값이 들어와도 싣지 않는다');
   assert.strictEqual(pt.scriptBody({ round: 'x1' }).round, 'x1', '숫자 모양이 아니면 그대로 보내 서버가 key로 알린다');
@@ -1075,7 +1120,8 @@ test('F7 완료 조건 줄: 23단계 모두 제목 바로 아래, 완료 전·�
   assert.strictEqual(txt('SUBMIT_DOCS'), T.manual + ' 아래 준비 과제는 완료 표시에 영향이 없습니다.');
   assert.strictEqual(txt('SUBMIT_APPR'), '담당 영업이 아래 2칸을 모두 \'완료\'나 \'대상 아님\'으로 고르면 완료로 표시됩니다. 고르는 즉시 저장되고 제안 준비 현황 표에도 보입니다.');
   assert.ok(txt('CONTRACT_APPR').indexOf('아래 4칸을') > 0, '칸 수는 subs 개수');
-  ['FIN_COMMITTEE', 'BIZ_COMMITTEE', 'PRESENT_DOC', 'PT', 'RESULT', 'PRIORITY_NEGO', 'AGREE_LEGAL', 'ATM', 'KB_CARD', 'IT_BUILD', 'VIP', 'RATE_APPROVAL', 'CEREMONY'].forEach(function (id) {
+  assert.strictEqual(txt('RESULT'), '담당 영업이 아래에서 \'선정\'이나 \'탈락\'을 고르면 완료로 표시됩니다(해당 없으면 \'대상 아님\'). 고르는 즉시 저장되고 제안 준비 현황 표에도 보입니다.');
+  ['FIN_COMMITTEE', 'BIZ_COMMITTEE', 'PRESENT_DOC', 'PROPOSAL_SUBMIT', 'PT', 'PRIORITY_NEGO', 'AGREE_LEGAL', 'ATM', 'KB_CARD', 'IT_BUILD', 'VIP', 'RATE_APPROVAL', 'CEREMONY'].forEach(function (id) {
     assert.strictEqual(txt(id), T.manual, id);
   });
   // 옛 안내 키·호출은 없다, 함께 다듬은 문구

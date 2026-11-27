@@ -26,6 +26,9 @@ public class BidPrep {
     private String bidSubjectCodeName;
     /** 공고명(BID_CASES.TITLE, 조회 전용) — 목록·selectBidSubject 에서만 채운다. 없으면 null. */
     private String bidTitle;
+    /** 건의 금고 순위(065 BID_CASES.BID_RANK_CD, 조회 전용) — 목록에서만 채운다. NULL = 미정·해당 없음. 이름은 TARGET_AIM_RANK 코드표(없으면 null). */
+    private String bidRankCd;
+    private String bidRankName;
 
     public String getBidCaseId() { return bidCaseId; }
     public void setBidCaseId(String v) { this.bidCaseId = v; }
@@ -67,4 +70,8 @@ public class BidPrep {
     public void setBidSubjectCodeName(String v) { this.bidSubjectCodeName = v; }
     public String getBidTitle() { return bidTitle; }
     public void setBidTitle(String v) { this.bidTitle = v; }
+    public String getBidRankCd() { return bidRankCd; }
+    public void setBidRankCd(String v) { this.bidRankCd = v; }
+    public String getBidRankName() { return bidRankName; }
+    public void setBidRankName(String v) { this.bidRankName = v; }
 }

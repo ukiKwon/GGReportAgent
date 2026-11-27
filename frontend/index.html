@@ -1593,6 +1593,8 @@
   .pb-g { width:14px; height:14px; flex:none; fill:none; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
   .pb-g.done { color:var(--blue); } .pb-g.prog { color:var(--orange); } .pb-g.na { color:var(--muted); }
   .pb-d { font:400 12px/14px var(--mono); color:var(--muted); }
+  .pb-tx { font-weight:700; font-size:12px; line-height:14px; white-space:nowrap; } .pb-tx.pb-won { color:var(--blue); } .pb-tx.pb-lost { color:var(--muted); }   /* 결과발표 선정·탈락은 글자로(색만으로 구분하지 않음) */
+  .pb-rc { font-weight:700; font-size:12px; line-height:14px; color:var(--orange); white-space:nowrap; letter-spacing:-.02em; }   /* 옛 완료·진행 값이 남은 결과발표 칸 */
   .pb-notice { display:inline-block; max-width:92px; overflow:hidden; text-overflow:ellipsis; vertical-align:middle; }
   .pb-nm { padding:0; font-size:13px; font-weight:700; line-height:18px; text-align:inherit; color:var(--accent-color); background:none; border:0; text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere; cursor:pointer; transform:none; box-shadow:none; }
   .pb-nm-t { font-size:13px; font-weight:700; line-height:18px; color:var(--fg); overflow-wrap:anywhere; }

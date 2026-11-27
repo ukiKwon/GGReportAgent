@@ -49,6 +49,7 @@
     step('PRESENT_DOC', '발표자료', 'manual', 'prep'),
     step('SUBMIT_DOCS', '제출서류', 'manual', 'prep', { tasks: ['T4'] }),
     step('SUBMIT_APPR', '제안서제출품의', 'group', 'prep', { subs: [sub('SUBMIT_MONITOR', '감시'), sub('SUBMIT_PROPERTY', '재산상이익')] }),
+    step('PROPOSAL_SUBMIT', '제안서 제출', 'manual', 'prep'),
     step('PT', 'PT', 'manual', 'prep'),
     step('RESULT', '결과발표', 'manual', 'agree'),
     step('PRIORITY_NEGO', '우선협상', 'manual', 'agree'),
@@ -110,6 +111,7 @@
       inst: '아래 두 준비 과제에서 모두 [완료로 표시]를 누르면 이 단계도 완료로 표시됩니다.',
       profit: '수익성 분석표를 올린 뒤 [확정본으로 지정]을 누르면 완료로 표시됩니다. 올리기만 해서는 완료되지 않습니다.',
       manual: '담당 영업이 아래에서 \'완료\'를 고르면 완료로 표시됩니다(해당 없으면 \'대상 아님\'). 고르는 즉시 저장되고 제안 준비 현황 표에도 보입니다.',
+      result: '담당 영업이 아래에서 \'선정\'이나 \'탈락\'을 고르면 완료로 표시됩니다(해당 없으면 \'대상 아님\'). 고르는 즉시 저장되고 제안 준비 현황 표에도 보입니다.',
       submitDocsTail: ' 아래 준비 과제는 완료 표시에 영향이 없습니다.',
       boardDoc: '이사회 자료가 확정되면 완료로 표시됩니다. 일정 등록·추가 자료·발표 대본은 완료 표시와 상관없습니다.',
       board: function (subs) {
@@ -351,11 +353,14 @@
     stWait: '승인 대기',
     stDone: '완료',
     stWriting: '작성 중',
+    resultRecheck: '선정·탈락을 다시 골라 주세요',
   };
   pt.T = T;
 
   // ── 칸 값 읽기 ───────────────────────────────────────────────────
-  const MARK_CODES = ['DONE', 'IN_PROGRESS', 'NA', 'NONE'];
+  const MARK_CODES = ['DONE', 'IN_PROGRESS', 'NA', 'NONE', 'WON', 'LOST'];
+  // 결과발표(RESULT) 칸은 완료·진행이 아니라 선정·탈락을 고른다(NEXT 125 S3a). 서버가 RESULT에 DONE을 보내면 400 BAD_MARK.
+  const RESULT_ORDER = ['WON', 'LOST', 'NA', 'NONE'];
   // → { mark, name, glyph, date(YYYY-MM-DD), by, notice, revNo }
   pt.cellState = function (row, cd, marks) {
     const c = row && row.cells && row.cells[cd] && typeof row.cells[cd] === 'object' ? row.cells[cd] : {};
@@ -452,7 +457,10 @@
     const out = { glyph: '', text: '', cnt: '', closed: false };
     function fromCell(cd) {
       const c = pt.cellState(row, cd, marks);
-      out.glyph = c.glyph; out.text = c.name; out.closed = c.mark === 'DONE' || c.mark === 'NA';
+      out.glyph = c.glyph; out.text = c.name;
+      // 결과발표: 옛 완료·진행 값은 '다시 고르기' 전이라 끝난 것으로 치지 않는다
+      out.closed = cd === 'RESULT' ? c.mark === 'WON' || c.mark === 'LOST' || c.mark === 'NA' : c.mark === 'DONE' || c.mark === 'NA';
+      if (cd === 'RESULT' && (c.mark === 'DONE' || c.mark === 'IN_PROGRESS')) out.text = c.name + ' — ' + T.resultRecheck;
       return c;
     }
     if (s.kind === 'start') {
@@ -593,8 +601,8 @@
   pt.marksHtml = function (cd, label, c, marks, o) {
     const x = o || {};
     if (!x.can) return stateSpan(c);
-    const order = (Array.isArray(marks) && marks.length ? marks.map(function (k) { return k.mark_cd; }) : pb.MARK_ORDER)
-      .filter(function (k) { return MARK_CODES.indexOf(k) >= 0; });
+    const order = (cd === 'RESULT' ? RESULT_ORDER : Array.isArray(marks) && marks.length ? marks.map(function (k) { return k.mark_cd; }) : pb.MARK_ORDER)
+      .filter(function (k) { return MARK_CODES.indexOf(k) >= 0 && (cd === 'RESULT' || (k !== 'WON' && k !== 'LOST')); });
     return '<div class="ts-marks" role="group" aria-label="' + esc(label + ' 상태') + '">' + order.map(function (k) {
       return '<button type="button" class="ts-mk" data-act="mark" data-col="' + esc(cd) + '" data-mk="' + k + '" aria-pressed="' + (k === c.mark ? 'true' : 'false') + '"' +
         (x.busy ? ' aria-disabled="true"' : '') + '>' + (pb.glyphSvg(pb.glyphKind(k)) || '<span class="pb-g"></span>') + '<span>' + esc(pb.markName(marks, k)) + '</span></button>';
@@ -811,7 +819,7 @@
     sf('speaker_title', 'bs-stitle', 'text', '직함', { max: 30, ph: '비우면 내 직위', help: '비우면 대본을 만드는 사람의 직위가 들어갑니다.' }),
     sf('term_years', 'bs-term', 'affix', '약정기간', { pre: '총', post: '년', max: 2, ph: '4', aria: '약정기간, 숫자(년)', help: '1~30 사이 숫자. 공고문의 약정기간을 적습니다. 약정 시작일은 협약 개시일에서 자동으로 들어갑니다.' }),
     sf('review_when', 'bs-when', 'text', '심의·평가 예상 시기', { max: 40, ph: '10월 중', help: '문장에 그대로 들어갑니다. \'10월 중\'처럼 끝까지 적으세요.' }),
-    sf('amount_mode', 'bs-amt', 'radio', '승인 금액 기준', { def: 'EXCL_IT', opts: [['EXCL_IT', '출연금+예비비'], ['TOTAL', '표 합계(전산 구축·운영비 포함)']], help: '이사회 자료 첫 표 \'재산상 이익제공 및 기부금(안)\'에서 어느 합을 쓸지 고릅니다.' }),
+    sf('amount_mode', 'bs-amt', 'radio', '승인 금액 기준', { def: 'TOTAL', opts: [['TOTAL', '표 합계(전산 구축·운영비 포함)'], ['EXCL_IT', '출연금+예비비']], help: '이사회 자료 첫 표 \'재산상 이익제공 및 기부금(안)\'에서 어느 합을 쓸지 고릅니다.' }),
     sf('accounting', 'bs-acct', 'text', '회계처리 방식', { max: 40, ph: '무형자산', help: '비우면 \'무형자산\'으로 들어갑니다.' }),
     sf('intro', 'bs-intro', 'area', '보고 전 사전 설명', { ph: '예: 신설 구로 행정구역이 바뀐 배경', help: '인사 뒤, 의안 소개 앞에 들어갑니다. 비우면 이 문단을 뺍니다.', ai: true }),
     sf('status_note', 'bs-status', 'area', '기관 현황 덧붙임', { ph: '예: 과거 우리 은행이 금고였던 이력', help: '임직원 수·예산·현 거래 은행 문장 뒤에 이어 붙습니다.' }),
@@ -1129,6 +1137,7 @@
       case 'BOARD_DOC': return C.boardDoc;
       case 'PROPOSAL': return C.proposal;
       case 'SUBMIT_DOCS': return C.manual + C.submitDocsTail;
+      case 'RESULT': return C.result;
       default: break;
     }
     if (s.kind === 'group' && s.result) return C.board(s.subs || []);

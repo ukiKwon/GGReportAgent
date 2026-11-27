@@ -25,6 +25,7 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -154,8 +155,11 @@ public class PrepBoardServiceTest {
     }
 
     @Test
-    public void U6_열은_엑셀_그대로_27칸이고_묶음_머리는_칸이_아니다() {
-        assertEquals(27, PrepBoardColumns.ALL.size());
+    public void U6_열은_엑셀_27칸에_제안서_제출을_더한_28칸이고_묶음_머리는_칸이_아니다() {
+        assertEquals(28, PrepBoardColumns.ALL.size());
+        assertNotNull(PrepBoardColumns.byCode("PROPOSAL_SUBMIT"));
+        assertTrue(PrepBoardColumns.byCode("PROPOSAL_SUBMIT").editable());
+        assertEquals("CK_PROPOSAL_SUBMIT", PrepBoardColumns.auditTask("PROPOSAL_SUBMIT"));   // 감사 TASK_CD(20자) 안
         assertNull(PrepBoardColumns.byCode("BOARD"));          // T5 칸 없음
         assertNull(PrepBoardColumns.byCode("SUBMIT_APPR"));    // 묶음 머리 — 칸 아님
         assertEquals(3, PrepBoardColumns.GROUPS.size());

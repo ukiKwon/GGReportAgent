@@ -10,6 +10,7 @@ import com.kbstar.kgi.ggreport.web.domain.BidPrep;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepAttach;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepLogView;
 import com.kbstar.kgi.ggreport.web.domain.BidPrepTask;
+import com.kbstar.kgi.ggreport.web.domain.PrepBoardCheck;
 import com.kbstar.kgi.ggreport.web.domain.SysUser;
 import com.kbstar.kgi.ggreport.web.dto.PrepIn;
 import com.kbstar.kgi.ggreport.web.mapper.ApprovalRequestMapper;
@@ -163,6 +164,12 @@ public class PrepService {
             throw new ApiException(403, "이 기능을 쓸 권한이 없습니다.");
         }
         List<Map<String, Object>> out = new ArrayList<>();
+        Map<String, Map<String, PrepBoardCheck>> stage = new HashMap<>();   // 띠 칸 판정 입력 — 목록 1회(NEXT 120 ①)
+        for (PrepBoardCheck k : mapper.selectStageMarks()) {
+            Map<String, PrepBoardCheck> b = stage.get(k.getBidCaseId());
+            if (b == null) { b = new HashMap<>(); stage.put(k.getBidCaseId(), b); }
+            b.put(k.getColCd(), k);
+        }
         for (BidPrep p : mapper.selectList()) {
             Eval ev = evaluate(p, mapper.selectTasks(p.getBidCaseId()));
             List<String> names = new ArrayList<>();
@@ -183,9 +190,40 @@ public class PrepService {
             m.put("can_view", canSee(me, p));   // false 면 상세가 404 — 화면이 행을 눌러도 열리지 않는 표시를 한다
             String due = p.getContractEnd();
             m.put("bid_expected_date", due == null || due.trim().isEmpty() ? null : due.trim());   // 기관의 입찰예상일(정렬용)
+            // NEXT 120 ①·125 S3a — 띠 칸·건 상태(이름 없음 — 목록 규칙 유지). 근거는 상태 + 4칸 체크뿐, 추정 없음.
+            Map<String, PrepBoardCheck> sc = stage.containsKey(p.getBidCaseId()) ? stage.get(p.getBidCaseId()) : Collections.<String, PrepBoardCheck>emptyMap();
+            Map<String, String> mk = new HashMap<>();
+            for (Map.Entry<String, PrepBoardCheck> e : sc.entrySet()) { mk.put(e.getKey(), e.getValue().getMarkCd()); }
+            m.put("opened_at", p.getOpenedAt());                                     // 시작 뒤 중단 판정(null = 시작 전)
+            String cd = PrepBoardService.kstDate(p.getConfirmedAt());
+            m.put("case_year", cd == null ? null : Integer.valueOf(cd.substring(0, 4)));   // 건 연도 = 확정 KST 연도(Q-20-24)
+            m.put("bid_rank_cd", p.getBidRankCd());                                  // 065 — 건의 금고 순위(null = 미정·해당 없음)
+            m.put("bid_rank_name", p.getBidRankName());
+            Map<String, Object> mv = new LinkedHashMap<>();
+            mv.put("submit", markView(sc.get("PROPOSAL_SUBMIT")));
+            mv.put("result", markView(sc.get("RESULT")));
+            mv.put("ceremony", markView(sc.get("CEREMONY")));
+            mv.put("agree_legal", markView(sc.get("AGREE_LEGAL")));
+            m.put("marks", mv);                                                      // 각 {mark_cd, marked_on} — 기록 없음은 NONE·null
+            String[] st5 = PrepStage5.of(p.getStateCd(), p.getOpenedAt(), mk);
+            m.put("stage5_cd", st5[0]);                                              // BEFORE|PREP|SUBMITTED|CONTRACT_PLANNED|CONTRACT_DONE|ENDED
+            m.put("end_kind", st5[1]);                                               // ENDED 일 때 DROP|STOP|UNCONFIRMED, 아니면 null
+            m.put("case_status", PrepStage5.status(p.getStateCd(), p.getOpenedAt(), mk));   // ACTIVE|DROPPED|CONTRACTED|STOPPED|UNCONFIRMED
+            String rc = PrepStage5.resultCd(mk.get("RESULT"));
+            m.put("result_cd", rc);                                                  // WON|LOST|UNDECIDED|null
+            m.put("result_recheck", PrepStage5.R_UNDECIDED.equals(rc));              // 옛 '완료' — 담당이 선정/탈락을 다시 고름
             out.add(m);
         }
         return out;
+    }
+
+    /** 띠 칸 입력 한 칸 → {mark_cd, marked_on}. 기록 없음은 NONE·null, 시작 전(NONE)은 날짜를 내지 않는다(현황판 칸과 같은 규칙). */
+    private static Map<String, Object> markView(PrepBoardCheck c) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        String mark = c == null ? "NONE" : c.getMarkCd();
+        m.put("mark_cd", mark);
+        m.put("marked_on", c == null || "NONE".equals(mark) ? null : c.getMarkDate());
+        return m;
     }
 
     /** 상세(6) — 담당자·영업부장(과 CONFIRMED·CANCELLED 의 확정자·영업팀장). 그 밖은 404(건이 없는 것과 같은 응답). 읽을 때 사실 판정을 다시 맞춘다. */

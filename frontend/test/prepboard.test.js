@@ -439,6 +439,96 @@ test('rowHtml 칩: 개설 전 → \'개설 전\'(내 담당 칩 대신), 끝난 
   assert.strictEqual((a.match(/class="[^"]*\bis-pre\b/g) || []).length, 23, '손 칸 23개에만 빗금');
 });
 
+// ── NEXT 125 S3a: 28칸(제안서 제출)·결과발표 선정·탈락(WON·LOST)·columns[].marks·result_recheck ──
+const COLUMNS28 = COLUMNS.slice(0, 13).concat([col('PROPOSAL_SUBMIT', '제안서 제출')]).concat(COLUMNS.slice(13)).map(function (c) {
+  return Object.assign({}, c, { marks: c.col_cd === 'RESULT' ? ['WON', 'LOST', 'NA', 'NONE'] : ['DONE', 'IN_PROGRESS', 'NA', 'NONE'] });
+});
+const RES_MARKS = [{ mark_cd: 'WON', symbol: null, name: '선정' }, { mark_cd: 'LOST', symbol: null, name: '탈락' },
+                   { mark_cd: 'NA', symbol: '-', name: '대상 아님' }, { mark_cd: 'NONE', symbol: '', name: '시작 전' }];
+const infos28 = pb.colInfos(COLUMNS28, GROUPS);
+function info28(cd) { return infos28.filter(function (i) { return i.cd === cd; })[0]; }
+function menuOrder(h) { return (h.match(/data-mk="([A-Z_]+)"/g) || []).map(function (s) { return s.replace(/data-mk="|"/g, ''); }); }
+
+test('S3a 값 이름: WON=선정·LOST=탈락, 글자는 symbol이 null이면 이름, 있으면 symbol, 그 밖 값은 글자 없음', function () {
+  assert.strictEqual(pb.markName(MARKS, 'WON'), '선정');
+  assert.strictEqual(pb.markName(MARKS, 'LOST'), '탈락');
+  const merged = pb.mergeResultMarks(MARKS, RES_MARKS);
+  assert.deepStrictEqual(merged.map(function (m) { return m.mark_cd; }), ['DONE', 'IN_PROGRESS', 'NA', 'NONE', 'WON', 'LOST'], 'NA·NONE은 겹치지 않는다');
+  assert.strictEqual(pb.mergeResultMarks(MARKS, undefined), MARKS, 'result_marks가 없으면(옛 서버) 그대로');
+  assert.strictEqual(pb.markText(merged, 'WON'), '선정');
+  assert.strictEqual(pb.markText(merged, 'LOST'), '탈락');
+  assert.strictEqual(pb.markText(merged.concat([{ mark_cd: 'WON', symbol: 'O' }]).slice(0, 5), 'WON'), '선정');
+  assert.strictEqual(pb.markText([{ mark_cd: 'WON', symbol: 'O', name: '선정' }], 'WON'), 'O');
+  assert.strictEqual(pb.markText(merged, 'DONE'), '');
+});
+
+test('S3a 28칸: colInfos가 columns[].marks를 싣고, 표의 칸 수·colgroup·aria-colcount가 칸 수를 따른다', function () {
+  assert.strictEqual(COLUMNS28.length, 28);
+  assert.deepStrictEqual(info28('RESULT').marks, ['WON', 'LOST', 'NA', 'NONE']);
+  assert.deepStrictEqual(info28('PT').marks, ['DONE', 'IN_PROGRESS', 'NA', 'NONE']);
+  assert.deepStrictEqual(infoOf('RESULT').marks, [], '옛 서버(marks 없음)는 빈 목록');
+  assert.deepStrictEqual(pb.colInfos([Object.assign(col('X', 'x'), { marks: ['WON', 'EVIL', 5] })], {})[0].marks, ['WON'], '모르는 값은 버린다');
+  const rows = [row({ bid_case_id: 'B1' }), row({ bid_case_id: 'B2', ended: true })];
+  const h = pb.tableHtml({ columns: COLUMNS28, groups: GROUPS, marks: pb.mergeResultMarks(MARKS, RES_MARKS), rows: rows, today: '2026-11-23', pending: {}, failed: {} });
+  assert.strictEqual((h.match(/<td /g) || []).length, 2 * 28);
+  assert.strictEqual((h.match(/<col /g) || []).length, 29);
+  assert.ok(h.indexOf('aria-colcount="29"') > 0 && h.indexOf('aria-rowcount="4"') > 0);
+  assert.ok(h.indexOf('data-col="PROPOSAL_SUBMIT"') > 0 && h.indexOf('>제안서 제출</th>') > 0, '새 칸은 머리와 몸통에 있다');
+  assert.ok(/<th [^>]*rowspan="2"[^>]*>제안서 제출<\/th>/.test(h), '묶음 없는 칸은 rowspan 2');
+});
+
+test('S3a 체크 메뉴: RESULT는 columns[].marks(선정·탈락·대상 아님·시작 전), 다른 칸은 기존 4개, marks가 없는 옛 서버는 기존 4개', function () {
+  const merged = pb.mergeResultMarks(MARKS, RES_MARKS);
+  const r = row();
+  const res = pb.menuHtml(r, info28('RESULT'), { mark_cd: 'NONE' }, merged);
+  assert.deepStrictEqual(menuOrder(res), ['WON', 'LOST', 'NA', 'NONE']);
+  assert.ok(res.indexOf('<span>선정</span>') > 0 && res.indexOf('<span>탈락</span>') > 0 && res.indexOf('시작 전(빈칸)') > 0);
+  assert.deepStrictEqual(menuOrder(pb.menuHtml(r, info28('PT'), { mark_cd: 'NONE' }, merged)), ['DONE', 'IN_PROGRESS', 'NA', 'NONE']);
+  assert.deepStrictEqual(menuOrder(pb.menuHtml(r, infoOf('RESULT'), { mark_cd: 'NONE' }, MARKS)), ['DONE', 'IN_PROGRESS', 'NA', 'NONE'], '옛 서버 RESULT');
+  assert.deepStrictEqual(menuOrder(pb.menuHtml(r, infoOf('RESULT'), { mark_cd: 'NONE' }, merged)), ['DONE', 'IN_PROGRESS', 'NA', 'NONE'], 'info.marks가 없으면 WON·LOST는 쓰지 않는다');
+  assert.deepStrictEqual(menuOrder(pb.menuHtml(r, infoOf('RESULT'), { mark_cd: 'NONE' }, undefined)), ['DONE', 'IN_PROGRESS', 'NA', 'NONE']);
+  assert.ok(pb.menuHtml(r, info28('RESULT'), { mark_cd: 'WON' }, merged).indexOf('aria-checked="true" tabindex="-1" data-mk="WON"') > 0, '현재 값 표시');
+});
+
+test('S3a 결과발표 칸: 선정·탈락은 글리프 대신 이름 글자(색만으로 구분하지 않음)', function () {
+  const merged = pb.mergeResultMarks(MARKS, RES_MARKS);
+  const won = pb.cellHtml({ info: info28('RESULT'), row: row(), cell: { mark_cd: 'WON', marked_on: '2026-11-22', by_name: '김영업' }, marks: merged, today: '2026-11-23', r: 0, c: 15 });
+  assert.ok(/<span class="pb-tx pb-won">선정<\/span>/.test(won) && won.indexOf('<svg') < 0 && won.indexOf('11-22') > 0);
+  assert.ok(won.indexOf('aria-label="청주시 결과발표: 선정, 2026-11-22 김영업 체크"') > 0);
+  const lost = pb.cellHtml({ info: info28('RESULT'), row: row({ can_check: false }), cell: { mark_cd: 'LOST' }, marks: merged, today: '', r: 0, c: 15 });
+  assert.ok(/<span class="pb-tx pb-lost">탈락<\/span>/.test(lost) && lost.indexOf('aria-readonly="true"') > 0);
+  assert.strictEqual(pb.cellModel(info28('RESULT'), row(), { mark_cd: 'WON' }, '').mark, 'WON', '모르는 값이 아니다');
+  assert.strictEqual(pb.cellModel(info28('RESULT'), row(), { mark_cd: 'WON' }, '').tint, '');
+  const evil = pb.cellHtml({ info: info28('RESULT'), row: row(), cell: { mark_cd: 'WON' }, marks: [{ mark_cd: 'WON', symbol: '<img src=x onerror=1>', name: '선정' }], today: '', r: 0, c: 1 });
+  assert.ok(evil.indexOf('<img') < 0 && evil.indexOf('&lt;img') > 0);
+  assert.strictEqual(pb.infoParts(row(), info28('RESULT'), { mark_cd: 'LOST', marked_on: '2026-11-22' }, merged).parts[1].v, '탈락');
+});
+
+test('S3a result_recheck: 옛 완료·진행이 남은 결과발표 칸에만 \'다시 고르기\'(글자·title·aria·info), 다른 칸·다른 값·recheck=false는 없다', function () {
+  const merged = pb.mergeResultMarks(MARKS, RES_MARKS);
+  const rc = row({ result_recheck: true });
+  const m = pb.cellModel(info28('RESULT'), rc, { mark_cd: 'DONE', marked_on: '2026-11-10' }, '2026-11-23');
+  assert.strictEqual(m.recheck, true);
+  assert.strictEqual(m.tint, '', '완료처럼 색칠하지 않는다');
+  assert.strictEqual(m.glyph, 'prog');
+  const h = pb.cellHtml({ info: info28('RESULT'), row: rc, cell: { mark_cd: 'IN_PROGRESS', marked_on: '2026-11-10', by_name: '김영업' }, marks: merged, today: '2026-11-23', r: 0, c: 15 });
+  assert.ok(h.indexOf('<span class="pb-rc">재선택</span>') > 0);
+  assert.ok(h.indexOf('title="선정·탈락을 다시 골라야 함"') > 0);
+  assert.ok(h.indexOf('data-mk=') < 0 || h.indexOf('data-mk="IN_PROGRESS"') < 0, '칸 색(data-mk) 없음');
+  assert.ok(/aria-label="청주시 결과발표: 진행, [^"]*선정·탈락을 다시 골라야 함"/.test(h));
+  const ro = pb.cellHtml({ info: info28('RESULT'), row: row({ result_recheck: true, can_check: false }), cell: { mark_cd: 'DONE' }, marks: merged, today: '', r: 0, c: 15 });
+  assert.ok(ro.indexOf('>재선택<') > 0 && ro.indexOf('title="선정·탈락을 다시 골라야 함"') > 0 && ro.indexOf('<button') < 0, '읽기 전용 칸에도 알림');
+  assert.ok(pb.infoParts(rc, info28('RESULT'), { mark_cd: 'DONE' }, merged).parts.some(function (p) { return p.l === '안내' && p.v === '선정·탈락을 다시 골라야 함'; }));
+  // 없어야 하는 경우
+  assert.strictEqual(pb.cellModel(info28('RESULT'), row({ result_recheck: false }), { mark_cd: 'DONE' }, '').recheck, false);
+  assert.strictEqual(pb.cellModel(info28('RESULT'), row(), { mark_cd: 'DONE' }, '').recheck, false, '키가 없는 옛 서버');
+  assert.strictEqual(pb.cellModel(info28('RESULT'), rc, { mark_cd: 'WON' }, '').recheck, false, '이미 다시 골랐으면 없다');
+  assert.strictEqual(pb.cellModel(info28('RESULT'), rc, { mark_cd: 'NONE' }, '').recheck, false);
+  assert.strictEqual(pb.cellModel(info28('PT'), rc, { mark_cd: 'DONE' }, '').recheck, false, '다른 칸은 해당 없음');
+  assert.ok(pb.cellHtml({ info: info28('PT'), row: rc, cell: { mark_cd: 'DONE' }, marks: merged, today: '', r: 0, c: 1 }).indexOf('재선택') < 0);
+  assert.ok(pb.cellAria(row(), info28('RESULT'), { mark_cd: 'DONE' }, merged, '').indexOf('다시 골라야') < 0);
+});
+
 test('readOnlyAll·preOnly·roText: 개설 전·끝난 줄은 세지 않는다', function () {
   const pre = function (o) { return row(Object.assign({ state_cd: 'OPEN_PENDING', can_check: false }, o || {})); };
   const open = function (o) { return row(Object.assign({ can_check: false }, o || {})); };

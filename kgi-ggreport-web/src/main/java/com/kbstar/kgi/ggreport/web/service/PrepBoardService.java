@@ -78,6 +78,11 @@ public class PrepBoardService {
     static final String NONE = "NONE", IN_PROGRESS = "IN_PROGRESS", DONE = "DONE", NA = "NA";
     static final String MARK_GROUP = "DASH_MARK";          // 054 코드표
     private static final List<String> MARKS = Collections.unmodifiableList(Arrays.asList(DONE, IN_PROGRESS, NA, NONE));
+    static final String WON = "WON", LOST = "LOST";
+    /** 띠 칸·건 상태 판정에 쓰는 칸(PrepStage5 입력, PrepMapper.selectStageMarks 와 같은 목록). */
+    static final List<String> STAGE_COLS = Collections.unmodifiableList(Arrays.asList("PROPOSAL_SUBMIT", "RESULT", "CEREMONY", "AGREE_LEGAL"));
+    /** 결과발표 칸만 받는 값(067 DASH_MARK 선정·탈락) — 옛 DONE·IN_PROGRESS 는 새로 저장하지 못하고 읽기에서만 그대로 나온다. */
+    static final List<String> RESULT_MARKS = Collections.unmodifiableList(Arrays.asList(WON, LOST, NA, NONE));
     private static final Map<String, String> SYMBOLS;
     private static final Map<String, String> DEFAULT_NAMES;
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -87,7 +92,7 @@ public class PrepBoardService {
         s.put(DONE, "V"); s.put(IN_PROGRESS, "△"); s.put(NA, "-"); s.put(NONE, "");
         SYMBOLS = Collections.unmodifiableMap(s);
         Map<String, String> n = new LinkedHashMap<String, String>();
-        n.put(DONE, "완료"); n.put(IN_PROGRESS, "진행"); n.put(NA, "대상 아님"); n.put(NONE, "시작 전");
+        n.put(DONE, "완료"); n.put(IN_PROGRESS, "진행"); n.put(NA, "대상 아님"); n.put(NONE, "시작 전"); n.put(WON, "선정"); n.put(LOST, "탈락");
         DEFAULT_NAMES = Collections.unmodifiableMap(n);
     }
 
@@ -328,12 +333,19 @@ public class PrepBoardService {
                 }
             }
             m.put("cells", cells);
+            Map<String, String> mk = new HashMap<String, String>();   // 띠 판정 입력 — 현재 체크 값(칸 → 값)
+            for (String sc : STAGE_COLS) { if (ck.containsKey(sc)) { mk.put(sc, ck.get(sc).getMarkCd()); } }
+            m.put("case_status", PrepStage5.status(p.getStateCd(), p.getOpenedAt(), mk));   // ACTIVE|DROPPED|CONTRACTED|STOPPED|UNCONFIRMED
+            String rc = PrepStage5.resultCd(mk.get("RESULT"));
+            m.put("result_cd", rc);                                                       // WON|LOST|UNDECIDED|null
+            m.put("result_recheck", PrepStage5.R_UNDECIDED.equals(rc));                   // 옛 '완료' — 담당이 선정/탈락을 다시 고름
             rows.add(m);
         }
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("columns", columns());
         out.put("groups", PrepBoardColumns.GROUPS);
         out.put("marks", marks());
+        out.put("result_marks", resultMarks());
         out.put("today", today);
         out.put("scope", scope);
         out.put("scope_default", defaultScope(me));
@@ -468,8 +480,10 @@ public class PrepBoardService {
         if (confirmOnly && !DONE.equals(mark) && !NONE.equals(mark)) {
             throw coded(400, "BAD_MARK", "공고 확인 칸은 확인(완료)과 확인 취소만 적을 수 있습니다.");
         }
-        if (!MARKS.contains(mark)) {
-            throw coded(400, "BAD_MARK", "표시는 완료·진행·대상 아님·시작 전 중 하나여야 합니다.");
+        boolean resultCol = "RESULT".equals(col.cd);
+        if (!(resultCol ? RESULT_MARKS : MARKS).contains(mark)) {   // 결과발표 칸만 선정·탈락(067), 나머지 칸은 선정·탈락 불가
+            throw coded(400, "BAD_MARK", resultCol ? "결과발표 칸은 선정·탈락·대상 아님·시작 전 중 하나여야 합니다."
+                    : "표시는 완료·진행·대상 아님·시작 전 중 하나여야 합니다.");
         }
         Integer base = in.getBaseRev();
         if (base == null || base.intValue() < 0) {
@@ -546,12 +560,27 @@ public class PrepBoardService {
         return out;
     }
 
+    /** 결과발표 칸 메뉴(067) — 선정·탈락·대상 아님·시작 전. 기존 marks 4개는 그대로 둔다(옛 화면·시험). 선정·탈락은 아이콘 기호가 없다(symbol null — 화면이 글자로). */
+    private List<Map<String, Object>> resultMarks() {
+        Map<String, String> names = codeNames(MARK_GROUP);
+        List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
+        for (String k : RESULT_MARKS) {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("mark_cd", k);
+            m.put("symbol", SYMBOLS.get(k));
+            m.put("name", names.containsKey(k) ? names.get(k) : DEFAULT_NAMES.get(k));
+            out.add(m);
+        }
+        return out;
+    }
+
     private static List<Map<String, Object>> columns() {
         List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
         for (PrepBoardColumns.Col c : PrepBoardColumns.ALL) {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
             m.put("col_cd", c.cd); m.put("label", c.label); m.put("group", c.group);
             m.put("kind", c.kind); m.put("editable", c.editable());
+            m.put("marks", "RESULT".equals(c.cd) ? RESULT_MARKS : MARKS);   // 칸이 받는 값(결과발표만 선정·탈락)
             out.add(m);
         }
         return out;
